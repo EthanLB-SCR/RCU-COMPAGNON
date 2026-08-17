@@ -45,7 +45,16 @@
     <button class="btn" id="mSelect">☝ Sélection</button>
     <button class="btn" id="mAdd">＋ Té / vanne / réduction / lyre / drapeau</button>
     <span class="sep"></span>
-    <label class="btn">🗺 Fond de plan (DXF)<input type="file" id="bgFile" accept=".dxf" style="display:none"></label>
+    <span class="muted" style="font-size:11.5px">fond :</span>
+    <label class="btn" title="image du plan (PNG/JPG, capture d'écran, scan) — puis « Échelle » : deux points et la distance réelle">🖼 Image<input type="file" id="bgImg" accept="image/*" style="display:none"></label>
+    <label class="btn" title="dessin vectoriel (DXF)">📐 DXF<input type="file" id="bgFile" accept=".dxf" style="display:none"></label>
+    <span id="bgTools" style="display:none;align-items:center;gap:6px">
+      <button class="btn sm" id="bgScale" title="clique deux points du plan dont tu connais la distance, puis entre-la">📏 Échelle</button>
+      <button class="btn sm" id="bgMove" title="glisse l'image pour la déplacer">✥ Déplacer</button>
+      <label class="muted" style="font-size:11.5px">opacité <input type="range" id="bgOp" min="10" max="100" value="50" style="width:70px;vertical-align:middle"></label>
+      <label class="muted" style="font-size:11.5px"><input type="checkbox" id="bgShow" checked> afficher</label>
+      <button class="btn sm" id="bgClear" title="retirer le fond">✕</button>
+    </span>
     <button class="btn" id="bClear">Tout effacer</button>
     <span class="sep"></span>
     <button class="btn on" id="bSave" title="remet le réseau à l'appli TRACÉ (chantier, soudures numérotées) et l'envoie au serveur si tu es connecté">💾 Enregistrer dans TRACÉ</button>

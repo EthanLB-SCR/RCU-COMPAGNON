@@ -18,9 +18,9 @@ export function siteFromTraceur({id,name,supplier,serie,lines,built,rules,bg,pre
   let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;outLines.forEach(L=>L.axis.forEach(p=>{x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);}));if(bg&&bg.bbox){x0=Math.min(x0,bg.bbox[0]);y0=Math.min(y0,bg.bbox[1]);x1=Math.max(x1,bg.bbox[2]);y1=Math.max(y1,bg.bbox[3]);}if(x0>x1){x0=0;y0=0;x1=100;y1=100;}
   const nW=outLines.reduce((s,L)=>s+L.cond.A.welds.length+L.cond.R.welds.length,0);const totL=outLines.reduce((s,L)=>s+L.cond.A.length,0);
   const site={id,name,supplier,serie,source:'traceur',method:'Réseau tracé à la main dans le traceur (sommets → pièces catalogue selon les règles)',crs:bg&&bg.name?('repère du plan '+bg.name):'repère libre (m)',
-    sheetType:bg&&bg.drawing?'vector':'plain',drawing:bg&&bg.drawing?bg.drawing:null,w:Math.ceil(x1+20),h:Math.ceil(y1+20),bbox:[x0,y0,x1,y1],
+    sheetType:bg&&bg.drawing?'vector':'plain',drawing:bg&&bg.drawing?bg.drawing:null,image:bg&&bg.image&&bg.image.src?{src:bg.image.src,x:r3(bg.image.x),y:r3(bg.image.y),w:r3(bg.image.w),h:r3(bg.image.h),pw:bg.image.pw,ph:bg.image.ph,opacity:bg.opacity===undefined?.5:bg.opacity,name:bg.name||''}:null,w:Math.ceil(x1+20),h:Math.ceil(y1+20),bbox:[x0,y0,x1,y1],
     lines:outLines,warnings:[],report:{source:'traceur',lines:outLines.length,welds:nW,length:r3(totL),lost:lost.map(w=>w.weldId)},
-    traceur:{v:1,lines:JSON.parse(JSON.stringify(lines)),rules,bgName:bg?bg.name:null,savedAt:new Date().toISOString()},created:new Date().toISOString()};
+    traceur:{v:1,lines:JSON.parse(JSON.stringify(lines)),rules,bgName:bg?bg.name:null,bgOpacity:bg?bg.opacity:undefined,savedAt:new Date().toISOString()},created:new Date().toISOString()};
   return {site,lost,nW};
 }
 // soudures d'un chantier existant (pour l'appariement) : [{line,cond,m,weldId,status}]
