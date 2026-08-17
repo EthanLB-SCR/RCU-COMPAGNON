@@ -1,0 +1,14 @@
+import fs from 'node:fs';
+import {parseDXFFile, analyze, buildSite, buildSiteJBTP} from '../src/dxfimport.js';
+const f=process.argv[2];
+const dxf=await parseDXFFile(await fs.openAsBlob(f));
+const an=analyze(dxf);
+const opts={id:'t',name:'test',supplier:an.supplierGuess||'AXIOM',serie:2,fileName:f,defaultDn:an.dnSet[0]||50,closeGaps:true};
+const t0=Date.now();
+const site=an.profile==='jbtp'?buildSiteJBTP(dxf,an,opts):buildSite(dxf,an,an.roles,opts);
+console.log(f,'| profil',an.profile,'| buildSite',(Date.now()-t0),'ms | w×h',site.w,'×',site.h);
+console.log(' report:',JSON.stringify(site.report));
+console.log(' warnings:',site.warnings);
+const L=site.lines.slice().sort((a,b)=>b.length-a.length);
+console.log(' lignes:',L.length,'| total',Math.round(L.reduce((s,l)=>s+l.length,0)),'m');
+L.slice(0,12).forEach(l=>console.log('  ',l.id,l.name,'|',l.length,'m | parent',l.parent,'| DN',l.dnNum,'|',l.dnFrom&&l.dnFrom.slice(0,120),'| specials',(l.specials||[]).map(s=>s.type+(s.implied?'*':'')+'@'+s.m.toFixed(0)).join(' ')||(l.els?l.els.length+' els':'')));

@@ -1,0 +1,13 @@
+import fs from 'node:fs';
+import {parseDXFFile, analyze} from '../src/dxfimport.js';
+const f=process.argv[2];
+const blob=await fs.openAsBlob(f);
+const t0=Date.now();let lastPct=-1;
+const dxf=await parseDXFFile(blob,p=>{const pc=Math.floor(p*10);if(pc!==lastPct){lastPct=pc;process.stdout.write(pc*10+'% ');}});
+const dt=(Date.now()-t0)/1000;
+const mem=process.memoryUsage();
+console.log(`\n${f}: ${dt.toFixed(1)} s | ents ${dxf.ents.length} | blocs ${Object.keys(dxf.blocks).length} (${Object.values(dxf.blocks).reduce((s,b)=>s+b.length,0)} entités) | calques ${Object.keys(dxf.layersCount).length} (table ${dxf.layerTable.length}) | INSUNITS ${dxf.units} | heap ${(mem.heapUsed/1e6).toFixed(0)} Mo`);
+const types={};dxf.ents.forEach(e=>types[e.type]=(types[e.type]||0)+1);console.log(' types gardés:',types);
+const an=analyze(dxf);
+console.log(' analyze: layers',an.layers.length,'| dnTexts',an.dnTexts.length,'| dnSet',an.dnSet.join(','),'| supplierGuess',an.supplierGuess,'| roles',JSON.stringify(an.roles).slice(0,600));
+console.log(' blocs nommés top10:',an.namedBlocks.slice(0,10));

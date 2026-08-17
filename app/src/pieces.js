@@ -81,7 +81,7 @@ function recognize(els){els=normEls(els);
     else if(e.kind==='pipe'){const std=isStd(e.len);const kk=kinkOf(ax.map(q=>[q[0],q[1]]));out.push({...base,id:'P'+(++n.tube),kind:'tube',L:+e.len.toFixed(2),cut:!std,rigid:std,ref:'R-'+dn+'/'+DB.casing[dn]+(std?' · barre 12 m':' · barre coupée')});
       if(std&&kk>2)notes.push({kind:'warn',txt:`${out[out.length-1].id} : le plan dessine un angle de ${fmt(kk)}° au milieu d'une barre entière de ${fmt(e.len)} m → impossible pour une barre : 2 barres ou déviation au manchon ? (gardée entière, rectiligne)`});}
     else if(e.kind==='tee'){const t=DB.tee(dn);let side=e.side;if(side===undefined&&e.axis[1]){const b=e.axis[1];const bd=dirOf(b[0],b[b.length-1]);side=norm(bd-dir)>=0?1:-1;}out.push({...base,id:'T'+(++n.tee),kind:'tee',L:t.L,B:t.B,side:side||1,stubLen:e.stubLen,branchTo:e.branchTo,other:e.other,rigid:true,head:dir,ref:t.ref+(e.branchTo?' · té vers '+e.other.id:e.interp?' · té interprété (piquage)':' · té du plan'+(e.code?' ('+e.code+')':''))});}
-    else if(e.kind==='reducer'){out.push({...base,id:'R'+(++n.x),kind:'reducer',L:DB.reducer,rigid:true,head:dir,ref:'réduction'+(e.code?' ('+e.code+')':'')});}
+    else if(e.kind==='reducer'){const d2=e.dn2||(nextE&&nextE.dn)||dn;out.push({...base,id:'R'+(++n.x),kind:'reducer',L:DB.reducer,dn2:d2,rigid:true,head:dir,ref:'réduction DN'+dn+'/'+d2+(e.code?' ('+e.code+')':'')});}
     else if(e.kind==='valve'){out.push({...base,id:'V'+(++n.x),kind:'valve',L:DB.valve,rigid:true,head:dir,ref:'vanne'+(e.code?' ('+e.code+')':'')});}
     else if(e.kind==='endcap'){out.push({...base,id:'B'+(++n.x),kind:'endcap',L:DB.endcap,rigid:true,head:dir,ref:'bouchon de fin'+(e.code?' ('+e.code+')':'')});}
     else if(e.kind==='steelbend'){const ang=Math.abs(e.angle||15);out.push({...base,id:'K'+(++n.bend),kind:'bend',angle:ang,custom:false,turn:turnSign(e),legs:.5,R:.3,rigid:true,head:e.head,steel:true,ref:'courbe acier 5252 · '+ang+'° (manchon coudé SXB)'});}
@@ -95,7 +95,7 @@ function recognize(els){els=normEls(els);
     else{out.push({...base,id:'U'+(++n.x),kind:'connector',L:+e.len.toFixed(2),cut:true,rigid:false,unknown:true,ref:'élément '+e.kind+' non reconnu'});notes.push({kind:'unknown',txt:`${e.id} : élément ${e.kind} non reconnu`});}
   });
   // 5) changements de DN sans réduction dessinée
-  for(let i=0;i<out.length-1;i++){if(out[i].dn!==out[i+1].dn){out[i].dnNext=out[i+1].dn;const lo=Math.min(out[i].dn,out[i+1].dn),hi=Math.max(out[i].dn,out[i+1].dn);notes.push({kind:'missing',txt:`entre ${out[i].id} et ${out[i+1].id} : passage DN${out[i].dn} → DN${out[i+1].dn} sans réduction sur le plan → réduction R-${lo}/${hi} à prévoir (non ajoutée au dessin, signalée)`});}}
+  for(let i=0;i<out.length-1;i++){const dOut=out[i].kind==='reducer'?(out[i].dn2||out[i].dn):out[i].dn;const dIn=out[i+1].dn;if(dOut!==dIn){out[i].dnNext=dIn;const lo=Math.min(dOut,dIn),hi=Math.max(dOut,dIn);notes.push({kind:'missing',txt:`entre ${out[i].id} et ${out[i+1].id} : passage DN${dOut} → DN${dIn} sans réduction sur le plan → réduction R-${lo}/${hi} à prévoir (non ajoutée au dessin, signalée)`});}}
   return {chain:out,notes};}
 function turnSign(e){const pl=e.axis[0];if(pl.length<3)return 1;const a=pl[0],v=pl[1],b=pl[pl.length-1];const cr=(v[0]-a[0])*(b[1]-v[1])-(v[1]-a[1])*(b[0]-v[0]);return cr>=0?1:-1;}
 /* ================= solveur : pièces rigides ancrées au plan (ou déplacées), barres coupées = longueurs libres qui gardent la forme du plan ================= */

@@ -4,3 +4,7 @@ app/dist/
 *.log
 .DS_Store
 Thumbs.db
+# plans sources (DWG/DXF lourds) : restent sur le poste, jamais poussés sur GitHub
+plans/
+app/test/node_modules/
+app/test/*.png

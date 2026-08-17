@@ -1,42 +1,77 @@
 // Lecture DXF (ASCII) dans le navigateur : entités du modèle + inventaire + proposition de rôles par calque + construction d'un chantier brut.
-export function parseDXF(text){
-  const lines=text.split(/\r?\n/);const ents=[];const blocks={};let section=null;let cur=null;let blk=null;let i=0;const n=lines.length;
-  const push=e=>{const arr=blk?blk.ents:ents;if(e.type==='LWPOLYLINE'||e.type==='POLYLINE'){if(e.pts.length>=2)arr.push(e);}else if(e.type==='LINE'){if(e.p1&&e.p2){e.pts=[e.p1,e.p2];arr.push(e);}}else if(e.type==='ARC'||e.type==='CIRCLE'){arr.push(e);}else if(e.type!=='VERTEX'&&e.type!=='SEQEND'&&e.type!=='ATTRIB'&&e.type!=='ATTDEF'){arr.push(e);}};
-  const flush=()=>{if(cur){push(cur);}cur=null;};
-  while(i<n-1){const code=parseInt(lines[i].trim(),10);const val=lines[i+1];i+=2;if(isNaN(code))continue;const v=val.trim();
-    if(code===0){
-      if(v==='SECTION'){flush();section='?';continue;}
-      if(v==='ENDSEC'){flush();section=null;blk=null;continue;}
-      if(section==='BLOCKS'){if(v==='BLOCK'){flush();blk={name:'',ents:[]};cur=null;continue;}if(v==='ENDBLK'){flush();if(blk&&blk.name)blocks[blk.name]=blk.ents;blk=null;continue;}}
-      if(section==='ENTITIES'||(section==='BLOCKS'&&blk)){flush();cur={type:v,layer:'0',pts:[]};}
-      continue;}
-    if(section==='?'&&code===2){section=v;continue;}
-    if(section==='BLOCKS'&&blk&&!cur&&code===2){blk.name=v;continue;}
-    if(!cur)continue;
+// ---------- lecture DXF ASCII : un seul automate (paires code/valeur), alimenté soit par une chaîne, soit par un fichier lu en flux ----------
+// Types gardés (géométrie + texte). Le reste (3DFACE, POINT, HATCH, IMAGE, SOLID…) est compté dans layersCount mais pas conservé : sur un plan de BE (topo, MNT, cadastre) c'est 90 % du fichier.
+const KEEP=new Set(['LWPOLYLINE','POLYLINE','LINE','ARC','CIRCLE','INSERT','TEXT','MTEXT','DIMENSION','ATTDEF']);
+const BLOCK_CAP=20000; // au-delà, c'est un fond de plan externe (xref lié) : tronqué et signalé, jamais une pièce
+export function createDXFParser(){
+  const ents=[];const blocks={};const layersCount={};const layerTable=[];const header={};const truncated=[];let hdrVar=null;
+  let section=null,cur=null,blk=null,openPoly=null,openInsert=null,inTable=null;
+  const count=(e)=>{if(blk)return;const L=layersCount[e.layer]||(layersCount[e.layer]={});L[e.type]=(L[e.type]||0)+1;};
+  const emit=e=>{if(blk){if(blk.ents.length>=BLOCK_CAP){if(!blk.trunc){blk.trunc=true;truncated.push(blk.name);}return;}blk.ents.push(e);}else ents.push(e);};
+  const finish=()=>{if(!cur)return;const e=cur;cur=null;
+    if(e.type==='VERTEX'){if(openPoly&&isFinite(e.x)&&!((e.flags||0)&(16|64|128)))openPoly.pts.push([e.x,e.y]);return;} // 16 = point de contrôle spline, 64/128 = maillages : ignorés
+    if(e.type==='SEQEND'){if(openPoly){if(openPoly.pts.length>=2)emit(openPoly);openPoly=null;}openInsert=null;return;}
+    if(e.type==='ATTRIB'){if(openInsert){(openInsert.attribs=openInsert.attribs||[]).push({tag:e.tag||'',text:e.text||''});}return;}
+    count(e);if(!KEEP.has(e.type))return;
+    if(e.type==='POLYLINE'){if(e.flags&(16|64))return;e.pts=[];openPoly=e;return;} // 3D mesh / polyface : ignorés ; le POLYLINE est émis au SEQEND
+    if(e.type==='LWPOLYLINE'){if(e.pts.length>=2)emit(e);return;}
+    if(e.type==='LINE'){if(e.p1&&e.p2){e.pts=[e.p1,e.p2];emit(e);}return;}
+    if(e.type==='INSERT'){emit(e);if(e.attFollow)openInsert=e;return;}
+    if(e.type==='ARC'||e.type==='CIRCLE'){if(isFinite(e.x)&&e.r>0)emit(e);return;}
+    emit(e);};
+  const feed=(code,v)=>{
+    if(code===0){const t=v.trim();
+      if(t==='SECTION'){finish();section='?';return;}
+      if(t==='ENDSEC'){finish();if(openPoly){if(openPoly.pts.length>=2)emit(openPoly);openPoly=null;}section=null;blk=null;inTable=null;return;}
+      if(t==='EOF'){finish();return;}
+      if(section==='BLOCKS'){if(t==='BLOCK'){finish();blk={name:'',ents:[]};cur=null;return;}if(t==='ENDBLK'){finish();if(openPoly){if(openPoly.pts.length>=2)emit(openPoly);openPoly=null;}if(blk&&blk.name)blocks[blk.name]=blk.ents;blk=null;return;}}
+      if(section==='TABLES'){if(t==='TABLE'){inTable='?';return;}if(t==='ENDTAB'){inTable=null;return;}if(t==='LAYER'&&inTable==='LAYER'){cur={type:'LAYERDEF'};return;}cur=null;return;}
+      if(section==='ENTITIES'||(section==='BLOCKS'&&blk)){finish();cur={type:t,layer:'0',pts:[]};return;}
+      cur=null;return;}
+    if(section==='?'&&code===2){section=v.trim();return;}
+    if(section==='HEADER'){if(code===9){hdrVar=v.trim();return;}if(hdrVar){if(code===70||code===10||code===20||code===40){const k=hdrVar+(code===20?'_y':'');header[k]=parseFloat(v);}else if(code===1||code===2||code===3)header[hdrVar]=v.trim();}return;}
+    if(section==='TABLES'){if(inTable==='?'&&code===2){inTable=v.trim();return;}if(cur&&cur.type==='LAYERDEF'&&code===2){layerTable.push(v);cur=null;}return;}
+    if(section==='BLOCKS'&&blk&&!cur&&code===2){blk.name=v.trim();return;}
+    if(!cur)return;
     switch(code){
       case 8: cur.layer=v;break;
-      case 2: cur.name=v;break;
-      case 10: if(cur.type==='LWPOLYLINE'||cur.type==='POLYLINE'||cur.type==='VERTEX'){cur.pts.push([parseFloat(v),0]);}else if(cur.type==='LINE'){cur.p1=[parseFloat(v),0];}else{cur.x=parseFloat(v);}break;
-      case 20: if(cur.type==='LWPOLYLINE'||cur.type==='POLYLINE'||cur.type==='VERTEX'){const p=cur.pts[cur.pts.length-1];if(p)p[1]=parseFloat(v);}else if(cur.type==='LINE'){if(cur.p1)cur.p1[1]=parseFloat(v);}else{cur.y=parseFloat(v);}break;
-      case 11: if(cur.type==='LINE')cur.p2=[parseFloat(v),0];break;
-      case 21: if(cur.type==='LINE'&&cur.p2)cur.p2[1]=parseFloat(v);break;
+      case 2: if(cur.type==='ATTRIB'||cur.type==='ATTDEF')cur.tag=v.trim();else cur.name=v.trim();break;
+      case 10: if(cur.type==='LWPOLYLINE'){cur.pts.push([parseFloat(v),0]);}else if(cur.type==='LINE'){cur.p1=[parseFloat(v),0];}else{cur.x=parseFloat(v);}break;
+      case 20: if(cur.type==='LWPOLYLINE'){const p=cur.pts[cur.pts.length-1];if(p)p[1]=parseFloat(v);}else if(cur.type==='LINE'){if(cur.p1)cur.p1[1]=parseFloat(v);}else{cur.y=parseFloat(v);}break;
+      case 11: if(cur.type==='LINE')cur.p2=[parseFloat(v),0];else cur.x2=parseFloat(v);break;
+      case 21: if(cur.type==='LINE'){if(cur.p2)cur.p2[1]=parseFloat(v);}else cur.y2=parseFloat(v);break;
       case 1: cur.text=(cur.text||'')+v;break;
-      case 3: cur.text=(cur.text||'')+v;break;
-      case 40: cur.r=parseFloat(v);break;
+      case 3: if(cur.type==='MTEXT')cur.text=(cur.text||'')+v;else if(cur.type==='ATTDEF')cur.prompt=v;break;
+      case 40: cur.r=parseFloat(v);break; // rayon (ARC/CIRCLE) ou hauteur de texte
+      case 41: cur.sx=parseFloat(v);break;
       case 42: if(cur.type==='DIMENSION')cur.measure=parseFloat(v);else if(cur.type==='INSERT')cur.sy=parseFloat(v);break;
       case 50: cur.rot=parseFloat(v);break;
       case 51: cur.rot2=parseFloat(v);break;
-      case 41: cur.sx=parseFloat(v);break;
-      case 42.1: break;
+      case 66: if(cur.type==='INSERT'&&parseInt(v,10)===1)cur.attFollow=true;break;
       case 70: cur.flags=parseInt(v,10);break;
-    }}
-  flush();
-  // VERTEX d'une POLYLINE (ancienne) : rattacher au POLYLINE précédent
-  const fix=arr=>{const out=[];let pl=null;arr.forEach(e=>{if(e.type==='POLYLINE'){pl=e;pl.pts=[];out.push(e);}else if(e.type==='VERTEX'&&pl){if(isFinite(e.x))pl.pts.push([e.x,e.y]);}else out.push(e);});return out.filter(e=>!(e.type==='POLYLINE'&&e.pts.length<2));};
-  const ents2=fix(ents);Object.keys(blocks).forEach(k=>blocks[k]=fix(blocks[k]));
-  const layersCount={};ents2.forEach(e=>{layersCount[e.layer]=layersCount[e.layer]||{};layersCount[e.layer][e.type]=(layersCount[e.layer][e.type]||0)+1;});
-  return {ents:ents2,blocks,layersCount};
+    }};
+  const end=()=>{finish();if(openPoly){if(openPoly.pts.length>=2)emit(openPoly);openPoly=null;}
+    return {ents,blocks,layersCount,layerTable,header,units:header.$INSUNITS,truncated};};
+  return {feed,end};
 }
+// texte complet en mémoire (petits fichiers, tests)
+export function parseDXF(text){const P=createDXFParser();const lines=text.split(/\r?\n/);const n=lines.length;for(let i=0;i<n-1;i+=2){const code=parseInt(lines[i],10);if(isNaN(code))continue;P.feed(code,lines[i+1]);}return P.end();}
+// lecture en flux d'un File/Blob (jamais tout le texte en mémoire) : onProgress(0..1) — les DXF de BE font couramment 200 à 500 Mo
+export async function parseDXFFile(file,onProgress){
+  const P=createDXFParser();const size=file.size||0;let done=0;
+  const head=new Uint8Array(await file.slice(0,Math.min(size,1<<20)).arrayBuffer());let enc='utf-8';
+  try{new TextDecoder('utf-8',{fatal:true}).decode(head);}catch(e){enc='windows-1252';} // exports AutoCAD anciens (ANSI)
+  const dec=new TextDecoder(enc);const reader=file.stream().getReader();
+  let rest='';let pendingCode=null;let last=0;
+  const run=chunkText=>{let s=rest+chunkText;let i=0;const n=s.length;
+    while(true){const j=s.indexOf('\n',i);if(j<0)break;let line=s.slice(i,j);if(line.endsWith('\r'))line=line.slice(0,-1);i=j+1;
+      if(pendingCode===null){const c=parseInt(line,10);pendingCode=isNaN(c)?-9999:c;}else{if(pendingCode!==-9999)P.feed(pendingCode,line);pendingCode=null;}}
+    rest=s.slice(i);};
+  while(true){const {value,done:d}=await reader.read();if(d)break;done+=value.byteLength;run(dec.decode(value,{stream:true}));
+    if(onProgress&&size&&done-last>size/100){last=done;try{await onProgress(done/size);}catch(e){}}}
+  run(dec.decode()+'\n');if(rest.trim()&&pendingCode!==null&&pendingCode!==-9999)P.feed(pendingCode,rest);
+  if(onProgress)try{await onProgress(1);}catch(e){}
+  return P.end();}
 // développe les blocs insérés d'un calque : la géométrie interne (lignes/polylignes) ramenée dans le dessin
 export function expandInserts(dxf,layerSet,pick){const out=[];dxf.ents.forEach(e=>{if(e.type!=='INSERT'||!layerSet.has(e.layer)||!isFinite(e.x))return;const B=dxf.blocks[e.name];if(!B)return;const th=(e.rot||0)*Math.PI/180,sx=e.sx||1,sy=e.sy||1,c=Math.cos(th),s=Math.sin(th);const tf=p=>[e.x+(p[0]*sx*c-p[1]*sy*s),e.y+(p[0]*sx*s+p[1]*sy*c)];
   let cands=B.filter(b=>(b.type==='LWPOLYLINE'||b.type==='LINE'||b.type==='POLYLINE')&&b.pts.length>=2).map(b=>({...b,pts:b.pts.map(tf),layer:e.layer,fromBlock:e.name,ins:[e.x,e.y]}));
@@ -46,67 +81,143 @@ function plen(pts){let L=0;for(let i=1;i<pts.length;i++)L+=Math.hypot(pts[i][0]-
 const clean=t=>String(t||'').replace(/\\[A-Za-z][^;]*;/g,'').replace(/[{}]/g,'').replace(/%%[cC]/g,'Ø').replace(/%%[dD]/g,'°').replace(/\\P/g,' ').trim();
 export function analyze(dxf){
   const L=dxf.layersCount;const layers=Object.keys(L).sort();
-  const cnt=(lay,type)=>(L[lay]||{})[type]||0;const total=lay=>Object.values(L[lay]||{}).reduce((a,b)=>a+b,0);
-  const has=(lay,re)=>re.test(lay);
+  const cnt=(lay,type)=>(L[lay]||{})[type]||0;const total=lay=>Object.values(L[lay]||{}).reduce((a,b)=>a+b,0);const geo=lay=>cnt(lay,'LWPOLYLINE')+cnt(lay,'LINE')+cnt(lay,'POLYLINE')+cnt(lay,'INSERT');
   const roles={axesA:[],axesR:[],axes:[],bends:[],tees:[],reducers:[],sleeves:[],welds:[],dn:[],valves:[]};
-  layers.forEach(lay=>{const l=lay.toLowerCase();const isA=/aller/.test(l),isR=/retour/.test(l);
-    if(/canalisation|axe|réseau|reseau|conduite|tube|pipe|présentation|presentation/.test(l)&&(cnt(lay,'LWPOLYLINE')+cnt(lay,'LINE')+cnt(lay,'POLYLINE')+cnt(lay,'INSERT'))>0&&!/légende|legende|tranchee|tranchée|ep_|eu_|aep|gaz|bta|hta|ecl|tel|ice|unit/.test(l)){if(isA)roles.axesA.push(lay);else if(isR)roles.axesR.push(lay);else roles.axes.push(lay);}
+  // calques candidats « axe du réseau » : proposés cochés quand ils parlent de RCU / chaleur / canalisation projet, décochés pour l'existant et les autres réseaux
+  const OTHER=/l[ée]gende|tranch[ée]e|cartouche|\bep\b|ep_|ep |\beu\b|eu_|eu |aep|gaz|\bbt\b|bta|hta|\bht\b|ecl|t[ée]l[ée]com|\bft\b|fibre|unit|assain|egout|[ée]gout|eau|voirie|topo|mnt|cadastre|b[âa]ti|cl[ôo]ture|jardin|veget|mobilier|coupe|profil|phasage|xref|fond de plan|caniveau|fil d'eau|regard/i;
+  const NET=/rcu|chauff|chaleur|calep|logstor|renalia|axiom|inpal|canalisation|conduite|pr[ée]sentation|\bcu\b|cu_|cu |_ch_|pro_ch|axe/i;
+  const axisCandidates=[];
+  layers.forEach(lay=>{const l=lay.toLowerCase();const isA=/aller|all[ée]|_a_|\ba\b/.test(l)&&!/retour/.test(l),isR=/retour|_r_|\br\b/.test(l)&&!/aller/.test(l);
+    const g=geo(lay);if(!g)return;
+    const netScore=(NET.test(lay)?2:0)+(/projet|pro[_ -]/i.test(lay)?1:0)+(/r[ée]seau|reseau|tube|pipe|trac[ée]/i.test(lay)?1:0);
+    const bad=/exist|existant|abandon|supprim|dt |^dt_|d[ée]mol/i.test(lay)||(OTHER.test(lay)&&!/rcu|chauff|calep|logstor|renalia/i.test(lay));
+    const nPoly=cnt(lay,'LWPOLYLINE')+cnt(lay,'LINE')+cnt(lay,'POLYLINE');const notAxis=/texte|text|regard|[ée]quipement|commentaire|\bcot|rep[èe]re|indice|accessoire|_e$|_t$|prf|manchon|soudure|coude|(^|[^a-zà-ÿ])t[ée]s?([^a-zà-ÿ]|$)|vanne|l[ée]gende|tranch|pr[ée]lim|fil d'eau|xref|inda|hydro|coupe|gaz|t[ée]l[ée]com|protection|foncage|fon[çc]age/i.test(lay);
+    if(netScore>0&&!bad){axisCandidates.push({layer:lay,n:g,nPoly,role:isA?'A':isR?'R':'S',score:netScore,checked:(netScore>=2||/rcu|chauff/i.test(lay))&&nPoly>0&&!notAxis});}
+    else if(netScore>0){axisCandidates.push({layer:lay,n:g,nPoly,role:isA?'A':isR?'R':'S',score:netScore-2,checked:false});}
     if(/coude/.test(l))roles.bends.push(lay);
-    if(/\bté\b|_té|te_|\bte\b|tee/.test(l)&&!/texte/.test(l))roles.tees.push(lay);
+    if((/(^|[^a-zà-ÿ])t[ée]s?([^a-zà-ÿ]|$)/i.test(lay)||/tee/i.test(lay))&&!/texte|t[ée]l[ée]|rte/i.test(lay))roles.tees.push(lay);
     if(/réduction|reduction/.test(l))roles.reducers.push(lay);
     if(/manchon/.test(l))roles.sleeves.push(lay);
     if(/soudure/.test(l))roles.welds.push(lay);
-    if(/vanne/.test(l))roles.valves.push(lay);
+    if(/vanne|equipement|équipement|accessoire/.test(l))roles.valves.push(lay);
     if(/texte/.test(l)&&(cnt(lay,'TEXT')+cnt(lay,'MTEXT'))>0)roles.dn.push(lay);});
-  // étiquettes DN : textes « DN50 (60,3/125) »
-  const dnTexts=[];dxf.ents.forEach(e=>{if(e.type!=='TEXT'&&e.type!=='MTEXT')return;if(/l[ée]gende/i.test(e.layer))return;const t=clean(e.text);const m=t.match(/DN\s*(\d{2,4})(?:\s*\(\s*([\d.,]+)\s*\/\s*(\d{2,4})\s*\))?/i);if(m&&isFinite(e.x))dnTexts.push({x:e.x,y:e.y,dn:+m[1],dext:m[2]?parseFloat(m[2].replace(',','.')):null,casing:m[3]?+m[3]:null,layer:e.layer,t});});
+  // deux calques cochés qui dessinent le même tracé (ex. « Tracé projet » + « Réseau » détaillé) : on garde le plus détaillé, l'autre est décoché
+  const cellsOf=lay=>{const S=new Set();dxf.ents.forEach(e=>{if(e.layer!==lay||!e.pts||e.pts.length<2)return;for(let i=1;i<e.pts.length;i++){const a=e.pts[i-1],b=e.pts[i];const L=Math.hypot(b[0]-a[0],b[1]-a[1]);const n=Math.max(1,Math.ceil(L/5));for(let k=0;k<=n;k++){const x=a[0]+(b[0]-a[0])*k/n,y=a[1]+(b[1]-a[1])*k/n;S.add(Math.round(x/5)+':'+Math.round(y/5));}}});return S;};
+  const chk=axisCandidates.filter(c=>c.checked&&c.nPoly>0);const sigs={};chk.forEach(c=>{sigs[c.layer]=cellsOf(c.layer);});
+  for(let i=0;i<chk.length;i++)for(let j=i+1;j<chk.length;j++){const a=chk[i],b=chk[j];if(!a.checked||!b.checked)continue;const A=sigs[a.layer],B=sigs[b.layer];if(!A.size||!B.size)continue;let inter=0;const [small,big]=A.size<=B.size?[A,B]:[B,A];small.forEach(k=>{if(big.has(k))inter++;});
+    if(inter/small.size>0.6){const loser=a.nPoly>=b.nPoly?b:a,winner=loser===a?b:a;loser.checked=false;loser.dup=winner.layer;}}
+  axisCandidates.sort((a,b)=>(b.checked-a.checked)||(b.score-a.score)||(b.n-a.n));
+  axisCandidates.forEach(c=>{if(!c.checked)return;if(c.role==='A')roles.axesA.push(c.layer);else if(c.role==='R')roles.axesR.push(c.layer);else roles.axes.push(c.layer);});
+  // étiquettes DN : textes « DN50 (60,3/125) », « ALLER DN65 ENV. DN160 », et blocs-étiquettes dont le texte est écrit lettre par lettre (Mensura : D,N,1,0,0)
+  const dnTexts=[];const DNRE=/DN\s*(\d{2,4})(?:\s*\(\s*([\d.,]+)\s*\/\s*(\d{2,4})\s*\))?(?:\s*ENV\.?\s*DN\s*(\d{2,4}))?/i;
+  const pushDn=(x,y,t,layer)=>{const m=t.match(DNRE);if(!m||!isFinite(x))return;dnTexts.push({x,y,dn:+m[1],dext:m[2]?parseFloat(m[2].replace(',','.')):null,casing:m[3]?+m[3]:m[4]?+m[4]:null,layer,t});};
+  dxf.ents.forEach(e=>{if(e.type!=='TEXT'&&e.type!=='MTEXT')return;if(/l[ée]gende/i.test(e.layer))return;pushDn(e.x,e.y,clean(e.text),e.layer);});
+  const blockText={};const labelOf=name=>{if(blockText[name]!==undefined)return blockText[name];const B=dxf.blocks[name]||[];const T=B.filter(b=>(b.type==='TEXT'||b.type==='MTEXT')&&b.text&&isFinite(b.x)).slice().sort((a,b)=>(a.x-b.x)||(b.y-a.y));const t=T.length&&T.length<=40?T.map(b=>clean(b.text)).join(T.every(b=>clean(b.text).length<=1)?'':' '):'';blockText[name]=t;return t;};
+  dxf.ents.forEach(e=>{if(e.type!=='INSERT'||!e.name||/l[ée]gende/i.test(e.layer))return;const t=labelOf(e.name);if(t&&/DN/i.test(t))pushDn(e.x,e.y,t,e.layer);(e.attribs||[]).forEach(a=>{if(/DN/i.test(a.text||''))pushDn(e.x,e.y,clean(a.text),e.layer);});});
   const inserts={};dxf.ents.forEach(e=>{if(e.type==='INSERT'){const k=e.name||'?';inserts[k]=(inserts[k]||0)+1;}});
   const namedBlocks=Object.entries(inserts).filter(([k])=>!k.startsWith('*')).sort((a,b)=>b[1]-a[1]);
-  const supplierGuess=/axiom|iso st/i.test(JSON.stringify(namedBlocks))?'AXIOM':/renalia|zpu/i.test(layers.join(' '))?'RENALIA':/logstor/i.test(layers.join(' '))?'LOGSTOR':/inpal/i.test(layers.join(' '))?'INPAL':null;
+  const names=namedBlocks.map(x=>x[0]).join(' ');const layStr=layers.join(' ');
+  // profil de dessin : quel type de plan on a sous les yeux (décide du lecteur)
+  const sig={logstor:/(^|\s)(2000|2500|3500|3600|4200|4900|5031|5033|5252|5600)[\s_-]|joint_single|logstor/i.test(names+' '+layStr),
+    renalia:/renalia|zpu/i.test(layStr)||/(^|\s)\d{4,5}\+(\s|$)|(^|\s)kj\d{2,3}(\s|$)|(^|\s)tm\d{2,3}(\s|$)/i.test(names),
+    jbtp:layers.some(l=>/Présentation|Presentation/i.test(l))&&layers.some(l=>/ALLER/i.test(l))&&layers.some(l=>/RETOUR/i.test(l)),
+    mensuraAxis:layers.some(l=>/Ass - Projet .*(RCU|chauff|chaleur).* - R[ée]seau/i.test(l))||layers.some(l=>/PROJET RCU - Trac/i.test(l))};
+  const profile=sig.jbtp?'jbtp':sig.logstor?'logstor':sig.renalia?'renalia':sig.mensuraAxis?'mensura-axis':'generic';
+  const supplierGuess=/axiom|iso st/i.test(names)?'AXIOM':sig.renalia?'RENALIA':sig.logstor?'LOGSTOR':/inpal/i.test(layStr)?'INPAL':null;
   const dnSet=[...new Set(dnTexts.map(d=>d.dn))].sort((a,b)=>a-b);
-  return {layers,L,total,roles,dnTexts,inserts,namedBlocks,supplierGuess,dnSet,nEnts:dxf.ents.length};
+  return {layers,L,total,roles,axisCandidates,dnTexts,inserts,namedBlocks,supplierGuess,dnSet,profile,sig,nEnts:dxf.ents.length,truncated:dxf.truncated||[],units:dxf.units};
 }
 // ---- construction du chantier brut : lignes par conduite à partir des polylignes d'axe, tés/réductions par blocs, DN par étiquettes ----
 function d2(a,b){return Math.hypot(a[0]-b[0],a[1]-b[1]);}
-function joinPolys(polys,tol){ // recolle bout à bout les polylignes qui se touchent (extrémité à extrémité)
-  const P=polys.map(p=>p.slice());let changed=true;
-  while(changed){changed=false;outer:for(let i=0;i<P.length;i++)for(let j=0;j<P.length;j++){if(i===j)continue;const a=P[i],b=P[j];
-    if(d2(a[a.length-1],b[0])<tol){P[i]=a.concat(b.slice(1));P.splice(j,1);changed=true;break outer;}
-    if(d2(a[a.length-1],b[b.length-1])<tol){P[i]=a.concat(b.slice().reverse().slice(1));P.splice(j,1);changed=true;break outer;}
-    if(d2(a[0],b[0])<tol){P[i]=b.slice().reverse().concat(a.slice(1));P.splice(j,1);changed=true;break outer;}
-    if(d2(a[0],b[b.length-1])<tol){P[i]=b.concat(a.slice(1));P.splice(j,1);changed=true;break outer;}}}
+function joinPolys(polys,tol){ // recolle bout à bout les polylignes qui se touchent (extrémité à extrémité) ; chaque polyligne = {pts, dn} → chaînes {pts, segs:[{L,dn}]}
+  const P=polys.map(p=>({pts:p.pts.slice(),segs:[{L:plen(p.pts),dn:p.dn===undefined?null:p.dn,src:p.src||null}]}));let changed=true;
+  const rev=x=>({pts:x.pts.slice().reverse(),segs:x.segs.slice().reverse()});const cat=(a,b)=>({pts:a.pts.concat(b.pts.slice(1)),segs:a.segs.concat(b.segs)});
+  while(changed){changed=false;outer:for(let i=0;i<P.length;i++)for(let j=0;j<P.length;j++){if(i===j)continue;const a=P[i],b=P[j];const A0=a.pts[0],A1=a.pts[a.pts.length-1],B0=b.pts[0],B1=b.pts[b.pts.length-1];
+    if(d2(A1,B0)<tol){P[i]=cat(a,b);P.splice(j,1);changed=true;break outer;}
+    if(d2(A1,B1)<tol){P[i]=cat(a,rev(b));P.splice(j,1);changed=true;break outer;}
+    if(d2(A0,B0)<tol){P[i]=cat(rev(b),a);P.splice(j,1);changed=true;break outer;}
+    if(d2(A0,B1)<tol){P[i]=cat(b,a);P.splice(j,1);changed=true;break outer;}}}
   return P;}
 function projOnPoly(pts,q){let best={d:1e9,m:0};let acc=0;for(let i=1;i<pts.length;i++){const a=pts[i-1],b=pts[i];const vx=b[0]-a[0],vy=b[1]-a[1];const L=Math.hypot(vx,vy)||1e-9;let t=((q[0]-a[0])*vx+(q[1]-a[1])*vy)/(L*L);t=Math.max(0,Math.min(1,t));const px=a[0]+vx*t,py=a[1]+vy*t;const d=Math.hypot(q[0]-px,q[1]-py);if(d<best.d)best={d,m:acc+L*t,i};acc+=L;}return best;}
+function midOf(pts){const L=plen(pts)/2;let d=0;for(let i=1;i<pts.length;i++){const s=d2(pts[i-1],pts[i]);if(d+s>=L){const t=s?(L-d)/s:0;return [pts[i-1][0]+(pts[i][0]-pts[i-1][0])*t,pts[i-1][1]+(pts[i][1]-pts[i-1][1])*t];}d+=s;}return pts[pts.length-1];}
 export function buildSite(dxf,an,roles,opts){
   const E=dxf.ents;const axisLayers={A:new Set(roles.axesA),R:new Set(roles.axesR),S:new Set(roles.axes)};
   const allPts=[];E.forEach(e=>{if(e.pts&&e.pts.length)e.pts.forEach(p=>allPts.push(p));else if(isFinite(e.x))allPts.push([e.x,e.y]);});
   // seulement l'emprise du réseau (axes) pour ne pas embarquer tout le fond de plan
-  const netPts=[];const allAxis=new Set([...axisLayers.A,...axisLayers.R,...axisLayers.S]);E.forEach(e=>{if((e.type==='LWPOLYLINE'||e.type==='LINE'||e.type==='POLYLINE')&&allAxis.has(e.layer))e.pts.forEach(p=>netPts.push(p));});expandInserts(dxf,allAxis,'longest').forEach(e=>e.pts.forEach(p=>netPts.push(p)));
+  const allAxis=new Set([...axisLayers.A,...axisLayers.R,...axisLayers.S]);const axisPolys=E.filter(e=>(e.type==='LWPOLYLINE'||e.type==='LINE'||e.type==='POLYLINE')&&allAxis.has(e.layer)&&e.pts.length>=2);
+  // zone principale du réseau : cellules de 1,5 km, la plus chargée (en mètres de tracé) et ses voisines ; le reste (légende, détail, copie à des km) est ignoré
+  const CELL=1500;const cells={};axisPolys.forEach(e=>{const k=Math.round(e.pts[0][0]/CELL)+':'+Math.round(e.pts[0][1]/CELL);cells[k]=(cells[k]||0)+plen(e.pts);});
+  const mainKey=Object.keys(cells).sort((a,b)=>cells[b]-cells[a])[0];const mainCell=mainKey?mainKey.split(':').map(Number):[0,0];
+  const inZone=p=>Math.abs(Math.round(p[0]/CELL)-mainCell[0])<=2&&Math.abs(Math.round(p[1]/CELL)-mainCell[1])<=2;
+  const netPts=[];axisPolys.forEach(e=>{if(inZone(e.pts[0]))e.pts.forEach(p=>netPts.push(p));});
   const src=netPts.length?netPts:allPts;let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;src.forEach(p=>{x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);});
   const M=20;x0-=M;y0-=M;x1+=M;y1+=M;const T=p=>[+(p[0]-x0).toFixed(3),+(y1-p[1]).toFixed(3)];
-  const site={id:opts.id,name:opts.name,supplier:opts.supplier,serie:opts.serie||1,crs:'plan importé (unités du dessin = mètres)',source:opts.fileName,method:'Import guidé v1 : axes des calques choisis, coudes aux changements de direction (≥ 15°), tés et réductions aux blocs, DN par étiquettes ; le puzzle catalogue est fabriqué ensuite par le moteur, conduite par conduite.',w:+(x1-x0).toFixed(2),h:+(y1-y0).toFixed(2),ann:[],lines:[],warnings:[],report:{}};
+  const site={id:opts.id,name:opts.name,supplier:opts.supplier,serie:opts.serie||1,crs:'plan importé (unités du dessin = mètres)',source:opts.fileName,method:'Import guidé v2 : axes des calques choisis (DN par tronçon d\'après les étiquettes), coudes aux changements de direction (≥ 15°), tés aux jonctions et blocs, vannes et réductions aux blocs ; le puzzle catalogue est fabriqué ensuite par le moteur, conduite par conduite.',w:+(x1-x0).toFixed(2),h:+(y1-y0).toFixed(2),ann:[],lines:[],warnings:[],report:{}};
   an.dnTexts.forEach(t=>{const p=T([t.x,t.y]);site.ann.push({text:t.t,p});});
-  const tees=E.filter(e=>e.type==='INSERT'&&roles.tees.includes(e.layer)&&isFinite(e.x)).map(e=>({p:T([e.x,e.y]),layer:e.layer,name:e.name}));
-  const reds=E.filter(e=>e.type==='INSERT'&&(roles.reducers.includes(e.layer)||/r[ée]duction/i.test(e.name||''))&&isFinite(e.x)).map(e=>{const m=(e.name||'').match(/DN\s*(\d+)\s*[x×\/]\s*(\d+)/i);return {p:T([e.x,e.y]),name:e.name,dn1:m?+m[1]:null,dn2:m?+m[2]:null,layer:e.layer};});
-  const bendsBlocks=E.filter(e=>e.type==='INSERT'&&(roles.bends.includes(e.layer)||/coude/i.test(e.name||''))&&isFinite(e.x)).map(e=>{const m=((e.name||'')+' '+e.layer).match(/(\d{1,3})\s*°/);return {p:T([e.x,e.y]),ang:m?+m[1]:null,layer:e.layer,name:e.name};});
-  const dnPts=an.dnTexts.map(t=>({p:T([t.x,t.y]),dn:t.dn,casing:t.casing,dext:t.dext,cond:/retour/i.test(t.layer)?'R':/aller/i.test(t.layer)?'A':null}));
-  let seq=0;const mk=(cond,polys)=>{const joined=joinPolys(polys.map(pl=>pl.map(T)),0.06);const lines=joined.map(pts=>({pts,cond,id:null,len:pts.reduce((s,p,i)=>i?s+d2(pts[i-1],p):0,0)})).filter(l=>l.len>=1).sort((a,b)=>b.len-a.len);
-    lines.forEach((l,k)=>{l.id=(cond||'L')+(k+1);});
-    // rattachement des antennes : un bout de ligne posé sur une autre ligne (< 0,6 m) → té sur la ligne parente
-    lines.forEach(l=>{for(const end of [l.pts[0],l.pts[l.pts.length-1]]){let best=null;lines.forEach(o=>{if(o===l||o.len<l.len)return;const pr=projOnPoly(o.pts,end);if(pr.d<0.6&&(!best||pr.d<best.d))best={o,pr};});if(best){l.parent=best.o.id;l.parentM=best.pr.m;best.o.specials=best.o.specials||[];best.o.specials.push({m:best.pr.m,type:'tee',branch:l.id});if(end===l.pts[l.pts.length-1])l.pts.reverse();break;}}});
-    // tés (blocs) non encore posés, réductions
-    tees.forEach(t=>{let best=null;lines.forEach(o=>{const pr=projOnPoly(o.pts,t.p);if(pr.d<0.8&&(!best||pr.d<best.d))best={o,pr};});if(best){best.o.specials=best.o.specials||[];if(!best.o.specials.some(s=>s.type==='tee'&&Math.abs(s.m-best.pr.m)<1.5))best.o.specials.push({m:best.pr.m,type:'tee',branch:null,block:t.name});}});
-    reds.forEach(r=>{let best=null;lines.forEach(o=>{const pr=projOnPoly(o.pts,r.p);if(pr.d<0.8&&(!best||pr.d<best.d))best={o,pr};});if(best){best.o.specials=best.o.specials||[];best.o.specials.push({m:best.pr.m,type:'reducer',dn1:r.dn1,dn2:r.dn2,block:r.name});}});
-    // DN par ligne : étiquette la plus proche de la ligne (même conduite si précisé)
-    lines.forEach(l=>{let best=null;dnPts.forEach(d=>{if(d.cond&&cond&&d.cond!==cond)return;const pr=projOnPoly(l.pts,d.p);const sc=pr.d;if(sc<6&&(!best||sc<best.sc))best={d,sc};});l.dnNum=best?best.d.dn:(opts.defaultDn||100);l.casing=best?best.d.casing:null;l.dnFrom=best?'étiquette « '+best.d.dn+' » à '+best.sc.toFixed(1)+' m':'par défaut ('+(opts.defaultDn||100)+')';});
-    return lines;};
-  const polysOf=set=>E.filter(e=>(e.type==='LWPOLYLINE'||e.type==='LINE'||e.type==='POLYLINE')&&set.has(e.layer)).map(e=>e.pts).concat(expandInserts(dxf,set,'longest').map(e=>e.pts));
+  const isIns=e=>e.type==='INSERT'&&isFinite(e.x)&&!/l[ée]gende/i.test(e.layer);
+  const tees=E.filter(e=>isIns(e)&&(roles.tees.includes(e.layer)||/(^|[^a-zà-ÿ])t[ée]s?([^a-zà-ÿ]|$)/i.test(e.name||''))).map(e=>({p:T([e.x,e.y]),layer:e.layer,name:e.name}));
+  const reds=E.filter(e=>isIns(e)&&(roles.reducers.includes(e.layer)||/r[ée]duction/i.test(e.name||''))).map(e=>{const m=(e.name||'').match(/DN\s*(\d+)\s*[x×\/]\s*(\d+)/i)||(e.name||'').match(/(\d{2,3})\s*[x×\/]\s*(\d{2,3})/);return {p:T([e.x,e.y]),name:e.name,dn1:m?+m[1]:null,dn2:m?+m[2]:null,layer:e.layer};});
+  const valves=E.filter(e=>isIns(e)&&/vanne|valve|purge|vidange/i.test(e.name||'')).map(e=>({p:T([e.x,e.y]),name:e.name,layer:e.layer,kind:/purge|vidange/i.test(e.name||'')?'purge':'valve'}));
+  const bendsBlocks=E.filter(e=>isIns(e)&&(roles.bends.includes(e.layer)||/coude/i.test(e.name||''))).map(e=>{const m=((e.name||'')+' '+e.layer).match(/(\d{1,3})\s*°/);return {p:T([e.x,e.y]),ang:m?+m[1]:null,layer:e.layer,name:e.name};});
+  const dnPts=an.dnTexts.map(t=>({p:T([t.x,t.y]),dn:t.dn,casing:t.casing,dext:t.dext,cond:/retour/i.test(t.layer+' '+t.t)?'R':/aller/i.test(t.layer+' '+t.t)?'A':null}));
+  const dnNear=(p,cond,maxD)=>{let best=null;dnPts.forEach(d=>{if(d.cond&&cond&&d.cond!==cond)return;const dd=d2(d.p,p);if(dd<maxD&&(!best||dd<best.dd))best={dd,d};});return best;};
+  // nœuds du plan (Mensura : symboles « Regards » sur le calque frère de l'axe) — les tronçons s'y arrêtent au bord du symbole (10-30 cm)
+  const nodeLayers=new Set();[...allAxis].forEach(l=>{const cand=[l.replace(/R[ée]seau/i,'Regards'),l.replace(/R[ée]seau/i,'Noeuds'),l.replace(/R[ée]seau/i,'Nœuds')];cand.forEach(c=>{if(c!==l&&dxf.layersCount[c])nodeLayers.add(c);});});
+  const nodePts=E.filter(e=>e.type==='INSERT'&&isFinite(e.x)&&nodeLayers.has(e.layer)).map(e=>T([e.x,e.y]));
+  const mk=(cond,polys)=>{
+    // 1) DN par tronçon dessiné (étiquette la plus proche du milieu, < 6 m)
+    const segs=[];const ignored=[];polys.forEach(pl=>{const raw=pl;const pts=pl.map(T);const L=plen(pts);if(L<=0.02)return;if(!inZone(raw[0])){ignored.push({L});return;}const b=dnNear(midOf(pts),cond,6);segs.push({pts,dn:b?b.d.dn:null,casing:b?b.d.casing:null,L});});
+    // 2) zone principale : les tracés à l'écart (légende, détail, copie à des km) ont été ignorés
+    if(ignored.length)site.warnings.push(ignored.length+' tracé(s) '+(cond?('('+(cond==='A'?'aller':'retour')+') '):'')+'dessinés à l\'écart du réseau ('+Math.round(ignored.reduce((s,x)=>s+x.L,0))+' m, légende ou détail) : ignorés.');
+    // 3) nœuds : extrémités recalées sur les symboles de nœud (< 0,6 m) ou entre elles (< 0,35 m)
+    const nodes=[];const nodeOf=p=>{let best=null;for(let i=0;i<nodes.length;i++){const d=d2(nodes[i].p,p);if(d<(nodes[i].sym?0.6:0.35)&&(!best||d<best.d))best={i,d};}if(best)return best.i;nodes.push({p:p.slice(),sym:false,edges:[]});return nodes.length-1;};
+    nodePts.forEach(p=>{nodes.push({p:p.slice(),sym:true,edges:[]});});
+    const edges=segs.map((sg,ei)=>{const a=nodeOf(sg.pts[0]),b=nodeOf(sg.pts[sg.pts.length-1]);const pts=sg.pts.slice();pts[0]=nodes[a].p.slice();pts[pts.length-1]=nodes[b].p.slice();const e={id:ei,a,b,pts,L:plen(pts),dn:sg.dn,casing:sg.casing,used:false};nodes[a].edges.push(e);nodes[b].edges.push(e);return e;});
+    const dirAt=(e,from)=>{const pts=from===e.a?e.pts:e.pts.slice().reverse();return Math.atan2(pts[1][1]-pts[0][1],pts[1][0]-pts[0][0]);};
+    const dirIn=(e,to)=>{const pts=to===e.b?e.pts:e.pts.slice().reverse();const n=pts.length;return Math.atan2(pts[n-1][1]-pts[n-2][1],pts[n-1][0]-pts[n-2][0]);};
+    const turn=(a,b)=>{let d=b-a;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return Math.abs(d);};
+    // 4) marche : depuis une feuille, on continue au nœud suivant par l'arête la plus dans l'axe ; la plus longue marche = ligne principale, puis les autres (leur départ tombe sur une ligne déjà faite → antenne)
+    const walk=(start,commit)=>{const chain=[];let n=start,prevDir=null;const seen=new Set();
+      while(true){const cand=nodes[n].edges.filter(e=>!e.used&&!seen.has(e.id));if(!cand.length)break;let e;if(prevDir===null)e=cand.sort((x,y)=>y.L-x.L)[0];else{e=cand.map(x=>({x,t:turn(prevDir,dirAt(x,n))})).sort((p,q)=>p.t-q.t)[0].x;}
+        const rev=e.a!==n;const pts=rev?e.pts.slice().reverse():e.pts;chain.push({e,pts,rev});seen.add(e.id);prevDir=dirIn(e,rev?e.a:e.b);n=rev?e.a:e.b;if(nodes[n].edges.filter(x=>!x.used&&!seen.has(x.id)).length===0)break;}
+      if(commit)chain.forEach(c=>{c.e.used=true;});return chain;};
+    const lines=[];let guard=0;
+    while(edges.some(e=>!e.used)&&guard++<5000){
+      const leaves=nodes.map((nd,i)=>({i,deg:nd.edges.filter(e=>!e.used).length})).filter(x=>x.deg===1).map(x=>x.i);
+      const starts=leaves.length?leaves:nodes.map((nd,i)=>i).filter(i=>nodes[i].edges.some(e=>!e.used));
+      let best=null;starts.forEach(st=>{const ch=walk(st,false);const L=ch.reduce((s,c)=>s+c.e.L,0);if(!best||L>best.L)best={st,ch,L};});
+      if(!best||!best.ch.length)break;const ch=walk(best.st,true);
+      const pts=[];ch.forEach((c,i)=>{c.pts.forEach((p,k)=>{if(i&&k===0)return;pts.push(p);});});
+      const dnSegs=[];let m=0;ch.forEach(c=>{const last=dnSegs[dnSegs.length-1];const dn=c.e.dn;if(last&&last.dn===dn)last.m1=+(m+c.e.L).toFixed(3);else dnSegs.push({m0:+m.toFixed(3),m1:+(m+c.e.L).toFixed(3),dn});m+=c.e.L;});
+      lines.push({pts,cond,id:null,len:plen(pts),dnSegs,startNode:best.st,endNode:(()=>{const c=ch[ch.length-1];return c.rev?c.e.a:c.e.b;})(),casing:ch.find(c=>c.e.casing)?.casing||null});}
+    lines.sort((a,b)=>b.len-a.len);lines.forEach((l,k)=>{l.id=(cond||'L')+(k+1);});
+    lines.forEach(l=>{const S=l.dnSegs.filter(sg=>sg.dn!==null);if(S.length>=2&&S[0].dn<S[S.length-1].dn){l.pts.reverse();l.dnSegs=l.dnSegs.slice().reverse().map(sg=>({m0:+(l.len-sg.m1).toFixed(3),m1:+(l.len-sg.m0).toFixed(3),dn:sg.dn}));const t=l.startNode;l.startNode=l.endNode;l.endNode=t;}}); // du gros DN (chaufferie) vers le petit
+    // DN manquants : hérités du voisin dans la ligne, sinon de la ligne parente / par défaut ; tronçons contigus de même DN fusionnés
+    lines.forEach(l=>{const S=l.dnSegs;for(let i=0;i<S.length;i++)if(S[i].dn===null){for(let j=i-1;j>=0;j--)if(S[j].dn!==null){S[i].dn=S[j].dn;break;}}for(let i=S.length-1;i>=0;i--)if(S[i].dn===null){for(let j=i+1;j<S.length;j++)if(S[j].dn!==null){S[i].dn=S[j].dn;break;}}
+      const M=[];S.forEach(sg=>{const last=M[M.length-1];if(last&&last.dn===sg.dn)last.m1=sg.m1;else M.push({...sg});});l.dnSegs=M;const byLen={};M.forEach(sg=>{byLen[sg.dn]=(byLen[sg.dn]||0)+(sg.m1-sg.m0);});const mainDn=Object.entries(byLen).sort((a,b)=>b[1]-a[1])[0];l.dnNum=mainDn&&mainDn[0]!=='null'?+mainDn[0]:null;});
+    // 5) antennes : le départ (ou l'arrivée) d'une ligne tombe sur une autre ligne plus longue → té sur la parente
+    lines.forEach(l=>{for(const which of ['start','end']){const end=which==='start'?l.pts[0]:l.pts[l.pts.length-1];let best=null;lines.forEach(o=>{if(o===l||o.len<l.len)return;const pr=projOnPoly(o.pts,end);if(pr.d<0.7&&(!best||pr.d<best.d))best={o,pr};});
+      if(best){l.parent=best.o.id;l.parentM=best.pr.m;best.o.specials=best.o.specials||[];if(!best.o.specials.some(s=>s.type==='tee'&&Math.abs(s.m-best.pr.m)<0.5))best.o.specials.push({m:best.pr.m,type:'tee',branch:l.id});if(which==='end'){l.pts.reverse();l.dnSegs=l.dnSegs.slice().reverse().map(sg=>({m0:+(l.len-sg.m1).toFixed(3),m1:+(l.len-sg.m0).toFixed(3),dn:sg.dn}));}break;}}});
+    lines.forEach(l=>{if(l.dnNum===null&&l.parent){const p=lines.find(o=>o.id===l.parent);if(p&&p.dnNum){l.dnNum=p.dnNum;l.dnSegs=[{m0:0,m1:l.len,dn:p.dnNum}];l.dnInherited=true;}}});
+    // 6) tés (blocs) non encore posés, réductions, vannes
+    const near=(pt,maxD)=>{let best=null;lines.forEach(o=>{const pr=projOnPoly(o.pts,pt);if(pr.d<maxD&&(!best||pr.d<best.d))best={o,pr};});return best;};
+    tees.forEach(t=>{const best=near(t.p,0.8);if(best){best.o.specials=best.o.specials||[];if(!best.o.specials.some(s=>s.type==='tee'&&Math.abs(s.m-best.pr.m)<1.5))best.o.specials.push({m:best.pr.m,type:'tee',branch:null,block:t.name});}});
+    reds.forEach(r=>{const best=near(r.p,1.5);if(best){best.o.specials=best.o.specials||[];best.o.specials.push({m:best.pr.m,type:'reducer',dn1:r.dn1,dn2:r.dn2,block:r.name});}});
+    valves.forEach(v=>{const best=near(v.p,1.5);if(best){v.hit=true;best.o.specials=best.o.specials||[];if(!best.o.specials.some(s=>s.type==='valve'&&Math.abs(s.m-best.pr.m)<1))best.o.specials.push({m:best.pr.m,type:'valve',block:v.name,sub:v.kind});}});
+    // 7) changements de DN sans bloc de réduction → réduction posée au changement (signalée)
+    lines.forEach(l=>{for(let i=1;i<l.dnSegs.length;i++){const a=l.dnSegs[i-1],b=l.dnSegs[i];if(a.dn===b.dn||a.dn===null||b.dn===null)continue;const m=b.m0;l.specials=l.specials||[];if(!l.specials.some(s=>s.type==='reducer'&&Math.abs(s.m-m)<3))l.specials.push({m,type:'reducer',dn1:a.dn,dn2:b.dn,block:null,implied:true});}});
+    lines.forEach(l=>{if(l.dnNum===null){l.dnNum=opts.defaultDn||100;l.dnFrom='par défaut ('+l.dnNum+')';l.dnSegs=[{m0:0,m1:l.len,dn:l.dnNum}];}else l.dnFrom=(l.dnInherited?'hérité de la ligne parente ':'étiquettes du plan ')+'('+l.dnSegs.map(sg=>'DN'+sg.dn+' sur '+(sg.m1-sg.m0).toFixed(0)+' m').join(', ')+')';});
+    return lines.filter(l=>l.len>=0.5);};
+  const polysOf=set=>E.filter(e=>(e.type==='LWPOLYLINE'||e.type==='LINE'||e.type==='POLYLINE')&&set.has(e.layer)).map(e=>e.pts).concat(opts.expandBlocks?expandInserts(dxf,set,'longest').map(e=>e.pts):[]);
   const out=[];if(axisLayers.A.size||axisLayers.R.size){out.push(...mk('A',polysOf(axisLayers.A)));out.push(...mk('R',polysOf(axisLayers.R)));}
   if(axisLayers.S.size)out.push(...mk(null,polysOf(axisLayers.S)));
-  site.lines=out.map(l=>({id:l.id,name:(l.parent?'Antenne ':'Ligne ')+l.id+(l.cond?(l.cond==='A'?' · aller':' · retour'):''),cond:l.cond,parent:l.parent||null,pts:l.pts,specials:l.specials||[],dnNum:l.dnNum,casing:l.casing,dnFrom:l.dnFrom,length:+l.len.toFixed(1)}));
-  site.report={lines:site.lines.length,tees:tees.length,reducers:reds.length,bendBlocks:bendsBlocks.length,dnLabels:dnPts.length,sleeves:E.filter(e=>roles.sleeves.includes(e.layer)).length,welds:E.filter(e=>roles.welds.includes(e.layer)).length};
-  if(!site.lines.length)site.warnings.push('Aucun axe trouvé dans les calques choisis.');
-  const noDn=site.lines.filter(l=>/défaut/.test(l.dnFrom));if(noDn.length)site.warnings.push(noDn.length+' ligne(s) sans étiquette DN à proximité — DN par défaut, à corriger dans la fiche.');
+  const lostV=valves.filter(v=>!v.hit&&inZone([v.p[0]+x0,y1-v.p[1]]));if(lostV.length)site.warnings.push(lostV.length+' bloc(s) vanne/purge/vidange à plus de 1,5 m de tout axe coché ('+[...new Set(lostV.map(v=>v.name))].join(', ')+') : ignorés (légende, détail ?).');
+  site.lines=out.map(l=>({id:l.id,name:(l.parent?'Antenne ':'Ligne ')+l.id+(l.cond?(l.cond==='A'?' · aller':' · retour'):''),cond:l.cond,parent:l.parent||null,pts:l.pts,specials:(l.specials||[]).sort((a,b)=>a.m-b.m),dnNum:l.dnNum,dnSegs:l.dnSegs,casing:l.casing,dnFrom:l.dnFrom,length:+l.len.toFixed(1)}));
+  const nSpec=t=>site.lines.reduce((s,l)=>s+l.specials.filter(x=>x.type===t).length,0);
+  site.report={lines:site.lines.length,antennas:site.lines.filter(l=>l.parent).length,tees:nSpec('tee'),reducers:nSpec('reducer'),valves:nSpec('valve'),bendBlocks:bendsBlocks.length,dnLabels:dnPts.length,sleeves:E.filter(e=>roles.sleeves.includes(e.layer)).length,welds:E.filter(e=>roles.welds.includes(e.layer)).length,length_m:Math.round(site.lines.reduce((s,l)=>s+l.length,0))};
+  if(!site.lines.length)site.warnings.push('Aucun axe trouvé dans les calques cochés.');
+  const noDn=site.lines.filter(l=>/défaut/.test(l.dnFrom));if(noDn.length)site.warnings.push(noDn.length+' ligne(s) sans étiquette DN à moins de 6 m — DN par défaut, à corriger dans la fiche.');
+  const impl=site.lines.reduce((s,l)=>s+l.specials.filter(x=>x.type==='reducer'&&x.implied).length,0);if(impl)site.warnings.push(impl+' changement(s) de DN sans bloc de réduction sur le plan : réduction posée au changement d\'étiquette (à vérifier).');
   if(bendsBlocks.length)site.warnings.push('Blocs de coudes lus ('+bendsBlocks.length+') : pour l\'instant les coudes sont posés aux changements de direction de l\'axe ; les blocs serviront de contrôle à l\'étape suivante.');
   return site;}
 
@@ -216,9 +327,13 @@ export function drawingOf(dxf,filterLayer,T){ // segments du dessin (polylignes,
   const emit=(e,tf,layer)=>{if((e.type==='LWPOLYLINE'||e.type==='LINE'||e.type==='POLYLINE')&&e.pts.length>=2){const pts=e.pts.map(tf);if(e.flags&1)pts.push(pts[0]);out.push({layer,pts:pts.map(T)});}else if((e.type==='ARC'||e.type==='CIRCLE')&&isFinite(e.x)&&e.r){out.push({layer,pts:arcPts(e.type==='CIRCLE'?{...e,rot:0,rot2:360}:e,tf).map(T)});}};
   dxf.ents.forEach(e=>{if(!filterLayer(e.layer))return;if(e.type==='INSERT'){const B=dxf.blocks[e.name];if(!B||!isFinite(e.x))return;const th=(e.rot||0)*Math.PI/180,sx=e.sx||1,sy=e.sy||1,c=Math.cos(th),s=Math.sin(th);const tf=p=>[e.x+(p[0]*sx*c-p[1]*sy*s),e.y+(p[0]*sx*s+p[1]*sy*c)];B.forEach(b=>emit(b,tf,e.layer+'/'+(b.layer||'')));}else emit(e,p=>p,e.layer);});
   return out;}
-export function previewSVG(site,pieces,w,h){ // aperçu des pièces lues : barres noir, coudes bleu, tés vert, réductions violet, écarts rouge
+export function previewSVG(site,pieces,w,h){ // aperçu : lignes (axes ou pièces), coudes bleu, tés vert, réductions violet, vannes orange, écarts rouge
   const W=site.w,H=site.h;const k=Math.min(w/W,h/H);let s=`<svg viewBox="0 0 ${W} ${H}" width="${Math.round(W*k)}" height="${Math.round(H*k)}" style="background:#f6f5f0;border-radius:8px;max-width:100%">`;
-  const sw=Math.max(0.6,1.4/k);
-  site.lines.forEach(l=>{for(let i=1;i<l.els.length;i++){const a=l.els[i-1].to,b=l.els[i].from;const g=Math.hypot(a[0]-b[0],a[1]-b[1]);if(g>0.25)s+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#d03b3b" stroke-width="${sw*1.6}" stroke-dasharray="${sw*2} ${sw*2}"/>`;}
-    l.els.forEach(e=>{const col=e.kind==='bend'?'#2a5fb4':e.kind==='tee'?'#2f8f4e':e.kind==='reducer'?'#7b3fb2':(l.cond==='R'?'#555':'#111');e.axis.forEach(pl=>{s+=`<polyline points="${pl.map(p=>p.join(',')).join(' ')}" fill="none" stroke="${col}" stroke-width="${e.kind==='pipe'?sw:sw*1.8}" stroke-linecap="round" stroke-linejoin="round"/>`;});});});
+  const sw=Math.max(0.6,1.4/k);const colOf=cond=>cond==='R'?'#2a5fb4':cond==='A'?'#c8382f':'#111';
+  const ptAt=(pts,m)=>{let d=0;for(let i=1;i<pts.length;i++){const L=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);if(d+L>=m){const t=L?(m-d)/L:0;return [pts[i-1][0]+(pts[i][0]-pts[i-1][0])*t,pts[i-1][1]+(pts[i][1]-pts[i-1][1])*t];}d+=L;}return pts[pts.length-1];};
+  site.lines.forEach(l=>{
+    if(l.els){for(let i=1;i<l.els.length;i++){const a=l.els[i-1].to,b=l.els[i].from;const g=Math.hypot(a[0]-b[0],a[1]-b[1]);if(g>0.25)s+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#d03b3b" stroke-width="${sw*1.6}" stroke-dasharray="${sw*2} ${sw*2}"/>`;}
+      l.els.forEach(e=>{const col=e.kind==='bend'?'#2a5fb4':e.kind==='tee'?'#2f8f4e':e.kind==='reducer'?'#7b3fb2':(l.cond==='R'?'#555':'#111');e.axis.forEach(pl=>{s+=`<polyline points="${pl.map(p=>p.join(',')).join(' ')}" fill="none" stroke="${col}" stroke-width="${e.kind==='pipe'?sw:sw*1.8}" stroke-linecap="round" stroke-linejoin="round"/>`;});});}
+    else if(l.pts){s+=`<polyline points="${l.pts.map(p=>p.join(',')).join(' ')}" fill="none" stroke="${colOf(l.cond)}" stroke-width="${l.parent?sw:sw*1.6}" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>`;
+      (l.specials||[]).forEach(sp=>{const p=ptAt(l.pts,sp.m);const col=sp.type==='tee'?'#2f8f4e':sp.type==='reducer'?'#7b3fb2':sp.type==='valve'?'#e08a1e':'#2a5fb4';s+=`<circle cx="${p[0]}" cy="${p[1]}" r="${sw*2.2}" fill="${col}" stroke="#fff" stroke-width="${sw*.6}"/>`;});}});
   s+='</svg>';return s;}

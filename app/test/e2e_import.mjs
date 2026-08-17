@@ -1,0 +1,30 @@
+import { chromium } from 'playwright';
+import path from 'node:path';
+const dxfPath=process.argv[2]; const layersToTick=(process.argv[3]||'').split('|').filter(Boolean);
+const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
+const page=await browser.newPage({viewport:{width:1300,height:900}});
+const logs=[];page.on('console',m=>{if(m.type()==='error'||m.type()==='warning')logs.push(m.type()+': '+m.text().slice(0,300));});page.on('pageerror',e=>logs.push('PAGEERROR: '+e.message.slice(0,300)));
+await page.goto('file://'+new URL('../dist/index.html', import.meta.url).pathname);
+await page.waitForTimeout(800);
+// ouvrir l'import
+const t0=Date.now();
+await page.evaluate(()=>{const sel=document.querySelector('#roleSel');sel.value='ethan';sel.dispatchEvent(new Event('change'));});await page.waitForTimeout(400);await page.evaluate(()=>{const b=document.querySelector('#btnImport');if(b)b.click();});
+await page.waitForSelector('#planFile',{state:'attached',timeout:5000});
+await page.setInputFiles('#planFile', dxfPath);
+await page.waitForFunction(()=>!!document.querySelector('#impGo'),null,{timeout:900000});
+const tRead=(Date.now()-t0)/1000;
+const info=await page.evaluate(()=>document.querySelector('#importBody').innerText.slice(0,1400));
+console.log('--- lecture en',tRead.toFixed(1),'s ---\n'+info);
+if(layersToTick.length){await page.evaluate(L=>{document.querySelectorAll('#impLayers input[type=checkbox]').forEach(cb=>{cb.checked=L.includes(cb.dataset.layer);});document.querySelector('#impLayers').dispatchEvent(new Event('change'));},layersToTick);await page.waitForTimeout(500);}
+const prev=await page.evaluate(()=>document.querySelector('#impPrev').innerText.slice(0,600));console.log('--- aperçu ---\n'+prev);
+const t1=Date.now();
+await page.click('#impGo');
+await page.waitForTimeout(1500);
+await page.waitForFunction(()=>window.TRACE&&Object.keys(window.TRACE.lines).length>0,null,{timeout:600000});
+await page.waitForTimeout(2500);
+const stats=await page.evaluate(()=>{const L=Object.values(window.TRACE.lines);const out={lines:L.length,withEngine:L.filter(l=>l.engine).length,els:0,joints:0,unknown:0,notes:0,kinds:{}};L.forEach(l=>{['A','R'].forEach(c=>{if(!l.cond||!l.cond[c])return;out.els+=l.cond[c].els.length;out.joints+=l.cond[c].joints.length;l.cond[c].els.forEach(e=>{out.kinds[e.kind]=(out.kinds[e.kind]||0)+1;if(e.unknown)out.unknown++;});});const eng=l.engines?[l.engines.A,l.engines.R]:[l.engine];eng.forEach(e=>{if(e)out.notes+=e.notes.length;});});return out;});
+console.log('--- chantier créé en',((Date.now()-t1)/1000).toFixed(1),'s ---',JSON.stringify(stats));
+const rep=await page.evaluate(()=>{const m=document.querySelector('.modal, #modal, [class*=modal]');return m?m.innerText.slice(0,1500):'(pas de rapport visible)';});console.log('--- rapport ---\n'+rep);
+await page.screenshot({path:new URL('./', import.meta.url).pathname+'shot_'+path.basename(dxfPath,'.dxf')+'.png'});
+console.log('--- console ---',logs.slice(0,15));
+await browser.close();
