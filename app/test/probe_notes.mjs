@@ -1,0 +1,12 @@
+import { chromium } from 'playwright';
+const dxfPath=process.argv[2];const lineId=process.argv[3]||'A1';
+const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
+const page=await browser.newPage({viewport:{width:1300,height:900}});
+await page.goto('file://'+new URL('../dist/index.html', import.meta.url).pathname);await page.waitForTimeout(500);
+await page.evaluate(()=>{const sel=document.querySelector('#roleSel');sel.value='ethan';sel.dispatchEvent(new Event('change'));});await page.waitForTimeout(300);
+await page.evaluate(()=>document.querySelector('#btnImport').click());await page.waitForSelector('#planFile',{state:'attached'});
+await page.setInputFiles('#planFile', dxfPath);await page.waitForFunction(()=>!!document.querySelector('#impGo'),null,{timeout:900000});
+await page.click('#impGo');await page.waitForFunction(()=>window.TRACE&&Object.keys(window.TRACE.lines).length>0,null,{timeout:600000});await page.waitForTimeout(1500);
+const out=await page.evaluate((lineId)=>{const l=window.TRACE.lines[lineId];const eng=l.engines?l.engines.A:l.engine;return {notes:eng.notes.map(n=>'['+n.kind+'] '+n.txt.slice(0,160)),chain:eng.chain.slice(0,60).map(p=>`${p.id}${p.kind==='bend'?'∠'+p.angle:''}${p.follow?'⇒':''}:${(p.L||0).toFixed(2)}`).join(' ')};},lineId);
+console.log(out.chain);console.log(out.notes.slice(0,20).join('\n'));
+await browser.close();

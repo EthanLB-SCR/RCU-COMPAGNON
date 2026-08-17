@@ -5,6 +5,7 @@ const fmt=n=>Number(n).toLocaleString('fr-FR',{maximumFractionDigits:2});const r
 /* ================= base fournisseurs (extrait ZPU / Renalia série 2) ================= */
 const DB={ casing:{20:110,25:110,32:125,40:125,50:140,65:160,80:180,100:225,125:250,150:280,200:355,250:450,300:500}, steelOD:{20:26.9,25:33.7,32:42.4,40:48.3,50:60.3,65:76.1,80:88.9,100:114.3,125:139.7,150:168.3,200:219.1,250:273,300:323.9},
   bend:dn=>({legs:dn<=200?1.0:dn<=250?1.2:1.5, R:(dn<=80?3:dn<=300?2.5:1.5)*DB.steelOD[dn]/1000, ref:'K-'+dn}), tee:dn=>({L:dn<=80?1.0:dn<=200?1.5:2.0,B:dn<=250?1.0:1.5,ref:'TP-'+dn}), reducer:1.0, valve:1.5, endcap:.3, stdLen:[6,12,16], devMax:3 };
+const MIN_CHUTE_ENGINE=.5; // en dessous, pas de chute entre deux pièces : on soude direct
 /* ================= pièces : géométrie locale (port 0 à l'origine, cap +x) ================= */
 function localGeom(p){ // → {axis:[[{x,y}...]], ports:[{x,y,th}], len}
   if(p.kind==='tube'||p.kind==='connector'||p.kind==='reducer'||p.kind==='valve'||p.kind==='endcap'){const L=p.L;return {axis:[[{x:0,y:0},{x:L,y:0}]],ports:[{x:0,y:0,th:0},{x:L,y:0,th:0}],len:L};}
@@ -63,11 +64,28 @@ function recognize(els){els=normEls(els);
     else out2.push(e);});
   // 3) fusion des fragments < 0,6 m avec la barre voisine (artefact des repères de coupe du plan)
   const merged=[];out2.forEach((e,i)=>{const last=merged[merged.length-1];if(e.kind==='pipe'&&e.len<.6&&!e.gap){if(last&&last.kind==='pipe'&&!last.gap){last.len=+(last.len+e.len).toFixed(3);last.to=e.to;last.axis=[[...last.axis[0],...e.axis[0].slice(1)]];last.merged=(last.merged||0)+1;return;}const nx=out2[i+1];if(nx&&nx.kind==='pipe'&&!nx.gap){nx.len=+(nx.len+e.len).toFixed(3);nx.from=e.from;nx.axis=[[...e.axis[0],...nx.axis[0].slice(1)]];nx.merged=(nx.merged||0)+1;return;}}merged.push({...e});});
+  // 3b) coude contre coude : deux coudes séparés d'un bout d'axe plus court que « jambe + jambe + chute mini » → les coudes se soudent l'un sur l'autre (le plan du BE dessine le sommet à sommet, pas les jambes)
+  const cornerOf=e=>{if(e.corner)return e.corner;const A=e.axis[0];if(A.length<3)return null;const a=A[0],b=A[1],c=A[A.length-2],d=A[A.length-1];const r=[b[0]-a[0],b[1]-a[1]],s=[c[0]-d[0],c[1]-d[1]];const den=r[0]*s[1]-r[1]*s[0];if(Math.abs(den)<1e-9)return A[Math.floor(A.length/2)];const t=((d[0]-a[0])*s[1]-(d[1]-a[1])*s[0])/den;return [a[0]+r[0]*t,a[1]+r[1]*t];}; // sommet du coude = intersection des deux jambes (vrai même quand l'axe dessine l'arc)
+  const m2=[];for(let i=0;i<merged.length;i++){const a=merged[i];let p=merged[i+1],b=merged[i+2];let adjacent=false;
+    if(a&&p&&a.kind==='bend'&&p.kind==='bend'){b=p;p=null;adjacent=true;} // coudes déjà collés (emprises qui se chevauchaient sur l'axe)
+    if(a&&b&&a.kind==='bend'&&b.kind==='bend'&&(adjacent||(p&&p.kind==='pipe'&&!p.gap))&&(a.angle||0)>=15&&(b.angle||0)>=15){
+      const la=DB.bend(a.dn||100).legs,lb=DB.bend(b.dn||100).legs;const ca=cornerOf(a),cb=cornerOf(b);
+      const D=ca&&cb?Math.hypot(cb[0]-ca[0],cb[1]-ca[1]):(p?p.len:0)+(a.len||.5)/2+(b.len||.5)/2; // distance sommet à sommet sur le plan
+      const need=la+lb;
+      if(D<need+MIN_CHUTE_ENGINE){ // pas la place d'une chute (≥ 0,5 m) entre les deux jambes
+        b.follow=true;b.followOf=a.id;const ref=DB.bend(a.dn||100).ref;const at=ca||(p?p.from:a.to);
+        if(D>=need-.35)notes.push({kind:'interp',txt:`${a.id} + ${b.id} : coude contre coude — les deux coudes ${ref}/${a.angle}° et ${ref}/${b.angle}° se soudent l'un sur l'autre (jambes ${fmt(la)} + ${fmt(lb)} m ; le plan montre ${fmt(D)} m entre les deux sommets)`+marksTxt(at[0],at[1],4)});
+        else if(D>=need-.9)notes.push({kind:'doubt',txt:`${a.id} + ${b.id} : chicane courte — deux coudes ${ref} soudés l'un sur l'autre font ${fmt(need)} m entre sommets, le plan n'en montre que ${fmt(D)} m → jambes recoupées de ${fmt((need-D)/2)} m chacune ? à confirmer`+marksTxt(at[0],at[1],4)});
+        else notes.push({kind:'doubt',txt:`${a.id} + ${b.id} : chicane trop courte pour les pièces catalogue — deux coudes ${ref} font ${fmt(need)} m entre sommets, le plan n'en montre que ${fmt(D)} m → coudes spéciaux à jambes courtes ? 2 × 45° ? déviations aux manchons ? à confirmer (dessin gardé, coudes soudés l'un sur l'autre en attendant)`+marksTxt(at[0],at[1],4)});
+        m2.push(a);if(!adjacent)i+=1;continue;} // p sauté ; b sera le « a » du tour suivant (chaînes de 3-4 coudes : lyres, chicanes doubles)
+    }
+    m2.push(a);}
+  merged.length=0;merged.push(...m2);
   // 4) rapprochement catalogue
   const out=[];const n={tube:0,bend:0,tee:0,x:0};
   let lastDn=null;merged.forEach((e,mi)=>{const dn=e.dn||lastDn||100;lastDn=dn;const ax=e.axis[0];const prevE=merged[mi-1],nextE=merged[mi+1];const prevOut=prevE?lastDir(prevE):null,nextIn=nextE?firstDir(nextE):null;
     const planFrom={x:e.from[0],y:e.from[1]},planTo={x:e.to[0],y:e.to[1]};const dir=dirOf(e.from,e.to);
-    const base={dn,casing:DB.casing[dn]||e.casing,planFrom,planTo,planDir:dir,dirIn:firstDir(e),dirOut:lastDir(e),src:e.id,interp:e.interp};
+    const base={dn,casing:DB.casing[dn]||e.casing,planFrom,planTo,planDir:dir,dirIn:firstDir(e),dirOut:lastDir(e),src:e.id,interp:e.interp,follow:!!e.follow,followOf:e.followOf};
     const jump=(label)=>{ // saut du tracé : direction conservée de part et d'autre → baïonnette (2 coudes 90°) ; sinon pièce inconnue
       const par=prevOut!==null&&nextIn!==null&&Math.abs(deg(norm(nextIn-prevOut)))<12;const uF=uv(prevOut===null?dir:prevOut);const vx=e.to[0]-e.from[0],vy=e.to[1]-e.from[1];const fwd=vx*uF.x+vy*uF.y,lat=-vx*uF.y+vy*uF.x;const b=DB.bend(dn);const g=b.legs;
       if(par&&Math.abs(lat)>1.2){const turn=lat>=0?1:-1;const h1=prevOut,h2=prevOut+turn*Math.PI/2;const uL=uv(h2);const Lbar=Math.abs(lat)-2*g;
@@ -102,7 +120,7 @@ function turnSign(e){const pl=e.axis[0];if(pl.length<3)return 1;const a=pl[0],v=
 function solve(chain,opts={}){
   const absorb=opts.absorb||new Set();const rep={devs:[],drifts:[],bad:[]};let cur=null,prevUnk=false;const isRig=q=>q.rigid||!!q.lock;
   for(let i=0;i<chain.length;i++){const p=chain[i];
-    if(isRig(p)){p.pos=p.lock?{...p.lock}:{x:p.anchor.x,y:p.anchor.y,th:p.th0};if(cur){const d=Math.hypot(cur.x-p.pos.x,cur.y-p.pos.y);p.drift=d;if(d>.05)rep.drifts.push({id:p.id,d});const dv=deg(norm(p.pos.th-cur.th));p.dev=dv;if(Math.abs(dv)>DB.devMax&&!prevUnk)rep.devs.push({id:p.id,dev:dv});}else{p.drift=0;p.dev=0;}const g=worldGeom(p);cur=g.ports[1];prevUnk=false;}
+    if(isRig(p)){p.pos=p.lock?{...p.lock}:(p.follow&&cur&&!p.role)?{x:cur.x,y:cur.y,th:cur.th}:{x:p.anchor.x,y:p.anchor.y,th:p.th0};if(cur){const d=Math.hypot(cur.x-p.pos.x,cur.y-p.pos.y);p.drift=d;if(d>.05)rep.drifts.push({id:p.id,d});const dv=deg(norm(p.pos.th-cur.th));p.dev=dv;if(Math.abs(dv)>DB.devMax&&!prevUnk)rep.devs.push({id:p.id,dev:dv});}else{p.drift=0;p.dev=0;}const g=worldGeom(p);cur=g.ports[1];prevUnk=false;}
     else{let j=i+1;while(j<chain.length&&!isRig(chain[j]))j++;const tgt=j<chain.length?(chain[j].lock||chain[j].anchor):null;const start=cur||{x:p.anchor.x,y:p.anchor.y,th:p.th0};const grp=chain.slice(i,j);
       const th0=q=>q.thCur??q.planDir,L0=q=>q.Lcur??q.L0;const m=grp.findIndex(q=>absorb.has(q.uid));let poses;
       if(m>=0&&tgt){ // une manchette désignée absorbe tout : les autres pièces du groupe gardent longueur et cap
@@ -128,7 +146,13 @@ chain.forEach((p,i)=>{p.uid=i+1;p.anchor={...p.planFrom};p.th0=ths[i];p.jid='S-'
 let uidSeq=chain.length+1,newSeq=1,newSeqCur=1;
 const clonePiece=p=>({...p,anchor:{...p.anchor},pos:p.pos?{...p.pos}:undefined,lock:undefined});
 function commitState(){chain.forEach(p=>{p.Lcur=p.L;p.thCur=p.pos.th;p.posCur={...p.pos};p.devCur=p.dev||0;p.anchorCur={...p.anchor};});chainCur=chain;}
-let rep=solve(chain);commitState();const chain0=chain.map(clonePiece);
+let rep=solve(chain);
+{ // une barre libre ne dépasse jamais 12 m : au-delà (le tracé du plan est plus long que les pièces posées autour), on la coupe en 12 m + chute (≥ 1 m)
+  const out=[];let changed=false;chain.forEach(p=>{if(p.kind==='tube'&&!p.rigid&&!p.unknown&&p.pos&&p.L>12.06){const n=Math.ceil(p.L/12-1e-6);let rem=p.L-12*(n-1);const parts=(n>1&&rem<1.0)?[...Array(n-2).fill(12),12-(1.0-rem),1.0]:[...Array(n-1).fill(12),rem];let x=p.pos.x,y=p.pos.y;const th=p.pos.th;
+      parts.forEach((L,k)=>{const q=k===0?p:{...p};q.L=+L.toFixed(3);q.L0=q.L;q.pos={x,y,th};q.anchor={x,y};q.planFrom={x,y};q.rigid=Math.abs(L-12)<.01;q.cut=!q.rigid;q.ref='R-'+q.dn+'/'+q.casing+(q.rigid?' · barre 12 m':' · barre coupée');if(k>0)q.id=p.id+String.fromCharCode(97+k);out.push(q);x+=Math.cos(th)*L;y+=Math.sin(th)*L;});changed=true;}else out.push(p);});
+  if(changed){chain=out;const nJ=chain.length-1;chain.forEach((p,i)=>{p.uid=i+1;p.jid='S-'+String(i+1).padStart(3,'0');p.jst=i<nJ?((statuses&&statuses[p.jid])||'a_souder'):null;});rep=solve(chain);} // (uidSeq est initialisé juste après, à partir de la chaîne finale)
+}
+commitState();const chain0=chain.map(clonePiece);
 if(saved&&saved.chain&&saved.chain.length){try{chain=saved.chain.map(p=>({...p,anchor:{...p.anchor},anchorCur:p.anchorCur?{...p.anchorCur}:{...p.anchor},lock:undefined,role:null,ojoint:false}));chain.forEach(p=>{if(!p.posCur&&p.pos)p.posCur={...p.pos};});uidSeq=Math.max(uidSeq,...chain.map(p=>p.uid+1));newSeqCur=newSeq=saved.newSeq||1;rep=solve(chain);commitState();(saved.history||[]).forEach(h=>history.push(h));}catch(e){console.warn('état sauvegardé illisible, on repart du plan',e);}}
 function serialize(){return {v:1,chain:chainCur.map(p=>{const o={...p};delete o.lock;delete o.role;delete o.ojoint;delete o.wasRigid;return o;}),history,newSeq:newSeqCur};}
 function persist(){try{onCommit&&onCommit(serialize());}catch(e){console.warn(e);}}

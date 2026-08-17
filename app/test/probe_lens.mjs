@@ -1,0 +1,12 @@
+import { chromium } from 'playwright';
+const dxfPath=process.argv[2];
+const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
+const page=await browser.newPage({viewport:{width:1300,height:900}});
+await page.goto('file://'+new URL('../dist/index.html', import.meta.url).pathname);await page.waitForTimeout(500);
+await page.evaluate(()=>{const sel=document.querySelector('#roleSel');sel.value='ethan';sel.dispatchEvent(new Event('change'));});await page.waitForTimeout(300);
+await page.evaluate(()=>document.querySelector('#btnImport').click());await page.waitForSelector('#planFile',{state:'attached'});
+await page.setInputFiles('#planFile', dxfPath);await page.waitForFunction(()=>!!document.querySelector('#impGo'),null,{timeout:900000});
+await page.click('#impGo');await page.waitForFunction(()=>window.TRACE&&Object.keys(window.TRACE.lines).length>0,null,{timeout:600000});await page.waitForTimeout(1500);
+const out=await page.evaluate(()=>{const h={over12:0,between:0,std:0,cut:0,tiny:0,short:0,devs:0,drifts:0,bad:0,unknown:0};const ex=[];Object.values(window.TRACE.lines).forEach(l=>{const E=l.engines?[l.engines.A,l.engines.R]:[l.engine];E.forEach(eng=>{if(!eng)return;eng.chain.forEach(p=>{if(p.kind!=='tube'&&p.kind!=='connector')return;if(p.unknown)h.unknown++;if(p.L>12.06){h.over12++;if(ex.length<6)ex.push(l.id+' '+p.id+' '+p.L.toFixed(2)+(p.rigid?' rigide':' libre'));}else if(Math.abs(p.L-12)<.06)h.std++;else{h.cut++;if(p.L<.5)h.tiny++;else if(p.L<1)h.short++;}});});});return {h,ex};});
+console.log(out.h,out.ex);
+await browser.close();
