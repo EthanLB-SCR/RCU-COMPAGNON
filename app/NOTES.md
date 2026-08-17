@@ -25,3 +25,12 @@ Lis ce fichier en premier : il résume ce qui a été décidé avec Ethan (chef 
 ## Construire / publier
 `cd app && npm install && npm run build` → `dist/index.html` → copier à la racine du dépôt (`index.html`) → GitHub Pages sert la nouvelle version en une minute.
 Tests : Playwright (voir `../_test` dans l'ancien espace de travail — à recréer au besoin) ; l'appli expose `window.TRACE` pour le débogage.
+
+## Poste de travail d'Ethan (mis en place le 17/08/2026)
+- Dépôt cloné sur son PC (`scr-70`, Windows) dans `C:\Users\EthanLEBIHAN\Dev\RCU-COMPAGNON` — **hors OneDrive** (son dossier `SCR` et ses Documents sont synchronisés SharePoint, incompatibles avec Git).
+- Il publie avec **GitHub Desktop** : saisir un résumé → `Commit to main` → `Push origin`. Il ne construit pas lui-même ; l'assistant construit et dépose `index.html` dans le dossier connecté.
+- Ethan part de zéro en code : détailler chaque manipulation (nom exact des boutons, chemins complets), et ne jamais lui faire taper un chemin quand un bouton « Choose… » existe.
+
+## Historique des correctifs
+- **17/08/2026 — `ensureSite()` réintégré.** Le dépôt contenait un `index_2.html` (build plus récent uploadé sous un autre nom parce que GitHub refusait d'écraser `index.html`) porteur d'un correctif absent des sources et absent de la version en ligne : `sync.ensureSite()` crée la fiche chantier dans la table `sites` (upsert `onConflict:'id'`, `ignoreDuplicates:true`, `data:{builtin:true}`) **avant** tout `saveWeld` / `saveLineState`, sinon les soudures des chantiers pré-chargés (Bain, Saint-Lô — jamais passés par l'import) ne remontent pas au serveur. `loadSites()` filtre désormais ces fiches `builtin` (sans `lines`) pour qu'elles n'apparaissent pas comme des chantiers vides. Correctif reporté dans `src/sync.js` + `src/app.js` ; build reconstruit identique au bit près à `index_2.html` (md5 `e57dde300c8924b601df5cb44639dc9b`), ce qui valide la reconstitution. `index_2.html` supprimé.
+- **17/08/2026 — rangement du dépôt.** Les sources sont passées de `RCU-COMPAGNON_source/app/` à `app/` à la racine ; le doublon `RCU-COMPAGNON_source/index.html` supprimé. Ajout d'un `.gitignore` (`node_modules/`, `app/dist/`). Règle : **un seul `index.html`, à la racine** — c'est le seul fichier servi par GitHub Pages.
