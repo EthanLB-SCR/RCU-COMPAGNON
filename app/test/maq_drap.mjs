@@ -1,0 +1,11 @@
+import { chromium } from 'playwright';
+const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
+const page=await browser.newPage({viewport:{width:1400,height:900}});
+const logs=[];page.on('pageerror',e=>logs.push('PAGEERROR: '+e.message.slice(0,300)));page.on('console',m=>{if(m.type()==='error')logs.push(m.text().slice(0,200));});
+await page.goto('file://'+new URL('../dist-maquette/index.html', import.meta.url).pathname);await page.waitForTimeout(400);
+await page.evaluate(()=>{localStorage.clear();});await page.reload();await page.waitForTimeout(400);
+await page.evaluate(()=>{const S=window.MAQ.state;S.lines=[{id:'L1',name:'L1',dn:100,bar:12,pts:[[10,50],[90,50]],specials:[],drapeaux:[{id:'dp1',m0:30,m1:55,top:'A',angle:15}],parent:null}];S.seq=2;window.MAQ.rebuild();});
+const out=await page.evaluate(()=>{const B=window.MAQ.state.built.L1;return ['A','R'].map(c=>c+': '+B[c].pieces.map(p=>p.id+(p.kind==='tube'?'('+p.L.toFixed(2)+(p.manchette?'m':'')+(p.under?'▾':'')+')':p.kind==='bend'?'('+p.angle+'°'+(p.plane==='3D'?'↕':'')+','+p.legIn.toFixed(2)+'+'+p.legOut.toFixed(2)+')':'('+p.kind+')')).join(' ')+' | notes: '+B[c].notes.map(n=>n.kind+':'+n.txt.slice(0,80)).join(' ; '));});
+out.forEach(x=>console.log(x));
+await page.evaluate(()=>{const S=window.MAQ.state;S.sel={kind:'line',id:'L1'};S.tab='sel';window.MAQ.rebuild();const W=document.querySelector('#svg').clientWidth,H=document.querySelector('#svg').clientHeight;const k=22;S.view={k,tx:W/2-42*k,ty:H/2-50*k};window.dispatchEvent(new Event('resize'));});await page.waitForTimeout(300);await page.screenshot({path:new URL('./maq_drap.png',import.meta.url).pathname});
+console.log(logs);await browser.close();

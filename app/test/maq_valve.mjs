@@ -1,0 +1,10 @@
+import { chromium } from 'playwright';
+const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
+const page=await browser.newPage({viewport:{width:1400,height:900}});
+const logs=[];page.on('pageerror',e=>logs.push('PAGEERROR: '+e.message.slice(0,300)));
+await page.goto('file://'+new URL('../dist-maquette/index.html', import.meta.url).pathname);await page.waitForTimeout(400);
+await page.evaluate(()=>{localStorage.clear();});await page.reload();await page.waitForTimeout(400);
+await page.evaluate(()=>{const S=window.MAQ.state;S.lines=[{id:'L1',name:'L1',dn:100,bar:12,pts:[[10,50],[70,50]],specials:[{id:'v1',type:'valve',m:20},{id:'v2',type:'valve',m:40,staggerR:2}],parent:null}];S.seq=2;window.MAQ.rebuild();});
+const out=await page.evaluate(()=>{const B=window.MAQ.state.built.L1;return ['A','R'].map(c=>c+': '+B[c].pieces.filter(p=>p.kind==='valve').map(p=>p.id+'@'+p.mc.toFixed(2)).join(' '));});console.log(out);
+await page.evaluate(()=>{const S=window.MAQ.state;const W=document.querySelector('#svg').clientWidth,H=document.querySelector('#svg').clientHeight;const k=30;S.view={k,tx:W/2-30*k,ty:H/2-50*k};window.dispatchEvent(new Event('resize'));});await page.waitForTimeout(300);await page.screenshot({path:new URL('./maq_valve.png',import.meta.url).pathname});
+console.log(logs);await browser.close();

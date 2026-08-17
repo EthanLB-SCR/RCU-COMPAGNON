@@ -1,0 +1,16 @@
+{
+  "_": "Règles du traceur — modifiables sans toucher au code. Longueurs en mètres, angles en degrés. purgeDN / vidangeDN : DN de branche par défaut des tés de purge (vers le haut) et de vidange (vers le bas).",
+  "chuteMin": 1.0,
+  "manchetteMin": 0.2,
+  "jambeMin": 0.5,
+  "devMax": 3,
+  "fausseCoupeMax": 15,
+  "coudeAnglePas": 15,
+  "barreParDefaut": 12,
+  "entraxeSup": 0.15,
+  "snapLigne": 1.0,
+  "snapAngle": 15,
+  "teeTypeParDefaut": "te_droit_TP",
+  "purgeDN": 25,
+  "vidangeDN": 40
+}

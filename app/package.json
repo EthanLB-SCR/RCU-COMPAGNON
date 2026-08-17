@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:maquette": "vite build -c vite.maquette.config.js",
+    "build:all": "vite build && vite build -c vite.maquette.config.js"
   },
   "keywords": [],
   "author": "",

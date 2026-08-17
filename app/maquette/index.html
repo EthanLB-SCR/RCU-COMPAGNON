@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TRACÉ — traceur (création de réseau, pièces catalogue)</title>
+<style>
+  :root{--ink:#0b0b0b;--ink2:#52514e;--muted:#898781;--line:#e1e0d9;--page:#f9f9f7;--surface:#fcfcfb;--plane:#eeede8;--red:#c8382f;--blue:#2a5fb4;--ok:#0ca30c;--warn:#b8560f;--bad:#d03b3b}
+  *{box-sizing:border-box}html,body{margin:0;height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:13.5px;color:var(--ink);background:var(--page)}
+  button,input,select,textarea{font:inherit;color:inherit}button{cursor:pointer}
+  .app{display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:1fr 380px;height:100vh}
+  header{grid-column:1/3;display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 10px;background:var(--surface);border-bottom:1px solid var(--line)}
+  header b{letter-spacing:.04em;margin-right:6px}header .sep{width:1px;height:22px;background:var(--line);margin:0 4px}
+  .btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 10px;font-size:13px;display:inline-flex;align-items:center;gap:5px}.btn.on{background:var(--ink);color:#fff;border-color:var(--ink)}.btn.danger{color:var(--bad)}.btn.sm{padding:3px 7px;font-size:12px}
+  select.f,input.f{border:1px solid var(--line);border-radius:8px;padding:5px 7px;background:var(--page)}input.f{width:70px}
+  main{position:relative;overflow:hidden;background:var(--plane)}main svg{width:100%;height:100%;display:block;touch-action:none;user-select:none}
+  main.trace svg{cursor:crosshair}main.add svg{cursor:copy}
+  .hint{position:absolute;top:8px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:12.5px;padding:6px 12px;border-radius:999px;max-width:92%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+  .zoominfo{position:absolute;right:8px;top:8px;background:rgba(252,252,251,.92);border:1px solid var(--line);border-radius:8px;padding:3px 8px;font-size:11px;color:var(--ink2)}
+  .zoomctl{position:absolute;right:8px;bottom:8px;display:flex;flex-direction:column;gap:4px}.zoomctl button{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:rgba(252,252,251,.96);font-size:16px}
+  .legend{position:absolute;left:8px;bottom:8px;background:rgba(252,252,251,.94);border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-size:11px;color:var(--ink2);display:flex;gap:10px;flex-wrap:wrap}.legend i{display:inline-block;width:14px;height:5px;border-radius:2px;margin-right:4px;vertical-align:middle}
+  aside{border-left:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;min-height:0}
+  .tabs{display:flex;border-bottom:1px solid var(--line)}.tabs button{flex:1;border:0;background:none;padding:8px 4px;font-size:12.5px;color:var(--ink2);border-bottom:2px solid transparent}.tabs button.on{color:var(--ink);border-bottom-color:var(--ink);font-weight:600}
+  .panel{flex:1;overflow:auto;padding:10px 12px;min-height:0}.panel h3{font-size:12px;margin:10px 0 6px;color:var(--ink2);text-transform:uppercase;letter-spacing:.05em}.panel h3:first-child{margin-top:0}
+  .card{background:var(--page);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:8px}.muted{color:var(--muted)}.kv span{display:inline-block;background:var(--plane);border-radius:6px;padding:2px 6px;margin:2px 3px 2px 0;font-size:12px}
+  table{border-collapse:collapse;width:100%;font-size:12px}td,th{border-bottom:1px solid var(--line);padding:3px 4px;text-align:left;vertical-align:top}th{color:var(--ink2);font-weight:600}tr.sel td{background:#fff5cc}tr:hover td{background:#f4f3ee;cursor:pointer}
+  .note{padding:4px 6px;border-radius:6px;margin:3px 0;font-size:12px}.note.err{background:#fdecec;color:#8a1f1f}.note.warn{background:#fff3d6;color:#7a5200}.note.doubt{background:#e8f0fb;color:#1c3d6b}.note.interp,.note.info{background:var(--plane);color:var(--ink2)}
+  textarea.f{width:100%;min-height:200px;font-family:ui-monospace,Consolas,monospace;font-size:12px;border:1px solid var(--line);border-radius:8px;padding:6px}
+  footer{grid-column:1/3;padding:4px 10px;font-size:11.5px;color:var(--muted);border-top:1px solid var(--line);background:var(--surface);display:flex;gap:14px;flex-wrap:wrap}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:20}.modal.show{display:flex}.modal>div{background:var(--surface);border-radius:12px;padding:14px 16px;min-width:300px;max-width:520px;box-shadow:0 12px 40px rgba(0,0,0,.25)}.modal label{display:block;margin:8px 0 3px;font-size:12.5px;color:var(--ink2)}.modal .actions{display:flex;gap:6px;justify-content:flex-end;margin-top:12px}
+  .weld{cursor:pointer}.piece{cursor:pointer}
+  @media (max-width:800px){.app{grid-template-columns:1fr}aside{display:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <b>TRACÉ · traceur</b>
+    <select class="f" id="supplier"><option>AXIOM</option><option>RENALIA</option><option>LOGSTOR</option><option>INPAL</option></select>
+    <label class="muted">série <select class="f" id="serie"><option>1</option><option>2</option><option>3</option></select></label>
+    <label class="muted">DN <select class="f" id="dn"></select></label>
+    <label class="muted">barre <select class="f" id="bar"></select> m</label>
+    <span class="sep"></span>
+    <button class="btn" id="mTrace">✎ Tracer une ligne</button>
+    <button class="btn" id="mSelect">☝ Sélection</button>
+    <button class="btn" id="mAdd">＋ Té / vanne / réduction / lyre / drapeau</button>
+    <span class="sep"></span>
+    <label class="btn">🗺 Fond de plan (DXF)<input type="file" id="bgFile" accept=".dxf" style="display:none"></label>
+    <button class="btn" id="bClear">Tout effacer</button>
+    <span class="sep"></span>
+    <button class="btn on" id="bSave" title="remet le réseau à l'appli TRACÉ (chantier, soudures numérotées) et l'envoie au serveur si tu es connecté">💾 Enregistrer dans TRACÉ</button>
+    <button class="btn" id="bOpenApp" title="ouvre l'appli">↗ TRACÉ</button>
+    <span class="muted" id="siteBadge" style="font-size:11.5px"></span>
+    <button class="btn sm" id="bExport" title="fichier JSON de secours">⤓ JSON</button>
+    <label class="btn sm">⤒ JSON<input type="file" id="impFile" accept=".json" style="display:none"></label>
+  </header>
+  <main id="main">
+    <svg id="svg" xmlns="http://www.w3.org/2000/svg"><g id="world"><g id="bg"></g><g id="grid"></g><g id="net"></g><g id="draft"></g></g></svg>
+    <div class="hint" id="hint" style="display:none"></div>
+    <div class="zoominfo" id="zoominfo">1 m ≈ 10 px</div>
+    <div class="zoomctl"><button id="zIn">+</button><button id="zOut">−</button><button id="zFit" title="tout voir">⌂</button></div>
+    <div class="legend"><span><i style="background:#c8382f"></i>aller</span><span><i style="background:#2a5fb4"></i>retour</span><span>○ soudure</span><span><i style="background:#f0c76a"></i>sélection</span><span><i style="background:#d03b3b"></i>règle violée</span><span style="color:#b8560f">FC = fausse coupe (tubes coupés en biais)</span><span class="muted">molette : zoom · glisser : déplacer · Maj : angles par 15°</span></div>
+  </main>
+  <aside>
+    <div class="tabs"><button data-tab="sel" class="on">Sélection</button><button data-tab="lignes">Lignes</button><button data-tab="soud">Soudures</button><button data-tab="nomen">Nomenclature</button><button data-tab="notes">Notes</button><button data-tab="regles">Règles</button></div>
+    <div class="panel" id="panel"></div>
+  </aside>
+  <footer id="foot"></footer>
+</div>
+<div class="modal" id="modal"><div id="modalBody"></div></div>
+<script type="module" src="./main.js"></script>
+</body>
+</html>
