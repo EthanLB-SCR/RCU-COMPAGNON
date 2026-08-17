@@ -1,0 +1,21 @@
+// Synchronisation avec Supabase (base en Europe) : connexion par e-mail, chantiers importés, statuts/fiches de soudure, état des lignes, photos.
+import { createClient } from '@supabase/supabase-js'
+export const SUPABASE_URL = 'https://pghftlepduvfazbiavhq.supabase.co'
+export const SUPABASE_KEY = 'sb_publishable_uK_JK38eKQ9s-s8LbXRzCA_hwg2PdxT'
+let sb = null; try { sb = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }) } catch (e) { console.warn('supabase indisponible', e) }
+const ok = async () => { if (!sb) return false; const { data } = await sb.auth.getSession(); return !!(data && data.session) }
+export const sync = {
+  available: () => !!sb,
+  async user() { if (!sb) return null; const { data } = await sb.auth.getSession(); return data && data.session ? data.session.user : null },
+  onAuth(cb) { if (sb) sb.auth.onAuthStateChange((_e, s) => cb(s ? s.user : null)) },
+  async login(email) { if (!sb) throw new Error('hors ligne'); const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.href.split('#')[0] } }); if (error) throw error; return true },
+  async logout() { if (sb) await sb.auth.signOut() },
+  async saveSite(net) { if (!(await ok())) return false; const { drawing, ...rest } = net; const { error } = await sb.from('sites').upsert({ id: net.id, name: net.name, supplier: net.supplier || null, serie: net.serie || null, data: { ...rest, drawing: drawing || null }, updated_at: new Date().toISOString() }); if (error) { console.warn(error); return false } return true },
+  async loadSites() { if (!(await ok())) return []; const { data, error } = await sb.from('sites').select('id,name,supplier,serie,data'); if (error) { console.warn(error); return [] } return (data || []).map(r => ({ ...r.data, id: r.id, name: r.name })) },
+  async saveWeld(siteId, j) { if (!(await ok())) return false; const { photos, ...d } = j; const { error } = await sb.from('welds').upsert({ site_id: siteId, weld_id: j.weldId, line_id: j.line, cond: j.cond, status: j.status, data: { events: (j.events || []).map(e => ({ ...e, photos: (e.photos || []).map(p => typeof p === 'string' ? p : (p.url || null)).filter(Boolean) })), conn: j.conn, wire: j.wire, cont: j.cont, iso: j.iso, isoVal: j.isoVal, note: j.note, photos: (photos || []).map(p => typeof p === 'string' ? p : (p.url || null)).filter(Boolean) }, updated_at: new Date().toISOString() }); if (error) { console.warn(error); return false } return true },
+  async loadWelds(siteId) { if (!(await ok())) return []; const { data, error } = await sb.from('welds').select('weld_id,line_id,cond,status,data').eq('site_id', siteId); if (error) { console.warn(error); return [] } return data || [] },
+  async saveLineState(siteId, lineId, cond, st) { if (!(await ok())) return false; const { error } = await sb.from('line_state').upsert({ site_id: siteId, line_id: lineId, cond, state: st, updated_at: new Date().toISOString() }); if (error) { console.warn(error); return false } return true },
+  async loadLineStates(siteId) { if (!(await ok())) return {}; const { data, error } = await sb.from('line_state').select('line_id,cond,state').eq('site_id', siteId); if (error) { console.warn(error); return {} } const out = {}; (data || []).forEach(r => { out[r.line_id + ':' + r.cond] = r.state }); return out },
+  async logEvent(siteId, weldId, type, by, data) { if (!(await ok())) return; await sb.from('events').insert({ site_id: siteId, weld_id: weldId, type, by_user: by, data: data || {} }) },
+  async uploadPhoto(siteId, weldId, dataUrl) { if (!(await ok())) return null; try { const blob = await (await fetch(dataUrl)).blob(); const path = `${siteId}/${weldId}/${Date.now()}.jpg`; const { error } = await sb.storage.from('photos').upload(path, blob, { contentType: blob.type || 'image/jpeg' }); if (error) { console.warn(error); return null } const { data } = await sb.storage.from('photos').createSignedUrl(path, 60 * 60 * 24 * 365); return data ? data.signedUrl : path } catch (e) { console.warn(e); return null } },
+}
