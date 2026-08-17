@@ -104,8 +104,13 @@ export function analyze(dxf){
   // deux calques cochés qui dessinent le même tracé (ex. « Tracé projet » + « Réseau » détaillé) : on garde le plus détaillé, l'autre est décoché
   const cellsOf=lay=>{const S=new Set();dxf.ents.forEach(e=>{if(e.layer!==lay||!e.pts||e.pts.length<2)return;for(let i=1;i<e.pts.length;i++){const a=e.pts[i-1],b=e.pts[i];const L=Math.hypot(b[0]-a[0],b[1]-a[1]);const n=Math.max(1,Math.ceil(L/5));for(let k=0;k<=n;k++){const x=a[0]+(b[0]-a[0])*k/n,y=a[1]+(b[1]-a[1])*k/n;S.add(Math.round(x/5)+':'+Math.round(y/5));}}});return S;};
   const chk=axisCandidates.filter(c=>c.checked&&c.nPoly>0);const sigs={};chk.forEach(c=>{sigs[c.layer]=cellsOf(c.layer);});
-  for(let i=0;i<chk.length;i++)for(let j=i+1;j<chk.length;j++){const a=chk[i],b=chk[j];if(!a.checked||!b.checked)continue;const A=sigs[a.layer],B=sigs[b.layer];if(!A.size||!B.size)continue;let inter=0;const [small,big]=A.size<=B.size?[A,B]:[B,A];small.forEach(k=>{if(big.has(k))inter++;});
+  for(let i=0;i<chk.length;i++)for(let j=i+1;j<chk.length;j++){const a=chk[i],b=chk[j];if(!a.checked||!b.checked)continue;if((a.role==='A'&&b.role==='R')||(a.role==='R'&&b.role==='A'))continue; /* aller et retour se longent : pas un doublon */ const A=sigs[a.layer],B=sigs[b.layer];if(!A.size||!B.size)continue;let inter=0;const [small,big]=A.size<=B.size?[A,B]:[B,A];small.forEach(k=>{if(big.has(k))inter++;});
     if(inter/small.size>0.6){const loser=a.nPoly>=b.nPoly?b:a,winner=loser===a?b:a;loser.checked=false;loser.dup=winner.layer;}}
+  // règles de cochage par défaut : jamais un calque sans tracé ; si un aller ET un retour existent, on ne coche pas les calques « axe unique » ; un seul calque par rôle (le mieux noté), les autres restent proposés décochés
+  axisCandidates.forEach(c=>{if(c.nPoly===0)c.checked=false;});
+  const hasA=axisCandidates.some(c=>c.checked&&c.role==='A'),hasR=axisCandidates.some(c=>c.checked&&c.role==='R');
+  if(hasA&&hasR)axisCandidates.forEach(c=>{if(c.role==='S')c.checked=false;});
+  ['A','R','S'].forEach(role=>{const cs=axisCandidates.filter(c=>c.checked&&c.role===role).sort((a,b)=>(b.score-a.score)||(b.nPoly-a.nPoly));cs.slice(1).forEach(c=>{const best=cs[0];const samePrefix=c.layer.replace(/[^a-zà-ÿ0-9]/gi,'').slice(0,12).toLowerCase()===best.layer.replace(/[^a-zà-ÿ0-9]/gi,'').slice(0,12).toLowerCase();if(!samePrefix)c.checked=false;});});
   axisCandidates.sort((a,b)=>(b.checked-a.checked)||(b.score-a.score)||(b.n-a.n));
   axisCandidates.forEach(c=>{if(!c.checked)return;if(c.role==='A')roles.axesA.push(c.layer);else if(c.role==='R')roles.axesR.push(c.layer);else roles.axes.push(c.layer);});
   // étiquettes DN : textes « DN50 (60,3/125) », « ALLER DN65 ENV. DN160 », et blocs-étiquettes dont le texte est écrit lettre par lettre (Mensura : D,N,1,0,0)
@@ -114,6 +119,8 @@ export function analyze(dxf){
   dxf.ents.forEach(e=>{if(e.type!=='TEXT'&&e.type!=='MTEXT')return;if(/l[ée]gende/i.test(e.layer))return;pushDn(e.x,e.y,clean(e.text),e.layer);});
   const blockText={};const labelOf=name=>{if(blockText[name]!==undefined)return blockText[name];const B=dxf.blocks[name]||[];const T=B.filter(b=>(b.type==='TEXT'||b.type==='MTEXT')&&b.text&&isFinite(b.x)).slice().sort((a,b)=>(a.x-b.x)||(b.y-a.y));const t=T.length&&T.length<=40?T.map(b=>clean(b.text)).join(T.every(b=>clean(b.text).length<=1)?'':' '):'';blockText[name]=t;return t;};
   dxf.ents.forEach(e=>{if(e.type!=='INSERT'||!e.name||/l[ée]gende/i.test(e.layer))return;const t=labelOf(e.name);if(t&&/DN/i.test(t))pushDn(e.x,e.y,t,e.layer);(e.attribs||[]).forEach(a=>{if(/DN/i.test(a.text||''))pushDn(e.x,e.y,clean(a.text),e.layer);});});
+  { // DN porté par le nom du calque des blocs de pièces (ex. Renalia « A_B_DN300 », « SST004_DN40 ») : une étiquette par bloc, dédoublonnée à 2 m
+    const seen=[];dxf.ents.forEach(e=>{if(e.type!=='INSERT'||!isFinite(e.x))return;const m=e.layer.match(/(?:^|[_ -])DN\s*(\d{2,3})(?:$|[_ -])/i);if(!m)return;const dn=+m[1];if(seen.some(q=>q.dn===dn&&Math.abs(q.x-e.x)<2&&Math.abs(q.y-e.y)<2))return;seen.push({x:e.x,y:e.y,dn});dnTexts.push({x:e.x,y:e.y,dn,dext:null,casing:null,layer:e.layer,t:'DN'+dn+' (calque '+e.layer+')',fromLayer:true});});}
   const inserts={};dxf.ents.forEach(e=>{if(e.type==='INSERT'){const k=e.name||'?';inserts[k]=(inserts[k]||0)+1;}});
   const namedBlocks=Object.entries(inserts).filter(([k])=>!k.startsWith('*')).sort((a,b)=>b[1]-a[1]);
   const names=namedBlocks.map(x=>x[0]).join(' ');const layStr=layers.join(' ');
@@ -139,6 +146,25 @@ function joinPolys(polys,tol){ // recolle bout à bout les polylignes qui se tou
     if(d2(A0,B1)<tol){P[i]=cat(b,a);P.splice(j,1);changed=true;break outer;}}}
   return P;}
 function projOnPoly(pts,q){let best={d:1e9,m:0};let acc=0;for(let i=1;i<pts.length;i++){const a=pts[i-1],b=pts[i];const vx=b[0]-a[0],vy=b[1]-a[1];const L=Math.hypot(vx,vy)||1e-9;let t=((q[0]-a[0])*vx+(q[1]-a[1])*vy)/(L*L);t=Math.max(0,Math.min(1,t));const px=a[0]+vx*t,py=a[1]+vy*t;const d=Math.hypot(q[0]-px,q[1]-py);if(d<best.d)best={d,m:acc+L*t,i};acc+=L;}return best;}
+function simplify(pts,tol){ // Douglas-Peucker : garde les vrais angles, efface le bruit du dessin
+  if(pts.length<3||tol<=0)return pts;const keep=new Array(pts.length).fill(false);keep[0]=keep[pts.length-1]=true;
+  const stack=[[0,pts.length-1]];while(stack.length){const [a,b]=stack.pop();const A=pts[a],B=pts[b];const vx=B[0]-A[0],vy=B[1]-A[1];const L2=vx*vx+vy*vy;let imax=-1,dmax=0;
+    for(let i=a+1;i<b;i++){const P=pts[i];let d;if(L2<1e-12)d=Math.hypot(P[0]-A[0],P[1]-A[1]);else{const t=((P[0]-A[0])*vx+(P[1]-A[1])*vy)/L2;const px=A[0]+vx*Math.max(0,Math.min(1,t)),py=A[1]+vy*Math.max(0,Math.min(1,t));d=Math.hypot(P[0]-px,P[1]-py);}if(d>dmax){dmax=d;imax=i;}}
+    if(dmax>tol&&imax>0){keep[imax]=true;stack.push([a,imax],[imax,b]);}}
+  return pts.filter((p,i)=>keep[i]);}
+// fond de plan : le dessin d'origine sous notre réseau (les tubes du BE, la voirie, le bâti…) — calques du réseau en foncé, contexte en clair, jamais la topo ni les symboles répétés des milliers de fois
+export function buildDrawing(dxf,T,bbox,netLayers,opts={}){
+  const cap=opts.cap||40000,M=opts.margin||40;const [bx0,by0,bx1,by1]=bbox;const inBox=p=>p[0]>bx0-M&&p[0]<bx1+M&&p[1]>by0-M&&p[1]<by1+M;
+  const JUNK=/topo|pts|mnt|altitude|alti|cot_|cotation|cartouche|l[ée]gende|point|matricule|carroyage|grille|cadre|titre|hachur|hatch|trame|xref|inda/i;
+  const isNet=l=>netLayers.some(n=>l===n||(l.startsWith(n.split(' - ')[0]+' - ')&&/rcu|chauff|(^|[^a-z])cu([^a-z]|$)|ch_|renalia|jbtp|canalis/i.test(l)))||(/rcu|chauff|renalia|logstor|calep|jbtp_cu|pro_ch|canalisation|(^|[^a-z])cu([^a-z]|$)|_dn\d|^sst\d/i.test(l)&&!/exist|l[ée]gende|coupe|profil/i.test(l));
+  const insCount={};dxf.ents.forEach(e=>{if(e.type==='INSERT')insCount[e.name]=(insCount[e.name]||0)+1;});
+  const out=[];let n=0;const arcPts=(e,tf)=>{const a0=(e.rot||0)*Math.PI/180,a1=(e.rot2===undefined?360:e.rot2)*Math.PI/180;let sweep=a1-a0;while(sweep<=0)sweep+=2*Math.PI;const k=Math.max(4,Math.ceil(sweep/(Math.PI/12)));const pts=[];for(let i=0;i<=k;i++){const a=a0+sweep*i/k;pts.push(tf([e.x+e.r*Math.cos(a),e.y+e.r*Math.sin(a)]));}return pts;};
+  const emit=(e,tf,layer,net)=>{let pts=null;if((e.type==='LWPOLYLINE'||e.type==='LINE'||e.type==='POLYLINE')&&e.pts.length>=2){pts=e.pts.map(tf);if(e.flags&1)pts.push(pts[0]);}else if((e.type==='ARC'||e.type==='CIRCLE')&&isFinite(e.x)&&e.r>0&&e.r<50){pts=arcPts(e.type==='CIRCLE'?{...e,rot:0,rot2:360}:e,tf);}if(!pts)return;const q=pts.map(T);if(!q.some(inBox))return;out.push({layer,pts:q,net});n+=q.length;};
+  const pass=(wantNet)=>{for(const e of dxf.ents){if(n>cap)break;const lay=e.layer;if(JUNK.test(lay))continue;const net=isNet(lay);if(net!==wantNet)continue;
+    if(e.type==='INSERT'){const B=dxf.blocks[e.name];if(!B||!isFinite(e.x)||(insCount[e.name]||0)>250)continue;const th=(e.rot||0)*Math.PI/180,sx=e.sx||1,sy=e.sy||1,c=Math.cos(th),s=Math.sin(th);const tf=p=>[e.x+(p[0]*sx*c-p[1]*sy*s),e.y+(p[0]*sx*s+p[1]*sy*c)];if(!inBox(T([e.x,e.y])))continue;B.forEach(b=>{if(b.type==='INSERT'){const B2=dxf.blocks[b.name];if(!B2||B2.length>400)return;const th2=(b.rot||0)*Math.PI/180,c2=Math.cos(th2),s2=Math.sin(th2),sx2=b.sx||1,sy2=b.sy||1;const tf2=p=>tf([b.x+(p[0]*sx2*c2-p[1]*sy2*s2),b.y+(p[0]*sx2*s2+p[1]*sy2*c2)]);B2.forEach(b2=>emit(b2,tf2,lay+'/'+(b2.layer||''),net));}else emit(b,tf,lay+'/'+(b.layer||''),net);});}
+    else emit(e,p=>p,lay,net);}};
+  pass(true);pass(false);
+  return {drawing:out,truncated:n>cap};}
 function midOf(pts){const L=plen(pts)/2;let d=0;for(let i=1;i<pts.length;i++){const s=d2(pts[i-1],pts[i]);if(d+s>=L){const t=s?(L-d)/s:0;return [pts[i-1][0]+(pts[i][0]-pts[i-1][0])*t,pts[i-1][1]+(pts[i][1]-pts[i-1][1])*t];}d+=s;}return pts[pts.length-1];}
 export function buildSite(dxf,an,roles,opts){
   const E=dxf.ents;const axisLayers={A:new Set(roles.axesA),R:new Set(roles.axesR),S:new Set(roles.axes)};
@@ -146,9 +172,11 @@ export function buildSite(dxf,an,roles,opts){
   // seulement l'emprise du réseau (axes) pour ne pas embarquer tout le fond de plan
   const allAxis=new Set([...axisLayers.A,...axisLayers.R,...axisLayers.S]);const axisPolys=E.filter(e=>(e.type==='LWPOLYLINE'||e.type==='LINE'||e.type==='POLYLINE')&&allAxis.has(e.layer)&&e.pts.length>=2);
   // zone principale du réseau : cellules de 1,5 km, la plus chargée (en mètres de tracé) et ses voisines ; le reste (légende, détail, copie à des km) est ignoré
-  const CELL=1500;const cells={};axisPolys.forEach(e=>{const k=Math.round(e.pts[0][0]/CELL)+':'+Math.round(e.pts[0][1]/CELL);cells[k]=(cells[k]||0)+plen(e.pts);});
-  const mainKey=Object.keys(cells).sort((a,b)=>cells[b]-cells[a])[0];const mainCell=mainKey?mainKey.split(':').map(Number):[0,0];
-  const inZone=p=>Math.abs(Math.round(p[0]/CELL)-mainCell[0])<=2&&Math.abs(Math.round(p[1]/CELL)-mainCell[1])<=2;
+  const CELL=500;const cells={};const key=p=>Math.round(p[0]/CELL)+':'+Math.round(p[1]/CELL);axisPolys.forEach(e=>{e.pts.forEach(p=>{cells[key(p)]=(cells[key(p)]||0)+0;});cells[key(e.pts[0])]+=plen(e.pts);});
+  // amas de cellules voisines (8 voisins) : le réseau est un amas continu ; une légende ou un détail à des kilomètres est un autre amas
+  const comp={};let nc=0;Object.keys(cells).forEach(k=>{if(comp[k]!==undefined)return;const id=nc++;const st=[k];comp[k]=id;while(st.length){const c=st.pop();const [cx,cy]=c.split(':').map(Number);for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){const nk=(cx+dx)+':'+(cy+dy);if(cells[nk]!==undefined&&comp[nk]===undefined){comp[nk]=id;st.push(nk);}}}});
+  const compLen={};Object.keys(cells).forEach(k=>{compLen[comp[k]]=(compLen[comp[k]]||0)+cells[k];});const mainComp=+Object.keys(compLen).sort((a,b)=>compLen[b]-compLen[a])[0];
+  const inZone=p=>comp[key(p)]===mainComp;
   const netPts=[];axisPolys.forEach(e=>{if(inZone(e.pts[0]))e.pts.forEach(p=>netPts.push(p));});
   const src=netPts.length?netPts:allPts;let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;src.forEach(p=>{x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);});
   const M=20;x0-=M;y0-=M;x1+=M;y1+=M;const T=p=>[+(p[0]-x0).toFixed(3),+(y1-p[1]).toFixed(3)];
@@ -173,6 +201,11 @@ export function buildSite(dxf,an,roles,opts){
     const nodes=[];const nodeOf=p=>{let best=null;for(let i=0;i<nodes.length;i++){const d=d2(nodes[i].p,p);if(d<(nodes[i].sym?0.6:0.35)&&(!best||d<best.d))best={i,d};}if(best)return best.i;nodes.push({p:p.slice(),sym:false,edges:[]});return nodes.length-1;};
     nodePts.forEach(p=>{nodes.push({p:p.slice(),sym:true,edges:[]});});
     const edges=segs.map((sg,ei)=>{const a=nodeOf(sg.pts[0]),b=nodeOf(sg.pts[sg.pts.length-1]);const pts=sg.pts.slice();pts[0]=nodes[a].p.slice();pts[pts.length-1]=nodes[b].p.slice();const e={id:ei,a,b,pts,L:plen(pts),dn:sg.dn,casing:sg.casing,used:false};nodes[a].edges.push(e);nodes[b].edges.push(e);return e;});
+    // interruptions du tracé (un bloc de pièce posé sur l'axe coupe le trait) : deux bouts libres, proches (< 2,5 m), à peu près alignés → on ponte, et on le note (le moteur/les doutes verront ce qu'il y a dedans)
+    let bridged=0;{const deg1=nodes.map((nd,i)=>({i,nd})).filter(x=>x.nd.edges.length===1);const dirOut=(nd,i)=>{const e=nd.edges[0];const pts=e.a===i?e.pts:e.pts.slice().reverse();return Math.atan2(pts[0][1]-pts[1][1],pts[0][0]-pts[1][0]);};
+      const used=new Set();deg1.forEach(x=>{if(used.has(x.i))return;let best=null;deg1.forEach(y=>{if(y.i===x.i||used.has(y.i))return;const d=d2(x.nd.p,y.nd.p);if(d>4||d<0.001)return;const dx=dirOut(x.nd,x.i),dy=dirOut(y.nd,y.i);let t=Math.abs(dx-(dy+Math.PI));while(t>Math.PI)t=Math.abs(t-2*Math.PI);if(t>(d>2.5?Math.PI/6:Math.PI/3))return;const sc=d+t;if(!best||sc<best.sc)best={y,sc,d};});
+        if(best){used.add(x.i);used.add(best.y.i);const e={id:edges.length,a:x.i,b:best.y.i,pts:[x.nd.p.slice(),best.y.nd.p.slice()],L:best.d,dn:null,casing:null,used:false,gap:true};edges.push(e);x.nd.edges.push(e);best.y.nd.edges.push(e);bridged++;}});}
+    if(bridged)site.warnings.push(bridged+' interruption(s) du tracé '+(cond?('('+(cond==='A'?'aller':'retour')+') '):'')+'de moins de 4 m refermée(s) (symbole ou pièce dessinée sur l\'axe ?) — à vérifier.');
     const dirAt=(e,from)=>{const pts=from===e.a?e.pts:e.pts.slice().reverse();return Math.atan2(pts[1][1]-pts[0][1],pts[1][0]-pts[0][0]);};
     const dirIn=(e,to)=>{const pts=to===e.b?e.pts:e.pts.slice().reverse();const n=pts.length;return Math.atan2(pts[n-1][1]-pts[n-2][1],pts[n-1][0]-pts[n-2][0]);};
     const turn=(a,b)=>{let d=b-a;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return Math.abs(d);};
@@ -190,6 +223,8 @@ export function buildSite(dxf,an,roles,opts){
       const pts=[];ch.forEach((c,i)=>{c.pts.forEach((p,k)=>{if(i&&k===0)return;pts.push(p);});});
       const dnSegs=[];let m=0;ch.forEach(c=>{const last=dnSegs[dnSegs.length-1];const dn=c.e.dn;if(last&&last.dn===dn)last.m1=+(m+c.e.L).toFixed(3);else dnSegs.push({m0:+m.toFixed(3),m1:+(m+c.e.L).toFixed(3),dn});m+=c.e.L;});
       lines.push({pts,cond,id:null,len:plen(pts),dnSegs,startNode:best.st,endNode:(()=>{const c=ch[ch.length-1];return c.rev?c.e.a:c.e.b;})(),casing:ch.find(c=>c.e.casing)?.casing||null});}
+    // règle du chef : le réseau se dessine à la règle, droit entre les vrais angles ; les petites cassures du dessin (< 35 cm d'écart) sont lissées
+    lines.forEach(l=>{const before=l.len;const pts=simplify(l.pts,opts.ruler===undefined?0.35:opts.ruler);if(pts.length<l.pts.length){l.pts=pts;l.len=plen(pts);const k=before>0?l.len/before:1;l.dnSegs=l.dnSegs.map(sg=>({m0:+(sg.m0*k).toFixed(3),m1:+(sg.m1*k).toFixed(3),dn:sg.dn}));}});
     lines.sort((a,b)=>b.len-a.len);lines.forEach((l,k)=>{l.id=(cond||'L')+(k+1);});
     lines.forEach(l=>{const S=l.dnSegs.filter(sg=>sg.dn!==null);if(S.length>=2&&S[0].dn<S[S.length-1].dn){l.pts.reverse();l.dnSegs=l.dnSegs.slice().reverse().map(sg=>({m0:+(l.len-sg.m1).toFixed(3),m1:+(l.len-sg.m0).toFixed(3),dn:sg.dn}));const t=l.startNode;l.startNode=l.endNode;l.endNode=t;}}); // du gros DN (chaufferie) vers le petit
     // DN manquants : hérités du voisin dans la ligne, sinon de la ligne parente / par défaut ; tronçons contigus de même DN fusionnés
@@ -213,6 +248,7 @@ export function buildSite(dxf,an,roles,opts){
   if(axisLayers.S.size)out.push(...mk(null,polysOf(axisLayers.S)));
   const lostV=valves.filter(v=>!v.hit&&inZone([v.p[0]+x0,y1-v.p[1]]));if(lostV.length)site.warnings.push(lostV.length+' bloc(s) vanne/purge/vidange à plus de 1,5 m de tout axe coché ('+[...new Set(lostV.map(v=>v.name))].join(', ')+') : ignorés (légende, détail ?).');
   site.lines=out.map(l=>({id:l.id,name:(l.parent?'Antenne ':'Ligne ')+l.id+(l.cond?(l.cond==='A'?' · aller':' · retour'):''),cond:l.cond,parent:l.parent||null,pts:l.pts,specials:(l.specials||[]).sort((a,b)=>a.m-b.m),dnNum:l.dnNum,dnSegs:l.dnSegs,casing:l.casing,dnFrom:l.dnFrom,length:+l.len.toFixed(1)}));
+  site.T=T;site.netLayers=[...allAxis];site.bbox=[M,M,+(x1-x0-M).toFixed(2),+(y1-y0-M).toFixed(2)];
   const nSpec=t=>site.lines.reduce((s,l)=>s+l.specials.filter(x=>x.type===t).length,0);
   site.report={lines:site.lines.length,antennas:site.lines.filter(l=>l.parent).length,tees:nSpec('tee'),reducers:nSpec('reducer'),valves:nSpec('valve'),bendBlocks:bendsBlocks.length,dnLabels:dnPts.length,sleeves:E.filter(e=>roles.sleeves.includes(e.layer)).length,welds:E.filter(e=>roles.welds.includes(e.layer)).length,length_m:Math.round(site.lines.reduce((s,l)=>s+l.length,0))};
   if(!site.lines.length)site.warnings.push('Aucun axe trouvé dans les calques cochés.');

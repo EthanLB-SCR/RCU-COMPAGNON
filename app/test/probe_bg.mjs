@@ -1,0 +1,16 @@
+import { chromium } from 'playwright';
+const dxfPath=process.argv[2];
+const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
+const page=await browser.newPage({viewport:{width:1300,height:900}});
+page.on('console',m=>{if(m.type()!=='log')console.log('[console.'+m.type()+']',m.text().slice(0,300));});
+await page.goto('file://'+new URL('../dist/index.html', import.meta.url).pathname);await page.waitForTimeout(500);
+await page.evaluate(()=>{const sel=document.querySelector('#roleSel');sel.value='ethan';sel.dispatchEvent(new Event('change'));});await page.waitForTimeout(300);
+await page.evaluate(()=>document.querySelector('#btnImport').click());await page.waitForSelector('#planFile',{state:'attached'});
+await page.setInputFiles('#planFile', dxfPath);await page.waitForFunction(()=>!!document.querySelector('#impGo'),null,{timeout:900000});
+await page.click('#impGo');await page.waitForFunction(()=>window.TRACE&&Object.keys(window.TRACE.lines).length>0,null,{timeout:600000});await page.waitForTimeout(2000);
+const info=await page.evaluate(()=>{const S=window.TRACE.state;const sh=S.sheets[S.sheetId];return {sheetId:S.sheetId,type:sh.type,drawing:sh.drawing?sh.drawing.length:null,bgSVG:sh.bgSVG?sh.bgSVG.length:null,siteId:S.siteId,bgChildren:document.querySelector('#bg, [id*=bg]')?document.querySelector('#bg, [id*=bg]').childElementCount:'?'};});
+console.log(info);
+await page.evaluate(()=>{const L=Object.values(window.TRACE.lines).sort((a,b)=>b.length-a.length)[0];const e=L.els[Math.floor(L.els.length/2)];window.TRACE.centerOn(e.from.x,e.from.y,12);});await page.waitForTimeout(800);
+const svg=await page.evaluate(()=>{const g=[...document.querySelectorAll('svg g')].find(x=>x.dataset&&x.dataset.sheet);return g?{sheet:g.dataset.sheet,children:g.childElementCount,firstPath:(g.querySelector('path')||{}).getAttribute&&g.querySelector('path').getAttribute('d').slice(0,80),stroke:g.querySelector('path')&&g.querySelector('path').getAttribute('stroke'),parentTransform:g.parentElement.getAttribute('transform')}:null;});console.log(svg);
+await page.screenshot({path:new URL('./probe_bg.png',import.meta.url).pathname});
+await browser.close();
