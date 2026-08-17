@@ -12,7 +12,8 @@ await page.evaluate(()=>{const S=window.MAQ.state;S.lines=[{id:'L1',name:'Feeder
 const nW0=await page.evaluate(()=>Object.values(window.MAQ.state.built).reduce((s,B)=>s+B.A.welds.length+B.R.welds.length,0));
 // 2) enregistrer dans TRACÉ
 await page.click('#bSave');await page.waitForTimeout(200);await page.fill('#svName','Chantier test passerelle');await page.click('#svOk');await page.waitForTimeout(800);
-const handoff=await page.evaluate(()=>{const k=Object.keys(localStorage).find(k=>k.startsWith('trace:handoff:'));const s=JSON.parse(localStorage.getItem(k));return {k,id:s.id,name:s.name,lines:s.lines.length,welds:s.lines.reduce((n,L)=>n+L.cond.A.welds.length+L.cond.R.welds.length,0),elsA:s.lines[0].cond.A.els.slice(0,4).map(e=>e.id+'/'+e.kind+'/'+e.casing),firstIds:s.lines[1].cond.A.welds.slice(0,3).map(w=>w.weldId),sheet:s.sheetType,size:JSON.stringify(s).length};});
+const idbAll=()=>new Promise(res=>{const r=indexedDB.open('trace-kv',1);r.onsuccess=()=>{const db=r.result;const st=db.transaction('kv','readonly').objectStore('kv');const g=st.getAll(),gk=st.getAllKeys();g.onsuccess=()=>{gk.onsuccess=()=>res(gk.result.map((k,i)=>[k,g.result[i]]));};};r.onerror=()=>res([]);});
+const handoff=await page.evaluate(async()=>{const idbAll=()=>new Promise(res=>{const r=indexedDB.open('trace-kv',1);r.onsuccess=()=>{const db=r.result;const st=db.transaction('kv','readonly').objectStore('kv');const g=st.getAll(),gk=st.getAllKeys();g.onsuccess=()=>{gk.onsuccess=()=>res(gk.result.map((k,i)=>[k,g.result[i]]));};};r.onerror=()=>res([]);});const all=await idbAll();const e=all.find(([k])=>String(k).startsWith('trace:handoff:'));const k=e[0],s=e[1];return {k,id:s.id,name:s.name,lines:s.lines.length,welds:s.lines.reduce((n,L)=>n+L.cond.A.welds.length+L.cond.R.welds.length,0),elsA:s.lines[0].cond.A.els.slice(0,4).map(e=>e.id+'/'+e.kind+'/'+e.casing),firstIds:s.lines[1].cond.A.welds.slice(0,3).map(w=>w.weldId),sheet:s.sheetType,size:JSON.stringify(s).length};});
 console.log('handoff:',JSON.stringify(handoff),'welds traceur:',nW0);
 const siteId=handoff.id;
 // 3) ouvrir dans TRACÉ
@@ -34,11 +35,11 @@ out=await page.evaluate(()=>{const S=window.MAQ.state;return {lines:S.lines.leng
 // retouche : une vanne à PK 12 sur le feeder → les soudures en amont gardent leur numéro, la vanne prend des numéros neufs
 await page.evaluate(()=>{const S=window.MAQ.state;S.lines[0].specials.push({id:'v1',type:'valve',m:12});window.MAQ.rebuild();});
 await page.click('#bSave');await page.waitForTimeout(200);const mode=await page.evaluate(()=>document.querySelector('#svMode')&&document.querySelector('#svMode').value);await page.click('#svOk');await page.waitForTimeout(800);
-out=await page.evaluate(id=>{const s=JSON.parse(localStorage.getItem('trace:handoff:'+id));const A=s.lines[0].cond.A.welds;return {mode:null,name:s.name,welds:A.slice(0,8).map(w=>w.weldId+'@'+w.m.toFixed(1)),lost:s.report.lost};},siteId);out.mode=mode;console.log('après retouche:',JSON.stringify(out));
+out=await page.evaluate(async id=>{const s=await new Promise(res=>{const r=indexedDB.open('trace-kv',1);r.onsuccess=()=>{const g=r.result.transaction('kv','readonly').objectStore('kv').get('trace:handoff:'+id);g.onsuccess=()=>res(g.result);};});const A=s.lines[0].cond.A.welds;return {mode:null,name:s.name,welds:A.slice(0,8).map(w=>w.weldId+'@'+w.m.toFixed(1)),lost:s.report.lost};},siteId);out.mode=mode;console.log('après retouche:',JSON.stringify(out));
 await page.click('#svGo');await page.waitForTimeout(1200);
 out=await page.evaluate(()=>({selected:document.querySelector('#siteSel').value,n:document.querySelectorAll('#net g.el').length}));console.log('appli après retouche:',JSON.stringify(out));
 // 5) suppression du chantier (chef de chantier)
 await page.selectOption('#roleSel','ethan');await page.waitForTimeout(300);
 page.on('dialog',d=>d.accept());await page.click('#btnDelSite');await page.waitForTimeout(800);
-out=await page.evaluate(()=>({opts:[...document.querySelector('#siteSel').options].map(o=>o.textContent),handoffs:Object.keys(localStorage).filter(k=>k.startsWith('trace:handoff:')).length,hidden:localStorage.getItem('trace:hiddenSites')}));console.log('après suppression:',JSON.stringify(out));
+out=await page.evaluate(async()=>{const keys=await new Promise(res=>{const r=indexedDB.open('trace-kv',1);r.onsuccess=()=>{const g=r.result.transaction('kv','readonly').objectStore('kv').getAllKeys();g.onsuccess=()=>res(g.result);};});return {opts:[...document.querySelector('#siteSel').options].map(o=>o.textContent),handoffs:keys.filter(k=>String(k).startsWith('trace:handoff:')).length,hidden:localStorage.getItem('trace:hiddenSites')};});console.log('après suppression:',JSON.stringify(out));
 console.log(logs);await browser.close();

@@ -4,6 +4,7 @@ import {buildConduit,nomenclature,offsetPoly,polyLen,ptAt,projOnPoly,fmt} from '
 import {parseDXFFile,analyze,buildDrawing} from '../src/dxfimport.js';
 import {siteFromTraceur,weldsOfSite} from './bridge.js';
 import {sync} from '../src/sync.js';
+import {kv} from '../src/kv.js';
 const $=(s,el=document)=>el.querySelector(s),$$=(s,el=document)=>[...el.querySelectorAll(s)];const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const svg=$('#svg'),world=$('#world'),gBg=$('#bg'),gGrid=$('#grid'),gNet=$('#net'),gDraft=$('#draft'),main=$('#main');
 /* ================= état ================= */
@@ -61,7 +62,7 @@ function rebuild(){cat=catalogFor(state.supplier,state.serie);state.built={};let
     state.built[l.id]={A:conds.A,R:conds.R,axis:pts,e};});
   render();renderPanel();renderFoot();save();}
 /* ================= rendu ================= */
-function applyView(){const v=state.view;world.setAttribute('transform',`translate(${v.tx} ${v.ty}) scale(${v.k})`);$('#zoominfo').textContent=`1 m ≈ ${fmt(v.k)} px`;renderGrid();}
+function applyView(){const v=state.view;world.setAttribute('transform',`translate(${v.tx} ${v.ty}) scale(${v.k})`);$('#zoominfo').textContent=`1 m ≈ ${fmt(v.k)} px`;renderGrid();if(typeof renderBgIfNeeded==='function')renderBgIfNeeded();}
 function renderGrid(){const v=state.view;const W=svg.clientWidth,H=svg.clientHeight;const x0=(-v.tx)/v.k,y0=(-v.ty)/v.k,x1=(W-v.tx)/v.k,y1=(H-v.ty)/v.k;const step=v.k>25?1:v.k>6?10:v.k>1.5?50:200;let d='';for(let x=Math.floor(x0/step)*step;x<=x1;x+=step)d+=`M${x} ${y0}V${y1}`;for(let y=Math.floor(y0/step)*step;y<=y1;y+=step)d+=`M${x0} ${y}H${x1}`;gGrid.innerHTML=`<path d="${d}" stroke="#d9d7cf" stroke-width="0.6" vector-effect="non-scaling-stroke" fill="none"/>`;}
 const COL={A:'#c8382f',R:'#2a5fb4'};
 // épaisseur des traits : la gaine à l'échelle dès que le zoom le permet (≥ KW px/m) ; en dessous, une échelle virtuelle qui garde les proportions entre DN (un DN50 reste plus fin qu'un DN100)
@@ -250,18 +251,22 @@ $('#mTrace').onclick=()=>setMode('trace');$('#mSelect').onclick=()=>setMode('sel
 $('#zIn').onclick=()=>{const v=state.view;const cx=svg.clientWidth/2,cy=svg.clientHeight/2;const nk=v.k*1.3;v.tx=cx-(cx-v.tx)*nk/v.k;v.ty=cy-(cy-v.ty)*nk/v.k;v.k=nk;applyView();render();};
 $('#zOut').onclick=()=>{const v=state.view;const cx=svg.clientWidth/2,cy=svg.clientHeight/2;const nk=v.k/1.3;v.tx=cx-(cx-v.tx)*nk/v.k;v.ty=cy-(cy-v.ty)*nk/v.k;v.k=nk;applyView();render();};
 $('#zFit').onclick=fitAll;
-function fitAll(){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;state.lines.forEach(l=>l.pts.forEach(p=>{x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);}));if(state.bg&&state.bg.bbox&&state.bg.show!==false){const b=state.bg.bbox;x0=Math.min(x0,b[0]);y0=Math.min(y0,b[1]);x1=Math.max(x1,b[2]);y1=Math.max(y1,b[3]);}if(x0>x1){state.view={k:6,tx:80,ty:80};}else{const W=svg.clientWidth,H=svg.clientHeight;const m=Math.max(10,(x1-x0)*.06);x0-=m;x1+=m;y0-=m;y1+=m;const k=Math.min(W/(x1-x0),H/(y1-y0));state.view={k,tx:(W-(x1-x0)*k)/2-x0*k,ty:(H-(y1-y0)*k)/2-y0*k};}applyView();render();save();}
+function fitAll(){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;state.lines.forEach(l=>l.pts.forEach(p=>{x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);}));if(x0>x1&&state.bg&&state.bg.bbox&&state.bg.show!==false){const b=state.bg.bbox;x0=Math.min(x0,b[0]);y0=Math.min(y0,b[1]);x1=Math.max(x1,b[2]);y1=Math.max(y1,b[3]);} // on cadre sur le réseau ; le fond (souvent un plan de plusieurs km) seulement s'il n'y a rien de tracé
+  if(x0>x1){state.view={k:6,tx:80,ty:80};}else{const W=svg.clientWidth,H=svg.clientHeight;const m=Math.max(10,(x1-x0)*.06);x0-=m;x1+=m;y0-=m;y1+=m;const k=Math.min(W/(x1-x0),H/(y1-y0));state.view={k,tx:(W-(x1-x0)*k)/2-x0*k,ty:(H-(y1-y0)*k)/2-y0*k};}applyView();render();save();}
 $('#bClear').onclick=()=>{if(confirm('Effacer toutes les lignes ?')){state.lines=[];state.sel=null;rebuild();}};
 /* ================= passerelle TRACÉ ================= */
 const HANDOFF='trace:handoff:';
 /* ================= fond de plan : image (à l'échelle) et/ou DXF, opacité, affichage ================= */
 function bgObj(){if(!state.bg)state.bg={drawing:null,bbox:null,name:'',image:null,opacity:.5,show:true};if(state.bg.opacity===undefined)state.bg.opacity=.5;if(state.bg.show===undefined)state.bg.show=true;return state.bg;}
-function setBg(drawing,bbox,name){const b=bgObj();b.drawing=drawing;b.bbox=bbox;b.name=name;renderBg();}
+function setBg(drawing,bbox,name){const b=bgObj();b.drawing=drawing;b.bbox=bbox;b.name=name;b._bb=null;b._lastKey=null;renderBg();}
 function renderBg(){const b=state.bg;if(!b||(!b.drawing&&!b.image)){gBg.innerHTML='';$('#bgTools').style.display='none';return;}$('#bgTools').style.display='inline-flex';$('#bgOp').value=Math.round((b.opacity===undefined?.5:b.opacity)*100);$('#bgShow').checked=b.show!==false;$('#bgScale').style.display=b.image?'':'none';$('#bgMove').style.display=b.image?'':'none';
   if(b.show===false){gBg.innerHTML='';return;}let h='';const op=b.opacity===undefined?.5:b.opacity;
   if(b.image&&b.image.src)h+=`<image href="${b.image.src}" x="${b.image.x||0}" y="${b.image.y||0}" width="${b.image.w}" height="${b.image.h}" opacity="${op}" preserveAspectRatio="none"/>`;
-  if(b.drawing){const byCol={};b.drawing.forEach(d=>{const col=d.net?'#3f3d39':'#b5b2a9';(byCol[col]=byCol[col]||[]).push('M'+d.pts.map(p=>p[0].toFixed(2)+' '+p[1].toFixed(2)).join('L'));});h+=Object.entries(byCol).map(([col,ds])=>`<path d="${ds.join('')}" fill="none" stroke="${col}" stroke-width="${col==='#3f3d39'?1:0.7}" vector-effect="non-scaling-stroke" opacity="${Math.min(1,op+.3)}"/>`).join('');}
+  if(b.drawing){ // zoomé : seulement les traits visibles (un chemin de plusieurs km à fort zoom fait disparaître tout le calque dans Chrome)
+    const k=state.view.k;const zoomed=k>=6&&b.drawing.length>300;let wx0=-1e12,wy0=-1e12,wx1=1e12,wy1=1e12;if(zoomed){if(!b._bb){b._bb=b.drawing.map(d=>{let x0=1e12,y0=1e12,x1=-1e12,y1=-1e12;d.pts.forEach(p=>{if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1];});return [x0,y0,x1,y1];});}const v=state.view;const W=svg.clientWidth,H=svg.clientHeight;const mx=W*.5/k,my=H*.5/k;wx0=(-v.tx)/k-mx;wy0=(-v.ty)/k-my;wx1=(W-v.tx)/k+mx;wy1=(H-v.ty)/k+my;}
+    const byCol={};b.drawing.forEach((d,i)=>{if(zoomed){const bb=b._bb[i];if(bb[2]<wx0||bb[0]>wx1||bb[3]<wy0||bb[1]>wy1)return;}const col=d.net?'#3f3d39':'#b5b2a9';(byCol[col]=byCol[col]||[]).push('M'+d.pts.map(p=>p[0].toFixed(2)+' '+p[1].toFixed(2)).join('L'));});h+=Object.entries(byCol).map(([col,ds])=>`<path d="${ds.join('')}" fill="none" stroke="${col}" stroke-width="${col==='#3f3d39'?1:0.7}" vector-effect="non-scaling-stroke" opacity="${Math.min(1,op+.3)}"/>`).join('');b._lastKey=zoomed?`${Math.round(k*100)}:${Math.round(state.view.tx)}:${Math.round(state.view.ty)}`:'full';}
   gBg.innerHTML=h;}
+let bgRaf=0;function renderBgIfNeeded(){const b=state.bg;if(!b||!b.drawing||b.show===false)return;const k=state.view.k;const zoomed=k>=6&&b.drawing.length>300;const key=zoomed?`${Math.round(k*100)}:${Math.round(state.view.tx)}:${Math.round(state.view.ty)}`:'full';if(b._lastKey===key)return;if(bgRaf)cancelAnimationFrame(bgRaf);bgRaf=requestAnimationFrame(()=>{bgRaf=0;renderBg();});}
 function saveBg(){try{const b=state.bg;if(!b||!b.image){localStorage.removeItem('trace:bg:v1');return;}localStorage.setItem('trace:bg:v1',JSON.stringify({image:b.image,opacity:b.opacity,show:b.show,name:b.name}));}catch(e){flash('Image trop lourde pour être gardée après rechargement (elle reste dans le chantier enregistré)');}}
 function loadBg(){try{const s=JSON.parse(localStorage.getItem('trace:bg:v1')||'null');if(!s||!s.image)return;const b=bgObj();b.image=s.image;b.opacity=s.opacity;b.show=s.show;b.name=s.name||'';b.bbox=[s.image.x,s.image.y,s.image.x+s.image.w,s.image.y+s.image.h];}catch(e){}}
 async function loadBgImage(file){const src=await shrinkImage(file,2200);const dims=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>res({pw:im.width,ph:im.height});im.onerror=rej;im.src=src;});
@@ -272,9 +277,9 @@ function applyScale(p1,p2){const b=state.bg;if(!b||!b.image)return;const d=Math.
 $('#bgImg').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;try{await loadBgImage(f);}catch(err){alert('Image illisible : '+(err.message||err));}e.target.value='';});
 $('#bgOp').addEventListener('input',e=>{bgObj().opacity=(+e.target.value)/100;renderBg();saveBg();});$('#bgShow').addEventListener('change',e=>{bgObj().show=e.target.checked;renderBg();saveBg();});
 $('#bgScale').onclick=()=>setMode(state.mode==='scale'?'select':'scale');$('#bgMove').onclick=()=>setMode(state.mode==='moveBg'?'select':'moveBg');
-$('#bgClear').onclick=()=>{if(!confirm('Retirer le fond de plan ?'))return;state.bg=null;renderBg();saveBg();};
+$('#bgClear').onclick=()=>{if(!confirm('Retirer le fond de plan ?'))return;state.bg=null;renderBg();saveBg();kv.del('bg:dxf');};
 function siteBadge(){const b=$('#siteBadge');if(!b)return;b.textContent=state.siteRef?`chantier : ${state.siteRef.name}`:'nouveau réseau (pas encore dans TRACÉ)';}
-async function loadSiteIntoTraceur(id){let site=null;try{site=JSON.parse(localStorage.getItem(HANDOFF+id)||'null');}catch(e){}
+async function loadSiteIntoTraceur(id){let site=null;try{site=await kv.get(HANDOFF+id);}catch(e){}if(!site){try{site=JSON.parse(localStorage.getItem(HANDOFF+id)||'null');}catch(e){}}
   if(!site){try{site=await sync.loadSite(id);}catch(e){console.warn(e);}}
   if(!site){flash('Chantier '+id+' introuvable (ni en local, ni sur le serveur — connecte-toi dans TRACÉ)');return false;}
   let remote=[];try{remote=await sync.loadWelds(id);}catch(e){}
@@ -284,7 +289,8 @@ async function loadSiteIntoTraceur(id){let site=null;try{site=JSON.parse(localSt
   state.bg=null;if(site.drawing&&site.drawing.length){setBg(site.drawing,site.bbox||[0,0,site.w||100,site.h||100],site.traceur&&site.traceur.bgName||site.name);}
   if(site.image&&site.image.src){const b=bgObj();b.image={...site.image};b.opacity=site.image.opacity===undefined?.5:site.image.opacity;b.name=b.name||site.image.name||site.name;if(!b.bbox)b.bbox=[b.image.x,b.image.y,b.image.x+b.image.w,b.image.y+b.image.h];}
   renderBg();saveBg();
-  state.siteRef={id:site.id,name:site.name,welds:weldsOfSite(site,remote)};syncHeader();rebuild();fitAll();siteBadge();return true;}
+  if(state.bg&&site.traceur&&site.traceur.bgOrigin){state.bg.origin=site.traceur.bgOrigin;state.bg.netLayers=site.traceur.bgLayers||[];}
+  state.siteRef={id:site.id,name:site.name,welds:weldsOfSite(site,remote),origin:site.traceur&&site.traceur.bgOrigin||null};syncHeader();rebuild();fitAll();siteBadge();if(state.bg&&state.bg.drawing)saveBgIDB();return true;}
 function openSaveModal(){const M=$('#modal');const ref=state.siteRef;const dflt=ref?ref.name:(state.bg&&state.bg.name?state.bg.name.replace(/\.dxf$/i,''):'Réseau du '+new Date().toLocaleDateString('fr-FR'));
   $('#modalBody').innerHTML=`<h3 style="margin:0 0 6px">Enregistrer dans TRACÉ</h3><label>Nom du chantier</label><input class="f" id="svName" value="${esc(dflt)}" style="width:100%">${ref?`<label>Mise à jour</label><select class="f" id="svMode" style="width:100%"><option value="update">Mettre à jour le chantier « ${esc(ref.name)} » (soudures déjà faites conservées)</option><option value="new">Créer un nouveau chantier</option></select>`:''}<div class="muted" style="margin-top:6px">${state.lines.length} ligne(s) · ${Object.values(state.built).reduce((s,B)=>s+B.A.welds.length+B.R.welds.length,0)} soudures${state.bg&&state.bg.drawing?' · fond DXF '+esc(state.bg.name)+' ('+state.bg.drawing.length+' traits)':state.bg&&state.bg.image?' · fond image '+esc(state.bg.name):' · sans fond de plan'}. Le chantier est remis à l'appli TRACÉ (même navigateur) et envoyé au serveur si tu es connecté dans TRACÉ.</div><div class="actions"><button class="btn" id="svCancel">Annuler</button><button class="btn on" id="svOk">Enregistrer</button></div>`;
   M.classList.add('show');$('#svCancel').onclick=()=>M.classList.remove('show');
@@ -293,7 +299,7 @@ async function saveToTrace(name,ref){if(!state.lines.length){flash('Rien à enre
   const id=ref?ref.id:'trc_'+Date.now().toString(36);const {site,lost,nW}=siteFromTraceur({id,name,supplier:state.supplier,serie:state.serie,lines:state.lines,built:state.built,rules,bg:state.bg,prev:ref?{welds:ref.welds}:null,barDefault:state.bar});
   if(lost.length&&!confirm(`${lost.length} soudure(s) déjà faites ne sont plus retrouvées dans le nouveau tracé (${lost.slice(0,8).map(w=>w.weldId).join(', ')}${lost.length>8?'…':''}). Leur historique restera sur le serveur mais elles disparaissent du plan. Continuer ?`))return;
   // remise locale à l'appli (même navigateur) : avec le fond de plan si ça tient, sinon sans (l'appli le reprendra du serveur)
-  let localOk=true;try{localStorage.setItem(HANDOFF+id,JSON.stringify(site));}catch(e){try{localStorage.setItem(HANDOFF+id,JSON.stringify({...site,drawing:null,sheetType:'blank',bgTooBig:true}));flash('Fond de plan trop lourd pour la remise locale : il sera repris du serveur');}catch(e2){localOk=false;}}
+  let localOk=await kv.set(HANDOFF+id,site);if(!localOk){try{localStorage.setItem(HANDOFF+id,JSON.stringify({...site,drawing:null,sheetType:site.image?'plain':'blank',bgTooBig:true}));localOk=true;flash('Fond de plan trop lourd pour la remise locale : il sera repris du serveur');}catch(e2){localOk=false;}}
   let remoteOk=false;try{remoteOk=await sync.saveSite(site);}catch(e){console.warn(e);}
   state.siteRef={id,name,welds:weldsOfSite(site,null)};save();siteBadge();
   const msg=`Chantier « ${name} » : ${site.lines.length} lignes, ${nW} soudures — ${remoteOk?'enregistré sur le serveur':'pas envoyé au serveur (connecte-toi dans TRACÉ, il partira depuis l\'appli)'}${localOk?'':' · remise locale impossible (mémoire du navigateur pleine)'}`;
@@ -301,16 +307,48 @@ async function saveToTrace(name,ref){if(!state.lines.length){flash('Rien à enre
 $('#bSave').onclick=openSaveModal;$('#bOpenApp').onclick=()=>{location.href='./index.html'+(state.siteRef?'?site='+encodeURIComponent(state.siteRef.id):'');};
 $('#bExport').onclick=()=>{const data={v:1,supplier:state.supplier,serie:state.serie,lines:state.lines,rules};const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,1)],{type:'application/json'}));a.download='trace-maquette.json';a.click();};
 $('#impFile').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());state.lines=d.lines||[];state.supplier=d.supplier||state.supplier;state.serie=d.serie||state.serie;if(d.rules)rules={...RULES0,...d.rules};syncHeader();rebuild();fitAll();}catch(err){alert('Fichier illisible : '+err.message);}e.target.value='';});
-$('#bgFile').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;flash('Lecture du plan…');try{const dxf=await parseDXFFile(f,()=>new Promise(r=>setTimeout(r,0)));const an=analyze(dxf);
-    // emprise : les calques d'axe candidats cochés (ou tout le dessin) → repère : origine = coin bas-gauche, y vers le haut du plan (SVG y vers le bas → on inverse)
-    let x0=1e12,y0=1e12,x1=-1e12,y1=-1e12;const netL=an.axisCandidates.filter(c=>c.checked).map(c=>c.layer);dxf.ents.forEach(en=>{if(netL.length&&!netL.includes(en.layer))return;if(en.pts)en.pts.forEach(p=>{x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);});});if(x0>x1){dxf.ents.forEach(en=>{if(en.pts)en.pts.forEach(p=>{x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);});});}
-    const M=30;const T=p=>[+(p[0]-x0+M).toFixed(3),+(y1-p[1]+M).toFixed(3)];const bbox=[0,0,x1-x0+2*M,y1-y0+2*M];const D=buildDrawing(dxf,T,bbox,netL,{cap:60000,margin:60});
-    setBg(D.drawing,bbox,f.name);
-    flash(`Fond de plan : ${D.drawing.length} traits (${esc(f.name)})`);fitAll();}catch(err){console.error(err);alert('Plan illisible : '+(err.message||err));}e.target.value='';});
+/* ---- fond DXF : lecture avec progression, choix des calques du réseau, dessin autour du réseau, gardé dans IndexedDB ---- */
+let dxfCtx=null;
+function progress(txt,p){let el=$('#prog');if(!el){el=document.createElement('div');el.id='prog';el.style.cssText='position:absolute;left:50%;top:40%;transform:translateX(-50%);background:rgba(252,252,251,.98);border:1px solid var(--line);border-radius:12px;padding:14px 18px;min-width:320px;box-shadow:0 12px 40px rgba(0,0,0,.25);z-index:30;font-size:13px';main.appendChild(el);}
+  if(txt===null){el.remove();return;}el.innerHTML=`<div><b>${esc(txt)}</b></div><div style="height:8px;background:var(--plane);border-radius:4px;margin-top:8px;overflow:hidden"><div style="height:100%;width:${Math.round((p||0)*100)}%;background:var(--ink);transition:width .2s"></div></div><div class="muted" style="margin-top:6px">${p!==undefined?Math.round(p*100)+' %':''}</div>`;}
+const tick=()=>new Promise(r=>setTimeout(r,0));
+$('#bgFile').addEventListener('change',async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
+  if(/\.dwg$/i.test(f.name)){alert('C\'est un DWG : le traceur lit le DXF. Dans AutoCAD / ODA File Converter : enregistrer sous → DXF ASCII 2013 (pas binaire), puis recharge-le ici.');return;}
+  progress(`Lecture de ${f.name} (${(f.size/1e6).toFixed(0)} Mo)…`,0);const t0=Date.now();let dxf;
+  try{dxf=await parseDXFFile(f,p=>{progress(`Lecture de ${f.name} (${(f.size/1e6).toFixed(0)} Mo)…`,p);return tick();});}
+  catch(err){console.error(err);progress(null);alert('Plan illisible : '+(err.message||err)+'\n(DXF binaire ? Réexporte en DXF ASCII 2013.)');return;}
+  progress('Analyse des calques…',1);await tick();let an;try{an=analyze(dxf);}catch(err){console.error(err);progress(null);alert('Analyse impossible : '+(err.message||err));return;}
+  progress(null);dxfCtx={dxf,an,name:f.name,secs:((Date.now()-t0)/1000).toFixed(1)};openDxfModal();});
+function openDxfModal(){const {dxf,an,name}=dxfCtx;const M=$('#modal');const geo=lay=>['LWPOLYLINE','LINE','POLYLINE','INSERT','ARC','CIRCLE'].reduce((s,t)=>s+((an.L[lay]||{})[t]||0),0);
+  const rows=an.layers.map(lay=>{const c=an.axisCandidates.find(x=>x.layer===lay);return {lay,n:an.total(lay),geo:geo(lay),cand:!!c,checked:!!(c&&c.checked)};}).filter(r=>r.n>0).sort((a,b)=>(b.checked-a.checked)||(b.cand-a.cand)||(b.geo-a.geo));
+  const prevOrigin=(state.bg&&state.bg.origin)||(state.siteRef&&state.siteRef.origin)||null;
+  $('#modalBody').innerHTML=`<h3 style="margin:0 0 6px">Fond de plan DXF — ${esc(name)}</h3><div class="muted">${dxf.ents.length} entités utiles, ${an.layers.length} calques, lus en ${dxfCtx.secs} s${an.truncated&&an.truncated.length?` · fonds externes tronqués : ${an.truncated.map(esc).join(', ')}`:''}. Coche les calques du <b>réseau de chaleur</b> (dessinés en foncé) ; le reste est dessiné en clair autour.</div>
+    <div style="max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px 8px;margin-top:8px"><table><tr><th></th><th>Calque</th><th>traits</th></tr>${rows.map((r,i)=>`<tr><td><input type="checkbox" class="dxfLay" data-i="${i}" ${r.checked?'checked':''}></td><td ${r.cand?'style="font-weight:600"':''}>${esc(r.lay)}</td><td class="muted">${r.geo}</td></tr>`).join('')}</table></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:center"><label class="muted">contexte <select class="f" id="dxfCtx"><option value="60">autour du réseau (60 m)</option><option value="200">autour du réseau (200 m)</option><option value="all">tout le dessin</option><option value="none">rien (réseau seul)</option></select></label><label class="muted">détail <select class="f" id="dxfCap"><option value="120000">normal</option><option value="40000">léger (vieux PC)</option><option value="300000">fin (lourd)</option></select></label>${prevOrigin?`<label class="muted"><input type="checkbox" id="dxfKeep" checked> même repère que le fond précédent (le réseau déjà tracé reste calé)</label>`:''}</div>
+    <div class="actions"><button class="btn" id="dxfCancel">Annuler</button><button class="btn on" id="dxfOk">Afficher en fond</button></div>`;
+  M.classList.add('show');$('#dxfCancel').onclick=()=>{M.classList.remove('show');dxfCtx=null;};
+  $('#dxfOk').onclick=async()=>{const netL=[...$$('.dxfLay')].filter(c=>c.checked).map(c=>rows[+c.dataset.i].lay);const ctxMode=$('#dxfCtx').value;const cap=+$('#dxfCap').value;const keep=$('#dxfKeep')&&$('#dxfKeep').checked?prevOrigin:null;M.classList.remove('show');progress('Dessin du fond…',0);await tick();
+    try{let x0=1e12,y0=1e12,x1=-1e12,y1=-1e12;const grow=en=>{if(en.pts)en.pts.forEach(p=>{x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);});else if(isFinite(en.x)){x0=Math.min(x0,en.x);y0=Math.min(y0,en.y);x1=Math.max(x1,en.x);y1=Math.max(y1,en.y);}};
+      // zone principale du réseau : cellules de 500 m, la plus chargée en mètres de tracé et ses voisines (les copies de légende / détails à des km sont ignorées) ; sinon tout le dessin
+      const netEnts=netL.length&&ctxMode!=='all'?dxf.ents.filter(en=>netL.includes(en.layer)&&en.pts&&en.pts.length>=2):[];
+      if(netEnts.length){const CELL=500;const cells={};const key=p=>Math.round(p[0]/CELL)+':'+Math.round(p[1]/CELL);netEnts.forEach(en=>{let L=0;for(let i=1;i<en.pts.length;i++)L+=Math.hypot(en.pts[i][0]-en.pts[i-1][0],en.pts[i][1]-en.pts[i-1][1]);const k=key(en.pts[0]);cells[k]=(cells[k]||0)+L;});
+        const best=Object.entries(cells).sort((a,b)=>b[1]-a[1])[0][0];const sel=new Set([best]);const q=[best];while(q.length){const c=q.pop();const [cx,cy]=c.split(':').map(Number);for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){const k=(cx+dx)+':'+(cy+dy);if(cells[k]>0&&!sel.has(k)){sel.add(k);q.push(k);}}}
+        netEnts.forEach(en=>{if(sel.has(key(en.pts[0])))en.pts.forEach(p=>{x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);});});}
+      if(x0>x1){dxf.ents.forEach(en=>{if(netL.length&&ctxMode!=='all'&&!netL.includes(en.layer))return;grow(en);});}if(x0>x1){dxf.ents.forEach(grow);}if(x0>x1)throw new Error('aucune géométrie dans ce DXF');
+      // repère : origine = coin bas-gauche de l'emprise arrondi à 100 m (ou celui du fond précédent), y vers le haut du plan (SVG y vers le bas → inversé)
+      const origin=keep||{x0:Math.floor(x0/100)*100-30,y1:Math.ceil(y1/100)*100+30};const T=p=>[+(p[0]-origin.x0).toFixed(3),+(origin.y1-p[1]).toFixed(3)];
+      const q0=T([x0,y1]),q1=T([x1,y0]);const bboxT=[Math.min(q0[0],q1[0]),Math.min(q0[1],q1[1]),Math.max(q0[0],q1[0]),Math.max(q0[1],q1[1])]; // emprise du réseau dans le repère du dessin (buildDrawing compare les points transformés)
+      const M2=ctxMode==='all'?1e9:ctxMode==='none'?0:+ctxMode;const D=buildDrawing(dxf,T,bboxT,netL,{cap,margin:M2||0.5});let drawing=D.drawing;if(ctxMode==='none')drawing=drawing.filter(d=>d.net);
+      const mm=M2>1e8?0:M2;const bbox=[bboxT[0]-mm,bboxT[1]-mm,bboxT[2]+mm,bboxT[3]+mm];
+      const b=bgObj();b.drawing=drawing;b.bbox=bbox;b.name=name;b.origin=origin;b.netLayers=netL;b._bb=null;b._lastKey=null;renderBg();await saveBgIDB();progress(null);
+      flash(`Fond de plan : ${drawing.length} traits (${drawing.filter(d=>d.net).length} réseau)${D.truncated?' — allégé (limite atteinte)':''} · ${esc(name)}`);if(!state.lines.length)fitAll();}
+    catch(err){console.error(err);progress(null);alert('Fond impossible : '+(err.message||err));}dxfCtx=null;};}
+async function saveBgIDB(){const b=state.bg;if(!b||!b.drawing){await kv.del('bg:dxf');return;}await kv.set('bg:dxf',{drawing:b.drawing,bbox:b.bbox,name:b.name,origin:b.origin,netLayers:b.netLayers,at:Date.now()});}
+async function loadBgIDB(){const d=await kv.get('bg:dxf');if(!d||!d.drawing)return false;const b=bgObj();b.drawing=d.drawing;b.bbox=b.bbox||d.bbox;b.name=b.name||d.name;b.origin=d.origin;b.netLayers=d.netLayers;b._bb=null;b._lastKey=null;renderBg();return true;}
 function syncHeader(){$('#supplier').value=state.supplier;$('#serie').value=String(state.serie);cat=catalogFor(state.supplier,state.serie);const dns=cat.dns();$('#dn').innerHTML=dns.map(d=>`<option ${d===state.dn?'selected':''}>${d}</option>`).join('');if(!dns.includes(state.dn))state.dn=dns.includes(100)?100:dns[0];$('#dn').value=String(state.dn);const bl=cat.barLengths(state.dn);$('#bar').innerHTML=bl.map(b=>`<option ${b===state.bar?'selected':''}>${b}</option>`).join('');if(!bl.includes(state.bar))state.bar=bl.includes(12)?12:bl[bl.length-1];$('#bar').value=String(state.bar);}
 $('#supplier').onchange=e=>{state.supplier=e.target.value;syncHeader();rebuild();};$('#serie').onchange=e=>{state.serie=+e.target.value;syncHeader();rebuild();};$('#dn').onchange=e=>{state.dn=+e.target.value;syncHeader();renderPanel();save();};$('#bar').onchange=e=>{state.bar=+e.target.value;save();};
 window.addEventListener('resize',()=>{applyView();render();});
 /* ================= démarrage ================= */
-load();loadBg();syncHeader();applyView();rebuild();renderBg();if(!state.lines.length)fitAll();setMode(state.lines.length?'select':'trace');siteBadge();
+load();loadBg();syncHeader();applyView();rebuild();renderBg();if(!state.lines.length)fitAll();setMode(state.lines.length?'select':'trace');siteBadge();loadBgIDB().then(ok=>{if(ok&&!state.lines.length)fitAll();});
 {const q=new URLSearchParams(location.search);const sid=q.get('site');if(sid){if(sid==='new'){state.lines=[];state.siteRef=null;state.bg=null;renderBg();saveBg();rebuild();fitAll();setMode('trace');siteBadge();}else loadSiteIntoTraceur(sid).then(ok=>{if(ok)setMode('select');});history.replaceState(null,'',location.pathname);}}
 window.MAQ={state,rebuild,get rules(){return rules;},cat:()=>cat,finishTrace,setMode};

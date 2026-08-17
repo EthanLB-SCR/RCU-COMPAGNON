@@ -4,6 +4,7 @@ import {createPieceEngine} from './pieces.js';
 import CATALOGUE from './catalogue.json';
 import {parseDXF,parseDXFFile,analyze,buildSite,buildSiteJBTP,drawingOf,buildDrawing,previewSVG} from './dxfimport.js';
 import {sync} from './sync.js';
+import {kv} from './kv.js';
 
 /* ============================================================
    TRACÉ v0.3 — plan d'ensemble + calque tubes/fils + bouclage
@@ -137,11 +138,12 @@ function setupTraceurLine(L,sh){const line={id:L.id,sheetId:sh.id,name:L.name||L
   ['A','R'].forEach(c=>{const cd=L.cond[c];if(!cd)return;const els=cd.els.map(mk);els.forEach(e=>{e.cond=c;});const joints=(cd.welds||[]).map((w,k)=>({idx:w.idx!==undefined?w.idx:k,weldId:w.weldId,cond:c,status:'a_souder',events:[],conn:{E:'E',N:'N'},wire:'a_raccorder',cont:false,iso:false,isoVal:'',photos:[],note:'',line:L.id,m:w.m,dn:w.dn,fc:!!w.fc,dev:w.dev||0,teeOut:!!w.teeOut,bypass:!!w.bypass})).filter(j=>j.idx>=0&&j.idx<els.length).sort((a,b)=>a.idx-b.idx);line.cond[c]={els,joints};});
   line.els=(line.cond.A||line.cond.R).els;line.length=line.els.length?line.els[line.els.length-1].m1:0;state.lines[L.id]=line;sh.lines.push(L.id);}
 // chantiers remis par le traceur (même navigateur) : trace:handoff:<id> → ajoutés à la liste, envoyés au serveur dès qu'on est connecté
-function loadHandoffs(){const out=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(!k||!k.startsWith('trace:handoff:'))continue;try{const net=JSON.parse(localStorage.getItem(k));if(net&&net.id&&net.lines){net.handoff=true;out.push(net);}}catch(e){}}return out;}
-async function pushHandoffs(){if(!(await sync.user()))return;for(const net of loadHandoffs()){const {handoff,...clean}=net;const okk=await sync.saveSite(clean);if(okk){setCloudBadge('chantier « '+net.name+' » envoyé au serveur');}}}
+async function loadHandoffs(){const out=[];const seen=new Set();try{const keys=await kv.keys('trace:handoff:');for(const k of keys){const net=await kv.get(k);if(net&&net.id&&net.lines){net.handoff=true;out.push(net);seen.add(net.id);}}}catch(e){console.warn(e);}
+  for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(!k||!k.startsWith('trace:handoff:'))continue;try{const net=JSON.parse(localStorage.getItem(k));if(net&&net.id&&net.lines&&!seen.has(net.id)){net.handoff=true;out.push(net);}}catch(e){}}return out;}
+async function pushHandoffs(){if(!(await sync.user()))return;for(const net of await loadHandoffs()){const {handoff,...clean}=net;const okk=await sync.saveSite(clean);if(okk){setCloudBadge('chantier « '+net.name+' » envoyé au serveur');}}}
 function addSiteOption(net){if(!SITES[net.id]){SITES[net.id]=net;const o=document.createElement('option');o.value=net.id;o.textContent=net.name;siteSel.appendChild(o);}else{SITES[net.id]=net;const o=[...siteSel.options].find(x=>x.value===net.id);if(o)o.textContent=net.name;}}
 async function deleteCurrentSite(){const id=state.siteId;const net=SITES[id];if(!net)return;if(!confirm(`Supprimer le chantier « ${net.name} » (plan, soudures, statuts, photos) ? Cette action est définitive.`))return;
-  let msg='';try{localStorage.removeItem('trace:handoff:'+id);}catch(e){}
+  let msg='';try{localStorage.removeItem('trace:handoff:'+id);}catch(e){}try{await kv.del('trace:handoff:'+id);}catch(e){}
   const hidden=JSON.parse(localStorage.getItem('trace:hiddenSites')||'[]');if(!hidden.includes(id))hidden.push(id);localStorage.setItem('trace:hiddenSites',JSON.stringify(hidden));
   try{const r=await sync.deleteSite(id);msg=r.ok?'supprimé sur le serveur':('serveur : '+(r.why||'refusé')+' — SQL à passer dans Supabase : delete from welds where site_id=\''+id+'\'; delete from line_state where site_id=\''+id+'\'; delete from events where site_id=\''+id+'\'; delete from sites where id=\''+id+'\';');}catch(e){msg='serveur injoignable';}
   delete SITES[id];delete siteStore[id];const o=[...siteSel.options].find(x=>x.value===id);if(o)o.remove();const next=Object.keys(SITES)[0];toast('Chantier supprimé — '+msg);
@@ -211,7 +213,14 @@ function renderPlan(){
     else if(sh.type==='plain'||sh.plain){bgG.innerHTML=`<rect x="-1e5" y="-1e5" width="2e5" height="2e5" fill="#f1f0eb"/>`+imgTag;}
     else if(sh.type==='image')bgG.innerHTML=`<rect x="0" y="0" width="${sh.w}" height="${sh.h}" fill="#fff"/><image href="${sh.src}" x="0" y="0" width="${sh.w}" height="${sh.h}" opacity=".62"/>`;
     else{let g=`<rect x="-1e5" y="-1e5" width="2e5" height="2e5" fill="#f1f0eb"/>`;const st=100/ppm;for(let x=0;x<=sh.w;x+=st)g+=`<line x1="${x}" y1="0" x2="${x}" y2="${sh.h}" stroke="#e2e1da" stroke-width="${0.6}" vector-effect="non-scaling-stroke"/>`;for(let y=0;y<=sh.h;y+=st)g+=`<line x1="0" y1="${y}" x2="${sh.w}" y2="${y}" stroke="#e2e1da" stroke-width="0.6" vector-effect="non-scaling-stroke"/>`;bgG.innerHTML=g+`<text x="${sh.w-140}" y="${sh.h-20}" font-size="14" fill="#898781" font-family="system-ui,sans-serif">carroyage 100 m — RGF93 / CC48</text>`;}
-    bgG.dataset.sheet=sh.id;fitView();}
+    bgG.dataset.sheet=sh.id;bgG.dataset.mode='';fitView();}
+  // fond vectoriel zoomé : on ne dessine que les traits visibles (un chemin de plusieurs km à 20 px/m fait disparaître tout le calque dans Chrome)
+  if(sh.type==='vector'&&sh.drawing&&sh.drawing.length){const zoomed=kpm>=6;const v0=state.view;const key=zoomed?`z:${Math.round(v0.k*100)}:${Math.round(v0.tx)}:${Math.round(v0.ty)}`:'full';
+    if(bgG.dataset.mode!==key){bgG.dataset.mode=key;if(!zoomed){bgG.innerHTML=sh.bgSVG;}else{if(!sh._bb){sh._bb=sh.drawing.map(d=>{let x0=1e12,y0=1e12,x1=-1e12,y1=-1e12;d.pts.forEach(p=>{if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1];});return [x0,y0,x1,y1];});}
+      const cw=canvas.clientWidth,ch=canvas.clientHeight;const mx=cw*.5/k,my=ch*.5/k;const wx0=(-v0.tx)/k-mx,wy0=(-v0.ty)/k-my,wx1=(cw-v0.tx)/k+mx,wy1=(ch-v0.ty)/k+my;const byCol={};let n=0;
+      sh.drawing.forEach((d,i)=>{const b=sh._bb[i];if(b[2]<wx0||b[0]>wx1||b[3]<wy0||b[1]>wy1)return;const col=/texte/i.test(d.layer)?'#9a8f6a':/isolation/i.test(d.layer)?'#b8b4aa':/tube/i.test(d.layer)?'#6f6c66':/coude|té/i.test(d.layer)?'#4c6fa5':d.net===true?'#3f3d39':d.net===false?'#a9a69d':'#8f8c86';(byCol[col]=byCol[col]||[]).push('M'+d.pts.map(p=>p[0].toFixed(2)+' '+p[1].toFixed(2)).join('L'));n++;});
+      const imgTag2=sh.image&&sh.image.src?`<image href="${sh.image.src}" x="${sh.image.x||0}" y="${sh.image.y||0}" width="${sh.image.w}" height="${sh.image.h}" opacity="${sh.image.opacity===undefined?.5:sh.image.opacity}" preserveAspectRatio="none"/>`:'';
+      bgG.innerHTML=`<rect x="-1e5" y="-1e5" width="2e5" height="2e5" fill="#f4f3ee"/>`+imgTag2+Object.entries(byCol).map(([col,ds])=>`<path d="${ds.join('')}" fill="none" stroke="${col}" stroke-width="${col==='#3f3d39'?1:0.7}" vector-effect="non-scaling-stroke" opacity=".9"/>`).join('');}}}
   // fenêtre visible (monde) pour ne dessiner que ce qui est à l'écran quand on est zoomé
   const v=state.view;const vx0=(-v.tx)/k-20,vy0=(-v.ty)/k-20,vx1=(canvas.clientWidth-v.tx)/k+20,vy1=(canvas.clientHeight-v.ty)/k+20;const cull=kpm>=2.5;
   const EX=1.7;const far=kpm<6;const minW=far?2.2:5,minSep=far?2.4:4.5;const casingW=e=>Math.max(minW/k,casingOf(e)*ppm*EX);const offM=e=>Math.max(minSep/(k*ppm),casingOf(e)*EX*.62); // dézoomé : traits fins côte à côte (lisible), zoomé : gaine à l'échelle
@@ -252,6 +261,7 @@ function renderPlan(){
         });
         if(e.kind==='pipe'&&e.cut&&Lax>1){const p=axisSub(e.axis[0],Lax*.5-.05,Lax*.5+.05);const q=offsetPoly(p,d);net+=`<path d="${pathD(q)}" stroke="#ffffff" stroke-width="${w*.5}" fill="none" opacity=".35" stroke-dasharray="${w*.12} ${w*.12}"/>`;}
       }
+      if(e.kind==='tee'&&e.branch&&e.branch.length===2){const b0=e.branch[0],b1=e.branch[1];const wb=Math.max(minW/k,casingOf({dn:e.dnb||e.dn})*ppm*EX);if(e.saut)net+=`<line x1="${b0[0]}" y1="${b0[1]}" x2="${b1[0]}" y2="${b1[1]}" stroke="#f4f3ee" stroke-width="${wb*2}" stroke-linecap="butt"/>`;net+=`<line x1="${b0[0]}" y1="${b0[1]}" x2="${b1[0]}" y2="${b1[1]}" stroke="${far?col:'#161616'}" stroke-width="${wb}" stroke-linecap="butt"/>`;if(!far)net+=`<line x1="${b0[0]}" y1="${b0[1]}" x2="${b1[0]}" y2="${b1[1]}" stroke="${col}" stroke-width="${wb*.45}" stroke-linecap="butt" opacity=".9"/>`;} // branche du té (jusqu'à la sortie où repart l'antenne) ; té à saut : par-dessus la conduite voisine
       if(showWires&&e.kind!=='valve'&&e.kind!=='endcap'&&!isSteel){['E','N'].forEach(wn=>{const a=clockPos(e,wn);const o=(-Math.sin(rad(a)))*casingOf(e)*EX*.37*ppm;const front=Math.cos(rad(a))>=0;net+=`<path d="${e.axis.map(pl=>pathD(offsetPoly(axisSub(pl,bare+.02,polyLen(pl)-bare-.02),d+o))).join(' ')}" stroke="${WIRE[wn].color}" stroke-width="${Math.max(1.4/k,.022*ppm)}" fill="none" ${front?'':'stroke-dasharray="'+(.25*ppm)+' '+(.15*ppm)+'"'} opacity="${front?.95:.55}" stroke-linejoin="round"/>`;});}
       if(detail){const mid=elMid(e);const mx=mid.x+mid.ty*d,my=mid.y-mid.tx*d;const ang=Math.atan2(mid.ty,mid.tx)*180/Math.PI;
         if(e.kind==='valve')net+=`<g transform="translate(${mx} ${my}) rotate(${ang})"><rect x="${-w*.22}" y="${-w*.62}" width="${w*.44}" height="${w*1.24}" rx="${w*.06}" fill="#2b2e33"/><rect x="${-w*.05}" y="${-w*.62-w*.5}" width="${w*.1}" height="${w*.5}" fill="#2b2e33"/><rect x="${-w*.28}" y="${-w*.62-w*.6}" width="${w*.56}" height="${w*.12}" rx="${w*.04}" fill="#3d4147"/></g>`;
@@ -520,12 +530,15 @@ $('#btnHelp').addEventListener('click',()=>openModal(`<h2>TRACÉ v0.5 — chanti
  <p>Zoome (pince, molette, double-tap, +) : de loin l'avancement, puis les manchons, les n°, les fils. Tape un manchon ou une barre. Schéma de bouclage par ligne. Avancement, photos et raccordements : fictifs.</p><div class="actions" style="margin-top:8px"><button class="btn primary block" data-close>Compris</button></div>`));
 let tt;function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2600);}
 const siteSel=$('#siteSel');{const hidden=JSON.parse(localStorage.getItem('trace:hiddenSites')||'[]');hidden.forEach(id=>{delete SITES[id];});}
-loadHandoffs().forEach(net=>{SITES[net.id]=net;});
 Object.entries(SITES).forEach(([id,S])=>{const o=document.createElement('option');o.value=id;o.textContent=S.name;siteSel.appendChild(o);});
 if(!Object.keys(SITES).length){SITES.__vide={id:'__vide',name:'Aucun chantier — crée un réseau avec le traceur',lines:[],w:100,h:100};const o=document.createElement('option');o.value='__vide';o.textContent=SITES.__vide.name;siteSel.appendChild(o);}
 siteSel.addEventListener('change',e=>{switchSite(e.target.value);toast('Chantier : '+NET.name);});
-{const q=new URLSearchParams(location.search);const want=q.get('site');state.siteId=(want&&SITES[want])?want:Object.keys(SITES)[0];if(want)history.replaceState(null,'',location.pathname);siteSel.value=state.siteId;}
+const wantSite=new URLSearchParams(location.search).get('site');if(wantSite)history.replaceState(null,'',location.pathname);
+state.siteId=(wantSite&&SITES[wantSite])?wantSite:Object.keys(SITES)[0];siteSel.value=state.siteId;
 setupSite(state.siteId);renderAll();requestAnimationFrame(()=>{fitView();renderPlan();});
+// chantiers remis par le traceur (IndexedDB) : ajoutés à la liste ; celui demandé par ?site= est ouvert
+loadHandoffs().then(async hs=>{const hidden=JSON.parse(localStorage.getItem('trace:hiddenSites')||'[]');hs.forEach(net=>{if(hidden.includes(net.id))return;if(SITES.__vide){delete SITES.__vide;const o=[...siteSel.options].find(x=>x.value==='__vide');if(o)o.remove();}addSiteOption(net);});
+  if(wantSite&&SITES[wantSite]&&state.siteId!==wantSite){siteSel.value=wantSite;await switchSite(wantSite);}else if(state.siteId==='__vide'&&Object.keys(SITES).length){const first=Object.keys(SITES)[0];siteSel.value=first;await switchSite(first);}});
 // ---- compte & serveur (Supabase, Europe) ----
 function setCloudBadge(t){const b=$('#cloudBadge');if(b)b.textContent=t;}
 function renderCloud(){let box=$('#cloudBox');if(!box){box=document.createElement('div');box.id='cloudBox';box.style.cssText='display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 10px;font-size:12px;color:#52514e;border-bottom:1px solid #e6e3da;background:#fbfaf6';const anchor=$('#planTools')||document.body;anchor.parentNode.insertBefore(box,anchor);}
