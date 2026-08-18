@@ -55,15 +55,17 @@ export function buildConduit(o){
   const rigid=nodes.filter(n=>n.kind!=='dev');const devs=nodes.filter(n=>n.kind==='dev');
   // 2) écarts entre nœuds rigides consécutifs → barres, coude contre coude, jambes recoupées, ou erreur
   const fills=[];
-  for(let k=0;k<rigid.length-1;k++){const a=rigid[k],b=rigid[k+1];const D=b.m-a.m;const la=a.kind==='start'?0:a.legOut,lb=b.kind==='end'?0:b.legIn;let G=D-la-lb;const bendA=a.kind==='bend',bendB=b.kind==='bend';let bars=[];let note=null,err=null,manch=false;
+  for(let k=0;k<rigid.length-1;k++){const a=rigid[k],b=rigid[k+1];const D=b.m-a.m;const la=a.kind==='start'?0:a.legOut,lb=b.kind==='end'?0:b.legIn;let G=D-la-lb;const bendA=a.kind==='bend',bendB=b.kind==='bend';let bars=[];let note=null,err=null,manch=false,nue=false;
     const manchetteMin=rules.manchetteMin===undefined?0.2:rules.manchetteMin;const nom=x=>x.kind==='start'?(o.head?'la sortie du té':'le départ'):x.kind==='end'?'la fin':x.kind==='bend'?(x.plane==='3D'?'le coude en altimétrie':'le coude du sommet '+x.vertex):x.kind==='tee'?'le té':x.kind==='valve'?'la vanne':x.kind==='reducer'?'la réduction':x.kind==='endcap'?(x.sub==='kit'?'le kit fin de ligne':'la fin de ligne provisoire'):x.kind==='endpoint'?'le raccordement':x.kind==='bypassEnd'?'le coude du by-pass':x.kind==='cut'?'la soudure coulissée':x.kind;
     if(G>=chuteMin-1e-6){bars=splitBars(G,bar,chuteMin);}
     else if(G>=manchetteMin-1e-6){ // pas la place d'une chute : une manchette (bout de tube court, deux soudures) — c'est ce qui se fait entre deux pièces (lyre extérieure, chicane…)
       bars=[G];manch=true;note={kind:'interp',txt:`manchette de ${fmt(G)} m entre ${nom(a)} et ${nom(b)} (pas la place d'une chute ≥ ${fmt(chuteMin)} m)`};}
-    else if(G>1e-3){ // trop court même pour une manchette : les jambes de coude voisines se recoupent de l'écart ; sans coude à recouper → erreur
+    else if(G>=0.03){ // moins que la manchette mini : manchette nue (bout d'acier sans isolant), deux soudures dans le même manchon — jamais un trou ; les fausses coupes des coudes voisins se prennent à ces soudures
+      bars=[G];manch=true;nue=true;note={kind:'interp',txt:`manchette nue de ${fmt(G)} m entre ${nom(a)} et ${nom(b)} (moins que la manchette mini ${fmt(manchetteMin)} m) : deux soudures dans le même manchon${(bendA&&a.resid)||(bendB&&b.resid)?', tubes coupés en biais (fausse coupe)':''}`};}
+    else if(G>1e-3){ // quelques centimètres : les jambes de coude voisines se recoupent de l'écart ; sinon l'écart est absorbé à la soudure (note, pas d'erreur)
       let need=G;const cutA=bendA?Math.min(need/(bendB?2:1),a.legOut-legMin):0;const cutB=bendB?Math.min(need-cutA,b.legIn-legMin):0;
-      if(cutA+cutB>=need-1e-3){a.legOut=+(a.legOut-cutA).toFixed(3);b.legIn=+(b.legIn-cutB).toFixed(3);if(cutA>0)a.cut=true;if(cutB>0)b.cut=true;note={kind:'interp',txt:`${fmt(G)} m entre ${nom(a)} et ${nom(b)} : trop court pour une manchette (mini ${fmt(manchetteMin)} m) → jambes recoupées (${fmt(a.legOut)} + ${fmt(b.legIn)} m), soudées l'une sur l'autre`};}
-      else{bars=[G];err=`${fmt(G)} m entre ${nom(a)} et ${nom(b)} : trop court pour une manchette (mini ${fmt(manchetteMin)} m) et rien à recouper — décale une pièce`;}}
+      if(cutA+cutB>=need-1e-3){a.legOut=+(a.legOut-cutA).toFixed(3);b.legIn=+(b.legIn-cutB).toFixed(3);if(cutA>0)a.cut=true;if(cutB>0)b.cut=true;note={kind:'interp',txt:`${fmt(G)} m entre ${nom(a)} et ${nom(b)} → jambes recoupées (${fmt(a.legOut)} + ${fmt(b.legIn)} m), soudées l'une sur l'autre`};}
+      else{note={kind:'interp',txt:`écart de ${fmt(G*100)} cm entre ${nom(a)} et ${nom(b)} absorbé à la soudure`};}}
     else if(G>=-1e-3&&bendA&&bendB){note={kind:'interp',txt:`${a.plane==='3D'||b.plane==='3D'?'jeu de coudes en altimétrie':'sommets '+a.vertex+' et '+b.vertex} : coude contre coude (jambes ${fmt(la)} + ${fmt(lb)} m, ${fmt(D)} m entre sommets)`};}
     else if(G>=-1e-3){}
     else { // chevauchement : on recoupe les jambes de coude (jamais sous jambeMin) ; les autres pièces ne se recoupent pas
@@ -71,7 +73,7 @@ export function buildConduit(o){
       if(bendA&&cutA>0)a.cut=true;if(bendB&&cutB>0)b.cut=true;
       if(need>1e-3){err=`${fmt(D)} m entre ${a.kind==='start'?'le départ':a.kind+(a.vertex!==undefined?' (sommet '+a.vertex+')':'')} et ${b.kind==='end'?'la fin':b.kind+(b.vertex!==undefined?' (sommet '+b.vertex+')':'')} : les pièces catalogue ne rentrent pas (il manque ${fmt(need)} m même jambes recoupées à ${fmt(legMin)} m)`;}
       else note={kind:'interp',txt:`${a.plane==='3D'||b.plane==='3D'?'jeu de coudes en altimétrie':'sommets '+(a.vertex!==undefined&&a.vertex!==null?a.vertex:'?')+' et '+(b.vertex!==undefined&&b.vertex!==null?b.vertex:'?')} : coude contre coude, jambes recoupées (${fmt(a.legOut)} + ${fmt(b.legIn)} m, ${fmt(D)} m entre sommets)`};}
-    fills.push({bars,note,err,a,b,manch});}
+    fills.push({bars,note,err,a,b,manch,nue});}
   // 3) pièces dans l'ordre, avec positions (marche le long de la polyligne, sommet par sommet)
   const pieces=[];let n={P:0,M:0,C:0,T:0,V:0,R:0,B:0,F:0,X:0,U:0};const idOf=k=>k+(++n[k]);let carry=null;
   const pushPiece=p=>{pieces.push(p);return p;};
@@ -99,7 +101,7 @@ export function buildConduit(o){
       if(nd.kind==='bypassEnd'){const t=nd.turn||1,r=nd.r||0.2;const th=g.th;p.turn=t;p.r=r;p.apex=[g.x1+Math.cos(th)*r-Math.sin(th)*r*t,g.y1+Math.sin(th)*r+Math.cos(th)*r*t]; // bout de l'arc de 90° : point de jonction des deux conduites (soudure du by-pass)
         const steps=6;const cx=g.x1-Math.sin(th)*r*t,cy=g.y1+Math.cos(th)*r*t;const a0=Math.atan2(g.y1-cy,g.x1-cx);for(let s=1;s<=steps;s++){const ang=a0+t*(Math.PI/2)*s/steps;path.push([cx+r*Math.cos(ang),cy+r*Math.sin(ang)]);}}
       pushPiece(p);}
-    if(k<rigid.length-1){const f=fills[k];let m=nd.kind==='start'?0:nd.m+nd.legOut;f.bars.forEach((L,j)=>{const g=place(m,m+L);const start=(j===0&&carry)?carry:[g.x,g.y];const std=Math.abs(L-bar)<1e-6;const dl=dnAt(m+1e-3),cl=cat.casing(dl);const p=pushPiece({kind:'tube',id:idOf(f.manch?'M':'P'),m0:m,m1:m+L,L,path:[start,[g.x1,g.y1]],x:start[0],y:start[1],th:Math.atan2(g.y1-start[1],g.x1-start[0]),dn:dl,casing:cl,std,cut:!std,manchette:!!f.manch,fcBefore:(j===0&&carry)?true:false,ref:`R-${dl}/${Math.round(cl*1000)}`+(std?` · barre ${bar} m`:f.manch?` · manchette ${fmt(L)} m`:` · barre coupée ${fmt(L)} m`)});if(f.err&&j===f.bars.length-1){p.err=f.err;}m+=L;});carry=null;
+    if(k<rigid.length-1){const f=fills[k];let m=nd.kind==='start'?0:nd.m+nd.legOut;f.bars.forEach((L,j)=>{const g=place(m,m+L);const start=(j===0&&carry)?carry:[g.x,g.y];const std=Math.abs(L-bar)<1e-6;const dl=dnAt(m+1e-3),cl=cat.casing(dl);const nueP=!!f.manch&&(f.nue||L<=2*cat.bareEnds(dl)+0.05);const p=pushPiece({kind:'tube',id:idOf(f.manch?'M':'P'),m0:m,m1:m+L,L,path:[start,[g.x1,g.y1]],x:start[0],y:start[1],th:Math.atan2(g.y1-start[1],g.x1-start[0]),dn:dl,casing:cl,std,cut:!std,manchette:!!f.manch,nue:nueP,fcBefore:(j===0&&carry)?true:false,ref:`R-${dl}/${Math.round(cl*1000)}`+(std?` · barre ${bar} m`:f.manch?(nueP?` · manchette nue ${fmt(L)} m (acier nu, un seul manchon)`:` · manchette ${fmt(L)} m`):` · barre coupée ${fmt(L)} m`)});if(f.err&&j===f.bars.length-1){p.err=f.err;}m+=L;});carry=null;
       if(f.err){notes.push({kind:'err',m:f.a.m,txt:f.err});if(!f.bars.length&&pieces.length)pieces[pieces.length-1].err=f.err;}if(f.note)notes.push({...f.note,m:f.a.m});}}
   // les tubes qui traversent un point de déviation (angle < devMax) sont coupés là : la déviation se prend au manchon
   devs.forEach(d=>{const lbl=d.fc?`fausse coupe de ${fmt(Math.abs(d.ang))}°`:`déviation de ${fmt(Math.abs(d.ang))}°`;const i=pieces.findIndex(p=>p.kind==='tube'&&p.m0<d.m-0.05&&p.m1>d.m+0.05);if(i<0){notes.push({kind:'warn',m:d.m,txt:`${lbl} au chaînage ${fmt(d.m)} m : tombe dans une pièce rigide, pas dans une barre — à vérifier`});return;}
@@ -113,7 +115,9 @@ export function buildConduit(o){
   const welds=[];for(let i=0;i<pieces.length-1;i++){const p=pieces[i],q=pieces[i+1];const c=ptAt(pts,p.m1);const E=(p.kind==='bend'&&p.fcWhere==='aval')?p.E:null;let dev=p.devAfter||0,fc=!!p.fcAfter;if(p.kind==='bend'&&p.fcWhere==='aval'){dev=p.resid;fc=true;}if(q.kind==='bend'&&q.fcWhere==='amont'){dev=q.resid;fc=true;}welds.push({i,m:p.m1,x:E?E[0]:c.x,y:E?E[1]:c.y,between:[p.id,q.id],dev,fc,dn:p.kind==='reducer'?(p.dn2||p.dn):(p.dn||dn),teeOut:p.kind==='teeBranch'});}
   // renumérotation lisible : chaque type dans l'ordre du chaînage
   const cnt={};pieces.forEach(p=>{if(p.fixedId)return;const k=p.id.replace(/\d+b?$/,'');cnt[k]=(cnt[k]||0)+1;p.id=k+cnt[k];});welds.forEach((w,i)=>{w.between=[pieces[i].id,pieces[i+1].id];});
+  // manchette nue : ses deux soudures passent dans le même manchon
+  pieces.forEach((p,i)=>{if(!p.nue)return;welds.forEach(w=>{if(w.i===i-1||w.i===i)w.sleeve=p.id;});});
   return {pieces,welds,notes,length:Ltot,casing,dn};
 }
 // nomenclature : comptage par référence (les raccordements et sorties de té ne sont pas des pièces à commander)
-export function nomenclature(conduits){const by={};conduits.forEach(c=>c.pieces.forEach(p=>{if(p.noNomen||p.kind==='teeBranch'||p.kind==='endpoint')return;const k=p.kind==='tube'?(p.std?p.ref:p.manchette?`R-${p.dn}/${Math.round(p.casing*1000)} · manchettes`:`R-${p.dn}/${Math.round(p.casing*1000)} · barre coupée`):p.ref;const e=by[k]||(by[k]={ref:k,kind:p.kind,n:0,L:0,cuts:[]});e.n++;e.L+=p.L||0;if(p.kind==='tube'&&!p.std)e.cuts.push(+p.L.toFixed(2));}));return Object.values(by).sort((a,b)=>a.kind.localeCompare(b.kind)||b.n-a.n);}
+export function nomenclature(conduits){const by={};conduits.forEach(c=>c.pieces.forEach(p=>{if(p.noNomen||p.kind==='teeBranch'||p.kind==='endpoint')return;const k=p.kind==='tube'?(p.std?p.ref:p.manchette?(p.nue?`R-${p.dn}/${Math.round(p.casing*1000)} · manchettes nues (un seul manchon)`:`R-${p.dn}/${Math.round(p.casing*1000)} · manchettes`):`R-${p.dn}/${Math.round(p.casing*1000)} · barre coupée`):p.ref;const e=by[k]||(by[k]={ref:k,kind:p.kind,n:0,L:0,cuts:[]});e.n++;e.L+=p.L||0;if(p.kind==='tube'&&!p.std)e.cuts.push(+p.L.toFixed(2));}));return Object.values(by).sort((a,b)=>a.kind.localeCompare(b.kind)||b.n-a.n);}
