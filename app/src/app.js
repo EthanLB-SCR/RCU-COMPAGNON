@@ -297,11 +297,11 @@ function renderPlan(){
         if(sel)netJ+=`<path d="${pathD(seg(-.42,.42))}" stroke="#0b0b0b" stroke-width="${w*1.5}" fill="none" stroke-linecap="round" opacity=".18"/><path d="${pathD(seg(-.42,.42))}" stroke="#0b0b0b" stroke-width="${2/k}" fill="none" stroke-linecap="round" stroke-dasharray="${4/k} ${3/k}"/>`;
         // zone tactile (capsule invisible 0,7 m × 1,4 gaine)
         netJ+=`<path d="${pathD(seg(-.35,.35))}" stroke="transparent" stroke-width="${w*1.5}" fill="none" stroke-linecap="round" style="cursor:pointer"/>`;
-        // pastille de statut, côté extérieur, à taille écran
-        const so=side*(w*.62+9/k);const mx=px+p.ty*so,my=py-p.tx*so;
-        netJ+=`<g transform="translate(${mx} ${my}) scale(${1/k})"><circle r="11" fill="transparent"/><circle r="7" fill="${st.color}" stroke="#fff" stroke-width="1.6"/>${st.glyph?`<text font-size="9" font-weight="700" fill="#fff" text-anchor="middle" dominant-baseline="central" font-family="system-ui,sans-serif">${st.glyph}</text>`:''}${j.wire==='inversion'?`<circle cx="8" cy="-8" r="4" fill="#d03b3b" stroke="#fff" stroke-width="1.5"/>`:j.wire==='raccorde'?`<circle cx="8" cy="-8" r="3.5" fill="#dfe4ea" stroke="#555" stroke-width="1"/>`:''}${(showLabels||sel)?`<text class="num" x="${side>0?11:-11}" y="4" text-anchor="${side>0?'start':'end'}">${j.weldId}</text>`:''}</g>`;
-      } else if(showJoints){const rr=Math.max(3.5/k,Math.min(9/k,.28*ppm));const so=side*(w*.9+rr*1.1);const mx=px+p.ty*so,my=py-p.tx*so;
-        netJ+=`<g transform="translate(${mx} ${my}) scale(${1/k})"><circle r="${rr*k+5}" fill="transparent"/>${(showLabels||sel)?`<text class="num" x="${side>0?rr*k+4:-(rr*k+4)}" y="4" text-anchor="${side>0?'start':'end'}">${j.weldId}</text>`:''}</g>`;}
+        // pastille de statut, côté extérieur, à taille écran — reliée à sa soudure par un trait (on sait laquelle est visée), anneau à la couleur de la conduite (rouge aller / bleu retour)
+        const so=side*(w*.62+13/k);const mx=px+p.ty*so,my=py-p.tx*so;
+        netJ+=`<line x1="${px}" y1="${py}" x2="${mx}" y2="${my}" stroke="${col}" stroke-width="${1.6/k}" opacity=".9"/><g transform="translate(${mx} ${my}) scale(${1/k})"><circle r="12" fill="transparent"/><circle r="8.5" fill="#fff" stroke="${col}" stroke-width="2.2"/><circle r="6" fill="${st.color}"/>${st.glyph?`<text font-size="9" font-weight="700" fill="#fff" text-anchor="middle" dominant-baseline="central" font-family="system-ui,sans-serif">${st.glyph}</text>`:''}${j.wire==='inversion'?`<circle cx="8" cy="-8" r="4" fill="#d03b3b" stroke="#fff" stroke-width="1.5"/>`:j.wire==='raccorde'?`<circle cx="8" cy="-8" r="3.5" fill="#dfe4ea" stroke="#555" stroke-width="1"/>`:''}${(showLabels||sel)?`<text class="num" x="${side>0?11:-11}" y="4" text-anchor="${side>0?'start':'end'}">${j.weldId}</text>`:''}</g>`;
+      } else if(showJoints){const rr=Math.max(3.5/k,Math.min(9/k,.28*ppm));const so=side*(w*.9+rr*1.1+6/k);const mx=px+p.ty*so,my=py-p.tx*so;
+        netJ+=`<line x1="${px}" y1="${py}" x2="${mx}" y2="${my}" stroke="${col}" stroke-width="${1.2/k}" opacity=".8"/><g transform="translate(${mx} ${my}) scale(${1/k})"><circle r="${rr*k+5}" fill="transparent"/><circle r="${Math.max(3,rr*k*.6)}" fill="${st.color}" stroke="${col}" stroke-width="1.6"/>${(showLabels||sel)?`<text class="num" x="${side>0?rr*k+4:-(rr*k+4)}" y="4" text-anchor="${side>0?'start':'end'}">${j.weldId}</text>`:''}</g>`;}
       netJ+=`</g>`;
     });
   });});
@@ -347,7 +347,7 @@ $('#planTools').addEventListener('click',e=>{if(e.target.id==='btnTool'){if(NET&
 $('#planTools').addEventListener('change',e=>{if(e.target.id==='sheetSel'){state.sheetId=e.target.value;state.sel=null;renderPlan();}});
 $('#btnList').addEventListener('click',()=>{state.tab='liste';renderAll();});
 $('#search').addEventListener('keydown',e=>{if(e.key==='Enter')doSearch();});
-function doSearch(){const q=$('#search').value.trim().replace(/^s-?/i,'');const id='S-'+pad3(parseInt(q,10)||0);const f=findWeld(id);if(!f){toast('Aucune soudure '+id);return;}goToJoint(f.l,f.c,f.j.idx);}
+function doSearch(){const q=$('#search').value.trim().replace(/^s-?/i,'');const n=parseInt(q,10)||0;const cands=['S-'+String(n).padStart(4,'0'),'S-'+pad3(n),'S-'+n];let f=null,id=cands[0];for(const c of cands){f=findWeld(c);if(f){id=c;break;}}if(!f){toast('Aucune soudure '+cands[0]);return;}goToJoint(f.l,f.c,f.j.idx);}
 function goToJoint(l,c,i){if(l.sheetId!==state.sheetId){state.sheetId=l.sheetId;bgG.dataset.sheet='';}state.tab='plan';renderAll();const p=jointPos(l,i);centerOn(p.x,p.y,Math.max(state.view.k,14/l.ppm));openJoint(l.id,c,i);}
 function finishTrace(){state.tracing=false;const pts=state.tracePts;state.tracePts=[];if(pts.length<2){renderPlan();return;}
   const sh=sheet();const id='L'+(Object.keys(state.lines).length+1);const dn=prompt('DN du réseau tracé (ex. 100/200) :','100/200')||'100/200';
