@@ -342,7 +342,10 @@ export function drawingSVG(drawing,o={}){const k=o.k||1,box=o.box||null,bb=o.bb|
     if(d.text){if(!withT||d.h*k<4||d.h*k>60)continue;txt+=textSVG(d,colors?(d.c||(d.net?'#3f3d39':'#8b887f')):(d.net?'#3f3d39':'#8b887f'));n++;continue;}
     if(d.fill){const c=colors?d.fill:'#c9c6bd';fills+=`<path d="${d.loops.map(lp=>'M'+lp.map(p=>p[0].toFixed(2)+' '+p[1].toFixed(2)).join('L')+'Z').join('')}" fill="${c}" fill-rule="evenodd" opacity="${((d.op||.3)*fillOp).toFixed(2)}" stroke="none"/>`;n++;continue;}
     if(!d.pts||d.pts.length<2)continue;const key=lineStyle(d);(groups[key]=groups[key]||[]).push('M'+d.pts.map(p=>p[0].toFixed(2)+' '+p[1].toFixed(2)).join('L'));n++;}
-  const paths=Object.entries(groups).map(([key,ds])=>{const [c,w,lt]=key.split('|');return `<path d="${ds.join('')}" fill="none" stroke="${c}" stroke-width="${w}" vector-effect="non-scaling-stroke"${lt?` stroke-dasharray="${lt}"`:''} stroke-linecap="round" stroke-linejoin="round"/>`;}).join('');
+  // un seul <path> de dizaines de milliers de points fait disparaître toute la couche sur téléphone → paquets de ~3500 points par élément
+  const paths=Object.entries(groups).map(([key,ds])=>{const [c,w,lt]=key.split('|');const attrs=`fill="none" stroke="${c}" stroke-width="${w}" vector-effect="non-scaling-stroke"${lt?` stroke-dasharray="${lt}"`:''} stroke-linecap="round" stroke-linejoin="round"`;
+    const chunks=[];let cur=[],np=0;for(const d of ds){const k2=(d.match(/L/g)||[]).length+1;if(np+k2>3500&&cur.length){chunks.push(cur);cur=[];np=0;}cur.push(d);np+=k2;}if(cur.length)chunks.push(cur);
+    return chunks.map(ch=>`<path d="${ch.join('')}" ${attrs}/>`).join('');}).join('');
   return {svg:(fills?`<g>${fills}</g>`:'')+(paths||txt?`<g opacity="${op}">${paths}${txt}</g>`:''),n};}
 // version allégée d'un fond pour la vue éloignée (< 2 px/m) : un téléphone ne peint pas 200 000 points d'un coup — réseau gardé, contexte simplifié (0,5 m, invisible à ce zoom) et plafonné, du plus long au plus court
 export function decimateDrawing(drawing,opts={}){const cap=opts.cap||50000,simpTol=opts.simp===undefined?0.5:opts.simp,minLen=opts.minLen===undefined?1.5:opts.minLen;
