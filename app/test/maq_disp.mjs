@@ -1,0 +1,25 @@
+// Traceur : panneau 👁 (étiquettes, n°, FC, manchons, noms de lignes, grille, fond, textes) — cocher / décocher, persistance
+import { chromium } from 'playwright';
+const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
+const ctx=await browser.newContext({viewport:{width:1400,height:900}});const page=await ctx.newPage();
+const logs=[];page.on('pageerror',e=>logs.push('PAGEERROR: '+e.message.slice(0,300)));page.on('console',m=>{if(m.type()==='error'&&!/supabase|Failed to fetch|net::ERR|404/i.test(m.text()))logs.push(m.text().slice(0,200));});
+await page.goto('file://'+new URL('../dist-maquette/index.html', import.meta.url).pathname);await page.waitForTimeout(400);
+await page.evaluate(()=>{localStorage.clear();});await page.reload();await page.waitForTimeout(400);
+await page.evaluate(()=>{const S=window.MAQ.state;S.lines=[{id:'L1',name:'Feeder',dn:100,bar:12,pts:[[10,50],[40,50],[42,63],[70,63]],specials:[{id:'v1',type:'valve',m:22},{id:'pv1',type:'tee',vert:'up',m:23.6}],parent:null},{id:'L2',name:'A2',dn:80,bar:12,pts:[[25,50],[25,80]],specials:[],parent:{line:'L1',m:15,side:1}}];S.seq=3;window.MAQ.setMode('select');window.MAQ.rebuild();const W=document.querySelector('#svg').clientWidth,H=document.querySelector('#svg').clientHeight;const k=14;S.view={k,tx:W/2-30*k,ty:H/2-55*k};window.dispatchEvent(new Event('resize'));window.MAQ.rebuild();});
+await page.waitForTimeout(200);
+const cnt=async()=>page.evaluate(()=>{const g=document.querySelector('#net');const t=[...g.querySelectorAll('text')].map(x=>x.textContent);return {texts:t.length,pieces:t.filter(x=>/^[PCTVRMF]\d/.test(x)).length,nums:t.filter(x=>/^\d+$/.test(x)).length,fc:t.filter(x=>/FC|dév/.test(x)).length,lines:t.filter(x=>/DN\d+$/.test(x)&&/·/.test(x)&&!/^[PCTVRMF]\d/.test(x)).length,manch:g.querySelectorAll('rect[fill="#e6e3da"]').length,grid:document.querySelector('#grid').style.display,sample:t.slice(0,6)};});
+console.log('avant:',JSON.stringify(await cnt()));
+await page.click('#zEye');await page.waitForTimeout(150);
+console.log('panneau:',JSON.stringify(await page.evaluate(()=>({show:document.querySelector('#disp').classList.contains('show'),n:document.querySelectorAll('#disp label').length,fondDisabled:document.querySelector('#disp input[data-k=fond]').disabled}))));
+await page.screenshot({path:new URL('./maq_disp.png',import.meta.url).pathname});
+await page.click('#disp input[data-k=pieces]');await page.waitForTimeout(100);console.log('sans noms:',JSON.stringify(await cnt()));
+await page.click('#disp input[data-k=cotes]');await page.waitForTimeout(100);console.log('sans cotes:',JSON.stringify(await cnt()));
+await page.click('#disp input[data-k=nums]');await page.waitForTimeout(100);console.log('sans n°:',JSON.stringify(await cnt()));
+await page.click('#disp input[data-k=fc]');await page.waitForTimeout(100);await page.click('#disp input[data-k=manch]');await page.waitForTimeout(100);await page.click('#disp input[data-k=lignes]');await page.waitForTimeout(100);await page.click('#disp input[data-k=grille]');await page.waitForTimeout(100);
+console.log('tout décoché:',JSON.stringify(await cnt()));
+await page.screenshot({path:new URL('./maq_disp_off.png',import.meta.url).pathname});
+await page.reload();await page.waitForTimeout(500);console.log('après rechargement:',JSON.stringify(await cnt()));
+await page.click('#zEye');await page.waitForTimeout(100);await page.click('#disp [data-all="1"]');await page.waitForTimeout(150);console.log('tout:',JSON.stringify(await cnt()));
+await page.click('#disp [data-all="0"]');await page.waitForTimeout(150);console.log('épuré:',JSON.stringify(await cnt()));
+await page.mouse.click(300,300);await page.waitForTimeout(100);console.log('fermé au clic sur le plan:',await page.evaluate(()=>!document.querySelector('#disp').classList.contains('show')));
+console.log(logs);await browser.close();
