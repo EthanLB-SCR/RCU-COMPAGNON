@@ -4,13 +4,12 @@ const browser=await chromium.launch({headless:true, executablePath: process.env.
 const page=await browser.newPage({viewport:{width:1400,height:900}});const logs=[];page.on('pageerror',e=>logs.push('PAGEERROR: '+e.message.slice(0,300)));page.on('dialog',d=>{logs.push('DIALOG: '+d.message().slice(0,200));d.accept();});
 await page.goto(BASE+'/traceur.html');await page.waitForTimeout(400);await page.evaluate(()=>{localStorage.clear();indexedDB.deleteDatabase('trace-kv');});await page.reload();await page.waitForTimeout(400);
 const t0=Date.now();await page.setInputFiles('#bgFile',FILE);
-// attendre la modale des calques
-await page.waitForSelector('#dxfOk',{timeout:600000});const tRead=((Date.now()-t0)/1000).toFixed(1);
-let out=await page.evaluate(()=>{const rows=[...document.querySelectorAll('.dxfLay')];return {layers:rows.length,checked:rows.filter(c=>c.checked).length,checkedNames:rows.filter(c=>c.checked).map(c=>c.closest('tr').children[1].textContent).slice(0,8),info:document.querySelector('#modalBody .muted').textContent.slice(0,160)};});
-console.log('lecture',tRead,'s',JSON.stringify(out));
-const t1=Date.now();await page.click('#dxfOk');await page.waitForFunction(()=>!document.querySelector('#prog'),null,{timeout:600000});await page.waitForTimeout(300);
-out=await page.evaluate(()=>{const b=window.MAQ.state.bg;return {traits:b&&b.drawing&&b.drawing.length,net:b&&b.drawing&&b.drawing.filter(d=>d.net).length,bbox:b&&b.bbox&&b.bbox.map(v=>Math.round(v)),origin:b&&b.origin,paths:document.querySelectorAll('#bg path').length,hint:document.querySelector('#hint').textContent.slice(0,120)};});
-console.log('dessin',((Date.now()-t1)/1000).toFixed(1),'s',JSON.stringify(out));
+// fond automatique : attendre la fin du dessin
+await page.waitForFunction(()=>window.MAQ.state.bg&&window.MAQ.state.bg.drawing&&!document.querySelector('#prog'),null,{timeout:900000});await page.waitForTimeout(300);
+let out=await page.evaluate(()=>{const b=window.MAQ.state.bg;return {traits:b&&b.drawing&&b.drawing.length,net:b&&b.drawing&&b.drawing.filter(d=>d.net).length,bbox:b&&b.bbox&&b.bbox.map(v=>Math.round(v)),origin:b&&b.origin,paths:document.querySelectorAll('#bg path').length,hint:document.querySelector('#hint').textContent.slice(0,160)};});
+console.log('fond auto',((Date.now()-t0)/1000).toFixed(1),'s',JSON.stringify(out));
+// options : la modale s'ouvre et se ferme
+await page.click('#bgLayers');await page.waitForSelector('#dxfOk',{timeout:5000});out=await page.evaluate(()=>{const rows=[...document.querySelectorAll('.dxfLay')];return {layers:rows.length,checked:rows.filter(c=>c.checked).map(c=>c.closest('tr').children[1].textContent).slice(0,6)};});console.log('options',JSON.stringify(out));await page.click('#dxfCancel');
 await page.screenshot({path:'e2e_dxf_bg.png'});
 // F5 : le fond revient depuis IndexedDB
 await page.reload();await page.waitForTimeout(2500);

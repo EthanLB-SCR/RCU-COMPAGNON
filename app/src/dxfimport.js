@@ -2,12 +2,12 @@
 // ---------- lecture DXF ASCII : un seul automate (paires code/valeur), alimenté soit par une chaîne, soit par un fichier lu en flux ----------
 // Types gardés (géométrie + texte). Le reste (3DFACE, POINT, HATCH, IMAGE, SOLID…) est compté dans layersCount mais pas conservé : sur un plan de BE (topo, MNT, cadastre) c'est 90 % du fichier.
 const KEEP=new Set(['LWPOLYLINE','POLYLINE','LINE','ARC','CIRCLE','INSERT','TEXT','MTEXT','DIMENSION','ATTDEF']);
-const BLOCK_CAP=20000; // au-delà, c'est un fond de plan externe (xref lié) : tronqué et signalé, jamais une pièce
-export function createDXFParser(){
+const BLOCK_CAP=20000; // au-delà, c'est un fond de plan externe (xref lié) : tronqué et signalé, jamais une pièce (l'appli) ; le traceur, qui veut le fond entier, passe une limite plus haute
+export function createDXFParser(opts={}){const blockCap=opts.blockCap||BLOCK_CAP;
   const ents=[];const blocks={};const layersCount={};const layerTable=[];const header={};const truncated=[];let hdrVar=null;
   let section=null,cur=null,blk=null,openPoly=null,openInsert=null,inTable=null;
   const count=(e)=>{if(blk)return;const L=layersCount[e.layer]||(layersCount[e.layer]={});L[e.type]=(L[e.type]||0)+1;};
-  const emit=e=>{if(blk){if(blk.ents.length>=BLOCK_CAP){if(!blk.trunc){blk.trunc=true;truncated.push(blk.name);}return;}blk.ents.push(e);}else ents.push(e);};
+  const emit=e=>{if(blk){if(blk.ents.length>=blockCap){if(!blk.trunc){blk.trunc=true;truncated.push(blk.name);}return;}blk.ents.push(e);}else ents.push(e);};
   const finish=()=>{if(!cur)return;const e=cur;cur=null;
     if(e.type==='VERTEX'){if(openPoly&&isFinite(e.x)&&!((e.flags||0)&(16|64|128)))openPoly.pts.push([e.x,e.y]);return;} // 16 = point de contrôle spline, 64/128 = maillages : ignorés
     if(e.type==='SEQEND'){if(openPoly){if(openPoly.pts.length>=2)emit(openPoly);openPoly=null;}openInsert=null;return;}
@@ -57,8 +57,8 @@ export function createDXFParser(){
 // texte complet en mémoire (petits fichiers, tests)
 export function parseDXF(text){const P=createDXFParser();const lines=text.split(/\r?\n/);const n=lines.length;for(let i=0;i<n-1;i+=2){const code=parseInt(lines[i],10);if(isNaN(code))continue;P.feed(code,lines[i+1]);}return P.end();}
 // lecture en flux d'un File/Blob (jamais tout le texte en mémoire) : onProgress(0..1) — les DXF de BE font couramment 200 à 500 Mo
-export async function parseDXFFile(file,onProgress){
-  const P=createDXFParser();const size=file.size||0;let done=0;
+export async function parseDXFFile(file,onProgress,opts){
+  const P=createDXFParser(opts||{});const size=file.size||0;let done=0;
   const head=new Uint8Array(await file.slice(0,Math.min(size,1<<20)).arrayBuffer());let enc='utf-8';
   try{new TextDecoder('utf-8',{fatal:true}).decode(head);}catch(e){enc='windows-1252';} // exports AutoCAD anciens (ANSI)
   const dec=new TextDecoder(enc);const reader=file.stream().getReader();
@@ -146,7 +146,7 @@ function joinPolys(polys,tol){ // recolle bout à bout les polylignes qui se tou
     if(d2(A0,B1)<tol){P[i]=cat(b,a);P.splice(j,1);changed=true;break outer;}}}
   return P;}
 function projOnPoly(pts,q){let best={d:1e9,m:0};let acc=0;for(let i=1;i<pts.length;i++){const a=pts[i-1],b=pts[i];const vx=b[0]-a[0],vy=b[1]-a[1];const L=Math.hypot(vx,vy)||1e-9;let t=((q[0]-a[0])*vx+(q[1]-a[1])*vy)/(L*L);t=Math.max(0,Math.min(1,t));const px=a[0]+vx*t,py=a[1]+vy*t;const d=Math.hypot(q[0]-px,q[1]-py);if(d<best.d)best={d,m:acc+L*t,i};acc+=L;}return best;}
-function simplify(pts,tol){ // Douglas-Peucker : garde les vrais angles, efface le bruit du dessin
+export function simplify(pts,tol){ // Douglas-Peucker : garde les vrais angles, efface le bruit du dessin
   if(pts.length<3||tol<=0)return pts;const keep=new Array(pts.length).fill(false);keep[0]=keep[pts.length-1]=true;
   const stack=[[0,pts.length-1]];while(stack.length){const [a,b]=stack.pop();const A=pts[a],B=pts[b];const vx=B[0]-A[0],vy=B[1]-A[1];const L2=vx*vx+vy*vy;let imax=-1,dmax=0;
     for(let i=a+1;i<b;i++){const P=pts[i];let d;if(L2<1e-12)d=Math.hypot(P[0]-A[0],P[1]-A[1]);else{const t=((P[0]-A[0])*vx+(P[1]-A[1])*vy)/L2;const px=A[0]+vx*Math.max(0,Math.min(1,t)),py=A[1]+vy*Math.max(0,Math.min(1,t));d=Math.hypot(P[0]-px,P[1]-py);}if(d>dmax){dmax=d;imax=i;}}
@@ -165,6 +165,41 @@ export function buildDrawing(dxf,T,bbox,netLayers,opts={}){
     else emit(e,p=>p,lay,net);}};
   pass(true);pass(false);
   return {drawing:out,truncated:n>cap};}
+/* fond de plan automatique (traceur) : TOUT le dessin (calques et blocs compris) sans rien demander — zone principale = l'amas le plus dense de traits (cellules de 250 m + voisines), calques réseau (si reconnus) en foncé, le reste en clair ; les traits sont simplifiés (Douglas-Peucker) et les plus longs passent d'abord sous la limite de points.
+   opts : {netLayers:[], cap:200000, margin:60, keepOrigin:{x0,y1}|null, zoneAll:false, minLen:0.3, simp:0.1, units}
+   → {drawing:[{layer,pts,net}], bbox (repère du dessin, sans marge), origin, truncated, stats} */
+export function buildBackground(dxf,opts={}){
+  const cap=opts.cap||200000,M=opts.margin===undefined?60:opts.margin,netLayers=opts.netLayers||[],minLen=opts.minLen===undefined?0.3:opts.minLen,simp=opts.simp===undefined?0.1:opts.simp;
+  const JUNK=/cartouche|l[ée]gende|hachur|hatch|trame|carroyage|grille|cadre|titre|matricule/i;
+  const isNet=l=>netLayers.some(n=>l===n||l.startsWith(n+'/'))||(netLayers.length===0&&false);
+  // 1) tous les traits (entités + blocs, 3 niveaux), en coordonnées du dessin
+  const traits=[];const arcPts=(e,tf)=>{const a0=(e.rot||0)*Math.PI/180,a1=(e.rot2===undefined?360:e.rot2)*Math.PI/180;let sweep=a1-a0;while(sweep<=0)sweep+=2*Math.PI;const k=Math.max(4,Math.ceil(sweep/(Math.PI/12)));const pts=[];for(let i=0;i<=k;i++){const a=a0+sweep*i/k;pts.push(tf([e.x+e.r*Math.cos(a),e.y+e.r*Math.sin(a)]));}return pts;};
+  const emit=(e,tf,layer)=>{let pts=null;if((e.type==='LWPOLYLINE'||e.type==='LINE'||e.type==='POLYLINE')&&e.pts&&e.pts.length>=2){pts=e.pts.map(tf);if(e.flags&1)pts.push(pts[0]);}else if((e.type==='ARC'||e.type==='CIRCLE')&&isFinite(e.x)&&e.r>0&&e.r<200){pts=arcPts(e.type==='CIRCLE'?{...e,rot:0,rot2:360}:e,tf);}if(!pts)return;traits.push({layer,pts,net:isNet(layer)});};
+  const insCount={};dxf.ents.forEach(e=>{if(e.type==='INSERT')insCount[e.name]=(insCount[e.name]||0)+1;});
+  const expand=(e,tf,depth,layerPrefix)=>{const B=dxf.blocks[e.name];if(!B||!isFinite(e.x)||depth>3)return;if((insCount[e.name]||0)>3000)return;const th=(e.rot||0)*Math.PI/180,sx=e.sx||1,sy=e.sy||1,c=Math.cos(th),s=Math.sin(th);const tf2=p=>tf([e.x+(p[0]*sx*c-p[1]*sy*s),e.y+(p[0]*sx*s+p[1]*sy*c)]);
+    B.forEach(b=>{if(JUNK.test(b.layer||''))return;if(b.type==='INSERT')expand(b,tf2,depth+1,layerPrefix);else emit(b,tf2,layerPrefix+'/'+(b.layer||''));});};
+  dxf.ents.forEach(e=>{if(JUNK.test(e.layer||''))return;if(e.type==='INSERT')expand(e,p=>p,1,e.layer||'');else emit(e,p=>p,e.layer||'');});
+  // 2) unités : $INSUNITS 4 = mm, 5 = cm ; sinon mètres — vérifié par la taille de la zone (entre 20 m et 50 km)
+  let f=opts.units===4?0.001:opts.units===5?0.01:1;
+  const len=pts=>{let L=0;for(let i=1;i<pts.length;i++)L+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);return L;};
+  // 3) zone principale : cellules de 250 m (en unités du dessin corrigées) comptées en traits (pas en longueur : un cadre de 4 km ne pèse rien), la plus dense + voisines ≥ 2 %
+  let bbox=null;
+  const zoneOf=(fac)=>{const CELL=250/fac;const cells={};const key=p=>Math.floor(p[0]/CELL)+':'+Math.floor(p[1]/CELL);traits.forEach(t=>{const L=len(t.pts)*fac;if(L<minLen)return;const k=key(t.pts[0]);cells[k]=(cells[k]||0)+1;});const ent=Object.entries(cells);if(!ent.length)return null;ent.sort((a,b)=>b[1]-a[1]);const best=ent[0];const thr=Math.max(3,best[1]*0.02);const sel=new Set([best[0]]);const q=[best[0]];
+    while(q.length){const c=q.pop();const [cx,cy]=c.split(':').map(Number);for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){const k=(cx+dx)+':'+(cy+dy);if((cells[k]||0)>=thr&&!sel.has(k)){sel.add(k);q.push(k);}}}
+    let x0=1e18,y0=1e18,x1=-1e18,y1=-1e18;traits.forEach(t=>{if(!sel.has(key(t.pts[0])))return;t.pts.forEach(p=>{if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1];});});return x0>x1?null:{x0,y0,x1,y1,cells:sel.size,n:best[1]};};
+  if(opts.zoneAll){let x0=1e18,y0=1e18,x1=-1e18,y1=-1e18;traits.forEach(t=>t.pts.forEach(p=>{if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1];}));bbox={x0,y0,x1,y1,cells:0,n:0};}
+  else{bbox=zoneOf(f);if(bbox&&f!==1){const w=Math.max(bbox.x1-bbox.x0,bbox.y1-bbox.y0)*f;if(w<20||w>50000){f=1;bbox=zoneOf(1);}}}
+  if(!bbox)return {drawing:[],bbox:[0,0,0,0],origin:{x0:0,y1:0},truncated:false,stats:{traits:0,net:0}};
+  // 4) repère : origine arrondie à 100 m (ou celle imposée), y vers le haut du plan (SVG y vers le bas → inversé), mètres
+  const X0=bbox.x0*f,Y1=bbox.y1*f;const origin=opts.keepOrigin||{x0:Math.floor(X0/100)*100-30,y1:Math.ceil(Y1/100)*100+30};const T=p=>[+(p[0]*f-origin.x0).toFixed(2),+(origin.y1-p[1]*f).toFixed(2)];
+  const bx0=bbox.x0*f-M/1,by0=bbox.y0*f-M,bx1=bbox.x1*f+M,by1=bbox.y1*f+M;const inBox=p=>{const x=p[0]*f,y=p[1]*f;return x>=bx0&&x<=bx1&&y>=by0&&y<=by1;};
+  // 5) sélection : réseau d'abord, puis le contexte du plus long au plus court, simplifié ; limite de points
+  const keep=[];traits.forEach(t=>{const L=len(t.pts)*f;if(L<minLen)return;if(!t.pts.some(inBox))return;t.L=L;keep.push(t);});
+  keep.sort((a,b)=>(b.net-a.net)||(b.L-a.L));const out=[];let n=0,truncated=false;
+  for(const t of keep){let q=t.pts.map(T);if(simp>0&&q.length>2)q=simplify(q,simp);if(n+q.length>cap){truncated=true;if(!t.net)break;}out.push({layer:t.layer,pts:q,net:t.net});n+=q.length;}
+  const q0=T([bbox.x0,bbox.y1]),q1=T([bbox.x1,bbox.y0]);const bb=[Math.min(q0[0],q1[0]),Math.min(q0[1],q1[1]),Math.max(q0[0],q1[0]),Math.max(q0[1],q1[1])];
+  return {drawing:out,bbox:bb,origin,truncated,units:f,stats:{traits:out.length,net:out.filter(d=>d.net).length,total:traits.length,kept:keep.length,cells:bbox.cells,points:n}};
+}
 function midOf(pts){const L=plen(pts)/2;let d=0;for(let i=1;i<pts.length;i++){const s=d2(pts[i-1],pts[i]);if(d+s>=L){const t=s?(L-d)/s:0;return [pts[i-1][0]+(pts[i][0]-pts[i-1][0])*t,pts[i-1][1]+(pts[i][1]-pts[i-1][1])*t];}d+=s;}return pts[pts.length-1];}
 export function buildSite(dxf,an,roles,opts){
   const E=dxf.ents;const axisLayers={A:new Set(roles.axesA),R:new Set(roles.axesR),S:new Set(roles.axes)};

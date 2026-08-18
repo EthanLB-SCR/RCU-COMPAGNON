@@ -42,4 +42,9 @@ out=await page.evaluate(()=>({selected:document.querySelector('#siteSel').value,
 await page.selectOption('#roleSel','ethan');await page.waitForTimeout(300);
 page.on('dialog',d=>d.accept());await page.click('#btnDelSite');await page.waitForTimeout(800);
 out=await page.evaluate(async()=>{const keys=await new Promise(res=>{const r=indexedDB.open('trace-kv',1);r.onsuccess=()=>{const g=r.result.transaction('kv','readonly').objectStore('kv').getAllKeys();g.onsuccess=()=>res(g.result);};});return {opts:[...document.querySelector('#siteSel').options].map(o=>o.textContent),handoffs:keys.filter(k=>String(k).startsWith('trace:handoff:')).length,hidden:localStorage.getItem('trace:hiddenSites')};});console.log('après suppression:',JSON.stringify(out));
+// 6) après suppression : le traceur garde encore la référence ; on ré-enregistre → le chantier doit réapparaître dans l'appli (masquage horodaté)
+await page.goto(BASE+'/traceur.html');await page.waitForTimeout(800);
+out=await page.evaluate(()=>({lines:window.MAQ.state.lines.length,ref:window.MAQ.state.siteRef&&window.MAQ.state.siteRef.id}));console.log('traceur après suppression:',JSON.stringify(out));
+await page.click('#bSave');await page.waitForTimeout(200);await page.click('#svOk');await page.waitForTimeout(800);await page.click('#svGo');await page.waitForTimeout(1500);
+out=await page.evaluate(()=>({selected:document.querySelector('#siteSel').value,opts:[...document.querySelector('#siteSel').options].map(o=>o.textContent).slice(-1),els:document.querySelectorAll('#net g.el').length,tools:document.querySelector('#planTools').textContent.replace(/\s+/g,' ').slice(0,140)}));console.log('réapparu:',JSON.stringify(out));
 console.log(logs);await browser.close();
