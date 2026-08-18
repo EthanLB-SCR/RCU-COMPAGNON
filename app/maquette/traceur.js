@@ -36,6 +36,8 @@ export function buildConduit(o){
     if(type==='bypass'&&!atStart){const L=legMin;const Bl=cat.bend(dl);return {kind:'bypassEnd',sub:type,m:Ltot-L/2,L,legIn:L/2,legOut:L/2,sid,dn:dl,turn:o.bypassTurn||1,r:(o.e||casing+0.15)/2,ref:`by-pass : coude 90° ${Bl.ref} recoupé (jambe ${fmt(legMin)} m) vers l'autre conduite`};}
     return null;};
   const nStart=endNode(o.endStart,true),nEnd=endNode(o.endEnd,false);if(nStart)nodes.push(nStart);
+  // coupes forcées (soudure coulissée à la main entre deux tubes) : nœud rigide sans longueur — les barres se réorganisent de part et d'autre (barres entières + chute)
+  (o.cuts||[]).forEach((m,i)=>{if(m>0.05&&m<Ltot-0.05)nodes.push({kind:'cut',m,L:0,legIn:0,legOut:0,sid:'cut:'+i});});
   const covered=m=>specials.some(sp=>sp.type==='bend3d'&&Math.abs(sp.m-m)<=(sp.cover||1.3)); // sommets « mangés » par un coude de jeu en altimétrie (la cassure en plan fait partie du coude 3D)
   for(let i=1;i<pts.length-1;i++){acc+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);if(covered(acc))continue;const h0=Math.atan2(pts[i][1]-pts[i-1][1],pts[i][0]-pts[i-1][0]),h1=Math.atan2(pts[i+1][1]-pts[i][1],pts[i+1][0]-pts[i][0]);const t=deg(norm(h1-h0));
     if(Math.abs(t)<fcMax){nodes.push({kind:'dev',m:acc,ang:t,fc:Math.abs(t)>=devMax});} // en dessous de fausseCoupeMax : pas de coude — la barre est coupée là ; ≤ devMax : simple déviation au manchon, au-delà : fausse coupe (tubes coupés en biais)
@@ -54,7 +56,7 @@ export function buildConduit(o){
   // 2) écarts entre nœuds rigides consécutifs → barres, coude contre coude, jambes recoupées, ou erreur
   const fills=[];
   for(let k=0;k<rigid.length-1;k++){const a=rigid[k],b=rigid[k+1];const D=b.m-a.m;const la=a.kind==='start'?0:a.legOut,lb=b.kind==='end'?0:b.legIn;let G=D-la-lb;const bendA=a.kind==='bend',bendB=b.kind==='bend';let bars=[];let note=null,err=null,manch=false;
-    const manchetteMin=rules.manchetteMin===undefined?0.2:rules.manchetteMin;const nom=x=>x.kind==='start'?(o.head?'la sortie du té':'le départ'):x.kind==='end'?'la fin':x.kind==='bend'?(x.plane==='3D'?'le coude en altimétrie':'le coude du sommet '+x.vertex):x.kind==='tee'?'le té':x.kind==='valve'?'la vanne':x.kind==='reducer'?'la réduction':x.kind==='endcap'?(x.sub==='kit'?'le kit fin de ligne':'la fin de ligne provisoire'):x.kind==='endpoint'?'le raccordement':x.kind==='bypassEnd'?'le coude du by-pass':x.kind;
+    const manchetteMin=rules.manchetteMin===undefined?0.2:rules.manchetteMin;const nom=x=>x.kind==='start'?(o.head?'la sortie du té':'le départ'):x.kind==='end'?'la fin':x.kind==='bend'?(x.plane==='3D'?'le coude en altimétrie':'le coude du sommet '+x.vertex):x.kind==='tee'?'le té':x.kind==='valve'?'la vanne':x.kind==='reducer'?'la réduction':x.kind==='endcap'?(x.sub==='kit'?'le kit fin de ligne':'la fin de ligne provisoire'):x.kind==='endpoint'?'le raccordement':x.kind==='bypassEnd'?'le coude du by-pass':x.kind==='cut'?'la soudure coulissée':x.kind;
     if(G>=chuteMin-1e-6){bars=splitBars(G,bar,chuteMin);}
     else if(G>=manchetteMin-1e-6){ // pas la place d'une chute : une manchette (bout de tube court, deux soudures) — c'est ce qui se fait entre deux pièces (lyre extérieure, chicane…)
       bars=[G];manch=true;note={kind:'interp',txt:`manchette de ${fmt(G)} m entre ${nom(a)} et ${nom(b)} (pas la place d'une chute ≥ ${fmt(chuteMin)} m)`};}
@@ -90,6 +92,7 @@ export function buildConduit(o){
       if(fcWhere)notes.push({kind:fcWhere==='none'?'warn':'info',m:nd.m,txt:`sommet ${nd.vertex} : angle tracé ${fmt(nd.angleReal)}° → coude ${A}° + fausse coupe de ${fmt(Math.abs(r))}° à la soudure ${fcWhere==='none'?'voisine (aucun tube adjacent : écart de quelques cm à absorber)':fcWhere}`});
       if(!std&&!B.anyAngle)notes.push({kind:'doubt',m:nd.m,txt:`sommet ${nd.vertex} : coude de ${A}° — pas au catalogue de ce fournisseur (angles ${B.std.join('/')}) → coude spécial ? déviations aux manchons ?`});
       else if(!std)notes.push({kind:'info',m:nd.m,txt:`sommet ${nd.vertex} : coude ${A}° sur mesure à commander (${B.ref.replace(/90/,String(A))})`});}
+    else if(nd.kind==='cut'){carry=null;}
     else if(nd.kind==='tee'||nd.kind==='valve'||nd.kind==='reducer'||nd.kind==='endcap'||nd.kind==='endpoint'||nd.kind==='bypassEnd'){const m0=nd.m-nd.legIn,m1=nd.m+nd.legOut;const g=place(m0,m1);const c=ptAt(pts,nd.m);const path=[[g.x,g.y],[g.x1,g.y1]];const dl=nd.dn||dn;const p={kind:nd.kind,id:idOf(nd.kind==='tee'?'T':nd.kind==='valve'?'V':nd.kind==='reducer'?'R':nd.kind==='endpoint'?'X':nd.kind==='bypassEnd'?'U':nd.sub?'F':'B'),m0,m1,mc:nd.m,L:nd.L,path,x:g.x,y:g.y,th:g.th,dn:dl,casing:cat.casing(dl),ref:nd.ref,sid:nd.sid,dn2:nd.dn2,dnb:nd.dnb,side:nd.side,teeType:nd.teeType,Bb:nd.B,H:nd.H,sub:nd.sub,vert:nd.vert,photo:nd.photo,atEnd:nd.atEnd};
       if(nd.kind==='tee'&&nd.vert){p.center=[c.x,c.y];p.cth=c.th;} // purge / vidange : branche verticale, symbole au centre
       else if(nd.kind==='tee'){const s=nd.side||1;const nx=-Math.sin(c.th)*s,ny=Math.cos(c.th)*s;p.branch=[[c.x,c.y],[c.x+nx*(nd.B||1),c.y+ny*(nd.B||1)]];p.branchPort={x:c.x+nx*(nd.B||1),y:c.y+ny*(nd.B||1),th:Math.atan2(ny,nx)};p.saut=/saut/i.test(nd.teeType||'');}

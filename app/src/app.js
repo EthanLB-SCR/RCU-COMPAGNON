@@ -231,7 +231,7 @@ function renderPlan(){
   const v=state.view;const vx0=(-v.tx)/k-20,vy0=(-v.ty)/k-20,vx1=(canvas.clientWidth-v.tx)/k+20,vy1=(canvas.clientHeight-v.ty)/k+20;const cull=kpm>=2.5;
   const EX=1.7;const far=kpm<6;const minW=far?2.2:5,minSep=far?2.4:4.5;const casingW=e=>Math.max(minW/k,casingOf(e)*ppm*EX);const offM=e=>Math.max(minSep/(k*ppm),casingOf(e)*EX*.62); // dézoomé : traits fins côte à côte (lisible), zoomé : gaine à l'échelle
   const showJoints=kpm>=5,showLabels=kpm>=12,showElLabels=kpm>=20,showWires=kpm>=30,showManchon=kpm>=10,lod=kpm;
-  let net='';
+  let net='';let netJ=''; // soudures dessinées après toutes les pièces : toujours au premier plan, cliquables
   sh.lines.forEach(id=>{const line=state.lines[id];['A','R'].forEach(c=>{if(!line.cond[c])return;const side=c==='A'?1:-1;const col=c==='A'?'#c8382f':'#2a5fb4';const {els,joints}=line.cond[c];
     els.forEach((e,i)=>{if(cull&&(e.bbox[2]<vx0||e.bbox[0]>vx1||e.bbox[3]<vy0||e.bbox[1]>vy1))return;
       const d=(line.single?0:e.ownAxis?Math.max(0,minSep/(k*ppm)-(line.axisHalf||.2))*side:offM(e)*side)*ppm;const w=casingW(e);const stJ=joints[i]||joints[i-1];const st=stJ?stJ.status:'a_souder';
@@ -243,7 +243,7 @@ function renderPlan(){
       if(state.tool&&e.piece&&(e.piece.role&&e.piece.role!=='fixed'||e.piece.orangeNo)){const col=e.piece.role==='block'?'#2a78d6':(e.piece.role==='man'||e.piece.role==='jm'||e.piece.orangeNo)?'#f28c28':e.piece.role==='new'?'#3aa655':null;if(col)net+=`<path d="${dd}" stroke="${col}" stroke-width="${w*2.3+4/k}" fill="none" opacity=".5" stroke-linecap="round" stroke-linejoin="round"/>`;}
       const isSteel=e.kind==='steelbend'; // courbe acier (SXB) : acier apparent tant que non manchonnée
       const jA=joints[i-1], jB=joints[i]; const bothMan=isSteel&&(!jA||jA.status==='manchonnee')&&(!jB||jB.status==='manchonnee')&&(jA||jB);
-      net+=`<g class="el" data-line="${id}" data-cond="${c}" data-el="${i}">`;
+      net+=`<g class="el" data-line="${id}" data-cond="${c}" data-el="${i}"><path d="${dd}" stroke="transparent" stroke-width="${Math.max(w*1.8,16/k)}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`; // zone de prise large (doigt / souris)
       if(selE)net+=`<path d="${dd}" stroke="#2a78d6" stroke-width="${w*2}" fill="none" opacity=".45" stroke-linecap="round" stroke-linejoin="round"/>`;
       if(far){ // loin : un trait par conduite, aller rouge / retour bleu, teinté par l'avancement de la soudure aval
         const core=st==='a_souder'?col:STATUS[st].color;net+=`<path d="${dd}" stroke="${core}" stroke-width="${w}" fill="none" stroke-linecap="${cap}" stroke-linejoin="round" opacity=".92"/>`;
@@ -267,6 +267,7 @@ function renderPlan(){
         });
         if(e.kind==='pipe'&&e.cut&&Lax>1){const p=axisSub(e.axis[0],Lax*.5-.05,Lax*.5+.05);const q=offsetPoly(p,d);net+=`<path d="${pathD(q)}" stroke="#ffffff" stroke-width="${w*.5}" fill="none" opacity=".35" stroke-dasharray="${w*.12} ${w*.12}"/>`;}
       }
+      if(e.kind==='tee'&&e.vert){const mid=elMid(e);const mx=mid.x+mid.ty*d,my=mid.y-mid.tx*d;const r=Math.max(w*.9,7/k);const up=e.vert==='up';const tri=up?`${mx},${my-r*.62} ${mx-r*.55},${my+r*.4} ${mx+r*.55},${my+r*.4}`:`${mx},${my+r*.62} ${mx-r*.55},${my-r*.4} ${mx+r*.55},${my-r*.4}`;net+=`<circle cx="${mx}" cy="${my}" r="${r}" fill="#fff" stroke="${col}" stroke-width="${Math.max(w*.18,1.5/k)}"/><polygon points="${tri}" fill="${up?'#0b0b0b':'#2a5fb4'}"/>`;if(showLabels)net+=`<text x="${mx}" y="${my-r-3/k}" font-size="${Math.max(10/k,.3*ppm)}" text-anchor="middle" fill="#333" paint-order="stroke" stroke="#fff" stroke-width="${2/k}" font-family="system-ui,sans-serif" pointer-events="none">${up?'purge ▲':'vidange ▼'} DN${e.dnb||''}</text>`;} // té de purge / vidange : symbole rond + triangle
       if(e.kind==='tee'&&e.branch&&e.branch.length===2){const b0=e.branch[0],b1=e.branch[1];const wb=Math.max(minW/k,casingOf({dn:e.dnb||e.dn})*ppm*EX);if(e.saut)net+=`<line x1="${b0[0]}" y1="${b0[1]}" x2="${b1[0]}" y2="${b1[1]}" stroke="#f4f3ee" stroke-width="${wb*2}" stroke-linecap="butt"/>`;net+=`<line x1="${b0[0]}" y1="${b0[1]}" x2="${b1[0]}" y2="${b1[1]}" stroke="${far?col:'#161616'}" stroke-width="${wb}" stroke-linecap="butt"/>`;if(!far)net+=`<line x1="${b0[0]}" y1="${b0[1]}" x2="${b1[0]}" y2="${b1[1]}" stroke="${col}" stroke-width="${wb*.45}" stroke-linecap="butt" opacity=".9"/>`;} // branche du té (jusqu'à la sortie où repart l'antenne) ; té à saut : par-dessus la conduite voisine
       if(showWires&&e.kind!=='valve'&&e.kind!=='endcap'&&!isSteel){['E','N'].forEach(wn=>{const a=clockPos(e,wn);const o=(-Math.sin(rad(a)))*casingOf(e)*EX*.37*ppm;const front=Math.cos(rad(a))>=0;net+=`<path d="${e.axis.map(pl=>pathD(offsetPoly(axisSub(pl,bare+.02,polyLen(pl)-bare-.02),d+o))).join(' ')}" stroke="${WIRE[wn].color}" stroke-width="${Math.max(1.4/k,.022*ppm)}" fill="none" ${front?'':'stroke-dasharray="'+(.25*ppm)+' '+(.15*ppm)+'"'} opacity="${front?.95:.55}" stroke-linejoin="round"/>`;});}
       if(detail){const mid=elMid(e);const mx=mid.x+mid.ty*d,my=mid.y-mid.tx*d;const ang=Math.atan2(mid.ty,mid.tx)*180/Math.PI;
@@ -279,34 +280,34 @@ function renderPlan(){
     joints.forEach((j,i)=>{const e=els[i];if(cull&&(e.to.x<vx0||e.to.x>vx1||e.to.y<vy0||e.to.y>vy1))return;const p=jointPos(line,i,c);const d=(line.single?0:e.ownAxis?Math.max(0,minSep/(k*ppm)-(line.axisHalf||.2))*side:offM(e)*side)*ppm;const px=p.x+p.ty*d,py=p.y-p.tx*d;const w=casingW(e);
       const detail=kpm>=12;const st=STATUS[j.status];const sel=state.sel&&state.sel.kind==='j'&&state.sel.line===id&&state.sel.cond===c&&state.sel.i===i;const dim=!passFilter(j);const eB=els[i+1];const isSxb=e.kind==='steelbend'||(eB&&eB.kind==='steelbend');
       const seg=(m0,m1)=>[{x:px+p.tx*m0*ppm,y:py+p.ty*m0*ppm},{x:px+p.tx*m1*ppm,y:py+p.ty*m1*ppm}];
-      net+=`<g class="marker" data-line="${id}" data-cond="${c}" data-j="${i}" ${dim?'opacity=".3"':''}>`;
-      if(state.tool&&e.piece&&e.piece.ojoint)net+=`<g transform="translate(${px} ${py}) scale(${1/k})"><circle r="14" fill="rgba(242,140,40,.18)" stroke="#f28c28" stroke-width="3"/></g>`;
+      netJ+=`<g class="marker" data-line="${id}" data-cond="${c}" data-j="${i}" ${dim?'opacity=".3"':''}>`;
+      if(state.tool&&e.piece&&e.piece.ojoint)netJ+=`<g transform="translate(${px} ${py}) scale(${1/k})"><circle r="14" fill="rgba(242,140,40,.18)" stroke="#f28c28" stroke-width="3"/></g>`;
       if(showJoints&&!detail){ // moyen : capsule cliquable, contour couleur statut
-        const rr=Math.max(3.5/k,Math.min(9/k,.28*ppm));net+=`<path d="${pathD(seg(-.3,.3))}" stroke="${st.color}" stroke-width="${w*1.4+3/k}" fill="none" stroke-linecap="round"/><path d="${pathD(seg(-.3,.3))}" stroke="#33363a" stroke-width="${w*1.15}" fill="none" stroke-linecap="round"/>`;
-        if(sel)net+=`<path d="${pathD(seg(-.4,.4))}" stroke="#0b0b0b" stroke-width="${w*1.4+6/k}" fill="none" stroke-linecap="round" opacity=".9"/><path d="${pathD(seg(-.4,.4))}" stroke="${st.color}" stroke-width="${w*1.4+2/k}" fill="none" stroke-linecap="round"/>`;
+        const rr=Math.max(3.5/k,Math.min(9/k,.28*ppm));netJ+=`<path d="${pathD(seg(-.3,.3))}" stroke="${st.color}" stroke-width="${w*1.4+3/k}" fill="none" stroke-linecap="round"/><path d="${pathD(seg(-.3,.3))}" stroke="#33363a" stroke-width="${w*1.15}" fill="none" stroke-linecap="round"/>`;
+        if(sel)netJ+=`<path d="${pathD(seg(-.4,.4))}" stroke="#0b0b0b" stroke-width="${w*1.4+6/k}" fill="none" stroke-linecap="round" opacity=".9"/><path d="${pathD(seg(-.4,.4))}" stroke="${st.color}" stroke-width="${w*1.4+2/k}" fill="none" stroke-linecap="round"/>`;
       }
       if(detail){
         if(j.status==='manchonnee'&&!isSxb){ // manchon droit : capsule graphite + bandes claires + reflet
-          {const th=Math.atan2(p.ty,p.tx)*180/Math.PI;const h=w*1.18,Ls=.65*ppm;net+=`<g transform="translate(${px} ${py}) rotate(${th})"><rect x="${-Ls/2}" y="${-h/2}" width="${Ls}" height="${h}" rx="${h*.1}" fill="url(#gSleeve)"/><rect x="${-Ls/2+.025*ppm}" y="${-h/2+.012*ppm}" width="${Ls*.13}" height="${h-.024*ppm}" rx="${h*.05}" fill="#8b9099" opacity=".7"/><rect x="${Ls/2-.025*ppm-Ls*.13}" y="${-h/2+.012*ppm}" width="${Ls*.13}" height="${h-.024*ppm}" rx="${h*.05}" fill="#8b9099" opacity=".7"/></g>`;}
+          {const th=Math.atan2(p.ty,p.tx)*180/Math.PI;const h=w*1.18,Ls=.65*ppm;netJ+=`<g transform="translate(${px} ${py}) rotate(${th})"><rect x="${-Ls/2}" y="${-h/2}" width="${Ls}" height="${h}" rx="${h*.1}" fill="url(#gSleeve)"/><rect x="${-Ls/2+.025*ppm}" y="${-h/2+.012*ppm}" width="${Ls*.13}" height="${h-.024*ppm}" rx="${h*.05}" fill="#8b9099" opacity=".7"/><rect x="${Ls/2-.025*ppm-Ls*.13}" y="${-h/2+.012*ppm}" width="${Ls*.13}" height="${h-.024*ppm}" rx="${h*.05}" fill="#8b9099" opacity=".7"/></g>`;}
         } else if(j.status!=='a_souder'&&j.status!=='manchonnee'){ // cordon de soudure
-          net+=`<path d="${pathD(seg(-.03,.03))}" stroke="#5d6269" stroke-width="${w*.56}" fill="none" stroke-linecap="butt"/>`;
+          netJ+=`<path d="${pathD(seg(-.03,.03))}" stroke="#5d6269" stroke-width="${w*.56}" fill="none" stroke-linecap="butt"/>`;
         } else if(j.status==='a_souder'){ // jeu entre les deux aciers
-          net+=`<path d="${pathD(seg(-.008,.008))}" stroke="#e9e8e2" stroke-width="${w*.6}" fill="none" stroke-linecap="butt"/>`;
+          netJ+=`<path d="${pathD(seg(-.008,.008))}" stroke="#e9e8e2" stroke-width="${w*.6}" fill="none" stroke-linecap="butt"/>`;
         }
-        if(sel)net+=`<path d="${pathD(seg(-.42,.42))}" stroke="#0b0b0b" stroke-width="${w*1.5}" fill="none" stroke-linecap="round" opacity=".18"/><path d="${pathD(seg(-.42,.42))}" stroke="#0b0b0b" stroke-width="${2/k}" fill="none" stroke-linecap="round" stroke-dasharray="${4/k} ${3/k}"/>`;
+        if(sel)netJ+=`<path d="${pathD(seg(-.42,.42))}" stroke="#0b0b0b" stroke-width="${w*1.5}" fill="none" stroke-linecap="round" opacity=".18"/><path d="${pathD(seg(-.42,.42))}" stroke="#0b0b0b" stroke-width="${2/k}" fill="none" stroke-linecap="round" stroke-dasharray="${4/k} ${3/k}"/>`;
         // zone tactile (capsule invisible 0,7 m × 1,4 gaine)
-        net+=`<path d="${pathD(seg(-.35,.35))}" stroke="transparent" stroke-width="${w*1.5}" fill="none" stroke-linecap="round" style="cursor:pointer"/>`;
+        netJ+=`<path d="${pathD(seg(-.35,.35))}" stroke="transparent" stroke-width="${w*1.5}" fill="none" stroke-linecap="round" style="cursor:pointer"/>`;
         // pastille de statut, côté extérieur, à taille écran
         const so=side*(w*.62+9/k);const mx=px+p.ty*so,my=py-p.tx*so;
-        net+=`<g transform="translate(${mx} ${my}) scale(${1/k})"><circle r="11" fill="transparent"/><circle r="7" fill="${st.color}" stroke="#fff" stroke-width="1.6"/>${st.glyph?`<text font-size="9" font-weight="700" fill="#fff" text-anchor="middle" dominant-baseline="central" font-family="system-ui,sans-serif">${st.glyph}</text>`:''}${j.wire==='inversion'?`<circle cx="8" cy="-8" r="4" fill="#d03b3b" stroke="#fff" stroke-width="1.5"/>`:j.wire==='raccorde'?`<circle cx="8" cy="-8" r="3.5" fill="#dfe4ea" stroke="#555" stroke-width="1"/>`:''}${(showLabels||sel)?`<text class="num" x="${side>0?11:-11}" y="4" text-anchor="${side>0?'start':'end'}">${j.weldId}</text>`:''}</g>`;
+        netJ+=`<g transform="translate(${mx} ${my}) scale(${1/k})"><circle r="11" fill="transparent"/><circle r="7" fill="${st.color}" stroke="#fff" stroke-width="1.6"/>${st.glyph?`<text font-size="9" font-weight="700" fill="#fff" text-anchor="middle" dominant-baseline="central" font-family="system-ui,sans-serif">${st.glyph}</text>`:''}${j.wire==='inversion'?`<circle cx="8" cy="-8" r="4" fill="#d03b3b" stroke="#fff" stroke-width="1.5"/>`:j.wire==='raccorde'?`<circle cx="8" cy="-8" r="3.5" fill="#dfe4ea" stroke="#555" stroke-width="1"/>`:''}${(showLabels||sel)?`<text class="num" x="${side>0?11:-11}" y="4" text-anchor="${side>0?'start':'end'}">${j.weldId}</text>`:''}</g>`;
       } else if(showJoints){const rr=Math.max(3.5/k,Math.min(9/k,.28*ppm));const so=side*(w*.9+rr*1.1);const mx=px+p.ty*so,my=py-p.tx*so;
-        net+=`<g transform="translate(${mx} ${my}) scale(${1/k})"><circle r="${rr*k+5}" fill="transparent"/>${(showLabels||sel)?`<text class="num" x="${side>0?rr*k+4:-(rr*k+4)}" y="4" text-anchor="${side>0?'start':'end'}">${j.weldId}</text>`:''}</g>`;}
-      net+=`</g>`;
+        netJ+=`<g transform="translate(${mx} ${my}) scale(${1/k})"><circle r="${rr*k+5}" fill="transparent"/>${(showLabels||sel)?`<text class="num" x="${side>0?rr*k+4:-(rr*k+4)}" y="4" text-anchor="${side>0?'start':'end'}">${j.weldId}</text>`:''}</g>`;}
+      netJ+=`</g>`;
     });
   });});
   if(showElLabels&&sh.ann)sh.ann.forEach(a=>{if(cull&&(a.p[0]<vx0||a.p[0]>vx1||a.p[1]<vy0||a.p[1]>vy1))return;net+=`<g transform="translate(${a.p[0]} ${a.p[1]}) scale(${1/k})"><circle r="3" fill="#8a2be2"/><text x="6" y="-4" font-size="10" font-style="italic" fill="#6a1fb0" font-family="system-ui,sans-serif" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(a.text)}</text></g>`;});
   if(state.tracing&&state.tracePts.length){net+=`<path d="${pathD(state.tracePts)}" stroke="#1c3d6b" stroke-width="${3/k}" fill="none" stroke-dasharray="${6/k} ${4/k}"/>`+state.tracePts.map(p=>`<circle cx="${p.x}" cy="${p.y}" r="${5/k}" fill="#1c3d6b" stroke="#fff" stroke-width="${1.5/k}"/>`).join('');}
-  netG.innerHTML=net;
+  netG.innerHTML=net+netJ;
   $('#legend').innerHTML=`<span><i class="bar" style="background:#c8382f"></i>aller</span><span><i class="bar" style="background:#2a5fb4"></i>retour</span>`+ORDER.map(s=>`<span><i style="${s==='a_souder'?`border-color:${STATUS[s].color};background:#fff`:`background:${STATUS[s].color};border-color:${STATUS[s].color}`}"></i>${STATUS[s].label}</span>`).join('')+`<span><i class="bar" style="background:#dfe4ea;border:1px solid #999"></i>étamé</span><span><i class="bar" style="background:#e2843a"></i>nu</span><span>${lod<3?'zoome : manchons puis détail':lod<12?'zoome pour le détail des pièces (bouts d\'acier, manchons, n°)':lod<30?'zoome encore pour les fils':'fils visibles'}</span>`;
   $('#btnList').textContent=state.listMode?'Plan':'Liste';
 }
