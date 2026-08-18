@@ -165,41 +165,48 @@ export function buildDrawing(dxf,T,bbox,netLayers,opts={}){
     else emit(e,p=>p,lay,net);}};
   pass(true);pass(false);
   return {drawing:out,truncated:n>cap};}
-/* fond de plan automatique (traceur) : TOUT le dessin (calques et blocs compris) sans rien demander — zone principale = l'amas le plus dense de traits (cellules de 250 m + voisines), calques réseau (si reconnus) en foncé, le reste en clair ; les traits sont simplifiés (Douglas-Peucker) et les plus longs passent d'abord sous la limite de points.
-   opts : {netLayers:[], cap:200000, margin:60, keepOrigin:{x0,y1}|null, zoneAll:false, minLen:0.3, simp:0.1, units}
-   → {drawing:[{layer,pts,net}], bbox (repère du dessin, sans marge), origin, truncated, stats} */
+/* fond de plan automatique (traceur) : le dessin « en l'état », comme un calque grisé — traits (lignes, polylignes, arcs, cercles, blocs sur 3 niveaux) ET textes, tous calques sauf cartouche/hachures ;
+   zone principale = l'amas de cellules de 250 m le plus dense (sert au repère et à la priorité sous la limite de points), calques réseau reconnus en foncé.
+   opts : {netLayers:[], cap:800000, margin:200, keepOrigin:{x0,y1}|null, zoneAll:false, minLen:0.3, simp:0.1, units, texts:true}
+   → {drawing:[{layer,pts,net} | {layer,text,x,y,h,rot,net}], bbox (zone, repère du dessin), origin, truncated, units, stats} */
 export function buildBackground(dxf,opts={}){
-  const cap=opts.cap||200000,M=opts.margin===undefined?60:opts.margin,netLayers=opts.netLayers||[],minLen=opts.minLen===undefined?0.3:opts.minLen,simp=opts.simp===undefined?0.1:opts.simp;
-  const JUNK=/cartouche|l[ée]gende|hachur|hatch|trame|carroyage|grille|cadre|titre|matricule/i;
-  const isNet=l=>netLayers.some(n=>l===n||l.startsWith(n+'/'))||(netLayers.length===0&&false);
-  // 1) tous les traits (entités + blocs, 3 niveaux), en coordonnées du dessin
-  const traits=[];const arcPts=(e,tf)=>{const a0=(e.rot||0)*Math.PI/180,a1=(e.rot2===undefined?360:e.rot2)*Math.PI/180;let sweep=a1-a0;while(sweep<=0)sweep+=2*Math.PI;const k=Math.max(4,Math.ceil(sweep/(Math.PI/12)));const pts=[];for(let i=0;i<=k;i++){const a=a0+sweep*i/k;pts.push(tf([e.x+e.r*Math.cos(a),e.y+e.r*Math.sin(a)]));}return pts;};
-  const emit=(e,tf,layer)=>{let pts=null;if((e.type==='LWPOLYLINE'||e.type==='LINE'||e.type==='POLYLINE')&&e.pts&&e.pts.length>=2){pts=e.pts.map(tf);if(e.flags&1)pts.push(pts[0]);}else if((e.type==='ARC'||e.type==='CIRCLE')&&isFinite(e.x)&&e.r>0&&e.r<200){pts=arcPts(e.type==='CIRCLE'?{...e,rot:0,rot2:360}:e,tf);}if(!pts)return;traits.push({layer,pts,net:isNet(layer)});};
+  const cap=opts.cap||800000,M=opts.margin===undefined?200:opts.margin,netLayers=opts.netLayers||[],minLen=opts.minLen===undefined?0.3:opts.minLen,simp=opts.simp===undefined?0.1:opts.simp,withTexts=opts.texts!==false;
+  const JUNK=/cartouche|hachur|hatch|trame|carroyage|grille|cadre|titre|matricule/i;
+  const isNet=l=>netLayers.some(n=>l===n||l.startsWith(n+'/'));
+  const cleanTxt=t=>String(t||'').replace(/\\P/g,' ').replace(/\\[A-Za-z][^;]*;/g,'').replace(/[{}]/g,'').replace(/%%[cdp]/gi,'°').trim();
+  // 1) tous les traits et textes (entités + blocs, 3 niveaux), en coordonnées du dessin
+  const traits=[],texts=[];const arcPts=(e,tf)=>{const a0=(e.rot||0)*Math.PI/180,a1=(e.rot2===undefined?360:e.rot2)*Math.PI/180;let sweep=a1-a0;while(sweep<=0)sweep+=2*Math.PI;const k=Math.max(4,Math.ceil(sweep/(Math.PI/12)));const pts=[];for(let i=0;i<=k;i++){const a=a0+sweep*i/k;pts.push(tf([e.x+e.r*Math.cos(a),e.y+e.r*Math.sin(a)]));}return pts;};
+  const emit=(e,tf,layer,rot0,sc)=>{if(withTexts&&(e.type==='TEXT'||e.type==='MTEXT')){if(!isFinite(e.x)||!isFinite(e.y)||!(e.r>0))return;const t=cleanTxt(e.text);if(!t||t.length>80)return;const p=tf([e.x,e.y]);texts.push({layer,text:t,x:p[0],y:p[1],h:e.r*(sc||1),rot:(e.rot||0)+(rot0||0),net:isNet(layer)});return;}
+    let pts=null;if((e.type==='LWPOLYLINE'||e.type==='LINE'||e.type==='POLYLINE')&&e.pts&&e.pts.length>=2){pts=e.pts.map(tf);if(e.flags&1)pts.push(pts[0]);}else if((e.type==='ARC'||e.type==='CIRCLE')&&isFinite(e.x)&&e.r>0&&e.r<200){pts=arcPts(e.type==='CIRCLE'?{...e,rot:0,rot2:360}:e,tf);}if(!pts)return;traits.push({layer,pts,net:isNet(layer)});};
   const insCount={};dxf.ents.forEach(e=>{if(e.type==='INSERT')insCount[e.name]=(insCount[e.name]||0)+1;});
-  const expand=(e,tf,depth,layerPrefix)=>{const B=dxf.blocks[e.name];if(!B||!isFinite(e.x)||depth>3)return;if((insCount[e.name]||0)>3000)return;const th=(e.rot||0)*Math.PI/180,sx=e.sx||1,sy=e.sy||1,c=Math.cos(th),s=Math.sin(th);const tf2=p=>tf([e.x+(p[0]*sx*c-p[1]*sy*s),e.y+(p[0]*sx*s+p[1]*sy*c)]);
-    B.forEach(b=>{if(JUNK.test(b.layer||''))return;if(b.type==='INSERT')expand(b,tf2,depth+1,layerPrefix);else emit(b,tf2,layerPrefix+'/'+(b.layer||''));});};
-  dxf.ents.forEach(e=>{if(JUNK.test(e.layer||''))return;if(e.type==='INSERT')expand(e,p=>p,1,e.layer||'');else emit(e,p=>p,e.layer||'');});
+  const expand=(e,tf,depth,layerPrefix,rot0,sc0)=>{const B=dxf.blocks[e.name];if(!B||!isFinite(e.x)||depth>3)return;if((insCount[e.name]||0)>3000)return;const th=(e.rot||0)*Math.PI/180,sx=e.sx||1,sy=e.sy||1,c=Math.cos(th),s=Math.sin(th);const tf2=p=>tf([e.x+(p[0]*sx*c-p[1]*sy*s),e.y+(p[0]*sx*s+p[1]*sy*c)]);const rot=(rot0||0)+(e.rot||0),sc=(sc0||1)*Math.abs(sx);
+    B.forEach(b=>{if(JUNK.test(b.layer||''))return;if(b.type==='INSERT')expand(b,tf2,depth+1,layerPrefix,rot,sc);else emit(b,tf2,layerPrefix+'/'+(b.layer||''),rot,sc);});};
+  dxf.ents.forEach(e=>{if(JUNK.test(e.layer||''))return;if(e.type==='INSERT')expand(e,p=>p,1,e.layer||'',0,1);else emit(e,p=>p,e.layer||'',0,1);});
   // 2) unités : $INSUNITS 4 = mm, 5 = cm ; sinon mètres — vérifié par la taille de la zone (entre 20 m et 50 km)
   let f=opts.units===4?0.001:opts.units===5?0.01:1;
   const len=pts=>{let L=0;for(let i=1;i<pts.length;i++)L+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);return L;};
-  // 3) zone principale : cellules de 250 m (en unités du dessin corrigées) comptées en traits (pas en longueur : un cadre de 4 km ne pèse rien), la plus dense + voisines ≥ 2 %
-  let bbox=null;
+  // 3) zone principale : cellules de 250 m comptées en traits, la plus dense + voisines ≥ 2 % (un cadre de 4 km ne pèse rien, les légendes à des km sont hors zone)
+  let zone=null;
   const zoneOf=(fac)=>{const CELL=250/fac;const cells={};const key=p=>Math.floor(p[0]/CELL)+':'+Math.floor(p[1]/CELL);traits.forEach(t=>{const L=len(t.pts)*fac;if(L<minLen)return;const k=key(t.pts[0]);cells[k]=(cells[k]||0)+1;});const ent=Object.entries(cells);if(!ent.length)return null;ent.sort((a,b)=>b[1]-a[1]);const best=ent[0];const thr=Math.max(3,best[1]*0.02);const sel=new Set([best[0]]);const q=[best[0]];
     while(q.length){const c=q.pop();const [cx,cy]=c.split(':').map(Number);for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){const k=(cx+dx)+':'+(cy+dy);if((cells[k]||0)>=thr&&!sel.has(k)){sel.add(k);q.push(k);}}}
     let x0=1e18,y0=1e18,x1=-1e18,y1=-1e18;traits.forEach(t=>{if(!sel.has(key(t.pts[0])))return;t.pts.forEach(p=>{if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1];});});return x0>x1?null:{x0,y0,x1,y1,cells:sel.size,n:best[1]};};
-  if(opts.zoneAll){let x0=1e18,y0=1e18,x1=-1e18,y1=-1e18;traits.forEach(t=>t.pts.forEach(p=>{if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1];}));bbox={x0,y0,x1,y1,cells:0,n:0};}
-  else{bbox=zoneOf(f);if(bbox&&f!==1){const w=Math.max(bbox.x1-bbox.x0,bbox.y1-bbox.y0)*f;if(w<20||w>50000){f=1;bbox=zoneOf(1);}}}
-  if(!bbox)return {drawing:[],bbox:[0,0,0,0],origin:{x0:0,y1:0},truncated:false,stats:{traits:0,net:0}};
+  const allBox=()=>{let x0=1e18,y0=1e18,x1=-1e18,y1=-1e18;traits.forEach(t=>t.pts.forEach(p=>{if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1];}));return x0>x1?null:{x0,y0,x1,y1,cells:0,n:0};};
+  if(opts.zoneAll)zone=allBox();else{zone=zoneOf(f);if(zone&&f!==1){const w=Math.max(zone.x1-zone.x0,zone.y1-zone.y0)*f;if(w<20||w>50000){f=1;zone=zoneOf(1);}}}
+  if(!zone)zone=allBox();if(!zone)return {drawing:[],bbox:[0,0,0,0],origin:{x0:0,y1:0},truncated:false,units:1,stats:{traits:0,net:0,texts:0}};
   // 4) repère : origine arrondie à 100 m (ou celle imposée), y vers le haut du plan (SVG y vers le bas → inversé), mètres
-  const X0=bbox.x0*f,Y1=bbox.y1*f;const origin=opts.keepOrigin||{x0:Math.floor(X0/100)*100-30,y1:Math.ceil(Y1/100)*100+30};const T=p=>[+(p[0]*f-origin.x0).toFixed(2),+(origin.y1-p[1]*f).toFixed(2)];
-  const bx0=bbox.x0*f-M/1,by0=bbox.y0*f-M,bx1=bbox.x1*f+M,by1=bbox.y1*f+M;const inBox=p=>{const x=p[0]*f,y=p[1]*f;return x>=bx0&&x<=bx1&&y>=by0&&y<=by1;};
-  // 5) sélection : réseau d'abord, puis le contexte du plus long au plus court, simplifié ; limite de points
-  const keep=[];traits.forEach(t=>{const L=len(t.pts)*f;if(L<minLen)return;if(!t.pts.some(inBox))return;t.L=L;keep.push(t);});
-  keep.sort((a,b)=>(b.net-a.net)||(b.L-a.L));const out=[];let n=0,truncated=false;
+  const X0=zone.x0*f,Y1=zone.y1*f;const origin=opts.keepOrigin||{x0:Math.floor(X0/100)*100-30,y1:Math.ceil(Y1/100)*100+30};const T=p=>[+(p[0]*f-origin.x0).toFixed(2),+(origin.y1-p[1]*f).toFixed(2)];
+  const zx0=zone.x0*f-M,zy0=zone.y0*f-M,zx1=zone.x1*f+M,zy1=zone.y1*f+M;const inZone=p=>{const x=p[0]*f,y=p[1]*f;return x>=zx0&&x<=zx1&&y>=zy0&&y<=zy1;};
+  // 5) sélection : tout le dessin ; sous la limite de points : réseau d'abord, puis la zone principale (± marge), puis le reste — du plus long au plus court, simplifié
+  const keep=[];traits.forEach(t=>{const L=len(t.pts)*f;if(L<minLen)return;t.L=L;t.z=t.pts.some(inZone)?0:1;keep.push(t);});
+  keep.sort((a,b)=>(b.net-a.net)||(a.z-b.z)||(b.L-a.L));const out=[];let n=0,truncated=false;
   for(const t of keep){let q=t.pts.map(T);if(simp>0&&q.length>2)q=simplify(q,simp);if(n+q.length>cap){truncated=true;if(!t.net)break;}out.push({layer:t.layer,pts:q,net:t.net});n+=q.length;}
-  const q0=T([bbox.x0,bbox.y1]),q1=T([bbox.x1,bbox.y0]);const bb=[Math.min(q0[0],q1[0]),Math.min(q0[1],q1[1]),Math.max(q0[0],q1[0]),Math.max(q0[1],q1[1])];
-  return {drawing:out,bbox:bb,origin,truncated,units:f,stats:{traits:out.length,net:out.filter(d=>d.net).length,total:traits.length,kept:keep.length,cells:bbox.cells,points:n}};
+  let nT=0;if(withTexts&&!truncated){const tk=texts.filter(t=>t.h*f>=0.05&&t.h*f<50).map(t=>({...t,z:inZone([t.x,t.y])?0:1}));tk.sort((a,b)=>(b.net-a.net)||(a.z-b.z));for(const t of tk){if(n+4>cap){truncated=true;break;}const p=T([t.x,t.y]);out.push({layer:t.layer,text:t.text,x:p[0],y:p[1],h:+(t.h*f).toFixed(3),rot:+(t.rot||0).toFixed(1),net:t.net});n+=4;nT++;}}
+  const q0=T([zone.x0,zone.y1]),q1=T([zone.x1,zone.y0]);const bb=[Math.min(q0[0],q1[0]),Math.min(q0[1],q1[1]),Math.max(q0[0],q1[0]),Math.max(q0[1],q1[1])];
+  return {drawing:out,bbox:bb,origin,truncated,units:f,stats:{traits:out.length-nT,net:out.filter(d=>d.net&&d.pts).length,texts:nT,total:traits.length,kept:keep.length,cells:zone.cells,points:n}};
 }
+// fond réduit pour le chantier (appli, serveur) : ce qui entoure les lignes tracées (± marge), sous une limite de points
+export function reduceDrawing(drawing,linesBBox,margin,cap){if(!drawing||!drawing.length)return [];const [x0,y0,x1,y1]=linesBBox;const bx0=x0-margin,by0=y0-margin,bx1=x1+margin,by1=y1+margin;const out=[];let n=0;
+  for(const d of drawing){if(d.pts){if(!d.pts.some(p=>p[0]>=bx0&&p[0]<=bx1&&p[1]>=by0&&p[1]<=by1))continue;if(n+d.pts.length>cap)break;out.push(d);n+=d.pts.length;}else if(d.text){if(d.x<bx0||d.x>bx1||d.y<by0||d.y>by1)continue;if(n+4>cap)break;out.push(d);n+=4;}}return out;}
 function midOf(pts){const L=plen(pts)/2;let d=0;for(let i=1;i<pts.length;i++){const s=d2(pts[i-1],pts[i]);if(d+s>=L){const t=s?(L-d)/s:0;return [pts[i-1][0]+(pts[i][0]-pts[i-1][0])*t,pts[i-1][1]+(pts[i][1]-pts[i-1][1])*t];}d+=s;}return pts[pts.length-1];}
 export function buildSite(dxf,an,roles,opts){
   const E=dxf.ents;const axisLayers={A:new Set(roles.axesA),R:new Set(roles.axesR),S:new Set(roles.axes)};
