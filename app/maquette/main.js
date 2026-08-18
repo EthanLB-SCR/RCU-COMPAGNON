@@ -37,7 +37,7 @@ function rebuild(opts={}){cat=catalogFor(state.supplier,state.serie);state.built
     const cA=offsetPoly(l.pts,offOf(l,'A')),cR=offsetPoly(l.pts,offOf(l,'R'));const q1=ptAt(l.pts,Math.min(1,polyLen(l.pts)));
     const cpsP={A:offsetPoly(P.pts,offOf(P,'A')),R:offsetPoly(P.pts,offOf(P,'R'))};const near=projOnPoly(cpsP.A,[q1.x,q1.y]).d<=projOnPoly(cpsP.R,[q1.x,q1.y]).d?'A':'R';const far=near==='A'?'R':'A';
     const st=sautType();const tt=l.teeType||rules.teeTypeParDefaut;
-    P.autoSpecials.push({m:l.parent.m,type:'tee',dnb:l.dn,side:l.parent.side,teeType:tt,teeTypeFar:st||tt,id:'auto:'+l.id,branch:l.id,cands:{A:cA[0],R:cR[0]},near,far});});
+    P.autoSpecials.push({m:l.parent.m,type:'tee',dnb:l.dn,side:l.parent.side,aim:[q1.x,q1.y],teeType:tt,teeTypeFar:st||tt,id:'auto:'+l.id,branch:l.id,cands:{A:cA[0],R:cR[0]},near,far});}); // aim = l'antenne à 1 m : la branche du té part du bon côté, quel que soit le côté où l'antenne a été tracée
   // purge / vidange en bout de ligne : le spécial « atEnd » est recalé à chaque reconstruction juste avant la pièce de bout (collé au kit)
   state.lines.forEach(l=>{(l.specials||[]).forEach(sp=>{if(sp.type==='tee'&&sp.vert&&sp.atEnd){const dnb=sp.dnb||(sp.vert==='up'?(rules.purgeDN||25):(rules.vidangeDN||40));const T=cat.tee(l.dn,dnb,rules.teeTypeParDefaut);const Lend=(l.endType||'kit')==='kit'||(l.endType||'kit')==='provisoire'?(cat.endcap(l.dn).L||0.3):(l.endType==='bypass'?rules.jambeMin:0);sp.m=Math.max(T.L/2,polyLen(l.pts)-Lend-T.L/2);}});});
   // 2) chaque ligne : deux conduites décalées à l'entraxe réel, spéciaux projetés sur chaque conduite — parentes d'abord (une antenne démarre au port de branche du té de sa parente)
