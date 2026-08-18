@@ -2,7 +2,7 @@ import SITES from './sites.json';
 import DB from './db.json';
 import {createPieceEngine} from './pieces.js';
 import CATALOGUE from './catalogue.json';
-import {parseDXF,parseDXFFile,analyze,buildSite,buildSiteJBTP,drawingOf,buildDrawing,previewSVG,drawingSVG,drawingBBoxes} from './dxfimport.js';
+import {parseDXF,parseDXFFile,analyze,buildSite,buildSiteJBTP,drawingOf,buildDrawing,previewSVG,drawingSVG,drawingBBoxes,decimateDrawing} from './dxfimport.js';
 import {sync} from './sync.js';
 import {kv} from './kv.js';
 
@@ -246,7 +246,7 @@ function renderPlan(){
   $('#hintbar').textContent=state.tracing?`Tape les sommets de l'axe (${state.tracePts.length} point${state.tracePts.length>1?'s':''}) puis « Terminer le tracé »`:'';
   const imgTag=sh.image&&sh.image.src?`<image href="${sh.image.src}" x="${sh.image.x||0}" y="${sh.image.y||0}" width="${sh.image.w}" height="${sh.image.h}" opacity="${sh.image.opacity===undefined?.5:sh.image.opacity}" preserveAspectRatio="none"/>`:''; // fond image du traceur (plan scanné / capture), à l'échelle réglée dans le traceur
   // fond vectoriel (DXF) : vue entière en cache (couleurs du DWG, hachures ; textes seulement au zoom), rendu partagé avec le traceur
-  const bgFull=()=>{const ck='c'+(state.show.couleurs===false?0:1);if(!sh.bgSVG||sh.bgKey!==ck){sh.bgKey=ck;sh.bgSVG=`<rect x="-1e5" y="-1e5" width="2e5" height="2e5" fill="#f4f3ee"/>`+imgTag+`<g opacity=".78">${drawingSVG(sh.drawing,{k:1,texts:false,colors:state.show.couleurs!==false,op:1,fillOp:1}).svg}</g>`+(sh.plain?'':`<text x="${sh.w-160}" y="${sh.h-12}" font-size="12" fill="#898781" font-family="system-ui,sans-serif">fond : dessin d'origine (${sh.drawing.length} traits)</text>`);}return sh.bgSVG;};
+  const bgFull=()=>{const ck='c'+(state.show.couleurs===false?0:1);if(!sh.bgSVG||sh.bgKey!==ck){sh.bgKey=ck;if(sh.drawingFar===undefined){const np=sh.drawing.reduce((t,d)=>t+(d.pts?d.pts.length:(d.loops?d.loops.reduce((x,q)=>x+q.length,0):0)),0);sh.drawingFar=np>60000?decimateDrawing(sh.drawing,{cap:45000,simp:0.5,minLen:1.5}).drawing:null;}sh.bgSVG=`<rect x="-1e5" y="-1e5" width="2e5" height="2e5" fill="#f4f3ee"/>`+imgTag+`<g opacity=".78">${drawingSVG(sh.drawingFar||sh.drawing,{k:1,texts:false,colors:state.show.couleurs!==false,op:1,fillOp:1}).svg}</g>`+(sh.plain?'':`<text x="${sh.w-160}" y="${sh.h-12}" font-size="12" fill="#898781" font-family="system-ui,sans-serif">fond : dessin d'origine (${sh.drawing.length} traits)</text>`);}return sh.bgSVG;};
   if(bgG.dataset.sheet!==sh.id){
     if(sh.type==='vector'&&sh.drawing){bgG.innerHTML=bgFull();}
     else if(sh.type==='plain'||sh.plain){bgG.innerHTML=`<rect x="-1e5" y="-1e5" width="2e5" height="2e5" fill="#f1f0eb"/>`+imgTag;}

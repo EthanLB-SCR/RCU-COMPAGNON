@@ -1,7 +1,7 @@
 import {catalogFor} from '../src/catalog.js';
 import RULES0 from './regles.json';
 import {buildConduit,nomenclature,offsetPoly,polyLen,ptAt,projOnPoly,fmt} from './traceur.js';
-import {parseDXFFile,analyze,buildDrawing,buildBackground,drawingSVG,drawingBBoxes} from '../src/dxfimport.js';
+import {parseDXFFile,analyze,buildDrawing,buildBackground,drawingSVG,drawingBBoxes,decimateDrawing} from '../src/dxfimport.js';
 import {siteFromTraceur,weldsOfSite} from './bridge.js';
 import {sync} from '../src/sync.js';
 import {kv} from '../src/kv.js';
@@ -330,14 +330,15 @@ $('#bClear').onclick=()=>{if(confirm('Effacer toutes les lignes ?')){state.lines
 const HANDOFF='trace:handoff:';
 /* ================= fond de plan : image (à l'échelle) et/ou DXF, opacité, affichage ================= */
 function bgObj(){if(!state.bg)state.bg={drawing:null,bbox:null,name:'',image:null,opacity:.5,show:true};if(state.bg.opacity===undefined)state.bg.opacity=.5;if(state.bg.show===undefined)state.bg.show=true;return state.bg;}
-function setBg(drawing,bbox,name){const b=bgObj();b.drawing=drawing;b.bbox=bbox;b.name=name;b._bb=null;b._lastKey=null;renderBg();}
+function setBg(drawing,bbox,name){const b=bgObj();b.drawing=drawing;b.bbox=bbox;b.name=name;b._bb=null;b._far=undefined;b._lastKey=null;renderBg();}
 function renderBg(){const b=state.bg;if(!b||(!b.drawing&&!b.image)){gBg.innerHTML='';$('#bgTools').style.display='none';return;}$('#bgTools').style.display='inline-flex';$('#bgOp').value=Math.round((b.opacity===undefined?.5:b.opacity)*100);$('#bgShow').checked=b.show!==false;$('#bgScale').style.display=b.image?'':'none';$('#bgMove').style.display=b.image?'':'none';$('#bgLayers').style.display=b.drawing?'':'none';$('#bgInfo').style.display=b.drawing?'':'none';
   if(b.show===false){gBg.innerHTML='';return;}let h='';const op=b.opacity===undefined?.5:b.opacity;
   if(b.image&&b.image.src)h+=`<image href="${b.image.src}" x="${b.image.x||0}" y="${b.image.y||0}" width="${b.image.w}" height="${b.image.h}" opacity="${op}" preserveAspectRatio="none"/>`;
   if(b.drawing){ // zoomé : seulement les traits visibles (un chemin de plusieurs km à fort zoom fait disparaître tout le calque dans Chrome)
     const k=state.view.k;const zoomed=k>=2&&b.drawing.length>300;let box=null;if(!b._bb)b._bb=drawingBBoxes(b.drawing);
     if(zoomed){const v=state.view;const W=svg.clientWidth,H=svg.clientHeight;const mx=W*.5/k,my=H*.5/k;box=[(-v.tx)/k-mx,(-v.ty)/k-my,(W-v.tx)/k+mx,(H-v.ty)/k+my];}
-    h+=drawingSVG(b.drawing,{k,box,bb:b._bb,texts:k>=4&&state.show.textes!==false,colors:state.show.couleurs!==false,op:Math.min(1,op+.3),fillOp:Math.min(1,op+.3)}).svg;
+    else if(b._far===undefined){const np=b.drawing.reduce((t,d)=>t+(d.pts?d.pts.length:(d.loops?d.loops.reduce((x,q)=>x+q.length,0):0)),0);b._far=np>60000?decimateDrawing(b.drawing,{cap:45000,simp:0.5,minLen:1.5}).drawing:null;} // vue entière : fond allégé (un téléphone ne peint pas 200 000 points)
+    h+=drawingSVG(zoomed?b.drawing:(b._far||b.drawing),{k,box,bb:zoomed?b._bb:null,texts:k>=4&&state.show.textes!==false,colors:state.show.couleurs!==false,op:Math.min(1,op+.3),fillOp:Math.min(1,op+.3)}).svg;
     // images externes référencées par le DXF (ortho-photo…) : le fichier n'est pas dans le DXF → cadre + nom
     (b.images||[]).forEach(im=>{if(!im.pts||im.pts.length<3)return;const p0=im.pts[0];h+=`<path d="M${im.pts.map(p=>p[0]+' '+p[1]).join('L')}Z" fill="none" stroke="#b8560f" stroke-width="1.2" stroke-dasharray="6 4" vector-effect="non-scaling-stroke" opacity=".7"/><text x="${p0[0]+4/k}" y="${p0[1]+14/k}" font-size="${12/k}" fill="#b8560f" font-family="system-ui,sans-serif">image externe (absente du DXF) : ${esc(String(im.path).split(/[\\/]/).pop())}</text>`;});
     b._lastKey=zoomed?`${Math.round(k*100)}:${Math.round(state.view.tx)}:${Math.round(state.view.ty)}`:'full:'+Math.round(Math.log2(k)*4);}
@@ -403,7 +404,7 @@ async function applyBackground({netL,ctxMode,cap,keep}){const {dxf,an,name}=dxfC
     const R=buildBackground(dxf,{netLayers:netL,cap,margin:ctxMode==='all'?1e6:ctxMode==='none'?0:+ctxMode,zoneAll:ctxMode==='all',keepOrigin:prevOrigin,units:dxf.units,texts:true});
     let drawing=R.drawing;if(ctxMode==='none')drawing=drawing.filter(d=>d.net);if(!drawing.length)throw new Error('aucun trait dans ce DXF (calques vides ou entités non gérées)');
     const mm=ctxMode==='all'||ctxMode==='none'?0:Math.min(+ctxMode,200);const bbox=[R.bbox[0]-mm,R.bbox[1]-mm,R.bbox[2]+mm,R.bbox[3]+mm];
-    const b=bgObj();b.drawing=drawing;b.bbox=bbox;b.name=name;b.origin=R.origin;b.netLayers=netL;b.images=R.images||[];b.report=R.report||null;b._bb=null;b._lastKey=null;renderBg();await saveBgIDB();progress(null);
+    const b=bgObj();b.drawing=drawing;b.bbox=bbox;b.name=name;b.origin=R.origin;b.netLayers=netL;b.images=R.images||[];b.report=R.report||null;b._bb=null;b._far=undefined;b._lastKey=null;renderBg();await saveBgIDB();progress(null);
     const st=R.stats;const rp=R.report||{};const miss=(rp.images&&rp.images.length?` · ${rp.images.length} image(s) externe(s) absente(s)`:'')+(rp.proxies?` · ${rp.proxies} objet(s) propriétaire(s) non dessinés`:'');flash(`Fond : ${st.traits} traits, ${st.fills||0} hachures, ${st.texts} textes, ${rp.colors||0} couleurs${miss} — tout le dessin${R.truncated?', allégé au-delà de la zone principale (limite de détail)':''}${R.units!==1?' · unités converties en m':''} · ${esc(name)} — ⓘ pour le détail`);
     if(!state.lines.length)fitAll();}
   catch(err){console.error(err);progress(null);alert('Fond impossible : '+(err.message||err));}}
@@ -430,7 +431,7 @@ function openDxfModal(){const {dxf,an,name}=dxfCtx;const M=$('#modal');const geo
   M.classList.add('show');$('#dxfCancel').onclick=()=>{M.classList.remove('show');};
   $('#dxfOk').onclick=async()=>{const netL=[...$$('.dxfLay')].filter(c=>c.checked).map(c=>rows[+c.dataset.i].lay);const ctxMode=$('#dxfCtx').value;const cap=+$('#dxfCap').value;M.classList.remove('show');await applyBackground({netL,ctxMode,cap,keep:(state.bg&&state.bg.origin)||null});};}
 async function saveBgIDB(){const b=state.bg;if(!b||!b.drawing){await kv.del('bg:dxf');return;}await kv.set('bg:dxf',{drawing:b.drawing,bbox:b.bbox,name:b.name,origin:b.origin,netLayers:b.netLayers,images:b.images||[],report:b.report||null,at:Date.now()});}
-async function loadBgIDB(){const d=await kv.get('bg:dxf');if(!d||!d.drawing)return false;const b=bgObj();b.drawing=d.drawing;b.bbox=b.bbox||d.bbox;b.name=b.name||d.name;b.origin=d.origin;b.netLayers=d.netLayers;b.images=d.images||[];b.report=d.report||null;b._bb=null;b._lastKey=null;renderBg();return true;}
+async function loadBgIDB(){const d=await kv.get('bg:dxf');if(!d||!d.drawing)return false;const b=bgObj();b.drawing=d.drawing;b.bbox=b.bbox||d.bbox;b.name=b.name||d.name;b.origin=d.origin;b.netLayers=d.netLayers;b.images=d.images||[];b.report=d.report||null;b._bb=null;b._far=undefined;b._lastKey=null;renderBg();return true;}
 function syncHeader(){$('#supplier').value=state.supplier;$('#serie').value=String(state.serie);cat=catalogFor(state.supplier,state.serie);const dns=cat.dns();$('#dn').innerHTML=dns.map(d=>`<option ${d===state.dn?'selected':''}>${d}</option>`).join('');if(!dns.includes(state.dn))state.dn=dns.includes(100)?100:dns[0];$('#dn').value=String(state.dn);const bl=cat.barLengths(state.dn);$('#bar').innerHTML=bl.map(b=>`<option ${b===state.bar?'selected':''}>${b}</option>`).join('');if(!bl.includes(state.bar))state.bar=bl.includes(12)?12:bl[bl.length-1];$('#bar').value=String(state.bar);}
 $('#supplier').onchange=e=>{state.supplier=e.target.value;syncHeader();rebuild();};$('#serie').onchange=e=>{state.serie=+e.target.value;syncHeader();rebuild();};$('#dn').onchange=e=>{state.dn=+e.target.value;syncHeader();renderPanel();save();};$('#bar').onchange=e=>{state.bar=+e.target.value;save();};
 window.addEventListener('resize',()=>{applyView();render();});

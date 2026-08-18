@@ -344,6 +344,14 @@ export function drawingSVG(drawing,o={}){const k=o.k||1,box=o.box||null,bb=o.bb|
     if(!d.pts||d.pts.length<2)continue;const key=lineStyle(d);(groups[key]=groups[key]||[]).push('M'+d.pts.map(p=>p[0].toFixed(2)+' '+p[1].toFixed(2)).join('L'));n++;}
   const paths=Object.entries(groups).map(([key,ds])=>{const [c,w,lt]=key.split('|');return `<path d="${ds.join('')}" fill="none" stroke="${c}" stroke-width="${w}" vector-effect="non-scaling-stroke"${lt?` stroke-dasharray="${lt}"`:''} stroke-linecap="round" stroke-linejoin="round"/>`;}).join('');
   return {svg:(fills?`<g>${fills}</g>`:'')+(paths||txt?`<g opacity="${op}">${paths}${txt}</g>`:''),n};}
+// version allégée d'un fond pour la vue éloignée (< 2 px/m) : un téléphone ne peint pas 200 000 points d'un coup — réseau gardé, contexte simplifié (0,5 m, invisible à ce zoom) et plafonné, du plus long au plus court
+export function decimateDrawing(drawing,opts={}){const cap=opts.cap||50000,simpTol=opts.simp===undefined?0.5:opts.simp,minLen=opts.minLen===undefined?1.5:opts.minLen;
+  const len=pts=>{let L=0;for(let i=1;i<pts.length;i++)L+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);return L;};
+  const out=[];let n=0;
+  for(const d of drawing){if(d.fill&&d.loops){const np=d.loops.reduce((s,q)=>s+q.length,0);if(n+np>cap*0.2)continue;out.push(d);n+=np;}}
+  const traits=drawing.filter(d=>d.pts&&!d.fill).map(d=>({d,L:len(d.pts)})).sort((a,b)=>(b.d.net-a.d.net)||(b.L-a.L));
+  for(const {d,L} of traits){if(!d.net&&L<minLen)continue;let q=d.pts;if(q.length>2)q=simplify(q,simpTol);if(n+q.length>cap){if(!d.net)break;if(n+q.length>cap*1.2)break;}out.push(q===d.pts?d:{...d,pts:q});n+=q.length;}
+  return {drawing:out,points:n,total:drawing.length,kept:out.length};}
 // fond réduit pour le chantier (appli, serveur) : ce qui entoure les lignes tracées (± marge), sous une limite de points
 export function reduceDrawing(drawing,linesBBox,margin,cap){if(!drawing||!drawing.length)return [];const [x0,y0,x1,y1]=linesBBox;const bx0=x0-margin,by0=y0-margin,bx1=x1+margin,by1=y1+margin;const out=[];let n=0;
   for(const d of drawing){if(d.pts){if(!d.pts.some(p=>p[0]>=bx0&&p[0]<=bx1&&p[1]>=by0&&p[1]<=by1))continue;if(n+d.pts.length>cap)break;out.push(d);n+=d.pts.length;}else if(d.text){if(d.x<bx0||d.x>bx1||d.y<by0||d.y>by1)continue;if(n+4>cap)break;out.push(d);n+=4;}}return out;}
