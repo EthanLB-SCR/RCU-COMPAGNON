@@ -1,58 +1,116 @@
 // Lecture DXF (ASCII) dans le navigateur : entités du modèle + inventaire + proposition de rôles par calque + construction d'un chantier brut.
 // ---------- lecture DXF ASCII : un seul automate (paires code/valeur), alimenté soit par une chaîne, soit par un fichier lu en flux ----------
 // Types gardés (géométrie + texte). Le reste (3DFACE, POINT, HATCH, IMAGE, SOLID…) est compté dans layersCount mais pas conservé : sur un plan de BE (topo, MNT, cadastre) c'est 90 % du fichier.
-const KEEP=new Set(['LWPOLYLINE','POLYLINE','LINE','ARC','CIRCLE','INSERT','TEXT','MTEXT','DIMENSION','ATTDEF']);
+const KEEP=new Set(['LWPOLYLINE','POLYLINE','LINE','ARC','CIRCLE','INSERT','TEXT','MTEXT','DIMENSION','ATTDEF','HATCH','SPLINE','ELLIPSE','LEADER','SOLID','TRACE','3DFACE','IMAGE','WIPEOUT']);
+// palette AutoCAD (ACI 0..255) → RGB ; 7 = blanc/noir « automatique » (rendu en noir sur nos fonds clairs)
+export const ACI=[0,16711680,16776960,65280,65535,255,16711935,16777215,8421504,12632256,16711680,16744319,10813440,10834514,8323072,8339263,4980736,4990502,2490368,2495251,16727808,16752511,10823936,10839890,8331008,8343359,4985600,4992806,2492672,2496275,16744192,16760703,10834432,10845266,8339200,8347455,4990464,4995366,2495232,2497555,16760576,16768895,10845184,10850642,8347392,8351551,4995328,4997670,2497536,2498835,16776960,16777087,10855680,10855762,8355584,8355647,5000192,5000230,2500096,2500115,12582656,14679935,8168704,9545042,6258432,7307071,3755008,4344870,1844736,2172435,8388352,12582783,5416192,8168786,4161280,6258495,2509824,3755046,1254912,1844755,4194048,10485631,2729216,6792530,2064128,5209919,1264640,3099686,599552,1517075,65280,8388479,42240,5416274,32512,4161343,19456,2509862,9728,1254931,65343,8388511,42281,5416295,32543,4161359,19475,2509871,9737,1267735,65407,8388543,42322,5416316,32575,4161375,19494,2509881,9747,1267740,65471,8388575,42364,5416337,32607,4161391,19513,2509890,9756,1267800,65535,8388607,42405,5416357,32639,4161407,19532,2509900,9766,1267800,49151,8380415,31909,5411237,24447,4157311,14668,2507390,7206,1267800,32767,8372223,21157,5405861,16255,4153215,9804,2505086,4902,1252440,16383,8364031,10661,5400485,8063,4149119,4940,2502526,2342,1251160,255,8355839,165,5395109,127,4145023,76,2500222,38,1250136,4129023,10452991,2687141,6771365,2031743,5193599,1245260,3090046,589862,1512280,8323327,12550143,5374117,8147621,4128895,6242175,2490444,3745406,1245222,1839960,12517631,14647295,8126629,9523877,6226047,7290751,3735628,4335180,1835046,5772120,16711935,16744447,10813605,10834597,8323199,8339327,4980812,4990540,2490406,5772120,16711871,16744415,10813564,10834577,8323167,8339311,4980793,4990530,2490396,5772120,16711807,16744383,10813522,10834556,8323135,8339295,4980774,4990521,2490387,5772060,16711743,16744351,10813481,10834535,8323103,8339279,4980755,4990511,2490377,5772055,0,6645093,6710886,10066329,13421772,16777215];
+export const aciHex=i=>{i=+i;if(!(i>0&&i<256))return '#1e1e1e';if(i===7)return '#1e1e1e';return '#'+ACI[i].toString(16).padStart(6,'0');};
+export const tcHex=v=>'#'+((+v)&0xffffff).toString(16).padStart(6,'0');
 const BLOCK_CAP=20000; // au-delà, c'est un fond de plan externe (xref lié) : tronqué et signalé, jamais une pièce (l'appli) ; le traceur, qui veut le fond entier, passe une limite plus haute
+// HATCH : contours (boucles polylignes ou arêtes ligne/arc/ellipse/spline) puis motif ; les codes 10/20/72/73/93/97… changent de sens selon l'étape → automate dédié. Renvoie true si le code a été consommé.
+function hatchCode(cur,code,v){const h=cur.h||(cur.h={stage:'head',loops:[],loop:null,edge:null,vLeft:0,seed:false});
+  if(code===91){h.stage='loops';return true;}
+  if(code===98){h.stage='tail';h.seed=true;return true;}
+  if(code===75||code===76||code===47||code===78){h.stage='tail';h.loop=null;h.edge=null;return true;}
+  if(h.stage==='tail')return code!==2&&code!==8&&code!==62&&code!==420&&code!==370&&code!==5&&code!==6&&code!==70&&code!==450&&code!==453&&code!==463&&code!==470; // le reste des codes de fin (motif, graines) est ignoré
+  if(code===92){h.stage='loops';h.loop={flags:parseInt(v,10),poly:!!(parseInt(v,10)&2),pts:[],edges:[]};h.loops.push(h.loop);h.edge=null;h.vLeft=0;return true;} // chaque boucle finit par 97 (objets sources) + 330 : le 92 suivant rouvre une boucle
+  if(h.stage==='src'){return code===330||code===97;}
+  if(h.stage!=='loops')return false;
+  const L=h.loop,E=h.edge;
+  switch(code){
+    case 93: if(!L)return true;if(L.poly)h.vLeft=parseInt(v,10);else L.ne=parseInt(v,10);return true;
+    case 72: if(!L)return true;if(L.poly)L.hasBulge=parseInt(v,10);else{h.edge={type:parseInt(v,10),pts:[],ctrl:[],fit:[],knots:[]};L.edges.push(h.edge);}return true;
+    case 73: if(L&&L.poly)L.closed=parseInt(v,10);else if(E)E.ccw=parseInt(v,10);return true;
+    case 10: if(L&&L.poly){L.pts.push([parseFloat(v),0,0]);}else if(E){if(E.type===4)E.ctrl.push([parseFloat(v),0]);else E.x=parseFloat(v);}return true;
+    case 20: if(L&&L.poly){const p=L.pts[L.pts.length-1];if(p)p[1]=parseFloat(v);}else if(E){if(E.type===4){const p=E.ctrl[E.ctrl.length-1];if(p)p[1]=parseFloat(v);}else E.y=parseFloat(v);}return true;
+    case 42: if(L&&L.poly){const p=L.pts[L.pts.length-1];if(p)p[2]=parseFloat(v);}return true; // bulge (ou poids de spline : ignoré)
+    case 11: if(E){if(E.type===4)E.fit.push([parseFloat(v),0]);else E.x2=parseFloat(v);}return true;
+    case 21: if(E){if(E.type===4){const p=E.fit[E.fit.length-1];if(p)p[1]=parseFloat(v);}else E.y2=parseFloat(v);}return true;
+    case 40: if(E){if(E.type===4)E.knots.push(parseFloat(v));else E.r=parseFloat(v);}return true; // rayon (arc) ou rapport (ellipse)
+    case 50: if(E)E.a0=parseFloat(v);return true;
+    case 51: if(E)E.a1=parseFloat(v);return true;
+    case 94: if(E)E.degree=parseInt(v,10);return true;
+    case 95: case 96: return true;
+    case 97: if(E&&E.type===4&&E.nfit===undefined){E.nfit=parseInt(v,10);}else{h.stage='src';}return true; // après les boucles : nombre d'objets sources
+    case 330: return true;
+    default: return code!==2&&code!==8&&code!==62&&code!==420&&code!==370&&code!==5&&code!==6&&code!==70;
+  }}
 export function createDXFParser(opts={}){const blockCap=opts.blockCap||BLOCK_CAP;
-  const ents=[];const blocks={};const layersCount={};const layerTable=[];const header={};const truncated=[];let hdrVar=null;
-  let section=null,cur=null,blk=null,openPoly=null,openInsert=null,inTable=null;
+  const ents=[];const blocks={};const layersCount={};const layerTable=[];const layerDefs={};const ltypes={};const imagedefs={};const header={};const truncated=[];let hdrVar=null;
+  let section=null,cur=null,blk=null,openPoly=null,openInsert=null,inTable=null;let writer='';let xdataApp='';
   const count=(e)=>{if(blk)return;const L=layersCount[e.layer]||(layersCount[e.layer]={});L[e.type]=(L[e.type]||0)+1;};
   const emit=e=>{if(blk){if(blk.ents.length>=blockCap){if(!blk.trunc){blk.trunc=true;truncated.push(blk.name);}return;}blk.ents.push(e);}else ents.push(e);};
   const finish=()=>{if(!cur)return;const e=cur;cur=null;
+    if(e.type==='LAYERDEF'){if(e.name){layerTable.push(e.name);layerDefs[e.name]={color:e.color===undefined?7:Math.abs(e.color),off:e.color!==undefined&&e.color<0,frozen:!!((e.flags||0)&1),lt:e.lt||'',lw:e.lw,tc:e.tc,tr:e.tr};}return;}
+    if(e.type==='LTYPEDEF'){if(e.name)ltypes[e.name.toUpperCase()]=e.dashes||[];return;}
+    if(e.type==='IMAGEDEF'){if(e.handle)imagedefs[e.handle]={path:e.text||'',w:e.x,h:e.y};return;}
     if(e.type==='VERTEX'){if(openPoly&&isFinite(e.x)&&!((e.flags||0)&(16|64|128)))openPoly.pts.push([e.x,e.y]);return;} // 16 = point de contrôle spline, 64/128 = maillages : ignorés
     if(e.type==='SEQEND'){if(openPoly){if(openPoly.pts.length>=2)emit(openPoly);openPoly=null;}openInsert=null;return;}
-    if(e.type==='ATTRIB'){if(openInsert){(openInsert.attribs=openInsert.attribs||[]).push({tag:e.tag||'',text:e.text||''});}return;}
+    if(e.type==='ATTRIB'){if(openInsert){(openInsert.attribs=openInsert.attribs||[]).push({tag:e.tag||'',text:e.text||'',x:e.x,y:e.y,x2:e.x2,y2:e.y2,r:e.r,rot:e.rot,ha:e.ha,va:e.va,sx:e.sx,layer:e.layer,color:e.color,tc:e.tc,invisible:!!((e.flags||0)&1)});}return;}
     count(e);if(!KEEP.has(e.type))return;
     if(e.type==='POLYLINE'){if(e.flags&(16|64))return;e.pts=[];openPoly=e;return;} // 3D mesh / polyface : ignorés ; le POLYLINE est émis au SEQEND
     if(e.type==='LWPOLYLINE'){if(e.pts.length>=2)emit(e);return;}
     if(e.type==='LINE'){if(e.p1&&e.p2){e.pts=[e.p1,e.p2];emit(e);}return;}
+    if(e.type==='LEADER'){if(e.pts.length>=2)emit(e);return;}
+    if(e.type==='SPLINE'){if((e.ctrl&&e.ctrl.length>=2)||(e.fit&&e.fit.length>=2))emit(e);return;}
+    if(e.type==='ELLIPSE'){if(isFinite(e.x)&&isFinite(e.x2))emit(e);return;}
+    if(e.type==='HATCH'){if(e.h&&e.h.loops.length)emit(e);return;}
+    if(e.type==='SOLID'||e.type==='TRACE'||e.type==='3DFACE'){if(isFinite(e.x)&&isFinite(e.x2)&&isFinite(e.x3))emit(e);return;}
+    if(e.type==='IMAGE'||e.type==='WIPEOUT'){if(isFinite(e.x))emit(e);return;}
     if(e.type==='INSERT'){emit(e);if(e.attFollow)openInsert=e;return;}
     if(e.type==='ARC'||e.type==='CIRCLE'){if(isFinite(e.x)&&e.r>0)emit(e);return;}
     emit(e);};
   const feed=(code,v)=>{
+    if(code===999){if(/libredwg/i.test(v))writer='LibreDWG';return;}
     if(code===0){const t=v.trim();
       if(t==='SECTION'){finish();section='?';return;}
       if(t==='ENDSEC'){finish();if(openPoly){if(openPoly.pts.length>=2)emit(openPoly);openPoly=null;}section=null;blk=null;inTable=null;return;}
       if(t==='EOF'){finish();return;}
       if(section==='BLOCKS'){if(t==='BLOCK'){finish();blk={name:'',ents:[]};cur=null;return;}if(t==='ENDBLK'){finish();if(openPoly){if(openPoly.pts.length>=2)emit(openPoly);openPoly=null;}if(blk&&blk.name)blocks[blk.name]=blk.ents;blk=null;return;}}
-      if(section==='TABLES'){if(t==='TABLE'){inTable='?';return;}if(t==='ENDTAB'){inTable=null;return;}if(t==='LAYER'&&inTable==='LAYER'){cur={type:'LAYERDEF'};return;}cur=null;return;}
+      if(section==='TABLES'){finish();if(t==='TABLE'){inTable='?';return;}if(t==='ENDTAB'){inTable=null;return;}if(t==='LAYER'&&inTable==='LAYER'){cur={type:'LAYERDEF'};return;}if(t==='LTYPE'&&inTable==='LTYPE'){cur={type:'LTYPEDEF',dashes:[]};return;}cur=null;return;}
+      if(section==='OBJECTS'){finish();cur=t==='IMAGEDEF'?{type:'IMAGEDEF'}:null;return;}
       if(section==='ENTITIES'||(section==='BLOCKS'&&blk)){finish();cur={type:t,layer:'0',pts:[]};return;}
       cur=null;return;}
     if(section==='?'&&code===2){section=v.trim();return;}
     if(section==='HEADER'){if(code===9){hdrVar=v.trim();return;}if(hdrVar){if(code===70||code===10||code===20||code===40){const k=hdrVar+(code===20?'_y':'');header[k]=parseFloat(v);}else if(code===1||code===2||code===3)header[hdrVar]=v.trim();}return;}
-    if(section==='TABLES'){if(inTable==='?'&&code===2){inTable=v.trim();return;}if(cur&&cur.type==='LAYERDEF'&&code===2){layerTable.push(v);cur=null;}return;}
+    if(section==='TABLES'){if(inTable==='?'&&code===2){inTable=v.trim();return;}if(!cur)return;if(code===2)cur.name=v.trim();else if(code===62)cur.color=parseInt(v,10);else if(code===70)cur.flags=parseInt(v,10);else if(code===6)cur.lt=v.trim();else if(code===370)cur.lw=parseInt(v,10);else if(code===420)cur.tc=parseInt(v,10);else if(code===1001)xdataApp=v.trim();else if(code===1071&&xdataApp==='AcCmTransparency')cur.tr=parseInt(v,10);else if(code===49&&cur.type==='LTYPEDEF')cur.dashes.push(parseFloat(v));return;}
     if(section==='BLOCKS'&&blk&&!cur&&code===2){blk.name=v.trim();return;}
     if(!cur)return;
     if(code===101){cur.embedded=true;return;}if(cur.embedded)return; // « Embedded Object » (MTEXT AutoCAD 2018+ : colonnes) : ses codes 40/41/42… ne sont pas ceux du texte (sinon la hauteur du texte devient la largeur de colonne : textes 10 × trop grands)
+    if(cur.type==='HATCH'){if(hatchCode(cur,code,v))return;} // contours et motif de hachure : petit automate à part
     switch(code){
       case 8: cur.layer=v;break;
+      case 5: cur.handle=v.trim();break;
       case 2: if(cur.type==='ATTRIB'||cur.type==='ATTDEF')cur.tag=v.trim();else cur.name=v.trim();break;
-      case 10: if(cur.type==='LWPOLYLINE'){cur.pts.push([parseFloat(v),0]);}else if(cur.type==='LINE'){cur.p1=[parseFloat(v),0];}else{cur.x=parseFloat(v);}break;
-      case 20: if(cur.type==='LWPOLYLINE'){const p=cur.pts[cur.pts.length-1];if(p)p[1]=parseFloat(v);}else if(cur.type==='LINE'){if(cur.p1)cur.p1[1]=parseFloat(v);}else{cur.y=parseFloat(v);}break;
-      case 11: if(cur.type==='LINE')cur.p2=[parseFloat(v),0];else cur.x2=parseFloat(v);break;
-      case 21: if(cur.type==='LINE'){if(cur.p2)cur.p2[1]=parseFloat(v);}else cur.y2=parseFloat(v);break;
+      case 6: cur.lt=v.trim();break;
+      case 7: cur.style=v.trim();break;
+      case 62: cur.color=parseInt(v,10);break; // couleur ACI (0 = par bloc, 256 = par calque)
+      case 420: cur.tc=parseInt(v,10);break; // couleur vraie 24 bits
+      case 440: cur.tr=parseInt(v,10);break; // transparence 0x020000TT (TT = 255 opaque … 0 transparent)
+      case 370: cur.lw=parseInt(v,10);break; // épaisseur (1/100 mm ; -1 par calque, -2 par bloc, -3 défaut)
+      case 340: cur.ref=v.trim();break; // IMAGE → IMAGEDEF
+      case 10: if(cur.type==='LWPOLYLINE'||cur.type==='LEADER'){cur.pts.push([parseFloat(v),0]);}else if(cur.type==='LINE'){cur.p1=[parseFloat(v),0];}else if(cur.type==='SPLINE'){(cur.ctrl=cur.ctrl||[]).push([parseFloat(v),0]);}else{cur.x=parseFloat(v);}break;
+      case 20: if(cur.type==='LWPOLYLINE'||cur.type==='LEADER'){const p=cur.pts[cur.pts.length-1];if(p)p[1]=parseFloat(v);}else if(cur.type==='LINE'){if(cur.p1)cur.p1[1]=parseFloat(v);}else if(cur.type==='SPLINE'){const p=cur.ctrl&&cur.ctrl[cur.ctrl.length-1];if(p)p[1]=parseFloat(v);}else{cur.y=parseFloat(v);}break;
+      case 11: if(cur.type==='LINE')cur.p2=[parseFloat(v),0];else if(cur.type==='SPLINE'){(cur.fit=cur.fit||[]).push([parseFloat(v),0]);}else cur.x2=parseFloat(v);break;
+      case 21: if(cur.type==='LINE'){if(cur.p2)cur.p2[1]=parseFloat(v);}else if(cur.type==='SPLINE'){const p=cur.fit&&cur.fit[cur.fit.length-1];if(p)p[1]=parseFloat(v);}else cur.y2=parseFloat(v);break;
+      case 12: cur.x3=parseFloat(v);break; case 22: cur.y3=parseFloat(v);break;
+      case 13: cur.x4=parseFloat(v);break; case 23: cur.y4=parseFloat(v);break;
       case 1: cur.text=(cur.text||'')+v;break;
       case 3: if(cur.type==='MTEXT')cur.text=(cur.text||'')+v;else if(cur.type==='ATTDEF')cur.prompt=v;break;
-      case 40: cur.r=parseFloat(v);break; // rayon (ARC/CIRCLE) ou hauteur de texte
-      case 41: cur.sx=parseFloat(v);break;
-      case 42: if(cur.type==='DIMENSION')cur.measure=parseFloat(v);else if(cur.type==='INSERT')cur.sy=parseFloat(v);break;
+      case 40: if(cur.type==='SPLINE')(cur.knots=cur.knots||[]).push(parseFloat(v));else cur.r=parseFloat(v);break; // rayon (ARC/CIRCLE), hauteur de texte, rapport petit/grand axe (ELLIPSE)
+      case 41: if(cur.type==='SPLINE')(cur.wts=cur.wts||[]).push(parseFloat(v));else if(cur.type==='ELLIPSE')cur.a1=parseFloat(v);else cur.sx=parseFloat(v);break; // échelle X (INSERT), facteur de largeur (TEXT), largeur (MTEXT), début (ELLIPSE)
+      case 42: if(cur.type==='DIMENSION')cur.measure=parseFloat(v);else if(cur.type==='INSERT')cur.sy=parseFloat(v);else if(cur.type==='ELLIPSE')cur.a2=parseFloat(v);else if(cur.type==='LWPOLYLINE'){const p=cur.pts[cur.pts.length-1];if(p)p[2]=parseFloat(v);}break; // bulge (arc) d'un sommet de polyligne
+      case 44: if(cur.type==='MTEXT')cur.ls=parseFloat(v);break;
       case 50: cur.rot=parseFloat(v);break;
       case 51: cur.rot2=parseFloat(v);break;
       case 66: if(cur.type==='INSERT'&&parseInt(v,10)===1)cur.attFollow=true;break;
       case 70: cur.flags=parseInt(v,10);break;
+      case 71: if(cur.type==='MTEXT')cur.attach=parseInt(v,10);else if(cur.type==='SPLINE')cur.degree=parseInt(v,10);else cur.f71=parseInt(v,10);break;
+      case 72: if(cur.type==='TEXT'||cur.type==='ATTRIB'||cur.type==='ATTDEF')cur.ha=parseInt(v,10);else if(cur.type==='MTEXT')cur.dir=parseInt(v,10);break;
+      case 73: if(cur.type==='TEXT'||cur.type==='ATTRIB'||cur.type==='ATTDEF')cur.va=parseInt(v,10);break;
     }};
   const end=()=>{finish();if(openPoly){if(openPoly.pts.length>=2)emit(openPoly);openPoly=null;}
-    return {ents,blocks,layersCount,layerTable,header,units:header.$INSUNITS,truncated};};
+    return {ents,blocks,layersCount,layerTable,layerDefs,ltypes,imagedefs,header,units:header.$INSUNITS,truncated,writer};};
   return {feed,end};
 }
 // texte complet en mémoire (petits fichiers, tests)
@@ -166,23 +224,80 @@ export function buildDrawing(dxf,T,bbox,netLayers,opts={}){
     else emit(e,p=>p,lay,net);}};
   pass(true);pass(false);
   return {drawing:out,truncated:n>cap};}
-/* fond de plan automatique (traceur) : le dessin « en l'état », comme un calque grisé — traits (lignes, polylignes, arcs, cercles, blocs sur 3 niveaux) ET textes, tous calques sauf cartouche/hachures ;
-   zone principale = l'amas de cellules de 250 m le plus dense (sert au repère et à la priorité sous la limite de points), calques réseau reconnus en foncé.
+/* fond de plan (traceur / appli) : le dessin « tel que dans le DWG » — traits, arcs, ellipses, splines, hachures, textes, blocs (attributs, cotations), avec les COULEURS, épaisseurs, types de trait et calques éteints du fichier.
+   Règles AutoCAD appliquées : couleur/épaisseur/type « par calque » = ceux du calque ; « par bloc » = ceux de l'insertion ; un objet du calque 0 dans un bloc suit le calque de l'insertion ; calque éteint ou gelé = invisible ; ACI 7 = noir sur fond clair.
    opts : {netLayers:[], cap:800000, margin:200, keepOrigin:{x0,y1}|null, zoneAll:false, minLen:0.3, simp:0.1, units, texts:true}
-   → {drawing:[{layer,pts,net} | {layer,text,x,y,h,rot,net}], bbox (zone, repère du dessin), origin, truncated, units, stats} */
+   → {drawing:[{layer,pts,c,w?,lt?,net} | {layer,loops,pts,fill,op,net} | {layer,text,x,y,h,rot,c,a,va,n?,tl?,net}], bbox, origin, truncated, units, stats, report} */
 export function buildBackground(dxf,opts={}){
   const cap=opts.cap||800000,M=opts.margin===undefined?200:opts.margin,netLayers=opts.netLayers||[],minLen=opts.minLen===undefined?0.3:opts.minLen,simp=opts.simp===undefined?0.1:opts.simp,withTexts=opts.texts!==false;
-  const JUNK=/cartouche|hachur|hatch|trame|carroyage|grille|cadre|titre|matricule/i;
   const isNet=l=>netLayers.some(n=>l===n||l.startsWith(n+'/'));
-  const cleanTxt=t=>String(t||'').replace(/\\P/g,' ').replace(/\\[A-Za-z][^;]*;/g,'').replace(/[{}]/g,'').replace(/%%[cdp]/gi,'°').trim();
-  // 1) tous les traits et textes (entités + blocs, 3 niveaux), en coordonnées du dessin
-  const traits=[],texts=[];const arcPts=(e,tf)=>{const a0=(e.rot||0)*Math.PI/180,a1=(e.rot2===undefined?360:e.rot2)*Math.PI/180;let sweep=a1-a0;while(sweep<=0)sweep+=2*Math.PI;const k=Math.max(4,Math.ceil(sweep/(Math.PI/12)));const pts=[];for(let i=0;i<=k;i++){const a=a0+sweep*i/k;pts.push(tf([e.x+e.r*Math.cos(a),e.y+e.r*Math.sin(a)]));}return pts;};
-  const emit=(e,tf,layer,rot0,sc)=>{if(withTexts&&(e.type==='TEXT'||e.type==='MTEXT')){if(!isFinite(e.x)||!isFinite(e.y)||!(e.r>0))return;const t=cleanTxt(e.text);if(!t||t.length>80)return;const p=tf([e.x,e.y]);texts.push({layer,text:t,x:p[0],y:p[1],h:e.r*(sc||1),rot:(e.rot||0)+(rot0||0),net:isNet(layer)});return;}
-    let pts=null;if((e.type==='LWPOLYLINE'||e.type==='LINE'||e.type==='POLYLINE')&&e.pts&&e.pts.length>=2){pts=e.pts.map(tf);if(e.flags&1)pts.push(pts[0]);}else if((e.type==='ARC'||e.type==='CIRCLE')&&isFinite(e.x)&&e.r>0&&e.r<200){pts=arcPts(e.type==='CIRCLE'?{...e,rot:0,rot2:360}:e,tf);}if(!pts)return;traits.push({layer,pts,net:isNet(layer)});};
+  const LD=dxf.layerDefs||{},LT=dxf.ltypes||{},IMG=dxf.imagedefs||{};
+  // couleur vraie (420) : AutoCAD/ODA écrivent 0x00RRGGBB uniquement pour une vraie couleur ; LibreDWG recopie le champ brut du DWG (méthode dans l'octet haut : 0xC2 = RGB, sinon index/par calque → 420 sans valeur : on l'ignore)
+  const libre=dxf.writer==='LibreDWG';const trueColor=v=>{if(v===undefined||v===null||isNaN(v))return null;if(libre){return (v>>>24)===0xC2?tcHex(v):null;}return tcHex(v);};
+  const alphaOf=(e,layer,ins)=>{let t=e.tr;if(t===undefined||t===null||isNaN(t)||(t>>>24)===0x01){const lname=(layer==='0'&&ins)?ins.layer:layer;const L=layerOf(lname);t=L?L.tr:undefined;}if(t===undefined||t===null||isNaN(t)||(t>>>24)!==0x02)return 1;return Math.max(.1,(t&255)/255);};
+  const layerOf=name=>LD[name]||null;
+  const hidden=name=>{const L=layerOf(name);return !!(L&&(L.off||L.frozen));};const frozen=name=>{const L=layerOf(name);return !!(L&&L.frozen);};
+  // couleur d'un objet : vraie couleur > ACI de l'objet > par bloc (insertion) > par calque (calque 0 dans un bloc → calque de l'insertion)
+  const colorOf=(e,layer,ins)=>{const tc=trueColor(e.tc);if(tc)return tc;const c=e.color;if(c===0&&ins)return ins.c;if(c===undefined||c===256||c===0){const lname=(layer==='0'&&ins)?ins.layer:layer;const L=layerOf(lname);const ltc=L?trueColor(L.tc):null;if(ltc)return ltc;return aciHex(L?L.color:7);}return aciHex(Math.abs(c));};
+  const lwOf=(e,layer,ins)=>{let w=e.lw;if(w===undefined||w===-1||w===null){const lname=(layer==='0'&&ins)?ins.layer:layer;const L=layerOf(lname);w=L&&L.lw!==undefined?L.lw:-3;}if(w===-2)return ins?ins.w:25;if(w===-3||w<0)return 25;return w;};
+  const ltOf=(e,layer,ins)=>{let n=e.lt;if(!n||/^bylayer$/i.test(n)){const lname=(layer==='0'&&ins)?ins.layer:layer;const L=layerOf(lname);n=L?L.lt:'';}if(/^byblock$/i.test(n||''))n=ins?ins.ltn:'';return n||'';};
+  const dashOf=name=>{if(!name||/^(continuous|bylayer|byblock|solid)$/i.test(name))return '';const d=LT[name.toUpperCase()];let pat=null;if(d&&d.length){const tot=d.reduce((s,x)=>s+Math.abs(x),0);if(tot>0){const sc=14/tot;pat=d.map(x=>x===0?1:Math.max(1,Math.abs(x)*sc));if(pat.length%2)pat=pat.concat(pat);}}
+    if(!pat){const n=name.toUpperCase();pat=/HIDDEN|DASHED2|CACH/.test(n)?[4,3]:/CENTER|AXE/.test(n)?[10,3,2,3]:/DASHDOT|MIXTE/.test(n)?[8,3,1.5,3]:/DOT|POINT/.test(n)?[1,3]:/PHANTOM|FANT/.test(n)?[10,3,2,3,2,3]:/BORDER|DIVIDE/.test(n)?[8,3,8,3,1.5,3]:[6,3];}
+    return pat.map(v=>+v.toFixed(1)).join(' ');};
+  // codes de mise en forme MTEXT (\P paragraphe, \A \C \f \H \Q \T \W \p …; \L \O \K, \S empilé, {}, %%c %%d %%p) → texte nu
+  const cleanTxt=t=>String(t||'').replace(/\\\\/g,'\u0001').replace(/\\[PX]/g,'\n').replace(/\\~/g,' ').replace(/\\S([^;^]*)\^([^;]*);/g,'$1/$2').replace(/\\[ACFHQTWfp][^;]*;/g,'').replace(/\\[LlOoKk]/g,'').replace(/\\([{}])/g,'$1').replace(/[{}]/g,'').replace(/\u0001/g,'\\').replace(/%%[cC]/g,'Ø').replace(/%%[dD]/g,'°').replace(/%%[pP]/g,'±').replace(/%%[uUoO]/g,'').replace(/%%(\d{3})/g,(m,d)=>String.fromCharCode(+d)).trim();
+  // 1) tout le dessin (entités + blocs, 3 niveaux, cotations = leur bloc, attributs), en coordonnées du dessin
+  const traits=[],texts=[],fills=[],images=[];let proxies=0;const ignored={};
+  const arcPts=(cx,cy,r,a0,a1,tf,ccw=true)=>{let sweep=a1-a0;if(ccw){while(sweep<=0)sweep+=2*Math.PI;}else{while(sweep>=0)sweep-=2*Math.PI;}const k=Math.max(4,Math.ceil(Math.abs(sweep)/(Math.PI/12)));const pts=[];for(let i=0;i<=k;i++){const a=a0+sweep*i/k;pts.push(tf([cx+r*Math.cos(a),cy+r*Math.sin(a)]));}return pts;};
+  const ellPts=(e,tf,a1,a2)=>{const mx=e.x2,my=e.y2;const R=Math.hypot(mx,my);if(!(R>0))return null;const ratio=e.r||1;const th=Math.atan2(my,mx);let s=a1===undefined?0:a1,t=a2===undefined?2*Math.PI:a2;while(t<=s)t+=2*Math.PI;const k=Math.max(8,Math.ceil((t-s)/(Math.PI/16)));const pts=[];for(let i=0;i<=k;i++){const a=s+(t-s)*i/k;const px=R*Math.cos(a),py=R*ratio*Math.sin(a);pts.push(tf([e.x+px*Math.cos(th)-py*Math.sin(th),e.y+px*Math.sin(th)+py*Math.cos(th)]));}return pts;};
+  const bulgePts=(pts,closed,tf)=>{const out=[];const n=pts.length;for(let i=0;i<n;i++){const p=pts[i];const q=pts[(i+1)%n];const last=i===n-1;if(last&&!closed){out.push(tf(p));break;}const b=p[2]||0;if(!b||!q){out.push(tf(p));continue;}
+      // arc de bulge entre p et q : angle = 4·atan(b)
+      const th=4*Math.atan(b);const dx=q[0]-p[0],dy=q[1]-p[1];const d=Math.hypot(dx,dy);if(d<1e-9){out.push(tf(p));continue;}const r=d/(2*Math.sin(Math.abs(th)/2));const mx=(p[0]+q[0])/2,my=(p[1]+q[1])/2;const h=Math.sqrt(Math.max(0,r*r-d*d/4))*(th>0?1:-1)*(Math.abs(th)>Math.PI?-1:1);const cx=mx-dy/d*h,cy=my+dx/d*h;const a0=Math.atan2(p[1]-cy,p[0]-cx);const k=Math.max(2,Math.ceil(Math.abs(th)/(Math.PI/12)));for(let j=0;j<k;j++){const a=a0+th*j/k;out.push(tf([cx+r*Math.cos(a),cy+r*Math.sin(a)]));}}
+    if(closed&&out.length)out.push(out[0]);return out;};
+  const splinePts=(e,tf)=>{if(e.fit&&e.fit.length>=2&&(!e.ctrl||e.ctrl.length<2))return e.fit.map(tf);const P=e.ctrl||[];if(P.length<2)return null;const p=Math.max(1,Math.min(e.degree||3,P.length-1));let U=e.knots&&e.knots.length>=P.length+p+1?e.knots:null;if(!U){U=[];const n=P.length;for(let i=0;i<n+p+1;i++)U.push(i<=p?0:i>=n?n-p:i-p);}
+    const n=P.length;const u0=U[p],u1=U[n];if(!(u1>u0))return P.map(tf);const K=Math.max(8,Math.min(400,(n-p)*8));const out=[];const W=e.wts&&e.wts.length===n?e.wts:null;
+    for(let s=0;s<=K;s++){let u=u0+(u1-u0)*s/K;if(s===K)u=u1-1e-12;let k=p;while(k<n-1&&U[k+1]<=u)k++;const d=[];for(let j=0;j<=p;j++){const q=P[k-p+j];const w=W?W[k-p+j]:1;d.push([q[0]*w,q[1]*w,w]);}
+      for(let r=1;r<=p;r++){for(let j=p;j>=r;j--){const i=k-p+j;const den=U[i+p-r+1]-U[i];const a=den>0?(u-U[i])/den:0;d[j]=[(1-a)*d[j-1][0]+a*d[j][0],(1-a)*d[j-1][1]+a*d[j][1],(1-a)*d[j-1][2]+a*d[j][2]];}}
+      const w=d[p][2]||1;out.push(tf([d[p][0]/w,d[p][1]/w]));}
+    return out;};
+  const hatchLoops=(e,tf)=>{const loops=[];(e.h.loops||[]).forEach(L=>{let pts=[];if(L.poly){pts=bulgePts(L.pts.filter(p=>isFinite(p[0])&&isFinite(p[1])),true,tf);}else{L.edges.forEach(E=>{if(E.type===1&&isFinite(E.x)&&isFinite(E.x2)){pts.push(tf([E.x,E.y]),tf([E.x2,E.y2]));}else if(E.type===2&&isFinite(E.x)&&E.r>0){const a0=(E.a0||0)*Math.PI/180,a1=(E.a1===undefined?360:E.a1)*Math.PI/180;pts.push(...arcPts(E.x,E.y,E.r,a0,a1,tf,E.ccw!==0));}else if(E.type===3&&isFinite(E.x)){const q=ellPts({x:E.x,y:E.y,x2:E.x2,y2:E.y2,r:E.r},tf,(E.a0||0)*Math.PI/180,(E.a1===undefined?360:E.a1)*Math.PI/180);if(q)pts.push(...q);}else if(E.type===4){const q=splinePts({ctrl:E.ctrl,fit:E.fit,knots:E.knots,degree:E.degree},tf);if(q)pts.push(...q);}});if(pts.length)pts.push(pts[0]);}
+      if(pts.length>=4)loops.push(pts);});return loops;};
+  const solidPts=(e,tf)=>{const c=[[e.x,e.y],[e.x2,e.y2],[e.x3,e.y3],[e.x4,e.y4]].filter(p=>isFinite(p[0])&&isFinite(p[1]));if(c.length<3)return null;const o=e.type==='3DFACE'?c:(c.length===4?[c[0],c[1],c[3],c[2]]:c);const pts=o.map(tf);pts.push(pts[0]);return pts;};
+  const textOf=(e,tf,layer,rot0,sc,ins,raw)=>{if(!isFinite(e.x)||!isFinite(e.y)||!(e.r>0))return;let t=cleanTxt(e.text);if(!t)return;if(t.length>600)t=t.slice(0,600)+'…';const c=colorOf(e,raw||layer,ins);
+    let x=e.x,y=e.y,a='start',va=0,n=1,tl=null,lines=null;
+    if(e.type==='MTEXT'){const at=e.attach||1;a=[1,4,7].includes(at)?'start':[2,5,8].includes(at)?'middle':'end';va=at<=3?3:at<=6?2:1; // 3 = haut, 2 = milieu, 1 = bas
+      let rot=e.rot||0;if(isFinite(e.x2)&&isFinite(e.y2)&&(Math.abs(e.x2)>1e-9||Math.abs(e.y2)>1e-9))rot=Math.atan2(e.y2,e.x2)*180/Math.PI;e={...e,rot};
+      // retour à la ligne : \\P du texte, sinon coupure à la largeur du cadre (41) — approximation : 0,6 h par caractère
+      lines=t.split('\n');if(e.sx>0){const cpl=Math.max(4,Math.floor(e.sx/(e.r*0.6)));const out=[];lines.forEach(l=>{if(l.length<=cpl){out.push(l);return;}let cur='';l.split(' ').forEach(w=>{if((cur+' '+w).trim().length>cpl&&cur){out.push(cur);cur=w;}else cur=(cur+' '+w).trim();});if(cur)out.push(cur);});lines=out;}
+      n=lines.length;t=lines.join('\n');
+    } else { // TEXT / ATTRIB : 72 = horizontal (0 gauche, 1 centre, 2 droite, 3 aligné, 4 milieu, 5 ajusté), 73 = vertical (0 ligne de base, 1 bas, 2 milieu, 3 haut) ; point 11/21 quand alignement non nul
+      const ha=e.ha||0,vv=e.va||0;if((ha||vv)&&isFinite(e.x2)&&isFinite(e.y2)){if(ha===3||ha===5){tl=Math.hypot(e.x2-e.x,e.y2-e.y);}else{x=e.x2;y=e.y2;}}
+      a=ha===1||ha===4?'middle':ha===2?'end':'start';va=ha===4?2:vv; if(ha===3||ha===5)va=0;}
+    const p=tf([x,y]);const o={layer,text:t,x:p[0],y:p[1],h:e.r*(sc||1),rot:(e.rot||0)+(rot0||0),c,a,va,net:isNet(layer)};if(n>1)o.n=n;if(tl)o.tl=tl*(sc||1);if(e.sx>0&&e.type!=='MTEXT'&&Math.abs(e.sx-1)>0.05)o.wf=e.sx;if(e.ls&&Math.abs(e.ls-1)>0.05)o.ls=e.ls;texts.push(o);};
+  const emit=(e,tf,layer,rot0,sc,ins,rawLayer)=>{const raw=rawLayer||layer; // raw = nom du calque dans le fichier (styles, éteint) ; layer = nom préfixé par le bloc (sortie)
+    if(hidden(raw==='0'&&ins?ins.layer:raw))return;
+    if(e.type==='TEXT'||e.type==='MTEXT'){if(withTexts)textOf(e,tf,layer,rot0,sc,ins,raw);return;}
+    if(e.type==='ATTDEF')return; // définition d'attribut : jamais affichée dans une insertion (l'ATTRIB l'est)
+    if(e.type==='ACAD_PROXY_ENTITY'){proxies++;return;}
+    if(e.type==='IMAGE'||e.type==='WIPEOUT'){if(e.type==='IMAGE'){const def=IMG[e.ref]||{};const w=+e.x4||0,h=+e.y4||0;const U=[e.x2||0,e.y2||0],V=[e.x3||0,e.y3||0];const cs=[[e.x,e.y],[e.x+U[0]*w,e.y+U[1]*w],[e.x+U[0]*w+V[0]*h,e.y+U[1]*w+V[1]*h],[e.x+V[0]*h,e.y+V[1]*h]].map(tf);images.push({path:def.path||'?',pts:cs,layer});}return;}
+    const c=colorOf(e,raw,ins),w=lwOf(e,raw,ins),lt=dashOf(ltOf(e,raw,ins));const net=isNet(layer);
+    const push=pts=>{if(!pts||pts.length<2)return;const o={layer,pts,c,net};if(w>30)o.w=w;if(lt)o.lt=lt;traits.push(o);};
+    if(e.type==='HATCH'){const loops=hatchLoops(e,tf);if(!loops.length)return;const solid=!!((e.flags||0)&1)||/^solid$/i.test(e.name||'');const al=alphaOf(e,raw,ins);fills.push({layer,loops,pts:loops[0],fill:c,op:+(Math.min(al,solid?.55:.28)).toFixed(2),net});return;}
+    if(e.type==='SOLID'||e.type==='TRACE'||e.type==='3DFACE'){const pts=solidPts(e,tf);if(pts)fills.push({layer,loops:[pts],pts,fill:c,op:+Math.min(alphaOf(e,raw,ins),.75).toFixed(2),net});return;}
+    if(e.type==='LWPOLYLINE'){if(e.pts.length<2)return;if(e.pts.some(p=>p[2]))push(bulgePts(e.pts,!!(e.flags&1),tf));else{const pts=e.pts.map(tf);if(e.flags&1)pts.push(pts[0]);push(pts);}return;}
+    if(e.type==='LINE'||e.type==='POLYLINE'||e.type==='LEADER'){if(!e.pts||e.pts.length<2)return;const pts=e.pts.map(tf);if(e.type==='POLYLINE'&&(e.flags&1))pts.push(pts[0]);push(pts);return;}
+    if(e.type==='ARC'||e.type==='CIRCLE'){if(!isFinite(e.x)||!(e.r>0)||e.r>2000)return;const a0=e.type==='CIRCLE'?0:(e.rot||0)*Math.PI/180,a1=e.type==='CIRCLE'?2*Math.PI:(e.rot2===undefined?360:e.rot2)*Math.PI/180;push(arcPts(e.x,e.y,e.r,a0,a1,tf));return;}
+    if(e.type==='ELLIPSE'){push(ellPts(e,tf,e.a1,e.a2));return;}
+    if(e.type==='SPLINE'){push(splinePts(e,tf));return;}
+    ignored[e.type]=(ignored[e.type]||0)+1;};
   const insCount={};dxf.ents.forEach(e=>{if(e.type==='INSERT')insCount[e.name]=(insCount[e.name]||0)+1;});
-  const expand=(e,tf,depth,layerPrefix,rot0,sc0)=>{const B=dxf.blocks[e.name];if(!B||!isFinite(e.x)||depth>3)return;if((insCount[e.name]||0)>3000)return;const th=(e.rot||0)*Math.PI/180,sx=e.sx||1,sy=e.sy||1,c=Math.cos(th),s=Math.sin(th);const tf2=p=>tf([e.x+(p[0]*sx*c-p[1]*sy*s),e.y+(p[0]*sx*s+p[1]*sy*c)]);const rot=(rot0||0)+(e.rot||0),sc=(sc0||1)*Math.abs(sx);
-    B.forEach(b=>{if(JUNK.test(b.layer||''))return;if(b.type==='INSERT')expand(b,tf2,depth+1,layerPrefix,rot,sc);else emit(b,tf2,layerPrefix+'/'+(b.layer||''),rot,sc);});};
-  dxf.ents.forEach(e=>{if(JUNK.test(e.layer||''))return;if(e.type==='INSERT')expand(e,p=>p,1,e.layer||'',0,1);else emit(e,p=>p,e.layer||'',0,1);});
+  const expand=(e,tf,depth,layerPrefix,rot0,sc0,insOuter)=>{const B=dxf.blocks[e.name];if(!B||!isFinite(e.x)||depth>4)return;if((insCount[e.name]||0)>30000)return;const th=(e.rot||0)*Math.PI/180,sx=e.sx||1,sy=e.sy||1,c=Math.cos(th),s=Math.sin(th);const tf2=p=>tf([e.x+(p[0]*sx*c-p[1]*sy*s),e.y+(p[0]*sx*s+p[1]*sy*c)]);const rot=(rot0||0)+(e.rot||0),sc=(sc0||1)*Math.abs(sx);
+    const lay=e.layer||'0';const insLayer=(lay==='0'&&insOuter)?insOuter.layer:lay;if(frozen(insLayer))return; // règle AutoCAD : calque de l'insertion gelé → tout le bloc disparaît ; éteint → seuls ses objets du calque 0 disparaissent
+    const ins={layer:insLayer,c:colorOf(e,lay,insOuter),w:lwOf(e,lay,insOuter),ltn:ltOf(e,lay,insOuter)};
+    B.forEach(b=>{if(b.type==='INSERT')expand(b,tf2,depth+1,layerPrefix,rot,sc,ins);else emit(b,tf2,layerPrefix+'/'+(b.layer||'0'),rot,sc,ins,b.layer||'0');});
+    (e.attribs||[]).forEach(at=>{if(at.invisible||!withTexts||hidden(at.layer||lay))return;textOf({...at,type:'TEXT'},tf,layerPrefix+'/'+(at.layer||lay),rot0,sc0,ins,at.layer||lay);});};
+  const dimBlock=(e,tf,layer,rot0,sc,ins)=>{const B=e.name&&dxf.blocks[e.name];if(!B)return;B.forEach(b=>{if(b.type==='INSERT')expand(b,tf,2,layer,rot0,sc,ins);else emit(b,tf,layer+'/'+(b.layer||'0'),rot0,sc,ins,b.layer||'0');});};
+  dxf.ents.forEach(e=>{if(e.type==='INSERT')expand(e,p=>p,1,e.layer||'0',0,1,null);else if(e.type==='DIMENSION'){if(!hidden(e.layer||'0'))dimBlock(e,p=>p,e.layer||'0',0,1,null);}else emit(e,p=>p,e.layer||'0',0,1,null,e.layer||'0');});
   // 2) unités : $INSUNITS 4 = mm, 5 = cm ; sinon mètres — vérifié par la taille de la zone (entre 20 m et 50 km)
   let f=opts.units===4?0.001:opts.units===5?0.01:1;
   const len=pts=>{let L=0;for(let i=1;i<pts.length;i++)L+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);return L;};
@@ -191,20 +306,44 @@ export function buildBackground(dxf,opts={}){
   const zoneOf=(fac)=>{const CELL=250/fac;const cells={};const key=p=>Math.floor(p[0]/CELL)+':'+Math.floor(p[1]/CELL);traits.forEach(t=>{const L=len(t.pts)*fac;if(L<minLen)return;const k=key(t.pts[0]);cells[k]=(cells[k]||0)+1;});const ent=Object.entries(cells);if(!ent.length)return null;ent.sort((a,b)=>b[1]-a[1]);const best=ent[0];const thr=Math.max(3,best[1]*0.02);const sel=new Set([best[0]]);const q=[best[0]];
     while(q.length){const c=q.pop();const [cx,cy]=c.split(':').map(Number);for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){const k=(cx+dx)+':'+(cy+dy);if((cells[k]||0)>=thr&&!sel.has(k)){sel.add(k);q.push(k);}}}
     let x0=1e18,y0=1e18,x1=-1e18,y1=-1e18;traits.forEach(t=>{if(!sel.has(key(t.pts[0])))return;t.pts.forEach(p=>{if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1];});});return x0>x1?null:{x0,y0,x1,y1,cells:sel.size,n:best[1]};};
-  const allBox=()=>{let x0=1e18,y0=1e18,x1=-1e18,y1=-1e18;traits.forEach(t=>t.pts.forEach(p=>{if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1];}));return x0>x1?null:{x0,y0,x1,y1,cells:0,n:0};};
+  const allBox=()=>{let x0=1e18,y0=1e18,x1=-1e18,y1=-1e18;traits.forEach(t=>t.pts.forEach(p=>{if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1];}));fills.forEach(t=>t.pts.forEach(p=>{if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1];}));return x0>x1?null:{x0,y0,x1,y1,cells:0,n:0};};
   if(opts.zoneAll)zone=allBox();else{zone=zoneOf(f);if(zone&&f!==1){const w=Math.max(zone.x1-zone.x0,zone.y1-zone.y0)*f;if(w<20||w>50000){f=1;zone=zoneOf(1);}}}
-  if(!zone)zone=allBox();if(!zone)return {drawing:[],bbox:[0,0,0,0],origin:{x0:0,y1:0},truncated:false,units:1,stats:{traits:0,net:0,texts:0}};
+  if(!zone)zone=allBox();const dropped={};Object.values(dxf.layersCount||{}).forEach(L=>Object.entries(L).forEach(([t,k])=>{if(!KEEP.has(t)&&t!=='VERTEX'&&t!=='SEQEND'&&t!=='ATTRIB'){dropped[t]=(dropped[t]||0)+k;if(t==='ACAD_PROXY_ENTITY')proxies+=k;}}));
+  const report0={traits:0,texts:0,fills:0,images:images.map(i=>i.path),proxies,ignored:{...dropped,...ignored},layersOff:Object.values(LD).filter(L=>L.off||L.frozen).length,truncatedBlocks:dxf.truncated||[],units:f};
+  if(!zone)return {drawing:[],bbox:[0,0,0,0],origin:{x0:0,y1:0},truncated:false,units:1,stats:{traits:0,net:0,texts:0},report:report0};
   // 4) repère : origine arrondie à 100 m (ou celle imposée), y vers le haut du plan (SVG y vers le bas → inversé), mètres
   const X0=zone.x0*f,Y1=zone.y1*f;const origin=opts.keepOrigin||{x0:Math.floor(X0/100)*100-30,y1:Math.ceil(Y1/100)*100+30};const T=p=>[+(p[0]*f-origin.x0).toFixed(2),+(origin.y1-p[1]*f).toFixed(2)];
   const zx0=zone.x0*f-M,zy0=zone.y0*f-M,zx1=zone.x1*f+M,zy1=zone.y1*f+M;const inZone=p=>{const x=p[0]*f,y=p[1]*f;return x>=zx0&&x<=zx1&&y>=zy0&&y<=zy1;};
   // 5) sélection : tout le dessin ; sous la limite de points : réseau d'abord, puis la zone principale (± marge), puis le reste — du plus long au plus court, simplifié
   const keep=[];traits.forEach(t=>{const L=len(t.pts)*f;if(L<minLen)return;t.L=L;t.z=t.pts.some(inZone)?0:1;keep.push(t);});
   keep.sort((a,b)=>(b.net-a.net)||(a.z-b.z)||(b.L-a.L));const out=[];let n=0,truncated=false;
-  for(const t of keep){let q=t.pts.map(T);if(simp>0&&q.length>2)q=simplify(q,simp);if(n+q.length>cap){truncated=true;if(!t.net)break;}out.push({layer:t.layer,pts:q,net:t.net});n+=q.length;}
-  let nT=0;if(withTexts&&!truncated){const tk=texts.filter(t=>t.h*f>=0.05&&t.h*f<50).map(t=>({...t,z:inZone([t.x,t.y])?0:1}));tk.sort((a,b)=>(b.net-a.net)||(a.z-b.z));for(const t of tk){if(n+4>cap){truncated=true;break;}const p=T([t.x,t.y]);out.push({layer:t.layer,text:t.text,x:p[0],y:p[1],h:+(t.h*f).toFixed(3),rot:+(t.rot||0).toFixed(1),net:t.net});n+=4;nT++;}}
+  // hachures et aplats d'abord (dessinés sous les traits) — plafonnés à 15 % des points
+  let nF=0;{const fk=fills.map(fl=>({fl,z:fl.pts.some(inZone)?0:1,L:len(fl.pts)*f})).sort((a,b)=>(a.z-b.z)||(b.L-a.L));const capF=cap*0.15;for(const {fl} of fk){const loops=fl.loops.map(lp=>{let q=lp.map(T);if(simp>0&&q.length>2)q=simplify(q,simp);return q;}).filter(q=>q.length>=3);if(!loops.length)continue;const np=loops.reduce((s,q)=>s+q.length,0);if(n+np>capF)break;out.push({layer:fl.layer,loops,pts:loops[0],fill:fl.fill,op:fl.op,net:fl.net});n+=np;nF++;}}
+  for(const t of keep){let q=t.pts.map(T);if(simp>0&&q.length>2)q=simplify(q,simp);if(n+q.length>cap){truncated=true;if(!t.net)break;}const o={layer:t.layer,pts:q,c:t.c,net:t.net};if(t.w)o.w=t.w;if(t.lt)o.lt=t.lt;out.push(o);n+=q.length;}
+  let nT=0;if(withTexts&&!truncated){const tk=texts.filter(t=>t.h*f>=0.03&&t.h*f<200).map(t=>({...t,z:inZone([t.x,t.y])?0:1}));tk.sort((a,b)=>(b.net-a.net)||(a.z-b.z));for(const t of tk){if(n+4>cap){truncated=true;break;}const p=T([t.x,t.y]);const o={layer:t.layer,text:t.text,x:p[0],y:p[1],h:+(t.h*f).toFixed(3),rot:+(t.rot||0).toFixed(1),c:t.c,net:t.net};if(t.a!=='start')o.a=t.a;if(t.va)o.va=t.va;if(t.n>1)o.n=t.n;if(t.tl)o.tl=+(t.tl*f).toFixed(3);if(t.wf)o.wf=+t.wf.toFixed(2);if(t.ls)o.ls=+t.ls.toFixed(2);out.push(o);n+=4;nT++;}}
   const q0=T([zone.x0,zone.y1]),q1=T([zone.x1,zone.y0]);const bb=[Math.min(q0[0],q1[0]),Math.min(q0[1],q1[1]),Math.max(q0[0],q1[0]),Math.max(q0[1],q1[1])];
-  return {drawing:out,bbox:bb,origin,truncated,units:f,stats:{traits:out.length-nT,net:out.filter(d=>d.net&&d.pts).length,texts:nT,total:traits.length,kept:keep.length,cells:zone.cells,points:n}};
+  const imgOut=images.map(im=>({path:im.path,pts:im.pts.map(T),layer:im.layer}));
+  return {drawing:out,bbox:bb,origin,truncated,units:f,images:imgOut,stats:{traits:out.length-nT-nF,net:out.filter(d=>d.net&&d.pts&&!d.fill).length,texts:nT,fills:nF,total:traits.length,kept:keep.length,cells:zone.cells,points:n},
+    report:{...report0,traits:out.length-nT-nF,texts:nT,fills:nF,textsTotal:texts.length,fillsTotal:fills.length,truncated,colors:[...new Set(out.map(d=>d.c||d.fill).filter(Boolean))].length}};
 }
+// ---------- rendu SVG d'un fond de plan (traceur et appli) : hachures dessous, traits groupés par (couleur, épaisseur, type), textes dessus ----------
+export function drawingBBoxes(drawing){return drawing.map(d=>{if(d.text){const w=d.h*0.6*(d.text.length||1);return [d.x-w,d.y-d.h*1.2*(d.n||1),d.x+w,d.y+d.h*1.2*(d.n||1)];}let x0=1e12,y0=1e12,x1=-1e12,y1=-1e12;const src=d.loops?d.loops:[d.pts];src.forEach(pl=>pl.forEach(p=>{if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1];}));return [x0,y0,x1,y1];});}
+const ESC=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// texte : hauteur AutoCAD = hauteur des capitales → taille de police ≈ 1,38 h (Arial) ; alignement (a : start/middle/end ; va : 0 base, 1 bas, 2 milieu, 3 haut), plusieurs lignes, rotation autour du point d'accrochage (y inversé → -rot), largeur imposée (aligné/ajusté)
+export function textSVG(d,col){const fs=d.h*1.38;const n=d.n||1;const lh=fs*1.2*(d.ls||1);let y0=d.y;if(d.va===3)y0=d.y+d.h;else if(d.va===2)y0=d.y+d.h/2-(n-1)*lh/2;else if(d.va===1)y0=d.y-(n-1)*lh;
+  const tr=d.rot?` transform="rotate(${-d.rot} ${d.x} ${d.y})"`:'';const anchor=d.a||'start';
+  if(n===1)return `<text x="${d.x}" y="${y0}" font-size="${fs}" font-family="Arial,Helvetica,sans-serif" fill="${col}" text-anchor="${anchor}"${tr}${d.tl?` textLength="${d.tl}" lengthAdjust="spacingAndGlyphs"`:''}>${ESC(d.text)}</text>`;
+  const lines=String(d.text).split('\n');return `<text x="${d.x}" y="${y0}" font-size="${fs}" font-family="Arial,Helvetica,sans-serif" fill="${col}" text-anchor="${anchor}"${tr}>${lines.map((l,i)=>`<tspan x="${d.x}"${i?` dy="${lh}"`:''}>${ESC(l)||' '}</tspan>`).join('')}</text>`;}
+/* drawingSVG(drawing, o) → {svg, n} ; o : {k (px/m, pour la taille mini/maxi des textes), box:[x0,y0,x1,y1] fenêtre (null = tout), bb: boîtes (drawingBBoxes) si box, texts:true, colors:true (couleurs du fichier ; false = gris réseau foncé / contexte clair), op:1 opacité des traits/textes, fillOp:1 facteur sur les hachures} */
+export function drawingSVG(drawing,o={}){const k=o.k||1,box=o.box||null,bb=o.bb||null,colors=o.colors!==false,withT=o.texts!==false,op=o.op===undefined?1:o.op,fillOp=o.fillOp===undefined?1:o.fillOp;
+  const groups={};let fills='',txt='';let n=0;
+  const lineStyle=d=>{const c=colors?(d.c||(d.net?'#3f3d39':'#8f8c86')):(d.net?'#3f3d39':'#b5b2a9');const w=d.w?Math.min(4,0.6+d.w/45):(d.net?1:0.8);return c+'|'+w+'|'+(d.lt||'');};
+  for(let i=0;i<drawing.length;i++){const d=drawing[i];if(box&&bb){const b=bb[i];if(b[2]<box[0]||b[0]>box[2]||b[3]<box[1]||b[1]>box[3])continue;}
+    if(d.text){if(!withT||d.h*k<4||d.h*k>60)continue;txt+=textSVG(d,colors?(d.c||(d.net?'#3f3d39':'#8b887f')):(d.net?'#3f3d39':'#8b887f'));n++;continue;}
+    if(d.fill){const c=colors?d.fill:'#c9c6bd';fills+=`<path d="${d.loops.map(lp=>'M'+lp.map(p=>p[0].toFixed(2)+' '+p[1].toFixed(2)).join('L')+'Z').join('')}" fill="${c}" fill-rule="evenodd" opacity="${((d.op||.3)*fillOp).toFixed(2)}" stroke="none"/>`;n++;continue;}
+    if(!d.pts||d.pts.length<2)continue;const key=lineStyle(d);(groups[key]=groups[key]||[]).push('M'+d.pts.map(p=>p[0].toFixed(2)+' '+p[1].toFixed(2)).join('L'));n++;}
+  const paths=Object.entries(groups).map(([key,ds])=>{const [c,w,lt]=key.split('|');return `<path d="${ds.join('')}" fill="none" stroke="${c}" stroke-width="${w}" vector-effect="non-scaling-stroke"${lt?` stroke-dasharray="${lt}"`:''} stroke-linecap="round" stroke-linejoin="round"/>`;}).join('');
+  return {svg:(fills?`<g>${fills}</g>`:'')+(paths||txt?`<g opacity="${op}">${paths}${txt}</g>`:''),n};}
 // fond réduit pour le chantier (appli, serveur) : ce qui entoure les lignes tracées (± marge), sous une limite de points
 export function reduceDrawing(drawing,linesBBox,margin,cap){if(!drawing||!drawing.length)return [];const [x0,y0,x1,y1]=linesBBox;const bx0=x0-margin,by0=y0-margin,bx1=x1+margin,by1=y1+margin;const out=[];let n=0;
   for(const d of drawing){if(d.pts){if(!d.pts.some(p=>p[0]>=bx0&&p[0]<=bx1&&p[1]>=by0&&p[1]<=by1))continue;if(n+d.pts.length>cap)break;out.push(d);n+=d.pts.length;}else if(d.text){if(d.x<bx0||d.x>bx1||d.y<by0||d.y>by1)continue;if(n+4>cap)break;out.push(d);n+=4;}}return out;}
