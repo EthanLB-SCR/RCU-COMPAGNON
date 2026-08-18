@@ -26,4 +26,13 @@ await page.click('#tabbar [data-tab=plan]');await page.waitForTimeout(300);await
 const hasBtn=await page.evaluate(()=>!!document.querySelector('#sheet [data-act="dh-here"]'));console.log('bouton fiche:',hasBtn);
 await page.click('#sheet [data-act="dh-here"]');await page.waitForTimeout(400);
 out=await page.evaluate(()=>({tab:document.querySelector('#tabbar .active').dataset.tab,point:(document.querySelector('#dh-mesure .kv')||{}).textContent}));console.log('après mesurer ici:',JSON.stringify(out));
+// mode de raccordement de l'antenne : bouclée sur elle-même → sortie de la boucle principale, boucle à part dans le sélecteur
+await page.evaluate(()=>{const T=window.TRACE;const j=T.state.lines.L2.cond.A.joints[0];j.tee={mode:'boucle'};});
+await page.click('#tabbar [data-tab=bouclage]');await page.waitForTimeout(300);
+out=await page.evaluate(()=>({opts:[...document.querySelectorAll('#bl-line option')].map(o=>o.textContent),ant:[...document.querySelectorAll('#dh-rows tr')].filter(r=>r.textContent.includes('↳')).length,total:document.querySelector('#bouclage .kv').textContent.replace(/\s+/g,' ')}));console.log('antenne bouclée:',JSON.stringify(out));
+// fiche sortie de té : sélecteur présent
+await page.click('#tabbar [data-tab=plan]');await page.waitForTimeout(200);await page.evaluate(()=>{window.TRACE.openJoint('L2','A',0);});await page.waitForTimeout(400);
+out=await page.evaluate(()=>({teeMode:!!document.querySelector('#teeMode'),val:document.querySelector('#teeMode')&&document.querySelector('#teeMode').value}));console.log('fiche sortie de té:',JSON.stringify(out));
+await page.selectOption('#teeMode','serie');await page.waitForTimeout(300);
+out=await page.evaluate(()=>window.TRACE.state.lines.L2.cond.A.joints[0].tee);console.log('après changement:',JSON.stringify(out));
 console.log(logs);await browser.close();
