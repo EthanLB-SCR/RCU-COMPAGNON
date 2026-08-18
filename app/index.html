@@ -48,7 +48,7 @@
   .pad{padding:12px 12px 90px}
   .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:6px 0 10px}.kpi{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px}.kpi b{display:block;font-size:20px;line-height:1.1}.kpi span{font-size:11.5px;color:var(--ink2)}
   .prog{height:10px;border-radius:6px;background:#e6e3da;overflow:hidden;display:flex;margin:6px 0 2px}.prog i{display:block;height:100%}
-  table.rc{border-collapse:collapse;width:100%;font-size:12px;margin:4px 0 12px;background:var(--surface);border-radius:8px}table.rc th,table.rc td{border-bottom:1px solid #e6e3da;padding:5px 4px;text-align:right;white-space:nowrap}table.rc th:first-child,table.rc td:first-child{text-align:left}table.rc th{color:var(--ink2);font-weight:600;background:#f4f2ec;font-size:11.5px}table.rc tr.tot td{font-weight:700;background:#faf8f3}table.rc td.dim{color:var(--muted)}
+  table.rc{border-collapse:collapse;width:100%;font-size:12px;margin:4px 0 12px;background:var(--surface);border-radius:8px}table.rc th,table.rc td{border-bottom:1px solid #e6e3da;padding:5px 4px;text-align:right;white-space:nowrap}table.rc th:first-child,table.rc td:first-child{text-align:left}table.rc th{color:var(--ink2);font-weight:600;background:#f4f2ec;font-size:11.5px}table.rc tr.tot td{font-weight:700;background:#faf8f3}table.rc tr.sel td{background:#fff5cc}table.rc tr.dim td{color:var(--muted)}table.rc td.dim{color:var(--muted)}
   h2.vt{font-size:17px;margin:2px 0 10px}h3{font-size:13px;margin:12px 0 6px;color:var(--ink2);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
   .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px}
   .hint{font-size:12px;color:var(--muted);margin-top:4px}
@@ -118,7 +118,7 @@
     <section id="view-recap" class="view"><div class="pad" id="recap"></div></section>
     <section id="view-catalogue" class="view"><div class="pad" id="catalogue"></div></section>
   </main>
-  <nav class="tabbar" id="tabbar"><button data-tab="plan" class="active">Plan d'ensemble</button><button data-tab="bouclage">Schéma de bouclage</button><button data-tab="liste">Liste</button><button data-tab="recap">Récap</button><button data-tab="catalogue">Catalogue</button></nav>
+  <nav class="tabbar" id="tabbar"><button data-tab="plan" class="active">Plan d'ensemble</button><button data-tab="bouclage">DH</button><button data-tab="liste">Liste</button><button data-tab="recap">Récap</button><button data-tab="catalogue">Catalogue</button></nav>
   <div class="backdrop" id="backdrop"></div><div class="sheet" id="sheet"></div><div class="modal" id="modal"></div><div class="toast" id="toast"></div><div class="toolpanel" id="toolPanel" style="display:none"></div>
 </div>
 <script type="module" src="./src/app.js"></script>
