@@ -245,7 +245,8 @@ function renderPlan(){
       bgG.innerHTML=`<rect x="-1e5" y="-1e5" width="2e5" height="2e5" fill="#f4f3ee"/>`+imgTag+`<g opacity=".78">${drawingSVG(sh.drawing,{k,box,bb:sh._bb,texts:!!state.show.textes,colors:state.show.couleurs!==false,op:1,fillOp:1}).svg}</g>`;}}}
   // fenêtre visible (monde) pour ne dessiner que ce qui est à l'écran quand on est zoomé
   const v=state.view;const vx0=(-v.tx)/k-20,vy0=(-v.ty)/k-20,vx1=(canvas.clientWidth-v.tx)/k+20,vy1=(canvas.clientHeight-v.ty)/k+20;const cull=kpm>=2.5;
-  const EX=1.7;const far=kpm<6;const minW=far?2.2:5,minSep=far?2.4:4.5;const casingW=e=>Math.max(minW/k,casingOf(e)*ppm*EX);const offM=e=>Math.max(minSep/(k*ppm),casingOf(e)*EX*.62); // dézoomé : traits fins côte à côte (lisible), zoomé : gaine à l'échelle
+  // gaine dessinée : quasi à l'échelle au zoom détail (l'entraxe réel se voit, les deux gaines ne sont plus collées), grossie 1,7 × en dessous pour rester lisible
+  const EX=kpm>=12?1.15:1.7;const far=kpm<6;const minW=far?2.2:5,minSep=far?2.4:4.5;const casingW=e=>Math.max(minW/k,casingOf(e)*ppm*EX);const offM=e=>Math.max(minSep/(k*ppm),casingOf(e)*EX*.62); // dézoomé : traits fins côte à côte (lisible), zoomé : gaine à l'échelle
   const showJoints=kpm>=5,showLabels=kpm>=12,showElLabels=kpm>=20,showWires=kpm>=15,showManchon=kpm>=10,lod=kpm;const S=state.show; // S : cases 👁 (ce qu'on affiche)
   let net='';let netJ=''; // soudures dessinées après toutes les pièces : toujours au premier plan, cliquables
   sh.lines.forEach(id=>{const line=state.lines[id];['A','R'].forEach(c=>{if(!line.cond[c])return;const side=c==='A'?1:-1;const col=c==='A'?'#c8382f':'#2a5fb4';const {els,joints}=line.cond[c];
