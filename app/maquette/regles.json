@@ -8,6 +8,7 @@
   "coudeAnglePas": 15,
   "barreParDefaut": 12,
   "entraxeSup": 0.15,
+  "entraxeSupParDN": {"100": 0.15, "200": 0.2, "300": 0.25, "1000": 0.3},
   "snapLigne": 1.0,
   "snapAngle": 15,
   "teeTypeParDefaut": "te_droit_TP",
