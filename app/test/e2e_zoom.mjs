@@ -13,7 +13,7 @@ await page.click('#svGo');await page.waitForTimeout(1500);await page.selectOptio
 const dbg=await page.evaluate(()=>{const T=window.TRACE;const L=T.state.lines.L1;const els=L.cond.A.els;return {sel:document.querySelector('#siteSel').value,els:els.slice(0,12).map((e,i)=>i+':'+e.id+'/'+e.kind+'/'+(e.len||0).toFixed(2)+'/m0='+(e.m0!==undefined?e.m0.toFixed(2):'?')+'/bbox='+(e.bbox||[]).map(v=>Math.round(v*10)/10).join(',')),joints:L.cond.A.joints.slice(0,12).map((j,i)=>i+':'+j.idx+':'+j.weldId+'@'+j.m)};});
 console.log(JSON.stringify(dbg,null,1));
 // zooms successifs centrés sur la vanne (PK 22 du feeder)
-for(const kpm of [4,8,15,25,40,80,160]){
+for(const kpm of [4,8,15,25,46,80,160]){
   const out=await page.evaluate(k=>{const A=window.TRACE;A.centerOn(33,50,k);const svg=document.querySelector('#net');return {kpm:k,els:svg.querySelectorAll('g.el').length,markers:svg.querySelectorAll('g.marker').length,texts:svg.querySelectorAll('text').length,paths:svg.querySelectorAll('path').length,len:svg.innerHTML.length,zoom:document.querySelector('#zoominfo').textContent};},kpm);
   console.log(JSON.stringify(out));
   await page.waitForTimeout(150);await page.screenshot({path:new URL(`./e2e_zoom_${kpm}.png`,import.meta.url).pathname});

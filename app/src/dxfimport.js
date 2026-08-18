@@ -33,6 +33,7 @@ export function createDXFParser(opts={}){const blockCap=opts.blockCap||BLOCK_CAP
     if(section==='TABLES'){if(inTable==='?'&&code===2){inTable=v.trim();return;}if(cur&&cur.type==='LAYERDEF'&&code===2){layerTable.push(v);cur=null;}return;}
     if(section==='BLOCKS'&&blk&&!cur&&code===2){blk.name=v.trim();return;}
     if(!cur)return;
+    if(code===101){cur.embedded=true;return;}if(cur.embedded)return; // « Embedded Object » (MTEXT AutoCAD 2018+ : colonnes) : ses codes 40/41/42… ne sont pas ceux du texte (sinon la hauteur du texte devient la largeur de colonne : textes 10 × trop grands)
     switch(code){
       case 8: cur.layer=v;break;
       case 2: if(cur.type==='ATTRIB'||cur.type==='ATTDEF')cur.tag=v.trim();else cur.name=v.trim();break;
