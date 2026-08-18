@@ -3,10 +3,13 @@ import { createClient } from '@supabase/supabase-js'
 export const SUPABASE_URL = 'https://pghftlepduvfazbiavhq.supabase.co'
 export const SUPABASE_KEY = 'sb_publishable_uK_JK38eKQ9s-s8LbXRzCA_hwg2PdxT'
 let sb = null; try { sb = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }) } catch (e) { console.warn('supabase indisponible', e) }
-const ok = async () => { if (!sb) return false; const { data } = await sb.auth.getSession(); return !!(data && data.session) }
+// getSession() peut rester bloqué (verrou d'authentification tenu par un autre onglet — traceur + appli ouverts —, réseau coupé, projet en pause) : on n'attend jamais plus de 4 s, l'appli continue en local
+const withTimeout = (p, ms, fallback) => Promise.race([p, new Promise(r => setTimeout(() => r(fallback), ms))])
+const session = async () => { if (!sb) return null; try { const r = await withTimeout(sb.auth.getSession(), 4000, null); return r && r.data ? r.data.session : null } catch (e) { console.warn('session', e); return null } }
+const ok = async () => !!(await session())
 export const sync = {
   available: () => !!sb,
-  async user() { if (!sb) return null; const { data } = await sb.auth.getSession(); return data && data.session ? data.session.user : null },
+  async user() { const s = await session(); return s ? s.user : null },
   onAuth(cb) { if (sb) sb.auth.onAuthStateChange((_e, s) => cb(s ? s.user : null)) },
   async login(email) { if (!sb) throw new Error('hors ligne'); const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.href.split('#')[0] } }); if (error) throw error; return true },
   async logout() { if (sb) await sb.auth.signOut() },

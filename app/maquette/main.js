@@ -280,9 +280,9 @@ $('#bgScale').onclick=()=>setMode(state.mode==='scale'?'select':'scale');$('#bgM
 $('#bgClear').onclick=()=>{if(!confirm('Retirer le fond de plan ?'))return;state.bg=null;renderBg();saveBg();kv.del('bg:dxf');};
 function siteBadge(){const b=$('#siteBadge');if(!b)return;b.textContent=state.siteRef?`chantier : ${state.siteRef.name}`:'nouveau réseau (pas encore dans TRACÉ)';}
 async function loadSiteIntoTraceur(id){let site=null;try{site=await kv.get(HANDOFF+id);}catch(e){}if(!site){try{site=JSON.parse(localStorage.getItem(HANDOFF+id)||'null');}catch(e){}}
-  if(!site){try{site=await sync.loadSite(id);}catch(e){console.warn(e);}}
+  if(!site){try{site=await Promise.race([sync.loadSite(id),new Promise(r=>setTimeout(()=>r(null),8000))]);}catch(e){console.warn(e);}}
   if(!site){flash('Chantier '+id+' introuvable (ni en local, ni sur le serveur — connecte-toi dans TRACÉ)');return false;}
-  let remote=[];try{remote=await sync.loadWelds(id);}catch(e){}
+  let remote=[];try{remote=await Promise.race([sync.loadWelds(id),new Promise(r=>setTimeout(()=>r([]),6000))]);}catch(e){}
   if(site.traceur&&site.traceur.lines){state.lines=site.traceur.lines;if(site.traceur.rules)rules={...RULES0,...site.traceur.rules};state.seq=Math.max(1,...state.lines.map(l=>+String(l.id).replace(/\D/g,'')||0))+1;}
   else{state.lines=[];flash('Ce chantier n\'a pas été fait avec le traceur : le fond de plan est chargé, à retracer');}
   state.supplier=site.supplier||state.supplier;state.serie=+site.serie||state.serie;
@@ -301,7 +301,7 @@ async function saveToTrace(name,ref){if(!state.lines.length){flash('Rien à enre
   // remise locale à l'appli (même navigateur) : avec le fond de plan si ça tient, sinon sans (l'appli le reprendra du serveur)
   let localOk=await kv.set(HANDOFF+id,site); // IndexedDB (avec le fond) + un double léger dans localStorage (au cas où) — l'appli prend le plus complet
   try{localStorage.setItem(HANDOFF+id,JSON.stringify({...site,drawing:null,sheetType:site.image?'plain':(site.drawing?'plain':site.sheetType),bgTooBig:!!site.drawing}));localOk=true;}catch(e2){if(!localOk)flash('Mémoire du navigateur pleine : le chantier n\'a pas pu être remis localement (il partira par le serveur)');}
-  let remoteOk=false;try{remoteOk=await sync.saveSite(site);}catch(e){console.warn(e);}
+  let remoteOk=false;try{remoteOk=await Promise.race([sync.saveSite(site),new Promise(r=>setTimeout(()=>r(false),8000))]);}catch(e){console.warn(e);} // jamais bloqué par le serveur : l'appli renverra le chantier à la connexion
   state.siteRef={id,name,welds:weldsOfSite(site,null)};save();siteBadge();
   const msg=`Chantier « ${name} » : ${site.lines.length} lignes, ${nW} soudures — ${remoteOk?'enregistré sur le serveur':'pas envoyé au serveur (connecte-toi dans TRACÉ, il partira depuis l\'appli)'}${localOk?'':' · remise locale impossible (mémoire du navigateur pleine)'}`;
   const M=$('#modal');$('#modalBody').innerHTML=`<h3 style="margin:0 0 6px">Enregistré</h3><div>${esc(msg)}</div><div class="actions"><button class="btn" id="svStay">Rester dans le traceur</button><button class="btn on" id="svGo">Ouvrir dans TRACÉ ↗</button></div>`;M.classList.add('show');$('#svStay').onclick=()=>M.classList.remove('show');$('#svGo').onclick=()=>{location.href='./index.html?site='+encodeURIComponent(id)+'&v='+Date.now().toString(36);};}
