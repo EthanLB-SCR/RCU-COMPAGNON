@@ -1,4 +1,6 @@
-// Câblage virtuel du manchon : toucher un fil amont puis un fil aval, inversion détectée, rotation du tube aval, vue lecture seule après validation ; té à saut haut/bas
+// Câblage du manchon en VUE DE PROFIL : toucher un fil amont puis un fil aval, inversion détectée,
+// rotation amont/aval depuis le formulaire, vue lecture seule après validation,
+// VERROU : une pièce manchonnée à un bout n'est plus orientable (fiche pièce + formulaire) ; té à saut haut/bas
 import { chromium } from 'playwright';
 const BASE=process.env.BASE||'http://localhost:8765';
 const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
@@ -10,26 +12,46 @@ await page.click('#bSave');await page.waitForTimeout(200);await page.fill('#svNa
 await page.selectOption('#roleSel','julien');await page.waitForTimeout(300); // manchonneur
 await page.evaluate(()=>{const T=window.TRACE;T.state.lines.L1.cond.A.joints[1].status='soudee';T.openJoint('L1','A',1);});await page.waitForTimeout(400);
 await page.click('#sheet [data-act="form-manchon"]');await page.waitForTimeout(400);
-let out=await page.evaluate(()=>({svg:!!document.querySelector('#sheet svg [data-wire="a:E"]'),conn:JSON.stringify(window.TRACE.state.conn)}));console.log('form:',JSON.stringify(out));
+// vue de profil : pastilles cliquables, fils par transparence (pointillés), gabarit du manchon, boutons amont ET aval
+let out=await page.evaluate(()=>({pastA:!!document.querySelector('#sheet svg [data-wire="a:E"]'),pastB:!!document.querySelector('#sheet svg [data-wire="b:N"]'),
+  xray:document.querySelectorAll('#sheet svg line[stroke-dasharray="4 3"]').length,manchonRect:!!document.querySelector('#sheet svg rect[stroke-dasharray="5 4"]'),
+  rota:!!document.querySelector('#sheet [data-rota]'),rotb:!!document.querySelector('#sheet [data-rotb]'),conn:JSON.stringify(window.TRACE.state.conn)}));
+console.log('form profil:',JSON.stringify(out));
 // étamé amont → nu aval (inversion)
 await page.click('#sheet [data-wire="a:E"]');await page.waitForTimeout(150);await page.click('#sheet [data-wire="b:N"]');await page.waitForTimeout(250);
 out=await page.evaluate(()=>({conn:JSON.stringify(window.TRACE.state.conn),err:!!document.querySelector('#sheet .err'),sel:document.querySelector('#sheet select[data-conn="E"]').value}));console.log('après E→N:',JSON.stringify(out));
 // remettre droit : E→E
 await page.click('#sheet [data-wire="a:E"]');await page.waitForTimeout(150);await page.click('#sheet [data-wire="b:E"]');await page.waitForTimeout(250);
 out=await page.evaluate(()=>({conn:JSON.stringify(window.TRACE.state.conn),ok:!!document.querySelector('#sheet .okbox')}));console.log('après E→E:',JSON.stringify(out));
-// tourner le tube aval
+// tourner le tube AVAL puis le tube AMONT depuis le formulaire
 await page.click('#sheet [data-rotb="90"]');await page.waitForTimeout(250);
-out=await page.evaluate(()=>window.TRACE.state.lines.L1.cond.A.els[2].rot);console.log('rot aval:',out);
+await page.click('#sheet [data-rota="90"]');await page.waitForTimeout(250);
+out=await page.evaluate(()=>({aval:window.TRACE.state.lines.L1.cond.A.els[2].rot,amont:window.TRACE.state.lines.L1.cond.A.els[1].rot}));console.log('rot aval/amont (attendu 90/90):',JSON.stringify(out));
+await page.click('#sheet [data-rota="-90"]');await page.waitForTimeout(250); // on remet l'amont droit
 await page.screenshot({path:new URL('./e2e_wiring.png',import.meta.url).pathname});
 // valider (étanchéité + photo obligatoires) → vue lecture seule avec le câblage
 await page.click('#sheet [data-sw="etanch"]');await page.waitForTimeout(100);await page.evaluate(()=>{window.TRACE.state.pendingPhotos.push('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=');});
 await page.click('#sheet [data-act="save-manchon"]');await page.waitForTimeout(600);
 await page.evaluate(()=>{window.TRACE.openJoint('L1','A',1);});await page.waitForTimeout(400);
 out=await page.evaluate(()=>({status:window.TRACE.state.lines.L1.cond.A.joints[1].status,wire:window.TRACE.state.lines.L1.cond.A.joints[1].wire,ro:document.querySelectorAll('#sheet svg').length}));console.log('après validation:',JSON.stringify(out));
-// fiche pièce : rotation animée (groupe dialw) et té à saut
+// VERROU fiche pièce : els[2] est manchonnée en joint 1 → orientation figée (lockbox, pas de boutons), rot inchangée
 await page.evaluate(()=>{window.TRACE.openEl('L1','A',2);});await page.waitForTimeout(400);
-out=await page.evaluate(()=>!!document.querySelector('#sheet #dialw'));console.log('dial animable:',out);
-await page.click('#sheet [data-rot="90"]');await page.waitForTimeout(600);out=await page.evaluate(()=>window.TRACE.state.lines.L1.cond.A.els[2].rot);console.log('rot après clic (attendu 180):',out);
+out=await page.evaluate(()=>({lockbox:!!document.querySelector('#sheet .lockbox'),btnRot:!!document.querySelector('#sheet [data-rot]'),rot:window.TRACE.state.lines.L1.cond.A.els[2].rot}));
+console.log('verrou fiche pièce (lockbox true, btnRot false, rot 90):',JSON.stringify(out));
+// pièce LIBRE : els[0] (aucun manchon voisin fermé) → dial animable + rotation OK
+await page.evaluate(()=>{window.TRACE.openEl('L1','A',0);});await page.waitForTimeout(400);
+out=await page.evaluate(()=>!!document.querySelector('#sheet #dialw')&&!!document.querySelector('#sheet [data-rot="90"]'));console.log('pièce libre — dial + boutons:',out);
+await page.click('#sheet [data-rot="90"]');await page.waitForTimeout(600);out=await page.evaluate(()=>window.TRACE.state.lines.L1.cond.A.els[0].rot);console.log('rot pièce libre (attendu 90):',out);
+// VERROU dans le formulaire manchon voisin : joint 2 (els 2-3) → amont figé (lockbox, pas de data-rota), aval libre (data-rotb)
+await page.evaluate(()=>{const T=window.TRACE;T.state.lines.L1.cond.A.joints[2].status='soudee';T.openJoint('L1','A',2);});await page.waitForTimeout(400);
+await page.click('#sheet [data-act="form-manchon"]');await page.waitForTimeout(400);
+out=await page.evaluate(()=>({lockbox:!!document.querySelector('#sheet .lockbox'),rota:!!document.querySelector('#sheet [data-rota]'),rotb:!!document.querySelector('#sheet [data-rotb]')}));
+console.log('verrou formulaire (lockbox true, rota false, rotb true):',JSON.stringify(out));
+await page.click('#sheet [data-rotb="90"]');await page.waitForTimeout(250);
+out=await page.evaluate(()=>window.TRACE.state.lines.L1.cond.A.els[3].rot);console.log('rot aval libre au joint 2 (attendu 90):',out);
+await page.screenshot({path:new URL('./e2e_wiring_lock.png',import.meta.url).pathname});
+await page.click('#sheet [data-act="close"]');await page.waitForTimeout(200);
+// fiche pièce : té à saut haut/bas (côté R, aucun manchon fermé)
 const teeIdx=await page.evaluate(()=>window.TRACE.state.lines.L1.cond.R.els.findIndex(e=>e.kind==='tee'&&e.saut));
 if(teeIdx>=0){await page.evaluate(i=>{window.TRACE.openEl('L1','R',i);},teeIdx);await page.waitForTimeout(400);out=await page.evaluate(()=>!!document.querySelector('#sheet [data-saut="bas"]'));console.log('té à saut haut/bas:',out);await page.click('#sheet [data-saut="bas"]');await page.waitForTimeout(200);out=await page.evaluate(i=>window.TRACE.state.lines.L1.cond.R.els[i].sautDir,teeIdx);console.log('sautDir:',out);}
 else console.log('pas de té à saut côté R (idx',teeIdx,')');
