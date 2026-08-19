@@ -28,6 +28,10 @@ await page.click('#sheet [data-rotb="90"]');await page.waitForTimeout(250);
 await page.click('#sheet [data-rota="90"]');await page.waitForTimeout(250);
 out=await page.evaluate(()=>({aval:window.TRACE.state.lines.L1.cond.A.els[2].rot,amont:window.TRACE.state.lines.L1.cond.A.els[1].rot}));console.log('rot aval/amont (attendu 90/90):',JSON.stringify(out));
 await page.click('#sheet [data-rota="-90"]');await page.waitForTimeout(250); // on remet l'amont droit
+// pas de 15° (amont et aval)
+await page.click('#sheet [data-rota="15"]');await page.waitForTimeout(200);await page.click('#sheet [data-rotb="-15"]');await page.waitForTimeout(200);
+out=await page.evaluate(()=>({amont:window.TRACE.state.lines.L1.cond.A.els[1].rot,aval:window.TRACE.state.lines.L1.cond.A.els[2].rot}));console.log('pas 15° amont/aval (attendu 15/75):',JSON.stringify(out));
+await page.click('#sheet [data-rota="-15"]');await page.waitForTimeout(200);await page.click('#sheet [data-rotb="15"]');await page.waitForTimeout(200);
 await page.screenshot({path:new URL('./e2e_wiring.png',import.meta.url).pathname});
 // valider (étanchéité + photo obligatoires) → vue lecture seule avec le câblage
 await page.click('#sheet [data-sw="etanch"]');await page.waitForTimeout(100);await page.evaluate(()=>{window.TRACE.state.pendingPhotos.push('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=');});
