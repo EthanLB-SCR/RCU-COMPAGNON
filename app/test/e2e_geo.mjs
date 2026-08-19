@@ -5,6 +5,8 @@ const BASE=process.env.BASE||'http://localhost:8765';
 const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
 // Bain-de-Bretagne : origine x0=1349000, y1=7193500 (CC48) ; le réseau est tracé entre x 10..70, y 50 ; plan (40,50) = lon −1,692210 / lat 47,844996
 const ctx=await browser.newContext({viewport:{width:560,height:940},geolocation:{latitude:47.844996,longitude:-1.692210,accuracy:8},permissions:['geolocation']});const page=await ctx.newPage();
+// tuiles IGN servies localement (le bac à sable n'a pas le réseau) : une tuile verte → on vérifie que le fond est bien PEINT, même aux coordonnées de tuiles z19
+await page.route(/data\.geopf\.fr\/wmts/,route=>route.fulfill({path:new URL('../../../../tmp/site/tile.png',import.meta.url).pathname,contentType:'image/png'}));
 const logs=[];page.on('pageerror',e=>logs.push('PAGEERROR: '+e.message.slice(0,300)));page.on('console',m=>{if(m.type()==='error'&&!/supabase|Failed to fetch|net::ERR|404|geopf/i.test(m.text()))logs.push(m.text().slice(0,200));});
 await page.goto(BASE+'/traceur.html');await page.waitForTimeout(500);await page.evaluate(()=>{localStorage.clear();});await page.reload();await page.waitForTimeout(500);
 await page.evaluate(()=>{const S=window.MAQ.state;S.lines=[{id:'L1',name:'Feeder',dn:100,bar:12,pts:[[10,50],[70,50]],specials:[],parent:null}];S.seq=2;S.bg={drawing:[{layer:'0',pts:[[0,0],[80,0]],c:'#888'}],bbox:[0,0,80,100],name:'bain_test.dxf',origin:{x0:1349000,y1:7193500},netLayers:[],opacity:.5,show:true};window.MAQ.setMode('select');window.MAQ.rebuild();});
@@ -27,6 +29,13 @@ out=await page.evaluate(()=>({layers:[...document.querySelectorAll('#map g')].ma
 // zoom → nouveau niveau de tuiles
 await page.click('.zoomctl [data-z="+"]');await page.click('.zoomctl [data-z="+"]');await page.waitForTimeout(400);
 out=await page.evaluate(()=>(document.querySelector('#map image')?.getAttribute('href')||'').match(/TILEMATRIX=(\d+)/)?.[1]);console.log('z après zoom ×2.56 (plafond 19) :',out);
+// rendu effectif à fort zoom (z19, coordonnées de tuiles > 10^8 px) : pixel vert de la tuile visible sous le plan
+await page.click('#disp [data-carte="ortho"]');await page.click('.zoomctl [data-z="+"]');await page.click('.zoomctl [data-z="+"]');await page.waitForTimeout(900);
+out=await page.evaluate(()=>({kpm:+(window.TRACE.state.view.k).toFixed(1),z:(document.querySelector('#map image')?.getAttribute('href')||'').match(/TILEMATRIX=(\d+)/)?.[1],x0:document.querySelector('#map image')?.getAttribute('x')}));console.log('fort zoom (x local 0):',JSON.stringify(out));
+{const r=await page.evaluate(()=>{const c=document.querySelector('#canvas').getBoundingClientRect();return {x:c.left+c.width*.5,y:c.top+c.height*.82};});const shot=await page.screenshot({clip:{x:r.x-2,y:r.y-2,width:4,height:4}});
+  // décode le PNG 4×4 via un canvas dans la page
+  const px=await page.evaluate(async b64=>{const img=new Image();img.src='data:image/png;base64,'+b64;await img.decode();const cv=document.createElement('canvas');cv.width=4;cv.height=4;const cx=cv.getContext('2d');cx.drawImage(img,0,0);const d=cx.getImageData(2,2,1,1).data;return [d[0],d[1],d[2]];},shot.toString('base64'));
+  console.log('pixel sous le plan (attendu vert ≈ 60,140,60):',JSON.stringify(px),(px[1]>px[0]+40&&px[1]>px[2]+40)?'OK':'KO');}
 await page.click('#disp [data-carte="none"]');await page.click('#disp [data-k="cadastre"]');await page.waitForTimeout(300);
 out=await page.evaluate(()=>({n:document.querySelectorAll('#map image').length,nopaper:document.querySelector('#bg').classList.contains('nopaper')}));console.log('carte coupée (n 0, nopaper false):',JSON.stringify(out));
 await page.click('.zoomctl [data-z="eye"]');await page.waitForTimeout(200);

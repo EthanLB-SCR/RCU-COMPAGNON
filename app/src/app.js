@@ -268,11 +268,12 @@ function renderMap(geoOv,kindOv){const g=geoOv||siteGeo();const kind=kindOv||sta
   const sh=sheet();const v=state.view,k=v.k;const cw=canvas.clientWidth||400,ch=canvas.clientHeight||500;
   const box=[(-v.tx)/k,(-v.ty)/k,(cw-v.tx)/k,(ch-v.ty)/k];const T=tilesFor(g,box,k*sh.ppm,19,90);if(!T){mapG.innerHTML='';return;}
   bgG.classList.toggle('nopaper',kind!=='none');if(credit)credit.style.display='block';
-  const xs=T.tiles.map(t=>t.x),ys=T.tiles.map(t=>t.y);const key=`${kind}:${cad?1:0}:${T.z}:${Math.min(...xs)}-${Math.max(...xs)}:${Math.min(...ys)}-${Math.max(...ys)}`;
-  const mat=`matrix(${T.matrix.map(x=>(+x).toPrecision(10)).join(' ')})`;
-  if(mapG.dataset.key!==key){mapG.dataset.key=key;const img=(kd,op)=>T.tiles.map(t=>`<image href="${ignTileURL(kd,T.z,t.x,t.y)}" x="${t.x*256}" y="${t.y*256}" width="256.5" height="256.5" ${op?`opacity="${op}"`:''}/>`).join('');
+  const xs=T.tiles.map(t=>t.x),ys=T.tiles.map(t=>t.y);const mx=Math.min(...xs),my=Math.min(...ys);const key=`${kind}:${cad?1:0}:${T.z}:${mx}-${Math.max(...xs)}:${my}-${Math.max(...ys)}`;
+  // coordonnées LOCALES (première tuile à 0,0) : au-delà de ~2^25 px, Chrome ne dessine plus les <image> (tuiles z18-19 à 6·10^7–1,3·10^8 px) → l'origine passe dans la matrice
+  const ox=mx*256,oy=my*256;const [a,b,c,d,e,f]=T.matrix;const mat=`matrix(${[a,b,c,d,e+a*ox+c*oy,f+b*ox+d*oy].map(x=>(+x).toPrecision(10)).join(' ')})`;
+  if(mapG.dataset.key!==key){mapG.dataset.key=key;const img=(kd,op)=>T.tiles.map(t=>`<image href="${ignTileURL(kd,T.z,t.x,t.y)}" x="${(t.x-mx)*256}" y="${(t.y-my)*256}" width="256.5" height="256.5" ${op?`opacity="${op}"`:''}/>`).join('');
     mapG.innerHTML=(kind!=='none'?`<g data-layer="${kind}" transform="${mat}">${img(kind)}</g>`:'')+(cad?`<g data-layer="cadastre" transform="${mat}">${img('cadastre',.85)}</g>`:'');}
-  else{[...mapG.children].forEach(c=>c.setAttribute('transform',mat));}}
+  else{[...mapG.children].forEach(ch=>ch.setAttribute('transform',mat));}}
 /* ---------- position GPS de l'opérateur sur le plan (point bleu + cercle de précision), bouton ◎ ---------- */
 state.gps={watch:null,fix:null,follow:false,err:null};
 function gpsBtn(){return $('.zoomctl [data-z=gps]');}
