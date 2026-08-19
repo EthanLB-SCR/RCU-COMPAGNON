@@ -279,14 +279,28 @@ state.gps={watch:null,fix:null,follow:false,err:null};
 function gpsBtn(){return $('.zoomctl [data-z=gps]');}
 function gpsToggle(){const g=siteGeo();if(!g){toast('Plan non géoréférencé : la position ne peut pas être placée dessus');return;}
   if(!('geolocation' in navigator)){toast('Géolocalisation indisponible sur cet appareil');return;}
+  if(window.isSecureContext===false){toast('La localisation exige une page en https');return;}
   if(state.gps.watch!==null){navigator.geolocation.clearWatch(state.gps.watch);state.gps.watch=null;state.gps.follow=false;gpsBtn().classList.remove('gpsOn','gpsWait');renderGps();return;}
-  state.gps.follow=true;gpsBtn().classList.add('gpsWait');toast('Recherche de la position…');
-  state.gps.watch=navigator.geolocation.watchPosition(p=>{state.gps.err=null;const first=!state.gps.fix;state.gps.fix={lat:p.coords.latitude,lon:p.coords.longitude,acc:p.coords.accuracy||0,at:Date.now()};gpsBtn().classList.remove('gpsWait');gpsBtn().classList.add('gpsOn');
-      if(first||state.gps.follow){const pp=lonLatToPlan(g,state.gps.fix.lon,state.gps.fix.lat);const bb=sheetBBox(sheet());const far=Math.hypot(Math.max(0,bb[0]-pp[0],pp[0]-bb[2]),Math.max(0,bb[1]-pp[1],pp[1]-bb[3]));
-        if(far>20000)toast(`Tu es à ${fmtDist(far)} du chantier — position affichée hors plan`);if(first)centerOn(pp[0],pp[1],Math.max(state.view.k,6));else renderGps();state.gps.follow=false;}
-      else renderGps();},
-    e=>{state.gps.err=e.code;gpsBtn().classList.remove('gpsWait');toast(e.code===1?'Position refusée : autorise la localisation pour ce site dans les réglages du navigateur':'Position introuvable (GPS) — réessaie à l\'extérieur');},
-    {enableHighAccuracy:true,maximumAge:5000,timeout:20000});}
+  state.gps.follow=true;state.gps.errAt=0;gpsBtn().classList.add('gpsWait');toast('Recherche de la position…');
+  const opts={enableHighAccuracy:true,maximumAge:5000,timeout:20000};
+  // 1) appel direct DANS le geste de l'utilisateur : c'est lui qui fait apparaître la demande d'autorisation du navigateur
+  try{navigator.geolocation.getCurrentPosition(p=>gpsFix(p),e=>gpsError(e),opts);}catch(e){}
+  // 2) puis le suivi continu
+  state.gps.watch=navigator.geolocation.watchPosition(p=>gpsFix(p),e=>gpsError(e),opts);}
+function gpsFix(p){const g=siteGeo();if(!g)return;state.gps.err=null;const first=!state.gps.fix;state.gps.fix={lat:p.coords.latitude,lon:p.coords.longitude,acc:p.coords.accuracy||0,at:Date.now()};const b=gpsBtn();if(b){b.classList.remove('gpsWait');b.classList.add('gpsOn');}
+  if(first||state.gps.follow){const pp=lonLatToPlan(g,state.gps.fix.lon,state.gps.fix.lat);const bb=sheetBBox(sheet());const far=Math.hypot(Math.max(0,bb[0]-pp[0],pp[0]-bb[2]),Math.max(0,bb[1]-pp[1],pp[1]-bb[3]));
+    if(far>20000)toast(`Tu es à ${fmtDist(far)} du chantier — position affichée hors plan`);if(first)centerOn(pp[0],pp[1],Math.max(state.view.k,6));else renderGps();state.gps.follow=false;}
+  else renderGps();}
+function gpsError(e){const now=Date.now();if(now-(state.gps.errAt||0)<2000)return;state.gps.errAt=now;state.gps.err=e.code;const b=gpsBtn();if(b)b.classList.remove('gpsWait');
+  if(e.code===1){gpsHelpModal();return;}
+  toast(e.code===3?'Position introuvable (délai dépassé) — réessaie à l\'extérieur, GPS activé':'Position introuvable pour le moment (GPS) — réessaie dehors');}
+// la localisation a été refusée (ou bloquée dans les réglages) : le navigateur ne redemande jamais tout seul → on explique comment la réactiver, selon l'appareil
+function gpsHelpModal(){const ua=navigator.userAgent;const ios=/iPhone|iPad|iPod/i.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);const android=/Android/i.test(ua);const standalone=window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches||navigator.standalone;
+  const steps=ios?`<ol style="padding-left:18px;margin:6px 0"><li>Réglages iPhone → <b>Confidentialité et sécurité</b> → <b>Service de localisation</b> : activé, puis <b>${standalone?'l\'app TRACÉ (écran d\'accueil)':'Safari'}</b> → « <b>Lors de l\'utilisation</b> ».</li>${standalone?'':'<li>Dans Safari, touche « <b>AA</b> » (ou « ⋯ ») à gauche de l\'adresse → <b>Réglages du site web</b> → <b>Position</b> → « Autoriser » (ou « Demander »).</li><li>Sinon : Réglages → Apps → <b>Safari</b> → <b>Position</b> → « Demander ».</li>'}</ol>`
+    :android?`<ol style="padding-left:18px;margin:6px 0"><li>Touche le <b>cadenas</b> (ou ⓘ) à gauche de l\'adresse → <b>Autorisations</b> → <b>Position</b> → « Autoriser », puis recharge la page.</li><li>Sinon : Paramètres Android → Applications → <b>Chrome</b> → Autorisations → <b>Position</b> → « Autoriser ».</li><li>Vérifie que la <b>localisation du téléphone</b> est allumée (barre de raccourcis).</li></ol>`
+    :`<ol style="padding-left:18px;margin:6px 0"><li>Clique l\'icône à gauche de l\'adresse (cadenas / réglages du site) → <b>Position</b> → « Autoriser », puis recharge.</li></ol>`;
+  openModal(`<h3 style="margin-top:0">📍 Localisation refusée</h3><p class="muted" style="font-size:13px">Le navigateur a mémorisé un refus pour ce site (ou la localisation est coupée dans les réglages) : il ne redemande pas tout seul. Pour la réactiver :</p>${steps}<p class="hint">Quand c\'est fait, touche « Réessayer » : la demande d\'autorisation doit apparaître (sinon recharge la page et retouche ◎).</p><div class="actions" style="display:flex;gap:6px"><button class="btn primary" id="gpsRetry">Réessayer</button><button class="btn" id="gpsHelpClose">Fermer</button></div>`);
+  $('#gpsHelpClose').onclick=closeModal;$('#gpsRetry').onclick=()=>{closeModal();if(state.gps.watch!==null){navigator.geolocation.clearWatch(state.gps.watch);state.gps.watch=null;}gpsToggle();};}
 function renderGps(){const C=state.calage;if(C&&C.mode==='plan'){const k=state.view.k;gpsG.innerHTML=C.pairs.map((p,i)=>pin(p.plan[0],p.plan[1],i+1,k)).join('')+(C.cur.plan?pin(C.cur.plan[0],C.cur.plan[1],C.pairs.length+1,k):'');return;}
   const g=siteGeo();const fx=state.gps.fix;if(!g||!fx||state.gps.watch===null){gpsG.innerHTML='';return;}
   const [x,y]=lonLatToPlan(g,fx.lon,fx.lat);const k=state.view.k;const ppm=sheet().ppm;const r=Math.max(0,fx.acc)*ppm;const age=(Date.now()-fx.at)/1000;
