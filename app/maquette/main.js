@@ -27,8 +27,11 @@ const entraxeSupOf=dn=>{const t=rules.entraxeSupParDN;if(t&&typeof t==='object')
 const sgnOf=l=>l.inv?-1:1;const offOf=(l,c)=>(c==='A'?+1:-1)*sgnOf(l)*(cat.casing(l.dn)+entraxeSupOf(l.dn))/2;
 const sautType=()=>cat.teeTypes().find(k=>/saut/i.test(k))||null;
 function rebuild(opts={}){cat=catalogFor(state.supplier,state.serie);state.built={};let wn=1;const errs=[];
-  // une antenne reste accrochée à sa parente : son premier sommet est recalé au chaînage parent.m (si la parente a bougé)
-  state.lines.forEach(l=>{if(!l.parent)return;const P=state.lines.find(x=>x.id===l.parent.line);if(!P)return;const q=ptAt(P.pts,Math.max(0,Math.min(polyLen(P.pts),l.parent.m)));l.pts[0]=[q.x,q.y];});
+  // une antenne est accrochée à un ENDROIT de sa parente, pas à un chaînage : si la parente est retouchée (sommet glissé, inséré…), on reprojette le point d'accroche
+  // sur le nouvel axe et on met à jour parent.m — sinon toutes les antennes en aval glissaient le long de la parente à chaque retouche (tés « décalés » de Saint-Lô)
+  state.lines.forEach(l=>{if(!l.parent)return;const P=state.lines.find(x=>x.id===l.parent.line);if(!P)return;
+    const pr=projOnPoly(P.pts,l.pts[0]);if(pr&&isFinite(pr.m)&&pr.d<30)l.parent.m=pr.m; // l'axe est parti à plus de 30 m ? on garde l'ancien chaînage (déplacement volontaire de toute la parente)
+    const q=ptAt(P.pts,Math.max(0,Math.min(polyLen(P.pts),l.parent.m)));l.pts[0]=[q.x,q.y];});
   // 1) tés automatiques : une antenne pose deux tés sur sa parente (un par conduite) au chaînage parent.m
   state.lines.forEach(l=>{l.autoSpecials=[];});
   state.lines.forEach(l=>{if(!l.parent)return;const P=state.lines.find(x=>x.id===l.parent.line);if(!P)return;
@@ -373,6 +376,7 @@ function openSaveModal(){const M=$('#modal');const ref=state.siteRef;const dflt=
   M.classList.add('show');$('#svCancel').onclick=()=>M.classList.remove('show');
   $('#svOk').onclick=async()=>{const name=$('#svName').value.trim()||dflt;const mode=$('#svMode')?$('#svMode').value:'new';M.classList.remove('show');await saveToTrace(name,mode==='update'&&ref?ref:null);};}
 async function saveToTrace(name,ref){if(!state.lines.length){flash('Rien à enregistrer : trace au moins une ligne');return;}
+  const bad=state.lines.filter(l=>polyLen(l.pts)>5000);if(bad.length&&!confirm(`⚠ ${bad.length} ligne(s) anormalement longue(s) : ${bad.map(l=>`${l.name} (${Math.round(polyLen(l.pts)/1000)} km)`).join(', ')}.\n\nC'est presque sûrement un tracé accidentel (clic à un zoom trop faible). Annuler, puis onglet Lignes → « Supprimer la ligne » — sinon le chantier sera illisible (cadrage sur des kilomètres).\n\nEnregistrer quand même ?`))return;
   const id=ref?ref.id:'trc_'+Date.now().toString(36);const {site,lost,nW}=siteFromTraceur({id,name,supplier:state.supplier,serie:state.serie,lines:state.lines,built:state.built,rules,bg:state.bg,prev:ref?{welds:ref.welds}:null,barDefault:state.bar});
   if(lost.length&&!confirm(`${lost.length} soudure(s) déjà faites ne sont plus retrouvées dans le nouveau tracé (${lost.slice(0,8).map(w=>w.weldId).join(', ')}${lost.length>8?'…':''}). Leur historique restera sur le serveur mais elles disparaissent du plan. Continuer ?`))return;
   // remise locale à l'appli (même navigateur) : avec le fond de plan si ça tient, sinon sans (l'appli le reprendra du serveur)
