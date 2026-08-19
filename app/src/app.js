@@ -5,6 +5,7 @@ import CATALOGUE from './catalogue.json';
 import {parseDXF,parseDXFFile,analyze,buildSite,buildSiteJBTP,drawingOf,buildDrawing,previewSVG,drawingSVG,drawingBBoxes,decimateDrawing} from './dxfimport.js';
 import {sync} from './sync.js';
 import {kv} from './kv.js';
+import {geoOfSite,planToLonLat,lonLatToPlan,tilesFor,ignTileURL,IGN_LAYERS,distLL,fmtDist,crsName} from './geo.js';
 
 /* ============================================================
    TRACÉ v0.3 — plan d'ensemble + calque tubes/fils + bouclage
@@ -40,11 +41,14 @@ const state={siteId:null,userId:'karim',tool:false,toolLine:null,toolCond:null,r
 
 // couches d'affichage du plan (cases 👁) : ce qu'on montre ou non pour épurer une zone — mémorisé sur l'appareil
 const SHOW_KEYS=[['pieces','Noms des pièces (P7, C5, T2…)'],['cotes','Longueurs et angles'],['soud','Pastilles de soudure (statut)'],['nums','N° de soudure'],['manch','Manchons posés'],['fils','Fils E / N (au zoom)'],['fond','Fond de plan (DXF / image)'],['couleurs','Fond en couleurs (celles du DWG)'],['textes','Textes du fond'],['notes','Annotations']];
-const SHOW_DEF=Object.fromEntries(SHOW_KEYS.map(([k])=>[k,true]));
+const SHOW_DEF=Object.assign(Object.fromEntries(SHOW_KEYS.map(([k])=>[k,true])),{carte:'none',cadastre:false}); // carte : none | ortho | plan (fond IGN sous le plan, si le chantier est géoréférencé)
 function loadShow(){let o={};try{o=JSON.parse(localStorage.getItem('trace:show')||'{}')||{};}catch(e){}return Object.assign({},SHOW_DEF,o);}
 function saveShow(){try{localStorage.setItem('trace:show',JSON.stringify(state.show));}catch(e){}}
 state.show=loadShow();
-function renderDisp(){const d=$('#disp');if(!d)return;const s=state.show;d.innerHTML=`<b>Affichage</b>`+SHOW_KEYS.map(([k,l])=>`<label class="${s[k]?'':'off'}"><input type="checkbox" data-k="${k}" ${s[k]?'checked':''} ${k==='nums'&&!s.soud?'disabled':''}> ${l}</label>`).join('')+`<div class="row"><button class="btn sm" data-all="1">Tout</button><button class="btn sm" data-all="0">Épuré</button></div>`;}
+function renderDisp(){const d=$('#disp');if(!d)return;const s=state.show;const g=siteGeo();
+  const mapUI=g?`<b style="margin-top:8px">Carte (IGN)</b><div class="maprow">${[['none','Aucune'],['ortho','Photo aérienne'],['plan','Plan IGN']].map(([v,l])=>`<button class="btn sm ${(s.carte||'none')===v?'on':''}" data-carte="${v}">${l}</button>`).join('')}</div><label class="${s.cadastre?'':'off'}"><input type="checkbox" data-k="cadastre" ${s.cadastre?'checked':''}> Cadastre (parcelles)</label><div class="maphint">Plan géoréférencé : ${esc(g.label)}</div>`
+    :`<b style="margin-top:8px">Carte (IGN)</b><div class="maphint">Ce plan n'est pas géoréférencé (pas de DXF en Lambert) — calage sur la carte à venir.</div>`;
+  d.innerHTML=`<b>Affichage</b>`+SHOW_KEYS.map(([k,l])=>`<label class="${s[k]?'':'off'}"><input type="checkbox" data-k="${k}" ${s[k]?'checked':''} ${k==='nums'&&!s.soud?'disabled':''}> ${l}</label>`).join('')+mapUI+`<div class="row"><button class="btn sm" data-all="1">Tout</button><button class="btn sm" data-all="0">Épuré</button></div>`;}
 function toggleDisp(force){const d=$('#disp');const on=force===undefined?!d.classList.contains('show'):force;d.classList.toggle('show',on);const b=$('.zoomctl [data-z=eye]');if(b)b.classList.toggle('on',on);if(on)renderDisp();}
 const me=()=>(state.profile&&state.userId==='__me')?{id:state.profile.id,name:state.profile.name||state.profile.email||'moi',role:state.profile.role||'soudeur',detail:''}:(USERS.find(u=>u.id===state.userId)||USERS[0]), role=()=>me().role;
 
@@ -254,7 +258,41 @@ function importReportHTML(){const r=NET.report||{};let h=`<h2>Rapport d'import �
   h+=`<p class="hint">Règle : rien n'est déplacé ni recoupé ; ce qui n'est pas reconnu est signalé ici, pas corrigé en silence.</p><div class="actions" style="margin-top:8px"><button class="btn primary block" data-close>Fermer</button></div>`;return h;}
 
 /* ---------- vue plan : rendu ---------- */
-const svg=$('#svg'),world=$('#world'),bgG=$('#bg'),netG=$('#net'),mkG=$('#markers'),canvas=$('#canvas');
+const svg=$('#svg'),world=$('#world'),bgG=$('#bg'),netG=$('#net'),mkG=$('#markers'),canvas=$('#canvas'),mapG=$('#map'),gpsG=$('#gps');
+// géoréférencement du chantier courant (mémorisé sur l'objet NET) : null si le plan n'a pas de coordonnées Lambert
+const geoCache=new WeakMap();function siteGeo(){if(!NET)return null;if(!geoCache.has(NET))geoCache.set(NET,geoOfSite(NET));return geoCache.get(NET);}
+/* ---------- fond de carte IGN (photo aérienne / plan IGN / cadastre) sous le plan, tuiles Web Mercator recalées dans le repère du plan ---------- */
+function renderMap(){const g=siteGeo();const kind=state.show.carte||'none';const cad=!!state.show.cadastre;const credit=$('#mapcredit');
+  if(!g||(kind==='none'&&!cad)){if(mapG.innerHTML)mapG.innerHTML='';mapG.dataset.key='';bgG.classList.remove('nopaper');if(credit)credit.style.display='none';return;}
+  const sh=sheet();const v=state.view,k=v.k;const cw=canvas.clientWidth||400,ch=canvas.clientHeight||500;
+  const box=[(-v.tx)/k,(-v.ty)/k,(cw-v.tx)/k,(ch-v.ty)/k];const T=tilesFor(g,box,k*sh.ppm,19,90);if(!T){mapG.innerHTML='';return;}
+  bgG.classList.toggle('nopaper',kind!=='none');if(credit)credit.style.display='block';
+  const xs=T.tiles.map(t=>t.x),ys=T.tiles.map(t=>t.y);const key=`${kind}:${cad?1:0}:${T.z}:${Math.min(...xs)}-${Math.max(...xs)}:${Math.min(...ys)}-${Math.max(...ys)}`;
+  const mat=`matrix(${T.matrix.map(x=>(+x).toPrecision(10)).join(' ')})`;
+  if(mapG.dataset.key!==key){mapG.dataset.key=key;const img=(kd,op)=>T.tiles.map(t=>`<image href="${ignTileURL(kd,T.z,t.x,t.y)}" x="${t.x*256}" y="${t.y*256}" width="256.5" height="256.5" ${op?`opacity="${op}"`:''}/>`).join('');
+    mapG.innerHTML=(kind!=='none'?`<g data-layer="${kind}" transform="${mat}">${img(kind)}</g>`:'')+(cad?`<g data-layer="cadastre" transform="${mat}">${img('cadastre',.85)}</g>`:'');}
+  else{[...mapG.children].forEach(c=>c.setAttribute('transform',mat));}}
+/* ---------- position GPS de l'opérateur sur le plan (point bleu + cercle de précision), bouton ◎ ---------- */
+state.gps={watch:null,fix:null,follow:false,err:null};
+function gpsBtn(){return $('.zoomctl [data-z=gps]');}
+function gpsToggle(){const g=siteGeo();if(!g){toast('Plan non géoréférencé : la position ne peut pas être placée dessus');return;}
+  if(!('geolocation' in navigator)){toast('Géolocalisation indisponible sur cet appareil');return;}
+  if(state.gps.watch!==null){navigator.geolocation.clearWatch(state.gps.watch);state.gps.watch=null;state.gps.follow=false;gpsBtn().classList.remove('gpsOn','gpsWait');renderGps();return;}
+  state.gps.follow=true;gpsBtn().classList.add('gpsWait');toast('Recherche de la position…');
+  state.gps.watch=navigator.geolocation.watchPosition(p=>{state.gps.err=null;const first=!state.gps.fix;state.gps.fix={lat:p.coords.latitude,lon:p.coords.longitude,acc:p.coords.accuracy||0,at:Date.now()};gpsBtn().classList.remove('gpsWait');gpsBtn().classList.add('gpsOn');
+      if(first||state.gps.follow){const pp=lonLatToPlan(g,state.gps.fix.lon,state.gps.fix.lat);const bb=sheetBBox(sheet());const far=Math.hypot(Math.max(0,bb[0]-pp[0],pp[0]-bb[2]),Math.max(0,bb[1]-pp[1],pp[1]-bb[3]));
+        if(far>20000)toast(`Tu es à ${fmtDist(far)} du chantier — position affichée hors plan`);if(first)centerOn(pp[0],pp[1],Math.max(state.view.k,6));else renderGps();state.gps.follow=false;}
+      else renderGps();},
+    e=>{state.gps.err=e.code;gpsBtn().classList.remove('gpsWait');toast(e.code===1?'Position refusée : autorise la localisation pour ce site dans les réglages du navigateur':'Position introuvable (GPS) — réessaie à l\'extérieur');},
+    {enableHighAccuracy:true,maximumAge:5000,timeout:20000});}
+function renderGps(){const g=siteGeo();const fx=state.gps.fix;if(!g||!fx||state.gps.watch===null){gpsG.innerHTML='';return;}
+  const [x,y]=lonLatToPlan(g,fx.lon,fx.lat);const k=state.view.k;const ppm=sheet().ppm;const r=Math.max(0,fx.acc)*ppm;const age=(Date.now()-fx.at)/1000;
+  gpsG.innerHTML=`<g class="gpsdot" style="pointer-events:none"><circle cx="${x}" cy="${y}" r="${r}" fill="#1c6fd6" fill-opacity=".12" stroke="#1c6fd6" stroke-opacity=".35" stroke-width="${1/k}"/><circle cx="${x}" cy="${y}" r="${11/k}" fill="#fff" opacity=".95"/><circle cx="${x}" cy="${y}" r="${7.5/k}" fill="${age>60?'#8fa6c4':'#1c6fd6'}"/><text x="${x}" y="${y-15/k}" font-size="${11/k}" text-anchor="middle" fill="#1c3d6b" font-family="system-ui,sans-serif" font-weight="600" stroke="#fff" stroke-width="${3/k}" paint-order="stroke">± ${Math.round(fx.acc)} m</text></g>`;}
+// position courante utilisable pour horodater une déclaration (fix de moins de 3 min), sinon null
+function curPos(){const fx=state.gps.fix;if(!fx||Date.now()-fx.at>180000)return null;return {lat:+fx.lat.toFixed(6),lon:+fx.lon.toFixed(6),acc:Math.round(fx.acc),at:new Date(fx.at).toISOString()};}
+// écart entre une déclaration géolocalisée et la soudure sur le plan (m), ou null
+function posGap(ev,l,c,j){const g=siteGeo();if(!ev||!ev.pos||!g)return null;const p=jointPos(l,Math.min(j.idx,l.els.length-2),c);if(!p)return null;const [lon,lat]=planToLonLat(g,[p.x,p.y]);return distLL(lon,lat,ev.pos.lon,ev.pos.lat);}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible'&&state.gps.watch!==null){navigator.geolocation.clearWatch(state.gps.watch);state.gps.watch=null;const b=gpsBtn();if(b)b.classList.remove('gpsOn','gpsWait');gpsG.innerHTML='';}});
 const sheet=()=>state.sheets[state.sheetId];
 function applyView(){const {k,tx,ty}=state.view;world.setAttribute('transform',`translate(${tx} ${ty}) scale(${k})`);$('#zoominfo').textContent=`1 m ≈ ${fmt(k*sheet().ppm)} px`;}
 function sheetBBox(sh){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;sh.lines.forEach(id=>state.lines[id].els.forEach(e=>{if(!e.bbox||!isFinite(e.bbox[0])||!isFinite(e.bbox[3])||(e.bbox[2]-e.bbox[0])>3000||(e.bbox[3]-e.bbox[1])>3000)return;x0=Math.min(x0,e.bbox[0]);y0=Math.min(y0,e.bbox[1]);x1=Math.max(x1,e.bbox[2]);y1=Math.max(y1,e.bbox[3]);}));if(x0>x1){x0=0;y0=0;x1=sh.w;y1=sh.h;}return [x0,y0,x1,y1];}
@@ -294,6 +332,7 @@ function renderPlan(){
     if(bgG.dataset.mode!==key){bgG.dataset.mode=key;if(!zoomed){bgG.innerHTML=bgFull();}else{if(!sh._bb)sh._bb=drawingBBoxes(sh.drawing);
       const cw=canvas.clientWidth,ch=canvas.clientHeight;const mx=cw*.5/k,my=ch*.5/k;const box=[(-v0.tx)/k-mx,(-v0.ty)/k-my,(cw-v0.tx)/k+mx,(ch-v0.ty)/k+my];
       bgG.innerHTML=`<rect x="-1e5" y="-1e5" width="2e5" height="2e5" fill="#f4f3ee"/>`+imgTag+`<g opacity=".78">${drawingSVG(sh.drawing,{k,box,bb:sh._bb,texts:!!state.show.textes,colors:state.show.couleurs!==false,op:1,fillOp:1}).svg}</g>`;}}}
+  renderMap();
   // fenêtre visible (monde) pour ne dessiner que ce qui est à l'écran quand on est zoomé
   const v=state.view;const vx0=(-v.tx)/k-20,vy0=(-v.ty)/k-20,vx1=(canvas.clientWidth-v.tx)/k+20,vy1=(canvas.clientHeight-v.ty)/k+20;const cull=kpm>=2.5;
   // gaine dessinée : quasi à l'échelle au zoom détail (l'entraxe réel se voit, les deux gaines ne sont plus collées), grossie 1,7 × en dessous pour rester lisible
@@ -386,6 +425,7 @@ function renderPlan(){
     const bb=sheetBBox(sh);const off=(bb[2]<vx0+20||bb[0]>vx1-20||bb[3]<vy0+20||bb[1]>vy1-20);const ob=$('#offscreen');if(ob)ob.style.display=off&&sh.lines.length?'':'none';}
   $('#legend').innerHTML=`<span><i class="bar" style="background:#c8382f"></i>aller</span><span><i class="bar" style="background:#2a5fb4"></i>retour</span>`+ORDER.map(s=>`<span><i style="${s==='a_souder'?`border-color:${STATUS[s].color};background:#fff`:`background:${STATUS[s].color};border-color:${STATUS[s].color}`}"></i>${STATUS[s].label}</span>`).join('')+`<span><i class="bar" style="background:#dfe4ea;border:1px solid #999"></i>étamé</span><span><i class="bar" style="background:#e2843a"></i>nu</span><span>${lod<3?'zoome : manchons puis détail':lod<12?'zoome pour le détail des pièces (bouts d\'acier, manchons, n°)':lod<30?'zoome encore pour les fils':'fils visibles'} · 👁 : choisir ce qui s\'affiche</span>`;
   $('#btnList').textContent=state.listMode?'Plan':'Liste';
+  renderGps();
 }
 
 /* ---------- pan / zoom / tap ---------- */
@@ -417,13 +457,13 @@ function endPtr(e){if(!ptrs.has(e.pointerId))return;ptrs.delete(e.pointerId);
 canvas.addEventListener('pointerup',endPtr);canvas.addEventListener('pointercancel',endPtr);
 canvas.addEventListener('wheel',e=>{e.preventDefault();const rect=canvas.getBoundingClientRect();zoomAt(Math.exp(-e.deltaY*.0015),e.clientX-rect.left,e.clientY-rect.top);},{passive:false});
 $('#offscreen').addEventListener('click',()=>{fitView();renderPlan();});
-$('.zoomctl').addEventListener('click',e=>{const z=e.target.dataset.z;if(!z)return;if(z==='eye'){toggleDisp();return;}const cw=canvas.clientWidth/2,ch=canvas.clientHeight/2;if(z==='+')zoomAt(1.6,cw,ch);else if(z==='-')zoomAt(1/1.6,cw,ch);else{fitView();renderPlan();}});
+$('.zoomctl').addEventListener('click',e=>{const z=e.target.dataset.z;if(!z)return;if(z==='eye'){toggleDisp();return;}if(z==='gps'){gpsToggle();return;}const cw=canvas.clientWidth/2,ch=canvas.clientHeight/2;if(z==='+')zoomAt(1.6,cw,ch);else if(z==='-')zoomAt(1/1.6,cw,ch);else{fitView();renderPlan();}});
 window.addEventListener('resize',()=>{fitView();renderPlan();});
 $('#tfCancel').addEventListener('click',endTransfer);
 $('#tfGo').addEventListener('click',()=>{const v=String($('#tfNum').value).replace(/\D/g,'');if(!v)return;let f=findWeld('S-'+v.padStart(4,'0'))||findWeld('S-'+v.padStart(3,'0'));if(!f){toast('Soudure introuvable : '+v);return;}const l=f.l,c=f.c,i=l.cond[c].joints.indexOf(f.j);doTransferTo(l.id,c,i);});
 window.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.transfer)endTransfer();});
 $('#disp').addEventListener('change',e=>{const k=e.target.dataset.k;if(!k)return;state.show[k]=e.target.checked;saveShow();renderDisp();renderPlan();});
-$('#disp').addEventListener('click',e=>{const b=e.target.closest('[data-all]');if(!b)return;const on=b.dataset.all==='1';SHOW_KEYS.forEach(([k])=>{state.show[k]=on||k==='soud'||k==='fond'||k==='manch';});saveShow();renderDisp();renderPlan();});
+$('#disp').addEventListener('click',e=>{const mb=e.target.closest('[data-carte]');if(mb){state.show.carte=mb.dataset.carte;saveShow();renderDisp();renderPlan();return;}const b=e.target.closest('[data-all]');if(!b)return;const on=b.dataset.all==='1';SHOW_KEYS.forEach(([k])=>{state.show[k]=on||k==='soud'||k==='fond'||k==='manch';});saveShow();renderDisp();renderPlan();});
 $('#filters').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;state.filter=c.dataset.f;renderPlan();});
 $('#planTools').addEventListener('click',e=>{if(e.target.id==='btnTool'){if(NET&&NET.source==='traceur'){toast('Réseau du traceur : la retouche se fait dans le traceur (bouton ✎)');return;}toggleTool();return;}if(e.target.id==='btnReport')openModal(importReportHTML());if(e.target.id==='btnImport')openImport();
   if(e.target.id==='btnTraceur'){location.href='./traceur.html'+(NET&&NET.source==='traceur'?'?site='+encodeURIComponent(state.siteId):'?site=new')+'&v='+Date.now().toString(36);return;}if(e.target.id==='btnNewTraceur'){location.href='./traceur.html?site=new&v='+Date.now().toString(36);return;}if(e.target.id==='btnDelSite'){deleteCurrentSite();return;}if(e.target.id==='btnVersions'){openVersionsModal();return;}if(e.target.id==='btnTrace'){if(state.tracing){finishTrace();}else{state.tracing=true;state.tracePts=[];toast('Tape les sommets de l\'axe du réseau, dans le sens de pose');renderPlan();}}});
@@ -474,7 +514,7 @@ function jointView(l,c,j){const {els}=l.cond[c];const a=els[j.idx],b=els[j.idx+1
    ${(a.rot||a.flip||b.rot||b.flip)?`<div class="warnbox">${a.rot||a.flip?a.id+' est tournée ('+a.rot+'°'+(a.flip?', retournée':'')+')':''}${(a.rot||a.flip)&&(b.rot||b.flip)?' et ':''}${b.rot||b.flip?b.id+' est tournée ('+b.rot+'°'+(b.flip?', retournée':'')+')':''} : l'étamé ne sort pas du côté habituel — vérifie avant de raccorder.</div>`:''}
    <div class="actions">${acts.join('')}</div>
    <h3>Fils d'alarme</h3>${wireLine}
-   <h3>Historique</h3>${evs.length?`<ul class="hist">${evs.map(e=>`<li><span class="dot" style="background:${evColor(e)}"></span><div style="flex:1"><div>${evText(e)}</div><div class="who">${uname(e.by)} · ${fmtDT(e.at)}</div>${e.photos.length?`<div class="thumbs">${e.photos.map(p=>`<div class="thumb"><img src="${p}"></div>`).join('')}</div>`:''}</div></li>`).join('')}</ul>`:'<p class="hint">Aucun événement : soudure à faire.</p>'}
+   <h3>Historique</h3>${evs.length?`<ul class="hist">${evs.map(e=>`<li><span class="dot" style="background:${evColor(e)}"></span><div style="flex:1"><div>${evText(e)}</div><div class="who">${uname(e.by)} · ${fmtDT(e.at)}${(()=>{const d=posGap(e,l,c,j);if(d===null)return e.pos?' · 📍 position enregistrée':'';const lim=Math.max(80,3*(e.pos.acc||0));return d>lim?` · <b style="color:#d03b3b">📍 déclarée à ${fmtDist(d)} de la soudure</b> (GPS ± ${e.pos.acc} m)`:` · 📍 sur place (± ${e.pos.acc} m)`;})()}</div>${e.photos.length?`<div class="thumbs">${e.photos.map(p=>`<div class="thumb"><img src="${p}"></div>`).join('')}</div>`:''}</div></li>`).join('')}</ul>`:'<p class="hint">Aucun événement : soudure à faire.</p>'}
    <p class="hint" style="margin-top:8px"><a href="#" data-act="open-el-a" style="color:#1c3d6b">Voir ${a.id}</a> · <a href="#" data-act="open-el-b" style="color:#1c3d6b">Voir ${b.id}</a> (orientation des fils, photos)</p>`;}
 function formSoudee(l,c,j){const u=me();return head(j.weldId,badge(j.status))+`<h3 style="margin-top:6px">Déclarer soudée</h3><label class="f">Soudeur</label><input class="f" readonly value="${esc(u.name)} — ${esc(u.detail)}"><label class="f">Procédé</label><select class="f" id="f-proc">${PROCEDES.map(p=>`<option value="${p[0]}">${p[1]}</option>`).join('')}</select><label class="f">N° de coulée / lot du tube (optionnel)</label><input class="f" id="f-coulee" placeholder="ex. C4187">${photoBlock()}<label class="f">Remarque</label><textarea class="f" id="f-note"></textarea>${state.err?`<div class="err">${esc(state.err)}</div>`:''}<div class="actions"><button class="btn primary block" data-act="save-soudee">Valider — passe en « Soudée »</button><button class="btn block" data-act="back">Annuler</button></div>`;}
 /* ---------- câblage d'un manchon — design validé avec Ethan (V2.3, 19/08/2026) :
@@ -612,12 +652,12 @@ sheetEl.addEventListener('click',e=>{const b=e.target.closest('[data-act],[data-
   if(a==='demo-photo'){snapshotForm();state.err='';const kind=state.sheetMode==='form-manchon'?'fils':state.sheetMode==='form-soudee'?'soudure':'manchon';const label=s.kind==='el'?l.cond[s.cond].els[s.i].id:l.cond[s.cond].joints[s.i].weldId;state.pendingPhotos.push(makePhoto(label+' · photo',kind));renderSheet();return;}
   if(a==='save-el'){const el=l.cond[s.cond].els[s.i];el.note=$('#f-note',sheetEl).value;el.photos.push(...state.pendingPhotos);toast(`${el.id} enregistrée (rotation ${el.rot}°${el.flip?', retournée':''})`);closeSheet();return;}
   const j=l.cond[s.cond].joints[s.i];const val=id=>$('#'+id,sheetEl)?.value;
-  if(a==='save-soudee'){if(!state.pendingPhotos.length){snapshotForm();state.err='Ajoute au moins une photo du cordon.';renderSheet();return;}j.events.push({type:'soudee',by:state.userId,at:new Date(),data:{procede:val('f-proc'),coulee:val('f-coulee'),note:val('f-note')},photos:state.pendingPhotos});j.status='soudee';afterSave(`${j.weldId} déclarée soudée`);return;}
+  if(a==='save-soudee'){if(!state.pendingPhotos.length){snapshotForm();state.err='Ajoute au moins une photo du cordon.';renderSheet();return;}j.events.push({type:'soudee',by:state.userId,at:new Date(),pos:curPos(),data:{procede:val('f-proc'),coulee:val('f-coulee'),note:val('f-note')},photos:state.pendingPhotos});j.status='soudee';afterSave(`${j.weldId} déclarée soudée`);return;}
   if(a==='save-manchon'){if(!state.sw.etanch){snapshotForm();state.err='Le test d\'étanchéité doit être validé (ou signale un problème).';renderSheet();return;}if(!state.pendingPhotos.length){snapshotForm();state.err='Ajoute une photo du raccordement des fils et du manchon.';renderSheet();return;}
     const inv=state.conn.E!=='E'||state.conn.N!=='N';j.conn={...state.conn};j.cont=!!state.sw.cont;j.iso=!!state.sw.iso;j.isoVal=val('f-iso')||'';j.wire=inv?'inversion':'raccorde';if(inv)j.note='Inversion enregistrée au manchonnage';
-    j.events.push({type:'manchonnee',by:state.userId,at:new Date(),data:{manchon:val('f-manchon'),etanch:true,mousse:!!state.sw.mousse,fils:true,inv,note:val('f-note')},photos:state.pendingPhotos});j.status='manchonnee';afterSave(inv?`${j.weldId} manchonnée — inversion signalée au chef`:`${j.weldId} manchonnée, fils raccordés ✓`);return;}
-  if(a==='save-controle-ok'||a==='save-controle-nok'){const ok=a==='save-controle-ok';j.events.push({type:'controle',by:state.userId,at:new Date(),data:{result:ok?'OK':'NOK',mode:val('f-mode'),ref:val('f-ref'),note:val('f-note')},photos:state.pendingPhotos});j.status=ok?'controlee':'a_reprendre';afterSave(ok?`${j.weldId} contrôlée OK`:`${j.weldId} à reprendre`);return;}
-  if(a==='save-probleme'){if(!val('f-note')&&!state.pendingPhotos.length){snapshotForm();state.err='Décris le problème ou ajoute une photo.';renderSheet();return;}j.events.push({type:'probleme',by:state.userId,at:new Date(),data:{note:val('f-note')},photos:state.pendingPhotos});afterSave('Signalement envoyé au chef');return;}
+    j.events.push({type:'manchonnee',by:state.userId,at:new Date(),pos:curPos(),data:{manchon:val('f-manchon'),etanch:true,mousse:!!state.sw.mousse,fils:true,inv,note:val('f-note')},photos:state.pendingPhotos});j.status='manchonnee';afterSave(inv?`${j.weldId} manchonnée — inversion signalée au chef`:`${j.weldId} manchonnée, fils raccordés ✓`);return;}
+  if(a==='save-controle-ok'||a==='save-controle-nok'){const ok=a==='save-controle-ok';j.events.push({type:'controle',by:state.userId,at:new Date(),pos:curPos(),data:{result:ok?'OK':'NOK',mode:val('f-mode'),ref:val('f-ref'),note:val('f-note')},photos:state.pendingPhotos});j.status=ok?'controlee':'a_reprendre';afterSave(ok?`${j.weldId} contrôlée OK`:`${j.weldId} à reprendre`);return;}
+  if(a==='save-probleme'){if(!val('f-note')&&!state.pendingPhotos.length){snapshotForm();state.err='Décris le problème ou ajoute une photo.';renderSheet();return;}j.events.push({type:'probleme',by:state.userId,at:new Date(),pos:curPos(),data:{note:val('f-note')},photos:state.pendingPhotos});afterSave('Signalement envoyé au chef');return;}
 });
 sheetEl.addEventListener('change',e=>{if(e.target.id==='teeMode'||e.target.id==='teeWire'){const s0=state.sel;if(!s0||s0.kind!=='j')return;const j=state.lines[s0.line].cond[s0.cond].joints[s0.i];j.tee={...(j.tee||{}),[e.target.id==='teeMode'?'mode':'wire']:e.target.value||undefined};if(!j.tee.wire)delete j.tee.wire;sync.saveWeld(state.siteId,{...j}).then(ok=>{if(ok)setCloudBadge('enregistré '+new Date().toLocaleTimeString('fr-FR'));});toast('Raccordement de l\'antenne enregistré');return;}const c=e.target.closest('[data-conn]');if(c){snapshotForm();state.conn[c.dataset.conn]=c.value;renderSheet();return;}const inp=e.target.closest('[data-photo]');if(inp){snapshotForm();[...inp.files].forEach(f=>{const rd=new FileReader();rd.onload=()=>{state.pendingPhotos.push(rd.result);renderSheet();};rd.readAsDataURL(f);});}});
 function afterSave(msg){state.sheetMode='view';resetForm();renderAll();toast(msg);try{const s0=state.sel;if(s0&&s0.kind==='j'){const j=state.lines[s0.line].cond[s0.cond].joints[s0.i];const jj={...j};const up=async()=>{await sync.ensureSite({id:state.siteId,name:NET.name,supplier:NET.supplier,serie:NET.serie});const conv=async arr=>{const out=[];for(const p of (arr||[])){if(typeof p==='string'&&p.startsWith('data:')){const u=await sync.uploadPhoto(state.siteId,j.weldId,p);out.push(u||p);}else out.push(p);}return out;};jj.photos=await conv(j.photos);jj.events=[];for(const e of (j.events||[]))jj.events.push({...e,photos:await conv(e.photos)});const okk=await sync.saveWeld(state.siteId,jj);if(okk){await sync.logEvent(state.siteId,j.weldId,j.status,(me()||{}).name,{});setCloudBadge('enregistré '+new Date().toLocaleTimeString('fr-FR'));}};up();}}catch(e){console.warn(e);}setTimeout(()=>{if(state.sheetMode==='view')closeSheet();},900);}
