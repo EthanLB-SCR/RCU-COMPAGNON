@@ -12,16 +12,16 @@ await page.click('#bSave');await page.waitForTimeout(200);await page.fill('#svNa
 await page.selectOption('#roleSel','julien');await page.waitForTimeout(300); // manchonneur
 await page.evaluate(()=>{const T=window.TRACE;T.state.lines.L1.cond.A.joints[1].status='soudee';T.openJoint('L1','A',1);});await page.waitForTimeout(400);
 await page.click('#sheet [data-act="form-manchon"]');await page.waitForTimeout(400);
-// vue de profil : pastilles cliquables, fils par transparence (pointillés), gabarit du manchon, boutons amont ET aval
+// vue V2.3 : bouts de fils cliquables, fils tendus (paths), cordon + tranches, boutons amont ET aval
 let out=await page.evaluate(()=>({pastA:!!document.querySelector('#sheet svg [data-wire="a:E"]'),pastB:!!document.querySelector('#sheet svg [data-wire="b:N"]'),
-  xray:document.querySelectorAll('#sheet svg line[stroke-dasharray="4 3"]').length,manchonRect:!!document.querySelector('#sheet svg rect[stroke-dasharray="5 4"]'),
+  fils:document.querySelectorAll('#sheet svg path[stroke-linecap="round"]').length,defs:!!document.querySelector('#sheet svg #wpsn'),
   rota:!!document.querySelector('#sheet [data-rota]'),rotb:!!document.querySelector('#sheet [data-rotb]'),conn:JSON.stringify(window.TRACE.state.conn)}));
-console.log('form profil:',JSON.stringify(out));
+console.log('form V2.3 (fils>5, defs true):',JSON.stringify(out));
 // étamé amont → nu aval (inversion)
-await page.click('#sheet [data-wire="a:E"]');await page.waitForTimeout(150);await page.click('#sheet [data-wire="b:N"]');await page.waitForTimeout(250);
+await page.click('#sheet g[data-wire="a:E"]');await page.waitForTimeout(150);await page.click('#sheet g[data-wire="b:N"]');await page.waitForTimeout(250);
 out=await page.evaluate(()=>({conn:JSON.stringify(window.TRACE.state.conn),err:!!document.querySelector('#sheet .err'),sel:document.querySelector('#sheet select[data-conn="E"]').value}));console.log('après E→N:',JSON.stringify(out));
 // remettre droit : E→E
-await page.click('#sheet [data-wire="a:E"]');await page.waitForTimeout(150);await page.click('#sheet [data-wire="b:E"]');await page.waitForTimeout(250);
+await page.click('#sheet g[data-wire="a:E"]');await page.waitForTimeout(150);await page.click('#sheet g[data-wire="b:E"]');await page.waitForTimeout(250);
 out=await page.evaluate(()=>({conn:JSON.stringify(window.TRACE.state.conn),ok:!!document.querySelector('#sheet .okbox')}));console.log('après E→E:',JSON.stringify(out));
 // tourner le tube AVAL puis le tube AMONT depuis le formulaire
 await page.click('#sheet [data-rotb="90"]');await page.waitForTimeout(250);

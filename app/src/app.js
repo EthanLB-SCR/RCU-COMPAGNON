@@ -477,35 +477,93 @@ function jointView(l,c,j){const {els}=l.cond[c];const a=els[j.idx],b=els[j.idx+1
    <h3>Historique</h3>${evs.length?`<ul class="hist">${evs.map(e=>`<li><span class="dot" style="background:${evColor(e)}"></span><div style="flex:1"><div>${evText(e)}</div><div class="who">${uname(e.by)} · ${fmtDT(e.at)}</div>${e.photos.length?`<div class="thumbs">${e.photos.map(p=>`<div class="thumb"><img src="${p}"></div>`).join('')}</div>`:''}</div></li>`).join('')}</ul>`:'<p class="hint">Aucun événement : soudure à faire.</p>'}
    <p class="hint" style="margin-top:8px"><a href="#" data-act="open-el-a" style="color:#1c3d6b">Voir ${a.id}</a> · <a href="#" data-act="open-el-b" style="color:#1c3d6b">Voir ${b.id}</a> (orientation des fils, photos)</p>`;}
 function formSoudee(l,c,j){const u=me();return head(j.weldId,badge(j.status))+`<h3 style="margin-top:6px">Déclarer soudée</h3><label class="f">Soudeur</label><input class="f" readonly value="${esc(u.name)} — ${esc(u.detail)}"><label class="f">Procédé</label><select class="f" id="f-proc">${PROCEDES.map(p=>`<option value="${p[0]}">${p[1]}</option>`).join('')}</select><label class="f">N° de coulée / lot du tube (optionnel)</label><input class="f" id="f-coulee" placeholder="ex. C4187">${photoBlock()}<label class="f">Remarque</label><textarea class="f" id="f-note"></textarea>${state.err?`<div class="err">${esc(state.err)}</div>`:''}<div class="actions"><button class="btn primary block" data-act="save-soudee">Valider — passe en « Soudée »</button><button class="btn block" data-act="back">Annuler</button></div>`;}
-/* ---------- câblage virtuel d'un manchon : les deux bouts de tube VUS DE PROFIL (gaine + acier dénudé face à face),
-   fils visibles par transparence dans la mousse à leur position horaire, sortis et écartés au droit du manchon ;
-   on relie les fils du doigt (pastille amont puis pastille aval d'en face) ---------- */
-function wiringSVG(a,b,conn,sel,editable){const W=340,H=196,cy=88,R=30,yT=34,yB=142,xpA=148,xpB=192;
-  // au bout du tube, les deux fils sont écartés vers deux « bornes » fixes (haut / bas) — le plus haut dans la gaine part en haut
-  const yWire=(e2,w)=>{const g=clockPos(e2,w);return cy-Math.cos(rad(g))*20-Math.sin(rad(g))*2.5;}; // léger décalage avant/arrière pour ne pas superposer deux fils à même hauteur
-  const slots=e2=>{const arr=['E','N'].map(w=>({w,y:yWire(e2,w)}));arr.sort((p,q)=>p.y-q.y||(p.w<q.w?-1:1));const o={};o[arr[0].w]=yT;o[arr[1].w]=yB;return o;};
-  const sA=slots(a),sB=slots(b);
-  const tube=(e2,x0,x1,rev,side,label)=>{const xc=rev?x0:x1; // xc : face de coupe, côté manchon
-    let d=`<rect x="${x0}" y="${cy-R}" width="${x1-x0}" height="${2*R}" fill="#e9d36b"/><rect x="${x0}" y="${cy-R}" width="${x1-x0}" height="5" fill="#111"/><rect x="${x0}" y="${cy+R-5}" width="${x1-x0}" height="5" fill="#111"/><rect x="${rev?x0:x1-3}" y="${cy-R}" width="3" height="${2*R}" fill="#d8c05a"/><text x="${(x0+x1)/2}" y="${cy+R+16}" font-size="11" text-anchor="middle" fill="#52514e" font-family="system-ui,sans-serif">${esc(label)}</text>`;
-    ['E','N'].forEach(w=>{const g=clockPos(e2,w);const yIn=yWire(e2,w);const front=Math.sin(rad(g))>=0;const ys=side==='a'?sA[w]:sB[w];const xp=side==='a'?xpA:xpB;
-      d+=`<line x1="${x0+6}" y1="${yIn}" x2="${x1-6}" y2="${yIn}" stroke="#777" stroke-width="${front?3.4:2.6}" stroke-dasharray="4 3" opacity="${front?.5:.25}"/><line x1="${x0+6}" y1="${yIn}" x2="${x1-6}" y2="${yIn}" stroke="${WIRE[w].color}" stroke-width="${front?2.4:1.8}" stroke-dasharray="4 3" opacity="${front?.95:.45}"/>`;
-      const lx=rev?xc-1:xc+1;const mx=(lx+xp)/2;
-      d+=`<path d="M${lx} ${yIn} C ${mx} ${yIn}, ${mx} ${ys}, ${xp} ${ys}" fill="none" stroke="#333" stroke-width="4" opacity=".3"/><path d="M${lx} ${yIn} C ${mx} ${yIn}, ${mx} ${ys}, ${xp} ${ys}" fill="none" stroke="${WIRE[w].color}" stroke-width="2.8"/>`;});
-    return d;};
-  const steel=`<rect x="116" y="${cy-11}" width="52" height="22" fill="url(#wpst)" stroke="#5c6167" stroke-width=".6"/><rect x="172" y="${cy-11}" width="52" height="22" fill="url(#wpst)" stroke="#5c6167" stroke-width=".6"/><ellipse cx="170" cy="${cy}" rx="6.5" ry="14" fill="#eb6834" stroke="#a34a22" stroke-width=".8"/>`;
-  const past=(side,e2)=>{const sl=side==='a'?sA:sB;const xp=side==='a'?xpA:xpB;let d='';['E','N'].forEach(w=>{const y=sl[w];const isSel=sel===w&&side==='a';
-    d+=`<g ${editable?`data-wire="${side}:${w}" style="cursor:pointer"`:''}><circle cx="${xp}" cy="${y}" r="14" fill="transparent"/><circle cx="${xp}" cy="${y}" r="${isSel?9.5:8}" fill="${WIRE[w].color}" stroke="${isSel?'#0b0b0b':'#333'}" stroke-width="${isSel?2.5:1.2}"/><text x="${xp}" y="${y+3.5}" font-size="9" font-weight="700" text-anchor="middle" fill="#0b0b0b" font-family="system-ui,sans-serif" pointer-events="none">${w==='E'?'É':'N'}</text><text x="${xp}" y="${y===yT?y-17:y+21}" font-size="8" text-anchor="middle" fill="#898781" font-family="system-ui,sans-serif" pointer-events="none">${clockText(clockPos(e2,w))}</text></g>`;});return d;};
-  let links='';['E','N'].forEach(w=>{const to=conn[w];const y1=sA[w];
-    if(!to||to==='X'){links+=`<line x1="${xpA}" y1="${y1}" x2="${xpA+22}" y2="${y1}" stroke="${WIRE[w].color}" stroke-width="3.5" stroke-dasharray="4 4" stroke-linecap="round"/><text x="${xpA+31}" y="${y1+4}" font-size="11" text-anchor="middle" fill="#898781" font-family="system-ui,sans-serif">∅</text>`;return;}
-    const y2=sB[to];const bad=to!==w;const mx=(xpA+xpB)/2;links+=`<path d="M${xpA} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${xpB} ${y2}" fill="none" stroke="${bad?'#d03b3b':WIRE[w].color}" stroke-width="${bad?4:5}" stroke-linecap="round" opacity=".95"/><path d="M${xpA} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${xpB} ${y2}" fill="none" stroke="#333" stroke-width="1" stroke-linecap="round" opacity=".5"/>`;});
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:380px;display:block;margin:0 auto;touch-action:manipulation"><defs><linearGradient id="wpst" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c9ced4"/><stop offset=".5" stop-color="#9aa0a8"/><stop offset="1" stop-color="#6d7278"/></linearGradient></defs><rect x="126" y="50" width="88" height="76" rx="7" fill="none" stroke="#b8b29f" stroke-dasharray="5 4"/><text x="170" y="60" font-size="8" text-anchor="middle" fill="#a09a86" font-family="system-ui,sans-serif">manchon</text>${steel}${tube(a,4,116,false,'a',a.id+' · amont')}${tube(b,224,336,true,'b',b.id+' · aval')}${links}${past('a',a)}${past('b',b)}${editable?`<g data-wire="b:X" style="cursor:pointer"><rect x="${W-84}" y="2" width="80" height="16" rx="8" fill="#f4f2ec" stroke="#d9d6cf"/><text x="${W-44}" y="13" font-size="9" text-anchor="middle" fill="#52514e" font-family="system-ui,sans-serif">∅ non raccordé</text></g>`:''}</svg>`;}
+/* ---------- câblage d'un manchon — design validé avec Ethan (V2.3, 19/08/2026) :
+   les deux bouts de tube vus de côté, l'œil un poil AU-DESSUS du tube. Chaque fil sort de la mousse à sa position
+   horaire réelle (clockPos) et file TENDU vers la sortie d'en face (chemin le plus court) ; la plongée fait apparaître
+   le fil de devant un peu plus bas que celui de derrière (jamais superposés). Acier et cordon estompés pour que les
+   fils dominent, raccords sertis au milieu (halo rouge + changement de matière au raccord si inversion), écarteurs
+   suggérés. Zones tactiles = les bouts de fils aux sorties de mousse (data-wire, logique inchangée). ---------- */
+function wiringSVG(a,b,conn,sel,editable){
+  const W=640,H=260,cy=136,xs=W/2,kx=34,Rg=54,Ra=22,bare=132;
+  const kxa=kx*Ra/Rg,Rm=Rg-6,kxm=kx*Rm/Rg,rr=(Ra+Rm)/2,PL=8;
+  const xgL=xs-bare,xgR=xs+bare;
+  const lerp=(p,q,t)=>[p[0]+(q[0]-p[0])*t,p[1]+(q[1]-p[1])*t];
+  // sortie d'un fil sur la tranche : position horaire + composante de plongée (devant = plus bas, derrière = plus haut)
+  const exit=(e2,xg,dir,w)=>{const g=clockPos(e2,w);return [xg+dir*Math.sin(rad(g))*kxm*.9,cy-Math.cos(rad(g))*rr+Math.sin(rad(g))*PL,g];};
+  const defs=`<defs><linearGradient id="wppe" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b3036"/><stop offset=".16" stop-color="#6a737d"/><stop offset=".30" stop-color="#31363c"/><stop offset=".58" stop-color="#101214"/><stop offset=".86" stop-color="#23272c"/><stop offset="1" stop-color="#0b0d0f"/></linearGradient><linearGradient id="wpst" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dfe4e8"/><stop offset=".25" stop-color="#f2f5f7"/><stop offset=".55" stop-color="#d3d9dd"/><stop offset="1" stop-color="#b3bac0"/></linearGradient><linearGradient id="wpsc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c5cbd1"/><stop offset=".5" stop-color="#e4e8ec"/><stop offset="1" stop-color="#aab1b7"/></linearGradient><radialGradient id="wpfm" cx=".38" cy=".32" r=".9"><stop offset="0" stop-color="#f5e7ad"/><stop offset=".55" stop-color="#e5cd7d"/><stop offset="1" stop-color="#c3a552"/></radialGradient><linearGradient id="wpcu" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e69a5c"/><stop offset=".5" stop-color="#b96f33"/><stop offset="1" stop-color="#874a1d"/></linearGradient><linearGradient id="wpsn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6f8fa"/><stop offset=".5" stop-color="#c3cad2"/><stop offset="1" stop-color="#8a929a"/></linearGradient><linearGradient id="wpfl" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="1"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><linearGradient id="wpfr" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity="1"/></linearGradient><filter id="wpbl" x="-40%" y="-300%" width="180%" height="700%"><feGaussianBlur stdDeviation="5"/></filter></defs>`;
+  let s='';
+  s+=`<ellipse cx="${xs}" cy="${cy+Rg+14}" rx="${W*.42}" ry="7" fill="#000" opacity=".12" filter="url(#wpbl)"/>`;
+  // acier + cordon de soudure, estompés
+  let st=`<rect x="${xgL}" y="${cy-Ra}" width="${2*bare}" height="${2*Ra}" fill="url(#wpst)" stroke="#b9c0c6" stroke-width=".8"/>`;
+  const wR=Ra+3.5;
+  st+=`<path d="M ${xs-8} ${cy-wR} Q ${xs-10.4} ${cy} ${xs-8} ${cy+wR} A 8 3.2 0 0 0 ${xs+8} ${cy+wR} Q ${xs+10.4} ${cy} ${xs+8} ${cy-wR} A 8 3.2 0 0 0 ${xs-8} ${cy-wR} Z" fill="url(#wpsn)" stroke="#aeb5bb" stroke-width=".8"/>`;
+  for(let yy=cy-wR+4;yy<cy+wR-2;yy+=7)st+=`<path d="M ${xs-10} ${yy} Q ${xs} ${yy+2.6} ${xs+10} ${yy}" fill="none" stroke="#8a9198" stroke-opacity=".3" stroke-width="1.1"/>`;
+  s+=`<g opacity=".5">${st}</g>`;
+  // écarteurs (corps), très discrets
+  [xs-56,xs+56].forEach(x=>{s+=`<rect x="${x-2.5}" y="${cy-Ra-8}" width="5" height="${2*Ra+16}" rx="2" fill="#22262b" opacity=".1"/>`;});
+  // tubes : gaine + tranche (PE, mousse, naissance de l'acier)
+  const tube=(xg,dir,x0)=>{const bx=Math.min(xg,x0),bw=Math.abs(xg-x0);
+    return `<rect x="${bx}" y="${cy-Rg}" width="${bw}" height="${2*Rg}" fill="url(#wppe)"/><ellipse cx="${xg}" cy="${cy}" rx="${kx}" ry="${Rg}" fill="#111417"/><ellipse cx="${xg}" cy="${cy}" rx="${kxm}" ry="${Rm}" fill="url(#wpfm)"/><path d="M ${xg} ${cy-Rm} A ${kxm} ${Rm} 0 0 ${dir>0?1:0} ${xg} ${cy+Rm}" fill="none" stroke="#7c6a35" stroke-opacity=".3" stroke-width="2.5"/><ellipse cx="${xg}" cy="${cy}" rx="${kxa}" ry="${Ra}" fill="url(#wpsc)" opacity=".8"/>`;};
+  s+=tube(xgL,+1,26)+tube(xgR,-1,W-26);
+  // fils
+  const P={aE:exit(a,xgL,+1,'E'),aN:exit(a,xgL,+1,'N'),bE:exit(b,xgR,-1,'E'),bN:exit(b,xgR,-1,'N')};
+  const wcol=w=>w==='E'?{core:'url(#wpsn)',edge:'#6f777f',hi:'#ffffff'}:{core:'url(#wpcu)',edge:'#63370f',hi:'#f6c58c'};
+  const strokes=(d,col,em)=>`<path d="${d}" fill="none" stroke="${em?'#0b0b0b':col.edge}" stroke-width="${em?6.6:5.2}" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${col.core}" stroke-width="3.8" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${col.hi}" stroke-width="1" stroke-linecap="round" opacity=".8"/>`;
+  let holes='',fils='',clips='',crimps='',labels='',hits='';
+  // trous de sortie + heures, pour les quatre bouts
+  Object.entries(P).forEach(([k,p])=>{const side=k[0],w=k[1];
+    holes+=`<ellipse cx="${p[0]}" cy="${p[1]}" rx="4.4" ry="3.2" fill="#4d3f18" opacity=".8"/>`;
+    const back=Math.sin(rad(p[2]))<0;const ax=side==='a'?-1:1;
+    labels+=`<text x="${p[0]+ax*11}" y="${back?p[1]-11:p[1]+19}" font-size="12" text-anchor="${ax<0?'end':'start'}" fill="${w==='E'?'#5c646c':'#8a4c1e'}" font-weight="600" font-family="system-ui,sans-serif" stroke="#fff" stroke-width="3" paint-order="stroke">${clockText(p[2])}</text>`;});
+  const usedB={};
+  ['E','N'].forEach((wA,wi)=>{const pA=P['a'+wA];const to=conn[wA];
+    if(!to||to==='X'){
+      // fil amont non raccordé : petit bout qui retombe + pointillé
+      fils+=strokes(`M ${pA[0]} ${pA[1]} C ${pA[0]+12} ${pA[1]-3} ${pA[0]+22} ${pA[1]+1} ${pA[0]+30} ${pA[1]+7}`,wcol(wA),editable&&sel===wA);
+      fils+=`<line x1="${pA[0]+34}" y1="${pA[1]+10}" x2="${pA[0]+52}" y2="${pA[1]+15}" stroke="${wA==='E'?'#9aa2aa':'#b96f33'}" stroke-width="3" stroke-dasharray="4 4" stroke-linecap="round"/><text x="${pA[0]+58}" y="${pA[1]+20}" font-size="12" fill="#898781" font-family="system-ui,sans-serif">∅ non raccordé</text>`;
+      return;}
+    usedB[to]=1;
+    const pB=P['b'+to];const bad=to!==wA;
+    const A=lerp(pA,pB,.085),Bp=lerp(pA,pB,.915),M1=lerp(pA,pB,.5);
+    const t0=wi?0.565:0.435;const J=lerp(pA,pB,t0);const ang=Math.atan2(pB[1]-pA[1],pB[0]-pA[0])*180/Math.PI;
+    const d=`M ${pA[0]} ${pA[1]} C ${pA[0]+12} ${pA[1]-3} ${A[0]-8} ${A[1]} ${A[0]} ${A[1]} Q ${M1[0]} ${M1[1]+2.2} ${Bp[0]} ${Bp[1]} C ${Bp[0]+8} ${Bp[1]} ${pB[0]-12} ${pB[1]-3} ${pB[0]} ${pB[1]}`;
+    fils+=strokes(d,wcol(wA),editable&&sel===wA);
+    // en inversion, la couleur change AU raccord serti : moitié aval recolorée
+    if(bad)fils+=strokes(`M ${J[0]} ${J[1]+1} Q ${lerp(J,Bp,.5)[0]} ${lerp(J,Bp,.5)[1]+1.6} ${Bp[0]} ${Bp[1]} C ${Bp[0]+8} ${Bp[1]} ${pB[0]-12} ${pB[1]-3} ${pB[0]} ${pB[1]}`,wcol(to),false);
+    // pattes des écarteurs sur le fil
+    [xs-56,xs+56].forEach(x=>{const t=(x-pA[0])/(pB[0]-pA[0]);if(t>.12&&t<.88){const Pt=lerp(pA,pB,t);clips+=`<rect x="${x-5}" y="${Pt[1]-3.2}" width="10" height="6.4" rx="2" fill="#22262b" opacity=".26"/>`;}});
+    // raccord serti, orienté selon la pente, décalé du cordon
+    crimps+=`<g transform="rotate(${ang.toFixed(1)} ${J[0]} ${J[1]})">${bad?`<rect x="${J[0]-15}" y="${J[1]-7.5}" width="30" height="15" rx="7.5" fill="#d03b3b" opacity=".33"/>`:''}<rect x="${J[0]-10.5}" y="${J[1]-4}" width="21" height="8" rx="3" fill="url(#wpsn)" stroke="#6f777f" stroke-width="1"/><line x1="${J[0]-4.5}" y1="${J[1]-4}" x2="${J[0]-4.5}" y2="${J[1]+4}" stroke="#868e96" stroke-width="1"/><line x1="${J[0]+4.5}" y1="${J[1]-4}" x2="${J[0]+4.5}" y2="${J[1]+4}" stroke="#868e96" stroke-width="1"/></g>`;});
+  // bouts aval auxquels rien n'arrive : petit bout qui retombe
+  ['E','N'].forEach(wB=>{if(usedB[wB])return;const pB=P['b'+wB];
+    fils+=strokes(`M ${pB[0]} ${pB[1]} C ${pB[0]-12} ${pB[1]-3} ${pB[0]-22} ${pB[1]+1} ${pB[0]-30} ${pB[1]+7}`,wcol(wB),false);});
+  s+=holes+fils+clips+crimps;
+  // anneau de sélection sur la sortie amont choisie
+  if(editable&&(sel==='E'||sel==='N')){const p=P['a'+sel];s+=`<circle cx="${p[0]}" cy="${p[1]}" r="12" fill="none" stroke="#0b0b0b" stroke-width="2.5"/>`;}
+  // fondu des bords (le réseau continue) + étiquettes + badge
+  s+=`<rect x="25" y="${cy-Rg-4}" width="42" height="${2*Rg+8}" fill="url(#wpfl)"/><rect x="${W-67}" y="${cy-Rg-4}" width="42" height="${2*Rg+8}" fill="url(#wpfr)"/>`;
+  s+=`<text x="${(26+xgL)/2}" y="${cy+Rg+30}" font-size="14.5" font-weight="600" text-anchor="middle" fill="#565c62" font-family="system-ui,sans-serif">${esc(a.id)} · amont</text><text x="${(W-26+xgR)/2}" y="${cy+Rg+30}" font-size="14.5" font-weight="600" text-anchor="middle" fill="#565c62" font-family="system-ui,sans-serif">${esc(b.id)} · aval</text>`;
+  s+=labels;
+  const inv=(conn.E&&conn.E!=='X'&&conn.E!=='E')||(conn.N&&conn.N!=='X'&&conn.N!=='N');
+  if(inv)s+=`<g><rect x="${xs-64}" y="4" width="128" height="22" rx="11" fill="#d03b3b"/><text x="${xs}" y="20" font-size="12.5" font-weight="700" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">⚠ INVERSION</text></g>`;
+  // zones tactiles : les quatre bouts de fils + « ∅ non raccordé »
+  if(editable){const seg=(p,q,t1,t2)=>{const P1=lerp(p,q,t1),P2=lerp(p,q,t2);return `M ${P1[0]} ${P1[1]} L ${P2[0]} ${P2[1]}`;};
+    // moitié amont / moitié aval de chaque fil cliquables, puis cercles francs sur les quatre sorties (par-dessus)
+    ['E','N'].forEach(w=>{const to=conn[w];if(!to||to==='X')return;
+      hits+=`<path data-wire="a:${w}" style="cursor:pointer" d="${seg(P['a'+w],P['b'+to],0,.42)}" stroke="transparent" stroke-width="18" fill="none"/>`;
+      hits+=`<path data-wire="b:${to}" style="cursor:pointer" d="${seg(P['a'+w],P['b'+to],.58,1)}" stroke="transparent" stroke-width="18" fill="none"/>`;});
+    ['E','N'].forEach(w=>{const p=P['a'+w],q=P['b'+w];
+      hits+=`<g data-wire="a:${w}" style="cursor:pointer"><circle cx="${p[0]}" cy="${p[1]}" r="22" fill="transparent"/></g><g data-wire="b:${w}" style="cursor:pointer"><circle cx="${q[0]}" cy="${q[1]}" r="22" fill="transparent"/></g>`;});
+    hits+=`<g data-wire="b:X" style="cursor:pointer"><rect x="${W-122}" y="5" width="116" height="21" rx="10.5" fill="#f4f2ec" stroke="#d9d6cf"/><text x="${W-64}" y="19.5" font-size="11.5" text-anchor="middle" fill="#52514e" font-family="system-ui,sans-serif">∅ non raccordé</text></g>`;}
+  s+=hits;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:560px;display:block;margin:0 auto;touch-action:manipulation">${defs}${s}</svg>`;}
 function formManchon(l,c,j){const {els}=l.cond[c];const a=els[j.idx],b=els[j.idx+1];const inv=state.conn.E!=='E'||state.conn.N!=='N';
   const lockA=elLock(l,c,j.idx),lockB=elLock(l,c,j.idx+1);
   const rotCtl=(e2,suf,side,lock)=>lock?`<div class="lockbox">🔒 <b>${e2.id}</b> (${side}) : position figée — déjà manchonnée en ${lock.map(esc).join(' et ')}. Si ce manchon-là est bon, le tube est forcément en bonne position.</div>`
     :`<div class="btns" style="margin:2px 0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;justify-content:center"><span class="muted" style="font-size:12px">${e2.id} (${side}) :</span><button class="btn sm" data-rot${suf}="-90" title="tourner le tube ${side}">⟲ 90°</button><button class="btn sm" data-rot${suf}="90">⟳ 90°</button><button class="btn sm ${e2.flip?'on':''}" data-flip${suf}="1">⇄ retourné</button></div>`;
   const wireRow=w=>`<div class="conn"><div class="w"><i style="background:${WIRE[w].color};border:1px solid #999"></i>${a.id} ${WIRE[w].short} <span class="hint">(${clockText(clockPos(a,w))})</span></div><span>→</span><select data-conn="${w}"><option value="E" ${state.conn[w]==='E'?'selected':''}>${b.id} étamé (${clockText(clockPos(b,'E'))})</option><option value="N" ${state.conn[w]==='N'?'selected':''}>${b.id} nu (${clockText(clockPos(b,'N'))})</option><option value="X" ${state.conn[w]==='X'?'selected':''}>non raccordé</option></select></div>`;
   return head(j.weldId,badge(j.status))+`<h3 style="margin-top:6px">Déclarer manchonnée</h3><label class="f">Manchonneur</label><input class="f" readonly value="${esc(me().name)}"><label class="f">Type de manchon</label><select class="f" id="f-manchon">${MANCHONS.map(p=>`<option value="${p[0]}">${p[1]}</option>`).join('')}</select>
-   <h3>Raccordement des fils d'alarme (amont → aval)</h3><div class="card"><div class="muted" style="font-size:12px;margin-bottom:4px">Les deux bouts de tube vus de profil, fils sortis de la mousse au droit du manchon. Touche un fil du tube amont (à gauche), puis le fil d'en face qu'il rejoint (ou « ∅ non raccordé »). Fil en pointillé clair : passe derrière le tube.${state.wsel?` <b>Fil ${state.wsel==='E'?'étamé':'nu'} amont choisi → touche le fil aval.</b>`:''}</div>${wiringSVG(a,b,state.conn,state.wsel,true)}${rotCtl(a,'a','amont',lockA)}${rotCtl(b,'b','aval',lockB)}${wireRow('E')}${wireRow('N')}${inv?'<div class="err">Inversion : l\'étamé amont part sur le nu aval. Enregistre si c\'est ce qui a été fait — le manchon sera signalé « à reprendre ».</div>':'<div class="okbox">Raccordement droit : étamé ↔ étamé, nu ↔ nu.</div>'}
+   <h3>Raccordement des fils d'alarme (amont → aval)</h3><div class="card"><div class="muted" style="font-size:12px;margin-bottom:4px">Les deux bouts de tube vus de côté, l'œil un peu au-dessus : chaque fil sort de la mousse à son heure et rejoint en tendu la sortie d'en face. Touche un bout de fil du tube amont (à gauche), puis le bout d'en face qu'il rejoint (ou « ∅ non raccordé »).${state.wsel?` <b>Fil ${state.wsel==='E'?'étamé':'nu'} amont choisi → touche le fil aval.</b>`:''}</div>${wiringSVG(a,b,state.conn,state.wsel,true)}${rotCtl(a,'a','amont',lockA)}${rotCtl(b,'b','aval',lockB)}${wireRow('E')}${wireRow('N')}${inv?'<div class="err">Inversion : l\'étamé amont part sur le nu aval. Enregistre si c\'est ce qui a été fait — le manchon sera signalé « à reprendre ».</div>':'<div class="okbox">Raccordement droit : étamé ↔ étamé, nu ↔ nu.</div>'}
    <div class="toggle"><span>Continuité des deux fils OK</span><button class="switch ${state.sw.cont?'on':''}" data-sw="cont"></button></div><div class="toggle"><span>Isolement fils / tube OK <input id="f-iso" placeholder="MΩ" style="width:64px;border:1px solid var(--line);border-radius:6px;padding:3px 6px;margin-left:6px;font-size:14px"></span><button class="switch ${state.sw.iso?'on':''}" data-sw="iso"></button></div></div>
    <h3>Manchon</h3><div class="card" style="padding:2px 12px"><div class="toggle"><span>Test d'étanchéité à l'air : OK</span><button class="switch ${state.sw.etanch?'on':''}" data-sw="etanch"></button></div><div class="toggle"><span>Mousse injectée, bouchons posés</span><button class="switch ${state.sw.mousse?'on':''}" data-sw="mousse"></button></div></div>
    ${photoBlock()}<label class="f">Remarque</label><textarea class="f" id="f-note"></textarea>${state.err?`<div class="err">${esc(state.err)}</div>`:''}<div class="actions"><button class="btn primary block" data-act="save-manchon">Valider — passe en « Manchonnée »</button><button class="btn block" data-act="back">Annuler</button></div>`;}
