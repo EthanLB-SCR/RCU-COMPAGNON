@@ -32,6 +32,7 @@
   .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink)}.btn.danger{color:var(--bad);border-color:#f0c9c9}
   .btn.sm{padding:5px 9px;font-size:12.5px;border-radius:8px}.btn.block{width:100%;padding:12px;font-size:15px}.btn.on{background:#eef4fc;border-color:#9ec5f4;color:#1c3d6b}
   .canvas{flex:1;position:relative;overflow:hidden;background:var(--plane);touch-action:none;user-select:none;-webkit-user-select:none}
+  .tpulse{animation:tp 1.1s ease-in-out infinite}@keyframes tp{50%{opacity:.15}}
   .canvas svg{width:100%;height:100%;display:block;cursor:grab}.canvas.tracing svg{cursor:crosshair}
   .marker,.el{cursor:pointer}
   .num{font-size:11px;font-weight:600;fill:#0b0b0b;paint-order:stroke;stroke:#fff;stroke-width:3px;stroke-linejoin:round;pointer-events:none;font-family:system-ui,sans-serif}
@@ -110,6 +111,7 @@
         <div class="disp" id="disp"></div>
         <div class="zoomctl"><button data-z="eye" title="Choisir ce qui s'affiche">👁</button><button data-z="+">+</button><button data-z="-">−</button><button data-z="0">⌂</button></div>
         <div class="hintbar" id="hintbar"></div>
+        <div id="transferBar" style="display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:7;background:var(--ink);color:#fff;border-radius:999px;padding:6px 8px 6px 14px;font-size:12.5px;align-items:center;gap:8px;max-width:96%;box-shadow:0 6px 20px rgba(0,0,0,.3)">↪ Données de <b id="tfFrom"></b> → <b>touche la soudure cible</b><input id="tfNum" inputmode="numeric" placeholder="ou n°" style="width:64px;border:0;border-radius:6px;padding:4px 6px;font-size:13px"><button id="tfGo" style="border:0;border-radius:6px;padding:4px 9px;background:#3aa655;color:#fff">OK</button><button id="tfCancel" style="border:0;border-radius:6px;padding:4px 9px;background:#555;color:#fff">✕</button></div>
         <button class="btn" id="offscreen" style="display:none;position:absolute;left:50%;top:42%;transform:translateX(-50%);z-index:6;background:var(--ink);color:#fff;border-color:var(--ink);box-shadow:0 6px 20px rgba(0,0,0,.25)">↩ Réseau hors écran — revenir</button>
       </div>
     </section>

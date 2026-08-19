@@ -165,6 +165,27 @@ async function pushHandoffs(remote){if(!(await sync.user()))return;const onServe
     const okk=await sync.saveSite(clean);if(okk){state.ownSiteWrite=Date.now();await markSent(net.id);setCloudBadge('chantier « '+net.name+' » envoyé au serveur');}}}
 function addSiteOption(net){if(!SITES[net.id]){SITES[net.id]=net;const o=document.createElement('option');o.value=net.id;o.textContent=net.name;siteSel.appendChild(o);}else{SITES[net.id]=net;const o=[...siteSel.options].find(x=>x.value===net.id);if(o)o.textContent=net.name;}}
 // historique des versions du chantier (serveur) : chaque ré-enregistrement garde la version d'avant — restauration en deux clics
+// remise à zéro d'une soudure (erreur de saisie) : tout l'avancement disparaît, la soudure elle-même reste
+function wipeWeld(j){j.status='a_souder';j.events=[];j.photos=[];j.wire='a_raccorder';j.conn={E:'E',N:'N'};j.cont=false;j.iso=false;j.isoVal='';j.note='';}
+const weldHasData=j=>j.status!=='a_souder'||(j.events&&j.events.length)||(j.photos&&j.photos.length)||(j.wire&&j.wire!=='a_raccorder');
+async function pushWeld(j){try{await sync.ensureSite({id:state.siteId,name:NET.name,supplier:NET.supplier,serie:NET.serie});const okk=await sync.saveWeld(state.siteId,{...j});if(okk)setCloudBadge('enregistré '+new Date().toLocaleTimeString('fr-FR'));}catch(e){console.warn(e);}}
+// transfert : les données d'avancement passent sur la soudure cible ; si la cible en a déjà, on ÉCHANGE (rien ne se perd)
+const TFIELDS=['status','events','photos','wire','conn','cont','iso','isoVal','note'];
+function startTransfer(lineId,c,i){const j=state.lines[lineId].cond[c].joints[i];state.transfer={line:lineId,cond:c,i,weldId:j.weldId};closeSheet();$('#transferBar').style.display='flex';$('#tfFrom').textContent=j.weldId;$('#tfNum').value='';renderPlan();toast('Touche la soudure qui doit recevoir les données');}
+function endTransfer(){state.transfer=null;$('#transferBar').style.display='none';renderPlan();}
+async function doTransferTo(lineId,c,i){const T0=state.transfer;if(!T0)return;const F=state.lines[T0.line].cond[T0.cond].joints[T0.i];const T=state.lines[lineId].cond[c].joints[i];
+  if(F===T){toast('C\'est la même soudure');return;}
+  const by=(me()||{}).name,at=new Date();
+  if(weldHasData(T)){if(!confirm(`${T.weldId} a déjà des données (${(STATUS[T.status]||{}).label||T.status}${(T.photos||[]).length?', photos':''}). Échanger les données des deux soudures ?`))return;
+    TFIELDS.forEach(k=>{const tmp=F[k];F[k]=T[k];T[k]=tmp;});
+    T.events=[...(T.events||[]),{type:'transfert',by,at,data:{de:F.weldId},photos:[]}];F.events=[...(F.events||[]),{type:'transfert',by,at,data:{de:T.weldId},photos:[]}];
+    toast(`Données échangées entre ${F.weldId} et ${T.weldId}`);}
+  else{TFIELDS.forEach(k=>{T[k]=F[k];});wipeWeld(F);
+    T.events=[...(T.events||[]),{type:'transfert',by,at,data:{de:F.weldId},photos:[]}];
+    toast(`Données de ${F.weldId} transférées sur ${T.weldId}`);}
+  try{sync.logEvent(state.siteId,T.weldId,'transfert',by,{de:F.weldId});}catch(e){}
+  endTransfer();renderAll();const p=jointPos(state.lines[lineId],i,c);centerOn(p.x,p.y,state.view.k);openJoint(lineId,c,i);
+  await pushWeld(T);await pushWeld(F);}
 async function openVersionsModal(){const id=state.siteId;const rows=await sync.listVersions(id);
   if(rows===null){openModal('<h3>Versions</h3><div class="muted">Indisponible : connecte-toi, et exécute une fois tools/supabase_versions.sql dans Supabase (SQL Editor).</div><div class="actions" style="margin-top:8px"><button class="btn block" data-close>Fermer</button></div>');return;}
   if(!rows.length){openModal('<h3>Versions</h3><div class="muted">Pas encore d\'historique pour ce chantier : il se remplit à chaque « Enregistrer dans TRACÉ » (la version précédente est gardée, 15 maxi).</div><div class="actions" style="margin-top:8px"><button class="btn block" data-close>Fermer</button></div>');return;}
@@ -331,6 +352,7 @@ function renderPlan(){
       const seg=(m0,m1)=>[{x:px+p.tx*m0*ppm,y:py+p.ty*m0*ppm},{x:px+p.tx*m1*ppm,y:py+p.ty*m1*ppm}];
       const numTxt=(x)=>(S.nums&&(showLabels||sel))?`<text class="num" x="${side>0?x:-x}" y="4" text-anchor="${side>0?'start':'end'}">${j.weldId}</text>`:''; // n° de soudure (case 👁)
       netJ+=`<g class="marker" data-line="${id}" data-cond="${c}" data-j="${i}" ${dim?'opacity=".3"':''}>`;
+      if(state.transfer&&state.transfer.line===id&&state.transfer.cond===c&&state.transfer.i===i)netJ+=`<g transform="translate(${px} ${py}) scale(${1/k})"><circle r="16" fill="none" stroke="#b8560f" stroke-width="3" class="tpulse"/><circle r="22" fill="none" stroke="#b8560f" stroke-width="1.5" opacity=".5" class="tpulse"/></g>`;
       if(state.tool&&e.piece&&e.piece.ojoint)netJ+=`<g transform="translate(${px} ${py}) scale(${1/k})"><circle r="14" fill="rgba(242,140,40,.18)" stroke="#f28c28" stroke-width="3"/></g>`;
       if(showJoints&&!detail){ // moyen : capsule cliquable, contour couleur statut
         const rr=Math.max(3.5/k,Math.min(9/k,.28*ppm));netJ+=`<path d="${pathD(seg(-.3,.3))}" stroke="${st.color}" stroke-width="${w*1.4+3/k}" fill="none" stroke-linecap="round"/><path d="${pathD(seg(-.3,.3))}" stroke="#33363a" stroke-width="${w*1.15}" fill="none" stroke-linecap="round"/>`;
@@ -366,7 +388,7 @@ function renderPlan(){
 
 /* ---------- pan / zoom / tap ---------- */
 const ptrs=new Map();let gesture=null;
-canvas.addEventListener('pointerdown',e=>{if(e.target.closest('.zoomctl,.legend,.zoominfo,.disp,#offscreen'))return;if($('#disp').classList.contains('show'))toggleDisp(false);canvas.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});const rect=canvas.getBoundingClientRect();
+canvas.addEventListener('pointerdown',e=>{if(e.target.closest('.zoomctl,.legend,.zoominfo,.disp,#offscreen,#transferBar'))return;if($('#disp').classList.contains('show'))toggleDisp(false);canvas.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});const rect=canvas.getBoundingClientRect();
   if(ptrs.size===1){const tg=e.target.closest('[data-j],[data-el]');gesture={type:'pan',sx:e.clientX,sy:e.clientY,tx:state.view.tx,ty:state.view.ty,moved:false,target:tg,lx:e.clientX-rect.left,ly:e.clientY-rect.top,t0:Date.now()};
     if(state.tool&&tg){const l=state.lines[tg.dataset.line];const c=tg.dataset.cond;const eng=l&&engOf(l,c);const cels=l&&l.cond[c]?l.cond[c].els:null;if(eng&&cels&&state.toolLine===l.id&&state.toolCond===c){if(tg.dataset.el!==undefined){const el=cels[+tg.dataset.el];const r=el&&eng.roleOf(el.uid);if(r&&r.role==='block')gesture={type:'tdrag',line:l.id,cond:c,lx:e.clientX,ly:e.clientY,moved:false,target:tg};}
       else if(tg.dataset.j!==undefined){const el=cels[+tg.dataset.j];if(el)gesture={type:'jdrag',line:l.id,cond:c,uid:el.uid,sx:e.clientX,sy:e.clientY,lx:e.clientX,ly:e.clientY,moved:false,target:tg};}}}}
@@ -382,6 +404,7 @@ function endPtr(e){if(!ptrs.has(e.pointerId))return;ptrs.delete(e.pointerId);
     const c=t.dataset.cond;const eng=l&&engOf(l,c);const cels=l&&l.cond[c]?l.cond[c].els:null;if(eng&&cels){activateToolLine(l.id,c);if(t.dataset.j!==undefined){const el=cels[+t.dataset.j];if(el)eng.toolTapJoint(el.uid);}else if(t.dataset.el!==undefined){const el=cels[+t.dataset.el];if(el)eng.toolTap(el.uid);}}
     gesture=null;if(ptrs.size===0)scheduleRender();return;}
   if(gesture&&gesture.type==='pan'&&!gesture.moved){const now=Date.now();const t=gesture.target;
+    if(state.transfer&&t&&t.dataset.j!==undefined){doTransferTo(t.dataset.line,t.dataset.cond,+t.dataset.j);gesture=null;if(ptrs.size===0)scheduleRender();return;}
     if(t&&t.dataset.j!==undefined)openJoint(t.dataset.line,t.dataset.cond,+t.dataset.j);
     else if(state.tracing){const v=state.view;state.tracePts.push({x:(gesture.lx-v.tx)/v.k,y:(gesture.ly-v.ty)/v.k});renderPlan();}
     else if(t&&t.dataset.el!==undefined&&state.view.k*sheet().ppm>=7)openEl(t.dataset.line,t.dataset.cond,+t.dataset.el);
@@ -394,6 +417,9 @@ canvas.addEventListener('wheel',e=>{e.preventDefault();const rect=canvas.getBoun
 $('#offscreen').addEventListener('click',()=>{fitView();renderPlan();});
 $('.zoomctl').addEventListener('click',e=>{const z=e.target.dataset.z;if(!z)return;if(z==='eye'){toggleDisp();return;}const cw=canvas.clientWidth/2,ch=canvas.clientHeight/2;if(z==='+')zoomAt(1.6,cw,ch);else if(z==='-')zoomAt(1/1.6,cw,ch);else{fitView();renderPlan();}});
 window.addEventListener('resize',()=>{fitView();renderPlan();});
+$('#tfCancel').addEventListener('click',endTransfer);
+$('#tfGo').addEventListener('click',()=>{const v=String($('#tfNum').value).replace(/\D/g,'');if(!v)return;let f=findWeld('S-'+v.padStart(4,'0'))||findWeld('S-'+v.padStart(3,'0'));if(!f){toast('Soudure introuvable : '+v);return;}const l=f.l,c=f.c,i=l.cond[c].joints.indexOf(f.j);doTransferTo(l.id,c,i);});
+window.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.transfer)endTransfer();});
 $('#disp').addEventListener('change',e=>{const k=e.target.dataset.k;if(!k)return;state.show[k]=e.target.checked;saveShow();renderDisp();renderPlan();});
 $('#disp').addEventListener('click',e=>{const b=e.target.closest('[data-all]');if(!b)return;const on=b.dataset.all==='1';SHOW_KEYS.forEach(([k])=>{state.show[k]=on||k==='soud'||k==='fond'||k==='manch';});saveShow();renderDisp();renderPlan();});
 $('#filters').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;state.filter=c.dataset.f;renderPlan();});
@@ -436,6 +462,9 @@ function jointView(l,c,j){const {els}=l.cond[c];const a=els[j.idx],b=els[j.idx+1
   if(r==='chef'&&st==='soudee')acts.push(`<button class="btn block" data-act="form-controle">Saisir le contrôle (visuel / radio)</button>`);
   if(r!=='bureau')acts.push(`<button class="btn block" data-act="form-probleme">Signaler un problème / ajouter une photo</button>`);
   acts.push(`<button class="btn block" data-act="dh-here">📏 DH : mesurer depuis ce manchon</button>`);
+  const hasData=j.status!=='a_souder'||(j.events&&j.events.length)||(j.photos&&j.photos.length)||(j.wire&&j.wire!=='a_raccorder');
+  if(hasData)acts.push(`<button class="btn block" data-act="transfer">↪ Transférer vers une autre soudure <span class="hint">(erreur de saisie : statut, photos, fils déplacés)</span></button>`);
+  if(hasData&&r==='chef')acts.push(`<button class="btn block" data-act="reset-weld" style="color:#d03b3b">⌫ Remettre à « À souder » (efface statut, photos, fils)</button>`);
   const teeUI=j.teeOut?(()=>{const t=j.tee||{};const dw=state.dh.antWire==='N'?'nu':'étamé';return `<div class="card" style="margin-top:8px;background:#f4f7fb"><b>Antenne au té</b> <span class="muted" style="font-size:12px">(sortie de té : comment l'antenne est prise dans la boucle DH)</span><div class="row" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap"><select class="f" id="teeMode"><option value="serie" ${(t.mode||'serie')==='serie'?'selected':''}>en série dans la boucle de la parente</option><option value="boucle" ${t.mode==='boucle'?'selected':''}>bouclée sur elle-même au té (boucle à part)</option><option value="none" ${t.mode==='none'?'selected':''}>pas encore raccordée au té</option></select><select class="f" id="teeWire"><option value="" ${!t.wire?'selected':''}>fil dans l'antenne : ${dw} (réglage chantier)</option><option value="E" ${t.wire==='E'?'selected':''}>étamé dans l'antenne</option><option value="N" ${t.wire==='N'?'selected':''}>nu dans l'antenne</option></select></div></div>`;})():'';
   const wiringRO=(j.wire==='raccorde'||j.wire==='inversion')?`<div class="card" style="padding:6px 8px 2px">${wiringSVG(a,b,j.conn||{E:'E',N:'N'},null,false)}</div>`:'';
   const wireLine=(teeUI)+wiringRO+(j.wire==='raccorde'?`<div class="okbox">Fils raccordés (étamé ↔ étamé, nu ↔ nu), continuité ${j.cont?'OK':'—'}, isolement ${j.iso?'OK'+(j.isoVal?' ('+esc(j.isoVal)+' MΩ)':''):'—'}.</div>`:j.wire==='inversion'?`<div class="err">Inversion des fils enregistrée : étamé amont → nu aval. Manchon à reprendre avant fermeture. ${esc(j.note)}</div>`:`<p class="hint">Fils d'alarme : à raccorder au manchonnage.</p>`);
@@ -475,6 +504,8 @@ sheetEl.addEventListener('click',e=>{const b=e.target.closest('[data-act],[data-
   if(b.dataset.flipb!==undefined){const j=l.cond[s.cond].joints[s.i];const el=l.cond[s.cond].els[j.idx+1];if(!el)return;snapshotForm();el.flip=!el.flip;renderSheet();renderPlan();return;}
   const a=b.dataset.act;e.preventDefault();
   if(a==='close')return closeSheet();
+  if(a==='transfer'){startTransfer(s.line,s.cond,s.i);return;}
+  if(a==='reset-weld'){const j=l.cond[s.cond].joints[s.i];if(!confirm(`Tout effacer sur ${j.weldId} (statut, photos, fils, notes) et la remettre « À souder » ? Le journal serveur garde une trace.`))return;const by=(me()||{}).name;wipeWeld(j);try{sync.logEvent(state.siteId,j.weldId,'remise_a_zero',by,{});}catch(e){}closeSheet();renderAll();toast(j.weldId+' remise à « À souder »');pushWeld(j);return;}
   if(a==='dh-here'){const root=(id=>{let L=state.lines[id];while(L&&L.parent&&state.lines[L.parent])L=state.lines[L.parent];return L;})(l.id);state.locate={...state.locate,line:root?root.id:l.id,cond:s.cond};state.dh.at={line:l.id,idx:s.i};state.dh.meas=null;closeSheet();state.tab='bouclage';renderAll();return;}
   if(a==='back'){state.sheetMode='view';resetForm();renderSheet();return;}
   if(a.startsWith('form-')){state.sheetMode=a;state.wsel=null;resetForm();const j=l.cond[s.cond].joints[s.i];state.conn={...j.conn};state.sw={cont:false,iso:false,etanch:false,mousse:false};renderSheet();return;}
