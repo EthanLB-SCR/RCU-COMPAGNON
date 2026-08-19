@@ -27,4 +27,15 @@ const [lonk,latk]=planToLonLat(g,[200,150]);const tk=lonLatToMercPx(lonk,latk,T.
 chk('dist Paris-Rennes',near(distLL(2.3522,48.8566,-1.6778,48.1173)/1000,309,3));
 // plafond de tuiles : grande fenêtre → descend d'un niveau
 const T2=tilesFor(g,[-5000,-5000,5000,5000],2,19,60);chk('cap tuiles',T2&&T2.tiles.length<=60);
+// calage à la main : 2 paires à Bain (60 m est-ouest) → l'affine renvoie exactement les deux repères, échelle ≈ 1, rotation ≈ convergence (~ -3°)
+import {similarityFromPairs,lonLatToMercPx as _m} from '../src/geo.js';
+const A=[-1.6922,47.845],B=[-1.6922+60/(111320*Math.cos(47.845*Math.PI/180)),47.845];
+const S=similarityFromPairs([{plan:[10,50],ll:A},{plan:[70,50],ll:B}],1);chk('sim ratio≈1',S&&near(S.ratio,1,0.01));chk('sim rot≈-3°',S&&near(S.rot,-3.4,1));
+const gS={crs:S.crs,aff:S.aff};const a2=planToLonLat(gS,[10,50]),b2=planToLonLat(gS,[70,50]);chk('sim repère A',near(a2[0],A[0],1e-6)&&near(a2[1],A[1],1e-6));chk('sim repère B',near(b2[0],B[0],1e-6)&&near(b2[1],B[1],1e-6));
+// y vers le bas conservé : un point 10 m plus bas sur le plan est ~10 m plus au sud
+const c2=planToLonLat(gS,[10,60]);chk('sim y bas=sud',c2[1]<a2[1]&&near((a2[1]-c2[1])*111320,10,0.6));
+// 1 paire : translation seule, nord en haut
+const S1=similarityFromPairs([{plan:[10,50],ll:A}],1);chk('sim 1pt',S1&&S1.rot===0&&S1.s===1&&near(planToLonLat({crs:S1.crs,aff:S1.aff},[10,50])[0],A[0],1e-7));
+// mercator meters CRS
+const M3=CRS['EPSG:3857'];const mm=M3.fwd(2.3522,48.8566);const back3=M3.inv(mm[0],mm[1]);chk('3857 roundtrip',near(back3[0],2.3522,1e-9)&&near(back3[1],48.8566,1e-9)&&near(mm[0],261846,2));
 console.log(`geo: ${ok} ok, ${ko} ko`);process.exit(ko?1:0);

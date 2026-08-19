@@ -1,7 +1,7 @@
 /* geo.js — géoréférencement : projections françaises (Lambert 93, Lambert CC 42→50) sur GRS80,
    Web Mercator (tuiles IGN), détection automatique du système d'un plan, tuiles à afficher, distances.
    Aucune dépendance. Précision vérifiée : Paris L93 652469/6862035 (±0,3 m). RGF93 ≡ WGS84 au cm près → aucun changement de datum. */
-const A=6378137,F=1/298.257222101,E2=2*F-F*F,E=Math.sqrt(E2),D2R=Math.PI/180,R2D=180/Math.PI;
+const A=6378137,F=1/298.257222101,E2=2*F-F*F,E=Math.sqrt(E2),D2R=Math.PI/180,R2D=180/Math.PI,RM=6378137;
 function lcc(code,name,phi0,phi1,phi2,lam0,FE,FN){const m=p=>Math.cos(p)/Math.sqrt(1-E2*Math.sin(p)**2);const t=p=>Math.tan(Math.PI/4-p/2)/Math.pow((1-E*Math.sin(p))/(1+E*Math.sin(p)),E/2);
   const p0=phi0*D2R,p1=phi1*D2R,p2=phi2*D2R;const n=(Math.log(m(p1))-Math.log(m(p2)))/(Math.log(t(p1))-Math.log(t(p2)));const Fc=m(p1)/(n*Math.pow(t(p1),n));const rho0=A*Fc*Math.pow(t(p0),n);
   return {code,name,
@@ -25,11 +25,27 @@ export function geoOfSite(net){if(!net)return null;
   const o=(net.traceur&&net.traceur.bgOrigin)||net.origin||null;if(!o||!isFinite(o.x0)||!isFinite(o.y1))return null;
   const w=net.w||0,h=net.h||0;const crs=detectCRS(o.x0+w/2,o.y1-h/2);if(!crs)return null;
   return {crs,aff:{a:1,b:0,e:o.x0,c:0,d:-1,f:o.y1},auto:true,label:CRS[crs].name+' (détecté sur le DXF)'};}
+// Web Mercator en mètres (EPSG:3857) : repère de travail du mode « carte » (calage à la main) — jamais un repère de stockage
+CRS['EPSG:3857']={code:'EPSG:3857',name:'Web Mercator',fwd:(lon,lat)=>{const la=Math.max(-85.05,Math.min(85.05,lat))*D2R;return [RM*lon*D2R,RM*Math.log(Math.tan(Math.PI/4+la/2))];},inv:(x,y)=>[x/RM*R2D,(2*Math.atan(Math.exp(y/RM))-Math.PI/2)*R2D]};
 export const crsName=code=>CRS[code]?CRS[code].name:code;
+/* similarityFromPairs(pairs, s0) : calage à la main. pairs = [{plan:[x,y], ll:[lon,lat]}] (1 ou 2 paires), s0 = mètres par unité de plan attendus
+   (1 pour un plan vectoriel en mètres, 1/ppm pour une feuille image). 1 paire : translation seule (nord en haut, échelle s0) ;
+   2 paires : similitude (échelle + rotation + translation, avec le retournement y bas → Y haut). Cible : Lambert 93.
+   → {crs:'EPSG:2154', aff, s (m / unité), ratio (s/s0), rot (° du nord du plan par rapport au nord Lambert), d (m entre repères)} */
+export function similarityFromPairs(pairs,s0){const L=CRS['EPSG:2154'];const Q=pairs.map(p=>L.fwd(p.ll[0],p.ll[1]));const P=pairs.map(p=>p.plan);
+  let s=s0||1,th=0,d=0;
+  if(pairs.length>=2){const dp=[P[1][0]-P[0][0],-(P[1][1]-P[0][1])],dq=[Q[1][0]-Q[0][0],Q[1][1]-Q[0][1]];const np=Math.hypot(dp[0],dp[1]),nq=Math.hypot(dq[0],dq[1]);if(np<1e-6||nq<1e-6)return null;s=nq/np;th=Math.atan2(dq[1],dq[0])-Math.atan2(dp[1],dp[0]);d=nq;}
+  const a=s*Math.cos(th),b=s*Math.sin(th),c=s*Math.sin(th),dd=-s*Math.cos(th);const e=Q[0][0]-(a*P[0][0]+b*P[0][1]),f=Q[0][1]-(c*P[0][0]+dd*P[0][1]);
+  let rot=th*R2D;rot=((rot+540)%360)-180;
+  return {crs:'EPSG:2154',aff:{a,b,c,d:dd,e,f},s,ratio:s/(s0||1),rot,d};}
+/* geocode(q) : adresse / commune → {lat,lon,label} (IGN Géoplateforme, puis BAN), ou coordonnées tapées « 47.84, -1.68 » ; null si rien */
+export async function geocode(q){q=(q||'').trim();if(!q)return null;
+  const m=q.match(/^(-?\d+(?:[.,]\d+)?)\s*[,; ]\s*(-?\d+(?:[.,]\d+)?)$/);if(m){const a=+m[1].replace(',','.'),b=+m[2].replace(',','.');if(Math.abs(a)<=90&&Math.abs(b)<=180)return {lat:a,lon:b,label:'coordonnées '+a+', '+b};}
+  const tryUrl=async u=>{const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),6000);try{const r=await fetch(u,{signal:ctl.signal});if(!r.ok)return null;const j=await r.json();const f=j.features&&j.features[0];if(!f||!f.geometry)return null;return {lon:+f.geometry.coordinates[0],lat:+f.geometry.coordinates[1],label:(f.properties&&(f.properties.label||f.properties.name))||q};}catch(e){return null;}finally{clearTimeout(t);}};
+  return (await tryUrl('https://data.geopf.fr/geocodage/search?q='+encodeURIComponent(q)+'&limit=1'))||(await tryUrl('https://api-adresse.data.gouv.fr/search/?q='+encodeURIComponent(q)+'&limit=1'));}
 export function planToLonLat(geo,p){const {a,b,c,d,e,f}=geo.aff;const X=a*p[0]+b*p[1]+e,Y=c*p[0]+d*p[1]+f;return CRS[geo.crs].inv(X,Y);}
 export function lonLatToPlan(geo,lon,lat){const [X,Y]=CRS[geo.crs].fwd(lon,lat);const {a,b,c,d,e,f}=geo.aff;const det=a*d-b*c;const x=X-e,y=Y-f;return [(d*x-b*y)/det,(-c*x+a*y)/det];}
 /* Web Mercator (tuiles 256 px, grille standard) */
-const RM=6378137;
 export function lonLatToMercPx(lon,lat,z){const s=256*Math.pow(2,z);const x=(lon+180)/360*s;const la=Math.max(-85.05,Math.min(85.05,lat))*D2R;const y=(1-Math.log(Math.tan(la)+1/Math.cos(la))/Math.PI)/2*s;return [x,y];}
 export const mercRes=(lat,z)=>2*Math.PI*RM*Math.cos(lat*D2R)/(256*Math.pow(2,z)); // m / pixel de tuile
 /* Fond IGN Géoplateforme (WMTS, grille PM = Web Mercator) — libre, sans clé, Licence Ouverte (mention « © IGN ») */

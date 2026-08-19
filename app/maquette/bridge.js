@@ -25,6 +25,7 @@ export function siteFromTraceur({id,name,supplier,serie,lines,built,rules,bg,pre
     sheetType:drawing?'vector':'plain',drawing,image:bg&&bg.image&&bg.image.src?{src:bg.image.src,x:r3(bg.image.x),y:r3(bg.image.y),w:r3(bg.image.w),h:r3(bg.image.h),pw:bg.image.pw,ph:bg.image.ph,opacity:bg.opacity===undefined?.5:bg.opacity,name:bg.name||''}:null,w:Math.ceil(x1+20),h:Math.ceil(y1+20),bbox:[x0,y0,x1,y1],
     lines:outLines,warnings:[],report:{source:'traceur',lines:outLines.length,welds:nW,length:r3(totL),lost:lost.map(w=>w.weldId)},
     traceur:{v:1,lines:JSON.parse(JSON.stringify(lines)),rules,bgName:bg?bg.name:null,bgOpacity:bg?bg.opacity:undefined,bgOrigin:bg&&bg.origin?bg.origin:null,bgLayers:bg&&bg.netLayers?bg.netLayers:null,savedAt:new Date().toISOString()},created:new Date().toISOString()};
+  if(prev&&prev.geo)site.geo=prev.geo; // calage à la main fait dans l'appli : conservé d'une version du tracé à l'autre (même repère de plan)
   return {site,lost,nW};
 }
 // soudures d'un chantier existant (pour l'appariement) : [{line,cond,m,weldId,status}]

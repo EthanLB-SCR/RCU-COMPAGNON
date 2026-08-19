@@ -5,7 +5,7 @@ import CATALOGUE from './catalogue.json';
 import {parseDXF,parseDXFFile,analyze,buildSite,buildSiteJBTP,drawingOf,buildDrawing,previewSVG,drawingSVG,drawingBBoxes,decimateDrawing} from './dxfimport.js';
 import {sync} from './sync.js';
 import {kv} from './kv.js';
-import {geoOfSite,planToLonLat,lonLatToPlan,tilesFor,ignTileURL,IGN_LAYERS,distLL,fmtDist,crsName} from './geo.js';
+import {geoOfSite,planToLonLat,lonLatToPlan,tilesFor,ignTileURL,IGN_LAYERS,distLL,fmtDist,crsName,similarityFromPairs,geocode,CRS} from './geo.js';
 
 /* ============================================================
    TRACÉ v0.3 — plan d'ensemble + calque tubes/fils + bouclage
@@ -46,8 +46,9 @@ function loadShow(){let o={};try{o=JSON.parse(localStorage.getItem('trace:show')
 function saveShow(){try{localStorage.setItem('trace:show',JSON.stringify(state.show));}catch(e){}}
 state.show=loadShow();
 function renderDisp(){const d=$('#disp');if(!d)return;const s=state.show;const g=siteGeo();
-  const mapUI=g?`<b style="margin-top:8px">Carte (IGN)</b><div class="maprow">${[['none','Aucune'],['ortho','Photo aérienne'],['plan','Plan IGN']].map(([v,l])=>`<button class="btn sm ${(s.carte||'none')===v?'on':''}" data-carte="${v}">${l}</button>`).join('')}</div><label class="${s.cadastre?'':'off'}"><input type="checkbox" data-k="cadastre" ${s.cadastre?'checked':''}> Cadastre (parcelles)</label><div class="maphint">Plan géoréférencé : ${esc(g.label)}</div>`
-    :`<b style="margin-top:8px">Carte (IGN)</b><div class="maphint">Ce plan n'est pas géoréférencé (pas de DXF en Lambert) — calage sur la carte à venir.</div>`;
+  const canCal=role()==='chef'||role()==='bureau';
+  const mapUI=g?`<b style="margin-top:8px">Carte (IGN)</b><div class="maprow">${[['none','Aucune'],['ortho','Photo aérienne'],['plan','Plan IGN']].map(([v,l])=>`<button class="btn sm ${(s.carte||'none')===v?'on':''}" data-carte="${v}">${l}</button>`).join('')}</div><label class="${s.cadastre?'':'off'}"><input type="checkbox" data-k="cadastre" ${s.cadastre?'checked':''}> Cadastre (parcelles)</label><div class="maphint">Plan géoréférencé : ${esc(g.label)}</div>${canCal?`<div class="row" style="margin-top:2px"><button class="btn sm" data-cal="1">📍 ${g.auto?'Caler à la main':'Recaler sur la carte'}</button>${g.auto?'':'<button class="btn sm" data-cal="del" title="revenir au calage automatique s\'il existe">Oublier le calage</button>'}</div>`:''}`
+    :`<b style="margin-top:8px">Carte (IGN)</b><div class="maphint">Ce plan n'est pas géoréférencé (pas de DXF en Lambert).</div>${canCal?`<div class="row" style="margin-top:2px"><button class="btn sm primary" data-cal="1">📍 Caler sur la carte</button></div>`:`<div class="maphint">Le chef peut le caler sur la carte (2 repères).</div>`}`;
   d.innerHTML=`<b>Affichage</b>`+SHOW_KEYS.map(([k,l])=>`<label class="${s[k]?'':'off'}"><input type="checkbox" data-k="${k}" ${s[k]?'checked':''} ${k==='nums'&&!s.soud?'disabled':''}> ${l}</label>`).join('')+mapUI+`<div class="row"><button class="btn sm" data-all="1">Tout</button><button class="btn sm" data-all="0">Épuré</button></div>`;}
 function toggleDisp(force){const d=$('#disp');const on=force===undefined?!d.classList.contains('show'):force;d.classList.toggle('show',on);const b=$('.zoomctl [data-z=eye]');if(b)b.classList.toggle('on',on);if(on)renderDisp();}
 const me=()=>(state.profile&&state.userId==='__me')?{id:state.profile.id,name:state.profile.name||state.profile.email||'moi',role:state.profile.role||'soudeur',detail:''}:(USERS.find(u=>u.id===state.userId)||USERS[0]), role=()=>me().role;
@@ -247,7 +248,7 @@ function rtSubscribe(id){if(state.rtOff){try{state.rtOff();}catch(e){}state.rtOf
     onSite:row=>{if(!row||!row.id)return;if(Date.now()-(state.ownSiteWrite||0)<15000)return;const cur=SITES[row.id];const at=row.updated_at?Date.parse(row.updated_at):0;if(at&&at>localUpdatedOf(cur)+1000)refreshSiteFromServer(row.id);}});}
 // filet de sécurité sans temps réel : toutes les 90 s (onglet visible), statuts + version du plan
 setInterval(async()=>{try{if(document.visibilityState!=='visible'||!state.cloudUser||!state.siteId||state.siteId==='__vide')return;pullRemote(state.siteId);const meta=await sync.listSiteMeta();if(!meta)return;const m=meta.find(x=>x.id===state.siteId);if(m&&m.updated_at&&Date.parse(m.updated_at)>localUpdatedOf(SITES[state.siteId])+1000&&Date.now()-(state.ownSiteWrite||0)>=15000)refreshSiteFromServer(state.siteId);}catch(e){}},90000);
-async function switchSite(id){if(siteStore[state.siteId]){siteStore[state.siteId].nextWeld=state.nextWeld;}state.siteId=id;rtSubscribe(id);try{if(id&&id!=='__vide')localStorage.setItem('trace:lastSite',id);}catch(e){}closeSheet();await preloadRemote(id);setupSite(id);applyRemoteWelds();if(siteStore[id])pullRemote(id);state.filter='all';renderAll();fitView();renderPlan();}
+async function switchSite(id){if(state.calage)endCalage();if(siteStore[state.siteId]){siteStore[state.siteId].nextWeld=state.nextWeld;}state.siteId=id;rtSubscribe(id);try{if(id&&id!=='__vide')localStorage.setItem('trace:lastSite',id);}catch(e){}closeSheet();await preloadRemote(id);setupSite(id);applyRemoteWelds();if(siteStore[id])pullRemote(id);state.filter='all';renderAll();fitView();renderPlan();}
 function importReportHTML(){const r=NET.report||{};let h=`<h2>Rapport d'import — ${esc(NET.name)}</h2><p><b>Source :</b> ${esc(NET.source||'')}<br><b>Fournisseur :</b> ${esc(NET.supplier)} (série ${NET.serie||'?'}) · <b>Système de coordonnées :</b> ${esc(NET.crs||'')}<br><b>Méthode :</b> ${esc(NET.method||'')}</p>`;
   const lines=Object.values(state.lines);const nJ=allJoints().length;h+=`<p><b>Résultat :</b> ${lines.length} lignes (${lines.filter(l=>!l.parent).length} racines, ${lines.filter(l=>l.parent).length} antennes), ${lines.reduce((s,l)=>s+l.els.length,0)} éléments, ${nJ} soudures (aller + retour).</p>`;
   if(r.A||r.R){['A','R'].forEach(c=>{const x=r[c];if(!x)return;h+=`<p><b>${c==='A'?'Aller':'Retour'} :</b> ${x.barres} barres, ${x.coudes} coudes, ${x.chaines} chaînes dont ${x.antennes} rattachées en antenne, ${x.longueur_m} m · DN (barres) : ${Object.entries(x.DN||{}).map(([k,v])=>k+' ×'+v).join(', ')}${x.racines>1?`<br><span style="color:#7a5200">⚠ ${x.racines-1} chaîne(s) non rattachée(s) : jonction non reconnue, à valider</span>`:''}</p>`;});}
@@ -262,7 +263,7 @@ const svg=$('#svg'),world=$('#world'),bgG=$('#bg'),netG=$('#net'),mkG=$('#marker
 // géoréférencement du chantier courant (mémorisé sur l'objet NET) : null si le plan n'a pas de coordonnées Lambert
 const geoCache=new WeakMap();function siteGeo(){if(!NET)return null;if(!geoCache.has(NET))geoCache.set(NET,geoOfSite(NET));return geoCache.get(NET);}
 /* ---------- fond de carte IGN (photo aérienne / plan IGN / cadastre) sous le plan, tuiles Web Mercator recalées dans le repère du plan ---------- */
-function renderMap(){const g=siteGeo();const kind=state.show.carte||'none';const cad=!!state.show.cadastre;const credit=$('#mapcredit');
+function renderMap(geoOv,kindOv){const g=geoOv||siteGeo();const kind=kindOv||state.show.carte||'none';const cad=geoOv?false:!!state.show.cadastre;const credit=$('#mapcredit');
   if(!g||(kind==='none'&&!cad)){if(mapG.innerHTML)mapG.innerHTML='';mapG.dataset.key='';bgG.classList.remove('nopaper');if(credit)credit.style.display='none';return;}
   const sh=sheet();const v=state.view,k=v.k;const cw=canvas.clientWidth||400,ch=canvas.clientHeight||500;
   const box=[(-v.tx)/k,(-v.ty)/k,(cw-v.tx)/k,(ch-v.ty)/k];const T=tilesFor(g,box,k*sh.ppm,19,90);if(!T){mapG.innerHTML='';return;}
@@ -285,13 +286,60 @@ function gpsToggle(){const g=siteGeo();if(!g){toast('Plan non géoréférencé :
       else renderGps();},
     e=>{state.gps.err=e.code;gpsBtn().classList.remove('gpsWait');toast(e.code===1?'Position refusée : autorise la localisation pour ce site dans les réglages du navigateur':'Position introuvable (GPS) — réessaie à l\'extérieur');},
     {enableHighAccuracy:true,maximumAge:5000,timeout:20000});}
-function renderGps(){const g=siteGeo();const fx=state.gps.fix;if(!g||!fx||state.gps.watch===null){gpsG.innerHTML='';return;}
+function renderGps(){const C=state.calage;if(C&&C.mode==='plan'){const k=state.view.k;gpsG.innerHTML=C.pairs.map((p,i)=>pin(p.plan[0],p.plan[1],i+1,k)).join('')+(C.cur.plan?pin(C.cur.plan[0],C.cur.plan[1],C.pairs.length+1,k):'');return;}
+  const g=siteGeo();const fx=state.gps.fix;if(!g||!fx||state.gps.watch===null){gpsG.innerHTML='';return;}
   const [x,y]=lonLatToPlan(g,fx.lon,fx.lat);const k=state.view.k;const ppm=sheet().ppm;const r=Math.max(0,fx.acc)*ppm;const age=(Date.now()-fx.at)/1000;
   gpsG.innerHTML=`<g class="gpsdot" style="pointer-events:none"><circle cx="${x}" cy="${y}" r="${r}" fill="#1c6fd6" fill-opacity=".12" stroke="#1c6fd6" stroke-opacity=".35" stroke-width="${1/k}"/><circle cx="${x}" cy="${y}" r="${11/k}" fill="#fff" opacity=".95"/><circle cx="${x}" cy="${y}" r="${7.5/k}" fill="${age>60?'#8fa6c4':'#1c6fd6'}"/><text x="${x}" y="${y-15/k}" font-size="${11/k}" text-anchor="middle" fill="#1c3d6b" font-family="system-ui,sans-serif" font-weight="600" stroke="#fff" stroke-width="${3/k}" paint-order="stroke">± ${Math.round(fx.acc)} m</text></g>`;}
 // position courante utilisable pour horodater une déclaration (fix de moins de 3 min), sinon null
 function curPos(){const fx=state.gps.fix;if(!fx||Date.now()-fx.at>180000)return null;return {lat:+fx.lat.toFixed(6),lon:+fx.lon.toFixed(6),acc:Math.round(fx.acc),at:new Date(fx.at).toISOString()};}
 // écart entre une déclaration géolocalisée et la soudure sur le plan (m), ou null
 function posGap(ev,l,c,j){const g=siteGeo();if(!ev||!ev.pos||!g)return null;const p=jointPos(l,Math.min(j.idx,l.els.length-2),c);if(!p)return null;const [lon,lat]=planToLonLat(g,[p.x,p.y]);return distLL(lon,lat,ev.pos.lon,ev.pos.lat);}
+/* ---------- calage à la main sur la carte (chef / bureau) : 1 ou 2 repères « sur le plan » ↔ « sur la photo aérienne » → affine plan→Lambert 93, enregistrée dans le chantier (net.geo) ---------- */
+state.calage=null;
+const cgMsg=t=>{const m=$('#cgMsg');if(m)m.innerHTML=t;};
+function startCalage(){if(!(role()==='chef'||role()==='bureau')){toast('Réservé au chef / bureau');return;}if(!NET||NET.id==='__vide'){toast('Aucun chantier ouvert');return;}
+  toggleDisp(false);closeSheet();state.calage={mode:'plan',pairs:[],cur:{},planView:{...state.view},mapView:null,mapGeo:null,layer:'ortho',geoName:null};
+  $('#calageBar').style.display='flex';$('#cgMapRow').style.display='none';$('#cgOneRow').style.display='none';
+  cgMsg('<b>Repère 1 — sur le PLAN :</b> touche un point précis (soudure à un angle, coude, bout de ligne…). Zoome d\'abord si besoin.');renderPlan();}
+function endCalage(){if(!state.calage)return;if(state.calage.mode==='map')state.view={...state.calage.planView};state.calage=null;$('#calageBar').style.display='none';applyView();renderPlan();}
+async function calageEnterMap(){const C=state.calage;C.mode='map';C.planView={...state.view};$('#cgMapRow').style.display='flex';$('#cgOneRow').style.display=C.pairs.length===1&&!C.cur.ll?'flex':'none';
+  if(!C.mapGeo){// première entrée : on cherche la commune du chantier (nom du chantier avant le tiret), sinon centre de la France
+    let c=null;const guess=(NET.name||'').split(/[—–-]/)[0].replace(/\(.*\)/,'').trim();if(guess.length>=3){cgMsg('Recherche de « '+esc(guess)+' »…');try{c=await geocode(guess);}catch(e){}}
+    const lat=c?c.lat:46.6,lon=c?c.lon:2.3;const [X0,Y0]=CRS['EPSG:3857'].fwd(lon,lat);C.mapGeo={crs:'EPSG:3857',aff:{a:1,b:0,e:X0,c:0,d:-1,f:Y0}};C.geoName=c?c.label:null;
+    const cw=canvas.clientWidth||400,ch=canvas.clientHeight||500;const k=c?0.35:0.00035;C.mapView={k,tx:cw/2,ty:ch/2};}
+  state.view={...C.mapView};applyView();
+  cgMsg(`<b>Repère ${C.pairs.length+1} — sur la PHOTO :</b> touche le même endroit${C.geoName?` (centrée sur ${esc(C.geoName)})`:''}. Cherche l'adresse ci-dessous si besoin, zoome, puis touche.`);renderPlan();}
+function calageTap(wx,wy){const C=state.calage;if(!C)return;
+  if(C.mode==='plan'){C.cur={plan:[wx,wy]};calageEnterMap();return;}
+  C.cur.ll=planToLonLat(C.mapGeo,[wx,wy]);C.pairs.push(C.cur);C.cur={};C.mapView={...state.view};
+  if(C.pairs.length>=2){calageFinish();return;}
+  C.mode='plan';state.view={...C.planView};applyView();$('#cgMapRow').style.display='none';$('#cgOneRow').style.display='flex';
+  cgMsg('<b>Repère 2 — sur le PLAN :</b> touche un second point, le plus loin possible du premier (l\'échelle et l\'orientation en dépendent).');renderPlan();}
+function calageFinish(){const C=state.calage;const sh=sheet();const s0=1/(sh.ppm||1);const R=similarityFromPairs(C.pairs,s0);
+  if(!R){toast('Repères trop proches — recommence');endCalage();return;}
+  const ratioTxt=C.pairs.length>=2?`échelle ×${R.ratio.toFixed(2)}${Math.abs(R.ratio-1)>0.1?' ⚠ (le plan n\'est pas à l\'échelle, ou un repère est mal pointé)':' ✓'} · nord du plan tourné de ${Math.round(R.rot)}° · repères distants de ${fmtDist(R.d)}`:'1 repère : plan supposé à l\'échelle, nord en haut';
+  if(!confirm(`Calage prêt — ${ratioTxt}.\nEnregistrer pour ce chantier ?`)){endCalage();return;}
+  const geo={crs:R.crs,aff:R.aff,pts:C.pairs.map(p=>({plan:p.plan.map(v=>+v.toFixed(3)),ll:p.ll.map(v=>+v.toFixed(7))})),by:(me()||{}).name||state.userId,at:new Date().toISOString(),s:+R.s.toFixed(6),rot:+R.rot.toFixed(2)};
+  endCalage();saveGeo(geo);}
+async function saveGeo(geo){NET.geo=geo;geoCache.delete(NET);if(SITES[NET.id])SITES[NET.id].geo=geo;
+  try{const h=await kv.get('trace:handoff:'+NET.id);if(h){h.geo=geo;await kv.set('trace:handoff:'+NET.id,h);}}catch(e){}
+  if(geo){state.show.carte=state.show.carte&&state.show.carte!=='none'?state.show.carte:'ortho';saveShow();}
+  renderDisp();renderPlan();toast(geo?'Plan calé sur la carte — enregistrement…':'Calage oublié');
+  try{const {demo,...clean}=NET;const okk=await sync.saveSite(clean);if(okk){state.ownSiteWrite=Date.now();setCloudBadge('calage enregistré '+new Date().toLocaleTimeString('fr-FR'));}else toast('Calage gardé sur cet appareil (serveur injoignable ou non connecté)');}catch(e){console.warn(e);}}
+function forgetGeo(){if(!NET||!NET.geo)return;if(!confirm('Oublier le calage à la main de ce chantier ?'))return;delete NET.geo;geoCache.delete(NET);saveGeo(undefined);}
+function renderCalageMap(){const C=state.calage;netG.style.display='none';bgG.style.display='none';mkG.style.display='none';const ob=$('#offscreen');if(ob)ob.style.display='none';
+  renderMap(C.mapGeo,C.layer);const k=state.view.k;let pins='';C.pairs.forEach((p,i)=>{const q=lonLatToPlan(C.mapGeo,p.ll[0],p.ll[1]);pins+=pin(q[0],q[1],i+1,k);});
+  // réticule au centre pour viser précisément
+  const cw=canvas.clientWidth||400,ch=canvas.clientHeight||500;const v=state.view;const cx=(cw/2-v.tx)/k,cy=(ch/2-v.ty)/k;
+  pins+=`<g style="pointer-events:none" opacity=".55"><line x1="${cx-18/k}" y1="${cy}" x2="${cx+18/k}" y2="${cy}" stroke="#fff" stroke-width="${3/k}"/><line x1="${cx}" y1="${cy-18/k}" x2="${cx}" y2="${cy+18/k}" stroke="#fff" stroke-width="${3/k}"/><line x1="${cx-18/k}" y1="${cy}" x2="${cx+18/k}" y2="${cy}" stroke="#0b0b0b" stroke-width="${1/k}"/><line x1="${cx}" y1="${cy-18/k}" x2="${cx}" y2="${cy+18/k}" stroke="#0b0b0b" stroke-width="${1/k}"/></g>`;
+  gpsG.innerHTML=pins;}
+const pin=(x,y,n,k)=>`<g style="pointer-events:none"><circle cx="${x}" cy="${y}" r="${13/k}" fill="#d03b3b" stroke="#fff" stroke-width="${2.5/k}"/><text x="${x}" y="${y+4.5/k}" font-size="${12/k}" font-weight="700" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">${n}</text></g>`;
+$('#cgCancel').addEventListener('click',endCalage);
+$('#cgOne').addEventListener('click',()=>{const C=state.calage;if(!C||C.pairs.length<1)return;calageFinish();});
+$('#cgLayer').addEventListener('click',()=>{const C=state.calage;if(!C)return;C.layer=C.layer==='ortho'?'plan':'ortho';mapG.dataset.key='';renderPlan();});
+$('#cgGo').addEventListener('click',async()=>{const C=state.calage;if(!C||C.mode!=='map')return;const q=$('#cgAddr').value;if(!q.trim())return;cgMsg('Recherche…');const c=await geocode(q);if(!c){cgMsg('<b>Adresse introuvable.</b> Essaie « commune, rue » ou des coordonnées « 47.84, -1.68 », ou déplace la carte à la main.');return;}
+  const [x,y]=lonLatToPlan(C.mapGeo,c.lon,c.lat);const cw=canvas.clientWidth||400,ch=canvas.clientHeight||500;const k=Math.max(state.view.k,0.6);state.view={k,tx:cw/2-x*k,ty:ch/2-y*k};applyView();C.geoName=c.label;cgMsg(`<b>Repère ${C.pairs.length+1} — sur la PHOTO :</b> carte centrée sur ${esc(c.label)}. Zoome et touche le même endroit que sur le plan.`);renderPlan();});
+$('#cgAddr').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#cgGo').click();}});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible'&&state.gps.watch!==null){navigator.geolocation.clearWatch(state.gps.watch);state.gps.watch=null;const b=gpsBtn();if(b)b.classList.remove('gpsOn','gpsWait');gpsG.innerHTML='';}});
 const sheet=()=>state.sheets[state.sheetId];
 function applyView(){const {k,tx,ty}=state.view;world.setAttribute('transform',`translate(${tx} ${ty}) scale(${k})`);$('#zoominfo').textContent=`1 m ≈ ${fmt(k*sheet().ppm)} px`;}
@@ -307,6 +355,8 @@ const clockText=a=>(Math.round(((a%360)+360)%360/30)||12)+' h';
 // pièce figée : dès qu'un manchon est fermé à l'un de ses bouts, son orientation n'est plus modifiable (renvoie les n° de soudure qui la figent, ou null)
 const elLock=(l,c,i)=>{const cd=l.cond[c];if(!cd||!cd.els[i])return null;const m=[];const lj=cd.joints[i-1],rj=cd.joints[i];if(lj&&lj.status==='manchonnee')m.push(lj.weldId);if(rj&&rj.status==='manchonnee')m.push(rj.weldId);return m.length?m:null;};
 function renderPlan(){
+  if(state.calage&&state.calage.mode==='map'){renderCalageMap();return;}
+  netG.style.display='';mkG.style.display='';
   const sh=sheet();const k=state.view.k;const ppm=sh.ppm;const kpm=k*ppm;bgG.style.display=state.show.fond?'':'none';
   const js=allJoints().filter(x=>x.l.sheetId===sh.id);const counts={};js.forEach(({j})=>counts[j.status]=(counts[j.status]||0)+1);const inv=js.filter(({j})=>j.wire==='inversion').length;
   const chips=[['all',`Toutes (${js.length})`,null],['me',`Pour moi (${js.filter(({j})=>forMe(j)).length})`,null],...ORDER.map(s=>[s,`${STATUS[s].label} (${counts[s]||0})`,STATUS[s].color]),['fils',`Fils : inversion (${inv})`,'#d03b3b']];
@@ -430,7 +480,7 @@ function renderPlan(){
 
 /* ---------- pan / zoom / tap ---------- */
 const ptrs=new Map();let gesture=null;
-canvas.addEventListener('pointerdown',e=>{if(e.target.closest('.zoomctl,.legend,.zoominfo,.disp,#offscreen,#transferBar'))return;if($('#disp').classList.contains('show'))toggleDisp(false);canvas.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});const rect=canvas.getBoundingClientRect();
+canvas.addEventListener('pointerdown',e=>{if(e.target.closest('.zoomctl,.legend,.zoominfo,.disp,#offscreen,#transferBar,#calageBar'))return;if($('#disp').classList.contains('show'))toggleDisp(false);canvas.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});const rect=canvas.getBoundingClientRect();
   if(ptrs.size===1){const tg=e.target.closest('[data-j],[data-el]');gesture={type:'pan',sx:e.clientX,sy:e.clientY,tx:state.view.tx,ty:state.view.ty,moved:false,target:tg,lx:e.clientX-rect.left,ly:e.clientY-rect.top,t0:Date.now()};
     if(state.tool&&tg){const l=state.lines[tg.dataset.line];const c=tg.dataset.cond;const eng=l&&engOf(l,c);const cels=l&&l.cond[c]?l.cond[c].els:null;if(eng&&cels&&state.toolLine===l.id&&state.toolCond===c){if(tg.dataset.el!==undefined){const el=cels[+tg.dataset.el];const r=el&&eng.roleOf(el.uid);if(r&&r.role==='block')gesture={type:'tdrag',line:l.id,cond:c,lx:e.clientX,ly:e.clientY,moved:false,target:tg};}
       else if(tg.dataset.j!==undefined){const el=cels[+tg.dataset.j];if(el)gesture={type:'jdrag',line:l.id,cond:c,uid:el.uid,sx:e.clientX,sy:e.clientY,lx:e.clientX,ly:e.clientY,moved:false,target:tg};}}}}
@@ -447,6 +497,7 @@ function endPtr(e){if(!ptrs.has(e.pointerId))return;ptrs.delete(e.pointerId);
     gesture=null;if(ptrs.size===0)scheduleRender();return;}
   if(gesture&&gesture.type==='pan'&&!gesture.moved){const now=Date.now();const t=gesture.target;
     if(state.transfer&&t&&t.dataset.j!==undefined){doTransferTo(t.dataset.line,t.dataset.cond,+t.dataset.j);gesture=null;if(ptrs.size===0)scheduleRender();return;}
+    if(state.calage){const v=state.view;calageTap((gesture.lx-v.tx)/v.k,(gesture.ly-v.ty)/v.k);gesture=null;if(ptrs.size===0)scheduleRender();return;}
     if(t&&t.dataset.j!==undefined)openJoint(t.dataset.line,t.dataset.cond,+t.dataset.j);
     else if(state.tracing){const v=state.view;state.tracePts.push({x:(gesture.lx-v.tx)/v.k,y:(gesture.ly-v.ty)/v.k});renderPlan();}
     else if(t&&t.dataset.el!==undefined&&state.view.k*sheet().ppm>=7)openEl(t.dataset.line,t.dataset.cond,+t.dataset.el);
@@ -461,9 +512,9 @@ $('.zoomctl').addEventListener('click',e=>{const z=e.target.dataset.z;if(!z)retu
 window.addEventListener('resize',()=>{fitView();renderPlan();});
 $('#tfCancel').addEventListener('click',endTransfer);
 $('#tfGo').addEventListener('click',()=>{const v=String($('#tfNum').value).replace(/\D/g,'');if(!v)return;let f=findWeld('S-'+v.padStart(4,'0'))||findWeld('S-'+v.padStart(3,'0'));if(!f){toast('Soudure introuvable : '+v);return;}const l=f.l,c=f.c,i=l.cond[c].joints.indexOf(f.j);doTransferTo(l.id,c,i);});
-window.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.transfer)endTransfer();});
+window.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.transfer)endTransfer();if(e.key==='Escape'&&state.calage)endCalage();});
 $('#disp').addEventListener('change',e=>{const k=e.target.dataset.k;if(!k)return;state.show[k]=e.target.checked;saveShow();renderDisp();renderPlan();});
-$('#disp').addEventListener('click',e=>{const mb=e.target.closest('[data-carte]');if(mb){state.show.carte=mb.dataset.carte;saveShow();renderDisp();renderPlan();return;}const b=e.target.closest('[data-all]');if(!b)return;const on=b.dataset.all==='1';SHOW_KEYS.forEach(([k])=>{state.show[k]=on||k==='soud'||k==='fond'||k==='manch';});saveShow();renderDisp();renderPlan();});
+$('#disp').addEventListener('click',e=>{const cb=e.target.closest('[data-cal]');if(cb){if(cb.dataset.cal==='del'){forgetGeo();return;}startCalage();return;}const mb=e.target.closest('[data-carte]');if(mb){state.show.carte=mb.dataset.carte;saveShow();renderDisp();renderPlan();return;}const b=e.target.closest('[data-all]');if(!b)return;const on=b.dataset.all==='1';SHOW_KEYS.forEach(([k])=>{state.show[k]=on||k==='soud'||k==='fond'||k==='manch';});saveShow();renderDisp();renderPlan();});
 $('#filters').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;state.filter=c.dataset.f;renderPlan();});
 $('#planTools').addEventListener('click',e=>{if(e.target.id==='btnTool'){if(NET&&NET.source==='traceur'){toast('Réseau du traceur : la retouche se fait dans le traceur (bouton ✎)');return;}toggleTool();return;}if(e.target.id==='btnReport')openModal(importReportHTML());if(e.target.id==='btnImport')openImport();
   if(e.target.id==='btnTraceur'){location.href='./traceur.html'+(NET&&NET.source==='traceur'?'?site='+encodeURIComponent(state.siteId):'?site=new')+'&v='+Date.now().toString(36);return;}if(e.target.id==='btnNewTraceur'){location.href='./traceur.html?site=new&v='+Date.now().toString(36);return;}if(e.target.id==='btnDelSite'){deleteCurrentSite();return;}if(e.target.id==='btnVersions'){openVersionsModal();return;}if(e.target.id==='btnTrace'){if(state.tracing){finishTrace();}else{state.tracing=true;state.tracePts=[];toast('Tape les sommets de l\'axe du réseau, dans le sens de pose');renderPlan();}}});
@@ -901,4 +952,4 @@ renderCloud();sync.user().then(u=>{state.cloudUser=u;renderCloud();});
 document.addEventListener('visibilitychange',async()=>{if(document.visibilityState!=='visible')return;try{const hs=await loadHandoffs();let added=[];hs.forEach(net=>{if(isHidden(net))return;const known=SITES[net.id];const newer=!known||(net.traceur&&known.traceur&&net.traceur.savedAt>known.traceur.savedAt);if(!known){if(SITES.__vide){delete SITES.__vide;const o=[...siteSel.options].find(x=>x.value==='__vide');if(o)o.remove();}addSiteOption(net);added.push(net.name);}else if(newer&&!siteStore[net.id]){SITES[net.id]=net;}else if(newer&&siteStore[net.id]&&state.siteId!==net.id){delete siteStore[net.id];SITES[net.id]=net;}});if(added.length){toast('Reçu du traceur : '+added.join(', '));if(state.siteId==='__vide'||!SITES[state.siteId]){const first=hs.find(n=>!isHidden(n));if(first){siteSel.value=first.id;await switchSite(first.id);}}}}catch(e){console.warn(e);}});
 
 // poignée de débogage / tests (module ES : rien n'est global sinon)
-window.TRACE={state,USERS,role,renderAll,renderPlan,centerOn,allJoints,switchSite,openJoint,openEl,get lines(){return state.lines;}};
+window.TRACE={state,USERS,role,renderAll,renderPlan,centerOn,allJoints,switchSite,openJoint,openEl,siteGeo,startCalage,calageTap,geo:{planToLonLat,lonLatToPlan},get lines(){return state.lines;},get net(){return NET;}};
