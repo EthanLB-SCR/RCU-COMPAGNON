@@ -40,6 +40,12 @@ await page.fill('#dh-meas',String(Rvals[1]));await page.click('#dh-check');await
 out=await page.evaluate(()=>{const b=document.querySelector('#dh-mesure .okbox, #dh-mesure .warnbox');return b?b.textContent.replace(/\s+/g,' ').slice(0,160):null;});
 console.log('2b) carte aval cliquée, mesure = R aval:',JSON.stringify(out));
 const c2b=/Correspond à la boucle aval/.test(out||'');
+// 2c) enregistrer la mesure → gardée AVEC le bouclage de l'instant t (direction, fermeture, longueurs, attendu, ponts posés)
+await page.click('#dh-save-mesure');await page.waitForTimeout(400);
+out=await page.evaluate(()=>{const m=window.TRACE.net.dhData.mesures[0];const hist=document.querySelector('#bouclage').textContent;
+  return {dir:m.dir,closure:m.closure,expected:m.expected,dE:m.dE,okLoop:m.okLoop,temps:(m.temps||[]).length,histCtx:/Bouclage à l'instant t/.test(hist)&&/aval · pont ⟲/.test(hist)};});
+console.log('2c) mesure gardée avec le bouclage du moment:',JSON.stringify(out));
+const c2c=out.dir==='aval'&&/pont ⟲/.test(out.closure||'')&&out.expected>0&&out.okLoop===true&&out.temps===2&&out.histCtx;
 // 3) retirer le pont amont → amont OUVERTE (fils non raccordés), aval toujours fermée
 await page.evaluate(({w1})=>{delete window.TRACE.net.dhData.temps[w1];window.TRACE.renderAll();},{w1:ids.w1});
 await page.waitForTimeout(400);
@@ -81,8 +87,8 @@ await page.click('[data-stepundo="2"]').catch(()=>{});
 page.on('dialog',d=>d.accept());
 out=await page.evaluate(()=>({undo:!!document.querySelector('[data-stepundo="2"]')}));
 console.log('6) bouton annuler présent:',JSON.stringify(out));
-const ALL=c1&&c2a&&c2b&&c3&&c3b&&c4&&c5;
-console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2a,c2b,c3,c3b,c4,c5}));
+const ALL=c1&&c2a&&c2b&&c2c&&c3&&c3b&&c4&&c5;
+console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2a,c2b,c2c,c3,c3b,c4,c5}));
 console.log(logs.length?logs:'[]');
 await browser.close();
 process.exit(ALL?0:1);
