@@ -3,14 +3,20 @@ import { createClient } from '@supabase/supabase-js'
 export const SUPABASE_URL = 'https://pghftlepduvfazbiavhq.supabase.co'
 export const SUPABASE_KEY = 'sb_publishable_uK_JK38eKQ9s-s8LbXRzCA_hwg2PdxT'
 let sb = null; try { sb = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }) } catch (e) { console.warn('supabase indisponible', e) }
-// getSession() peut rester bloqué (verrou d'authentification tenu par un autre onglet — traceur + appli ouverts —, réseau coupé, projet en pause) : on n'attend jamais plus de 4 s, l'appli continue en local
+// getSession() peut rester bloqué (verrou d'authentification tenu par un autre onglet — traceur + appli ouverts — ou par le callback onAuthStateChange en cours, réseau coupé, projet en pause) : on n'attend jamais plus de 4 s.
+// Blocage ≠ déconnecté : dans ce cas on retombe sur la DERNIÈRE session connue (poussée par les événements d'auth) au lieu de répondre « pas de session »
+// — c'est ce faux « déconnecté » transitoire qui faisait croire à l'appli que la liste serveur était vide (bug « je n'ai plus mes chantiers », 20/08).
 const withTimeout = (p, ms, fallback) => Promise.race([p, new Promise(r => setTimeout(() => r(fallback), ms))])
-const session = async () => { if (!sb) return null; try { const r = await withTimeout(sb.auth.getSession(), 4000, null); return r && r.data ? r.data.session : null } catch (e) { console.warn('session', e); return null } }
+let lastSession = null; try { if (sb) sb.auth.onAuthStateChange((_e, s) => { lastSession = s || null }) } catch (e) { }
+const LOCKED = { locked: true }
+const freshLast = () => (lastSession && (!lastSession.expires_at || lastSession.expires_at * 1000 > Date.now() - 60000)) ? lastSession : null
+const session = async () => { if (!sb) return null; try { const r = await withTimeout(sb.auth.getSession(), 4000, LOCKED); if (r === LOCKED) return freshLast(); return r && r.data ? r.data.session : null } catch (e) { console.warn('session', e); return freshLast() } }
 const ok = async () => !!(await session())
 export const sync = {
   available: () => !!sb,
   async user() { const s = await session(); return s ? s.user : null },
-  onAuth(cb) { if (sb) sb.auth.onAuthStateChange((_e, s) => cb(s ? s.user : null)) },
+  // le callback est sorti du dispatch (setTimeout 0) : appeler Supabase DANS onAuthStateChange bloque tout derrière le verrou d'auth (deadlock connu de supabase-js) — c'est ce qui rendait la liste des chantiers aléatoire
+  onAuth(cb) { if (sb) sb.auth.onAuthStateChange((_e, s) => { setTimeout(() => cb(s ? s.user : null), 0) }) },
   async login(email) { if (!sb) throw new Error('hors ligne'); const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.href.split('#')[0] } }); if (error) throw error; return true },
   async logout() { if (sb) await sb.auth.signOut() },
   async saveSite(net) { if (!(await ok())) return false; const { drawing, ...rest } = net; const { error } = await sb.from('sites').upsert({ id: net.id, name: net.name, supplier: net.supplier || null, serie: net.serie || null, data: { ...rest, drawing: drawing || null }, updated_at: new Date().toISOString() }); if (error) { console.warn(error); return false } return true },
@@ -24,7 +30,14 @@ export const sync = {
   async saveWeld(siteId, j) { if (!(await ok())) return false; const { photos, ...d } = j; const { error } = await sb.from('welds').upsert({ site_id: siteId, weld_id: j.weldId, line_id: j.line, cond: j.cond, status: j.status, data: { events: (j.events || []).map(e => ({ ...e, photos: (e.photos || []).map(p => typeof p === 'string' ? p : (p.url || null)).filter(Boolean) })), conn: j.conn, wire: j.wire, tee: j.tee || null, cont: j.cont, iso: j.iso, isoVal: j.isoVal, note: j.note, photos: (photos || []).map(p => typeof p === 'string' ? p : (p.url || null)).filter(Boolean) }, updated_at: new Date().toISOString() }); if (error) { console.warn(error); return false } return true },
   // liste légère (id, nom, date) pour détecter les plans plus récents sans tout télécharger
   // méta LÉGÈRE de tous les chantiers (page d'accueil + réconciliation) : jamais le plan complet — quelques champs JSON ciblés
-  async listSiteMeta() { if (!(await ok())) return null; try { const { data, error } = await withTimeout(sb.from('sites').select('id,name,supplier,updated_at,geo:data->geo,origin:data->origin,bgo:data->traceur->bgOrigin,sat:data->traceur->>savedAt,w:data->w,h:data->h,bbox:data->bbox,nbox:data->nbox,nw:data->report->welds,deleted:data->deleted,deletedAt:data->>deletedAt,builtin:data->builtin'), 15000, { error: new Error('délai') }); if (error) { console.warn(error); return null } return data || [] } catch (e) { console.warn(e); return null } },
+  // sélection complète (avec emprise réseau + nb de soudures pour la carte d'accueil), et REPLI automatique sur la sélection simple si le serveur la refuse : la liste des chantiers ne doit jamais mourir pour un champ bonus
+  async listSiteMeta() {
+    if (!(await ok())) return null
+    const SELS = ['id,name,supplier,updated_at,geo:data->geo,origin:data->origin,bgo:data->traceur->bgOrigin,sat:data->traceur->>savedAt,w:data->w,h:data->h,bbox:data->bbox,nbox:data->nbox,nw:data->report->welds,deleted:data->deleted,deletedAt:data->>deletedAt,builtin:data->builtin',
+      'id,name,supplier,updated_at,geo:data->geo,origin:data->origin,bgo:data->traceur->bgOrigin,sat:data->traceur->>savedAt,w:data->w,h:data->h,deleted:data->deleted,deletedAt:data->>deletedAt,builtin:data->builtin']
+    for (const sel of SELS) { try { const { data, error } = await withTimeout(sb.from('sites').select(sel), 15000, { error: new Error('délai') }); if (error) { console.warn('listSiteMeta' + (sel === SELS[0] ? '' : ' (repli)'), error); continue } return data || [] } catch (e) { console.warn(e) } }
+    return null
+  },
   // temps réel : pousse les changements de soudures / de plan du chantier ouvert (nécessite la publication supabase_realtime — tools/supabase_setup.sql) ; renvoie une fonction d'arrêt, ou null
   subscribeSite(siteId, { onWeld, onSite } = {}) { if (!sb || !siteId) return null; try {
       const ch = sb.channel('rt:' + siteId)

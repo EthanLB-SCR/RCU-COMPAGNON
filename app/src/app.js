@@ -165,7 +165,7 @@ async function pushHandoffs(remote){if(!(await sync.user()))return;const onServe
   for(const net of await loadHandoffs()){const {handoff,sent,sentAt,...clean}=net;const srv=onServer[net.id];
     const tomb=srv&&srv.deleted;const localSaved=net.traceur&&net.traceur.savedAt?Date.parse(net.traceur.savedAt):0;const tombAt=tomb&&srv.deletedAt?Date.parse(srv.deletedAt):0;
     if(tomb&&!(localSaved&&localSaved>tombAt)){const hm=hiddenMap();hm[net.id]=tombAt||Date.now();try{localStorage.setItem('trace:hiddenAt',JSON.stringify(hm));}catch(e){}removeSiteOption(net.id);continue;} // supprimé depuis un autre appareil (pierre tombale) : masqué ici, jamais renvoyé — sauf si la copie locale est plus récente (ré-enregistrée depuis le traceur après la suppression)
-    if(remote&&!srv&&net.sent){const hm=hiddenMap();hm[net.id]=Date.now();try{localStorage.setItem('trace:hiddenAt',JSON.stringify(hm));}catch(e){}removeSiteOption(net.id);continue;} // absent d'une liste serveur valide : masqué ici (la copie locale reste)
+    if(remote&&remote.length&&!srv&&net.sent){const hm=hiddenMap();hm[net.id]=Date.now();try{localStorage.setItem('trace:hiddenAt',JSON.stringify(hm));}catch(e){}removeSiteOption(net.id);continue;} // absent d'une liste serveur valide ET NON VIDE : masqué ici (la copie locale reste). Une liste vide n'est jamais une preuve de suppression (échec de requête, verrou d'auth, compte neuf) — c'est elle qui avait fait « disparaître » tous les chantiers le 20/08
     if(srv){const srvAt=(srv.traceur&&srv.traceur.savedAt?Date.parse(srv.traceur.savedAt):0)||(srv.updated_at?Date.parse(srv.updated_at):0);
       if(!(localSaved&&localSaved>srvAt+1000)){await markSent(net.id);continue;}} // le serveur a la même version ou plus récent : on n'écrase JAMAIS (une vieille copie de téléphone avait écrasé les retouches du PC)
     const okk=await sync.saveSite(clean);if(okk){state.ownSiteWrite=Date.now();await markSent(net.id);setCloudBadge('chantier « '+net.name+' » envoyé au serveur');}}}
@@ -1446,12 +1446,16 @@ sync.onAuth(async u=>{state.cloudUser=u;if(u){state.profile=await sync.profile()
   if(u){rtSubscribe(state.siteId);pullRemote(state.siteId);
     // liste LÉGÈRE des chantiers du serveur (métas) — les plans complets ne sont chargés qu'à l'ouverture
     let metas=null;try{metas=await sync.listSiteMeta();}catch(e){console.warn(e);}
-    const norm=(metas||[]).map(r=>({id:r.id,name:r.name,updated_at:r.updated_at,deleted:!!r.deleted,deletedAt:r.deletedAt||null,builtin:!!r.builtin,traceur:{savedAt:r.sat||null},w:+r.w||0,h:+r.h||0,geo:r.geo||null,origin:r.origin||null,bgo:r.bgo||null}));
-    await pushHandoffs(norm);
+    const norm=(metas||[]).map(r=>({id:r.id,name:r.name,updated_at:r.updated_at,deleted:!!r.deleted,deletedAt:r.deletedAt||null,builtin:!!r.builtin,traceur:{savedAt:r.sat||null},w:+r.w||0,h:+r.h||0,geo:r.geo||null,origin:r.origin||null,bgo:r.bgo||null,bbox:r.bbox||null,nbox:r.nbox||null,nw:+r.nw||0}));
+    // réparation : un chantier masqué AUTOMATIQUEMENT sur cet appareil (pierre tombale / absence de liste) mais bien VIVANT sur le serveur → dé-masqué ; un masquage MANUEL (« Supprimer » → trace:hiddenSites) est respecté
+    try{if(metas){const manual=new Set(JSON.parse(localStorage.getItem('trace:hiddenSites')||'[]'));const hm=hiddenMap();let chg=false;norm.forEach(m=>{if(!m.deleted&&!m.builtin&&(m.id in hm)&&!manual.has(m.id)){delete hm[m.id];chg=true;}});if(chg)localStorage.setItem('trace:hiddenAt',JSON.stringify(hm));}}catch(e){console.warn(e);}
+    try{await pushHandoffs(metas===null?null:norm);}catch(e){console.warn(e);} // liste inconnue (échec) = null, JAMAIS [] : pushHandoffs ne doit pas croire que tout a été supprimé
     state.serverMetas=norm.filter(m=>!m.deleted&&!m.builtin);
-    norm.filter(m=>m.deleted).forEach(m=>{const at=m.deletedAt?Date.parse(m.deletedAt):Date.now();const cur=SITES[m.id];const curSaved=cur&&cur.traceur&&cur.traceur.savedAt?Date.parse(cur.traceur.savedAt):0;if(!(curSaved&&curSaved>at)){const hm=hiddenMap();if(!(m.id in hm)||hm[m.id]<at){hm[m.id]=at;try{localStorage.setItem('trace:hiddenAt',JSON.stringify(hm));}catch(e){}}if(cur)removeSiteOption(m.id);}});
-    state.serverMetas.forEach(m=>{if(!SITES[m.id]&&!isHidden({id:m.id,traceur:m.traceur})&&![...siteSel.options].some(o=>o.value===m.id)){if(SITES.__vide&&state.siteId!=='__vide'){delete SITES.__vide;const o0=[...siteSel.options].find(x=>x.value==='__vide');if(o0)o0.remove();}const o=document.createElement('option');o.value=m.id;o.textContent=m.name;siteSel.appendChild(o);}});
-    state.homeStats=await sync.siteStats();
+    try{
+      norm.filter(m=>m.deleted).forEach(m=>{const at=m.deletedAt?Date.parse(m.deletedAt):Date.now();const cur=SITES[m.id];const curSaved=cur&&cur.traceur&&cur.traceur.savedAt?Date.parse(cur.traceur.savedAt):0;if(!(curSaved&&curSaved>at)){const hm=hiddenMap();if(!(m.id in hm)||hm[m.id]<at){hm[m.id]=at;try{localStorage.setItem('trace:hiddenAt',JSON.stringify(hm));}catch(e){}}if(cur)removeSiteOption(m.id);}});
+      state.serverMetas.forEach(m=>{if(!SITES[m.id]&&!isHidden({id:m.id,traceur:m.traceur})&&![...siteSel.options].some(o=>o.value===m.id)){if(SITES.__vide&&state.siteId!=='__vide'){delete SITES.__vide;const o0=[...siteSel.options].find(x=>x.value==='__vide');if(o0)o0.remove();}const o=document.createElement('option');o.value=m.id;o.textContent=m.name;siteSel.appendChild(o);}});
+    }catch(e){console.warn(e);} // quoi qu'il arrive, l'accueil est rendu avec ce qu'on a
+    try{state.homeStats=await sync.siteStats();}catch(e){console.warn(e);}
     renderHome();
     if(state.pendingOpen){const p=state.pendingOpen;state.pendingOpen=null;openSiteFromHome(p);}
   } else renderHome();});
