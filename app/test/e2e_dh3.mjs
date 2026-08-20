@@ -24,31 +24,40 @@ await page.click('#tabbar [data-tab=bouclage]');await page.waitForTimeout(600);
 // 1) choisir le point de mesure joints[2] → deux directions FERMÉES, deux R différents
 await page.evaluate(({line,idx2})=>{const tr=document.querySelector(`#dh-rows tr[data-line="${line}"][data-idx="${idx2}"]`);tr.click();},{line:ids.line,idx2:ids.idx2});
 await page.waitForTimeout(500);
-let out=await page.evaluate(()=>{const el=document.querySelector('#dh-mesure');const rows=[...el.querySelectorAll('table tr')].slice(1).map(r=>r.textContent.replace(/\s+/g,' ').trim());
-  const Rs=rows.map(r=>{const m=r.match(/([\d,]+) Ω/);return m?m[1]:null;});
-  return {amont:rows[0],aval:rows[1],deuxFermees:rows.every(r=>/fermée au pont ⟲/.test(r)),Rdiff:Rs[0]&&Rs[1]&&Rs[0]!==Rs[1],Rs};});
-console.log('1) deux boucles fermées, R différents:',JSON.stringify(out));
-const c1=out.deuxFermees&&out.Rdiff;
-// 2) verdict : une mesure proche de la boucle AMONT est reconnue comme telle ; proche de l'AVAL pareil
-const Rvals=await page.evaluate(()=>[...document.querySelectorAll('#dh-mesure table tr')].slice(1).map(r=>{const m=r.textContent.match(/([\d,]+) Ω/);return m?parseFloat(m[1].replace(',','.')):null;}));
+let out=await page.evaluate(()=>{const cards=[...document.querySelectorAll('#dh-mesure .dhdir')].map(c=>c.textContent.replace(/\s+/g,' ').trim());
+  const Rs=cards.map(c=>{const m=c.match(/([\d,]+) Ω attendu/);return m?m[1]:null;});
+  return {amont:cards[0],aval:cards[1],deuxFermees:cards.length===2&&cards.every(c=>/fermée au pont ⟲/.test(c)),Rdiff:Rs[0]&&Rs[1]&&Rs[0]!==Rs[1],Rs,calc:!!document.querySelector('#dh-mesure details')};});
+console.log('1) deux cartes fermées, R différents + calcul dépliable:',JSON.stringify(out));
+const c1=out.deuxFermees&&out.Rdiff&&out.calc;
+// 2) verdict sur la boucle CHOISIE : amont présélectionnée ; puis clic carte aval → verdict aval
+const Rvals=out.Rs.map(r=>parseFloat(r.replace(',','.')));
 await page.fill('#dh-meas',String(Rvals[0]));await page.click('#dh-check');await page.waitForTimeout(400);
 out=await page.evaluate(()=>{const b=document.querySelector('#dh-mesure .okbox, #dh-mesure .warnbox');return b?b.textContent.replace(/\s+/g,' ').slice(0,160):null;});
-console.log('2a) mesure = R amont → reconnue amont:',JSON.stringify(out));
+console.log('2a) mesure = R amont (carte amont choisie):',JSON.stringify(out));
 const c2a=/Correspond à la boucle amont/.test(out||'');
+await page.click('#dh-mesure .dhdir[data-dhdir="down"]');await page.waitForTimeout(400);
 await page.fill('#dh-meas',String(Rvals[1]));await page.click('#dh-check');await page.waitForTimeout(400);
 out=await page.evaluate(()=>{const b=document.querySelector('#dh-mesure .okbox, #dh-mesure .warnbox');return b?b.textContent.replace(/\s+/g,' ').slice(0,160):null;});
-console.log('2b) mesure = R aval → reconnue aval:',JSON.stringify(out));
+console.log('2b) carte aval cliquée, mesure = R aval:',JSON.stringify(out));
 const c2b=/Correspond à la boucle aval/.test(out||'');
 // 3) retirer le pont amont → amont OUVERTE (fils non raccordés), aval toujours fermée
 await page.evaluate(({w1})=>{delete window.TRACE.net.dhData.temps[w1];window.TRACE.renderAll();},{w1:ids.w1});
 await page.waitForTimeout(400);
 await page.evaluate(({line,idx2})=>{document.querySelector(`#dh-rows tr[data-line="${line}"][data-idx="${idx2}"]`).click();},{line:ids.line,idx2:ids.idx2});
 await page.waitForTimeout(400);
-out=await page.evaluate(()=>{const rows=[...document.querySelectorAll('#dh-mesure table tr')].slice(1).map(r=>r.textContent.replace(/\s+/g,' ').trim());return {amont:rows[0].slice(0,80),avalFermee:/fermée au pont ⟲/.test(rows[1])};});
-console.log('3) pont amont retiré → amont ouverte, aval fermée:',JSON.stringify(out));
-const c3=/ouverte/.test(out.amont)&&out.avalFermee;
+out=await page.evaluate(()=>{const cards=[...document.querySelectorAll('#dh-mesure .dhdir')].map(c=>c.textContent.replace(/\s+/g,' ').trim());return {amont:cards[0].slice(0,80),avalFermee:/fermée au pont ⟲/.test(cards[1]),amontOff:!!document.querySelector('#dh-mesure .dhdir.off')};});
+console.log('3) pont amont retiré → carte amont ouverte, aval fermée:',JSON.stringify(out));
+const c3=/ouverte/.test(out.amont)&&out.avalFermee&&out.amontOff;
 // remettre le pont pour la fiche
 await page.evaluate(({w1})=>{window.TRACE.net.dhData.temps[w1]={by:'test',at:new Date().toISOString()};window.TRACE.renderAll();},{w1:ids.w1});
+await page.waitForTimeout(300);
+// 3b) réflectomètre branché AU MANCHON CHOISI : 5 m vers l'aval sur l'étamé → localisé + mention « depuis S-xxxx »
+await page.evaluate(()=>{document.querySelector('#loc-d').value='5';});
+await page.click('#loc-go');await page.waitForTimeout(400);
+out=await page.evaluate(()=>{const el=document.querySelector('#bouclage');const ok=[...el.querySelectorAll('.okbox')].map(b=>b.textContent.replace(/\s+/g,' ')).find(t=>/depuis S-/.test(t));
+  return {fromSel:!!document.querySelector('#loc-from'),dirSel:!!document.querySelector('#loc-dir'),res:ok?ok.slice(0,150):null};});
+console.log('3b) réflectomètre depuis le manchon choisi:',JSON.stringify(out));
+const c3b=out.fromSel&&out.dirSel&&!!out.res;
 // 4) fiche soudure joints[2] : 4 sous-étapes + attendu au testeur (les 2 boucles)
 await page.click('#tabbar [data-tab=plan]');await page.waitForTimeout(300);
 await page.evaluate(({line,idx2})=>{const T=window.TRACE;const L=T.lines[line];const i=L.cond.A.joints.findIndex(j=>j.idx===idx2);T.openJoint(line,'A',i);},{line:ids.line,idx2:ids.idx2});
@@ -72,7 +81,8 @@ await page.click('[data-stepundo="2"]').catch(()=>{});
 page.on('dialog',d=>d.accept());
 out=await page.evaluate(()=>({undo:!!document.querySelector('[data-stepundo="2"]')}));
 console.log('6) bouton annuler présent:',JSON.stringify(out));
-console.log('RESULTAT:',c1&&c2a&&c2b&&c3&&c4&&c5?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2a,c2b,c3,c4,c5}));
+const ALL=c1&&c2a&&c2b&&c3&&c3b&&c4&&c5;
+console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2a,c2b,c3,c3b,c4,c5}));
 console.log(logs.length?logs:'[]');
 await browser.close();
-process.exit(c1&&c2a&&c2b&&c3&&c4&&c5?0:1);
+process.exit(ALL?0:1);
