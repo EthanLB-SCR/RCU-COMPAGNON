@@ -74,6 +74,46 @@
   .conn{display:grid;grid-template-columns:1fr auto 1fr;gap:6px;align-items:center;margin:6px 0}.conn .w{display:flex;align-items:center;gap:6px;font-size:13px}.conn .w i{width:14px;height:6px;border-radius:3px;display:inline-block}.conn select{border:1px solid var(--line);border-radius:8px;padding:6px;font-size:14px;background:var(--surface);min-width:0}
   .dial{display:flex;gap:10px;align-items:center}.dial .btns{display:grid;grid-template-columns:1fr 1fr;gap:6px;flex:1}
   .tabbar{display:flex;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+  /* --- écrans d'entrée : connexion + accueil (choix du chantier) --- */
+  .screen{position:absolute;inset:0;z-index:40;background:var(--page);display:none;flex-direction:column;overflow:hidden}
+  .screen.show{display:flex}
+  #loginView{align-items:center;justify-content:center;padding:22px}
+  .loginBox{width:100%;max-width:340px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .loginBox .word{font-size:33px;font-weight:800;letter-spacing:.14em}
+  .loginBox .base{font-size:12.5px;color:var(--ink2);text-align:center;line-height:1.4}
+  .loginCard{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 4px 18px rgba(10,14,20,.08);margin-top:10px}
+  .loginCard label{font-size:11.5px;color:var(--ink2);font-weight:600;letter-spacing:.05em}
+  .loginCard input{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 12px;font-size:16px;background:var(--page);margin-top:5px}
+  .loginCard .go{width:100%;margin-top:10px;background:#eb6834;border:0;color:#fff;border-radius:10px;padding:12px;font-weight:700;font-size:14.5px}
+  .loginCard .hint2{margin-top:9px;font-size:11px;color:var(--ink2);text-align:center;line-height:1.45}
+  .loginFoot{font-size:10.5px;color:var(--muted);margin-top:14px}
+  .homeHead{display:flex;align-items:center;gap:8px;padding:12px 14px 6px}
+  .homeHead b{letter-spacing:.1em}
+  .homeHead .who{margin-left:auto;font-size:11.5px;color:var(--ink2);text-align:right;line-height:1.2}
+  .homeHead .ava{width:30px;height:30px;border-radius:50%;background:#eb6834;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;border:0}
+  .homeSub{padding:0 14px 8px}.homeSub .t{font-size:18px;font-weight:750}.homeSub .s{font-size:11.5px;color:var(--ink2)}
+  .homeTabs{margin:0 14px;display:flex;background:#e8e6df;border-radius:10px;padding:3px;font-size:12.5px;font-weight:600}
+  .homeTabs button{flex:1;text-align:center;padding:7px;border:0;background:transparent;border-radius:8px;color:var(--ink2)}
+  .homeTabs button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.12)}
+  .homeBody{flex:1;overflow:auto;padding:10px 14px 14px;-webkit-overflow-scrolling:touch}
+  .homeMapCard{background:var(--surface);border:1px solid var(--line);border-radius:16px;position:relative;overflow:hidden}
+  .homeMapCard svg{display:block;width:100%;height:auto}
+  .siteCard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:11px 12px;margin-bottom:9px;cursor:pointer}
+  .siteCard .n{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:700}
+  .siteCard .n i{width:9px;height:9px;border-radius:50%;flex:none}
+  .siteCard .m{font-size:11px;color:var(--ink2);margin:3px 0 7px}
+  .siteCard .bar{height:7px;border-radius:4px;background:#e8e6df;overflow:hidden}.siteCard .bar i{display:block;height:100%}
+  .siteCard .foot{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink2);margin-top:4px}
+  .siteNew{border:1.5px dashed var(--line);border-radius:14px;padding:12px;text-align:center;font-size:12.5px;color:var(--ink2);cursor:pointer;background:transparent;width:100%}
+  .resume{margin:0 14px 10px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:10px;cursor:pointer}
+  .homeSearch{width:100%;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:9px 11px;font-size:14px;margin-bottom:8px}
+  .homeSorts{display:flex;gap:6px;font-size:11px;margin-bottom:8px;flex-wrap:wrap}
+  .homeSorts button{background:#e8e6df;color:var(--ink2);border:0;border-radius:20px;padding:5px 11px}
+  .homeSorts button.on{background:var(--ink);color:#fff;font-weight:700}
+  .homeWait{position:absolute;inset:0;background:rgba(249,249,247,.85);display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px;z-index:60;font-size:13px;color:var(--ink2)}
+  .homeWait.show{display:flex}
+  .spin{width:34px;height:34px;border-radius:50%;border:3.5px solid #e1e0d9;border-top-color:#eb6834;animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+  .homeBanner{margin:0 14px 8px;background:#fff3d6;border:1px solid #f0c76a;color:#7a5200;border-radius:10px;padding:8px 10px;font-size:12px}
   .tabbar button{flex:1;border:0;background:transparent;padding:9px 4px 8px;font-size:12px;color:var(--muted)}.tabbar button.active{color:var(--ink);font-weight:600}
   .backdrop{position:absolute;inset:0;background:rgba(0,0,0,.28);display:none;z-index:20}.backdrop.show{display:block}
   .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:18px 18px 0 0;max-height:82%;overflow:auto;transform:translateY(105%);transition:transform .22s ease;z-index:30;padding:6px 14px 20px;box-shadow:0 -6px 30px rgba(0,0,0,.15)}
@@ -98,7 +138,32 @@
 </head>
 <body>
 <div class="app" id="app">
+  <div class="screen" id="loginView">
+    <div class="loginBox">
+      <span id="loginLogo"></span>
+      <div class="word">TRACÉ</div>
+      <div class="base">Suivi de soudage & manchonnage<br>des réseaux de chaleur</div>
+      <div class="loginCard">
+        <label>CONNEXION</label>
+        <input id="loginEmail" type="email" inputmode="email" autocomplete="email" placeholder="prenom@entreprise.fr">
+        <button class="go" id="loginGo">Recevoir le lien de connexion</button>
+        <div class="hint2" id="loginHint">Pas de mot de passe : un lien sécurisé arrive par e-mail.<br>Compte activé par le chef de chantier.</div>
+      </div>
+      <a href="#" id="loginSkip" style="font-size:12px;color:var(--ink2);margin-top:6px">Continuer hors connexion (chantiers de cet appareil)</a>
+      <div class="loginFoot">SCR — Soudure Construction Réseaux</div>
+    </div>
+  </div>
+  <div class="screen" id="homeView">
+    <div class="homeHead"><span id="homeLogo"></span><b>TRACÉ</b><div class="who" id="homeWho"></div><button class="ava" id="homeAva">?</button></div>
+    <div class="homeSub"><div class="t">Mes chantiers</div><div class="s" id="homeCount"></div></div>
+    <div id="homeBanner" class="homeBanner" style="display:none"></div>
+    <div class="homeTabs"><button id="htMap">🗺 Carte</button><button id="htList">☰ Liste</button></div>
+    <div class="homeBody" id="homeBody"></div>
+    <div class="resume" id="homeResume" style="display:none"></div>
+    <div class="homeWait" id="homeWait"><div class="spin"></div><div id="homeWaitTxt">Chargement du chantier…</div></div>
+  </div>
   <header class="topbar">
+    <button class="iconbtn" id="btnHome" title="Mes chantiers">⌂</button>
     <div class="brand"><b>TRACÉ</b><select id="siteSel" style="display:block;border:0;background:transparent;font-size:11px;color:#52514e;padding:0;max-width:200px"></select></div>
     <div class="rolebox"><select id="roleSel"></select><button class="iconbtn" id="btnWide" title="Affichage large">⤢</button><button class="iconbtn" id="btnHelp" title="Aide">?</button></div>
   </header>

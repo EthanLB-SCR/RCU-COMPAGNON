@@ -3,7 +3,7 @@ import { chromium } from 'playwright';
 const BASE=process.env.BASE||'http://localhost:8765';
 const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
 const page=await (await browser.newContext({viewport:{width:560,height:940}})).newPage();
-await page.goto(BASE+'/index.html');await page.waitForTimeout(1500);
+await page.goto(BASE+'/index.html');await page.waitForTimeout(1500);await page.evaluate(()=>window.TRACE.go());await page.waitForTimeout(600); // passer l'écran d'accueil
 await page.selectOption('#roleSel','karim');await page.waitForTimeout(300);
 await page.evaluate(()=>{const T=window.TRACE;const l=Object.values(T.state.lines)[0];const c=l.cond.A?'A':'R';const i=l.cond[c].joints.findIndex(j=>j.status==='a_souder');T.openJoint(l.id,c,i>=0?i:0);});await page.waitForTimeout(400);
 await page.click('#sheet [data-act="form-soudee"]');await page.waitForTimeout(400);

@@ -4,7 +4,7 @@ const BASE=process.env.BASE||'http://localhost:8765';
 const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
 const ctx=await browser.newContext({viewport:{width:560,height:940}});const page=await ctx.newPage();
 const logs=[];page.on('pageerror',e=>logs.push('PAGEERROR: '+e.message.slice(0,300)));page.on('console',m=>{if(m.type()==='error'&&!/supabase|Failed to fetch|net::ERR|404/i.test(m.text()))logs.push(m.text().slice(0,200));});
-await page.goto(BASE+'/index.html');await page.waitForTimeout(1500);
+await page.goto(BASE+'/index.html');await page.waitForTimeout(1500);await page.evaluate(()=>window.TRACE.go());await page.waitForTimeout(600); // passer l'écran d'accueil
 for(const site of ['bain','saintlo_jaune']){
   const ok=await page.evaluate(async id=>{const sel=document.querySelector('#siteSel');if(![...sel.options].some(o=>o.value===id))return false;sel.value=id;await window.TRACE.switchSite(id);return true;},site);
   if(!ok){console.log('pas de site',site);continue;}

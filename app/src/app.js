@@ -944,14 +944,19 @@ let tt;function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('sh
 const siteSel=$('#siteSel');{const hidden=JSON.parse(localStorage.getItem('trace:hiddenSites')||'[]');hidden.forEach(id=>{delete SITES[id];});Object.keys(hiddenMap()).forEach(id=>{if(SITES[id]&&isHidden(SITES[id]))delete SITES[id];});}
 Object.entries(SITES).forEach(([id,S])=>{const o=document.createElement('option');o.value=id;o.textContent=S.name;siteSel.appendChild(o);});
 if(!Object.keys(SITES).length){SITES.__vide={id:'__vide',name:'Aucun chantier — crée un réseau avec le traceur',lines:[],w:100,h:100,sheetType:'plain'};const o=document.createElement('option');o.value='__vide';o.textContent=SITES.__vide.name;siteSel.appendChild(o);}
-siteSel.addEventListener('change',e=>{switchSite(e.target.value);toast('Chantier : '+NET.name);});
+siteSel.addEventListener('change',e=>{openSiteFromHome(e.target.value).then(ok=>{if(ok)toast('Chantier : '+NET.name);});});
 const wantSite=new URLSearchParams(location.search).get('site');if(wantSite)history.replaceState(null,'',location.pathname);
-const lastSite=localStorage.getItem('trace:lastSite'); // dernier chantier ouvert sur cet appareil : on y revient au rechargement (sinon la démo Bain repassait devant à chaque ouverture)
+const lastSite=localStorage.getItem('trace:lastSite'); // dernier chantier ouvert sur cet appareil (carte « Reprendre » de l'accueil)
 state.siteId=(wantSite&&SITES[wantSite])?wantSite:(lastSite&&SITES[lastSite])?lastSite:Object.keys(SITES)[0];siteSel.value=state.siteId;
 setupSite(state.siteId);renderAll();requestAnimationFrame(()=>{fitView();renderPlan();});
-// chantiers remis par le traceur (IndexedDB) : ajoutés à la liste ; celui demandé par ?site= est ouvert
+// chantiers remis par le traceur (IndexedDB) ; ?site= ouvre directement, sinon écran d'accueil (ou connexion à la première visite)
 loadHandoffs().then(async hs=>{hs.forEach(net=>{if(isHidden(net))return;if(SITES.__vide){delete SITES.__vide;const o=[...siteSel.options].find(x=>x.value==='__vide');if(o)o.remove();}addSiteOption(net);});
-  if(wantSite&&SITES[wantSite]&&state.siteId!==wantSite){siteSel.value=wantSite;await switchSite(wantSite);}else if(!wantSite&&lastSite&&SITES[lastSite]&&state.siteId!==lastSite){siteSel.value=lastSite;await switchSite(lastSite);}else if(state.siteId==='__vide'&&Object.keys(SITES).length){const first=Object.keys(SITES)[0];siteSel.value=first;await switchSite(first);}});
+  if(wantSite){if(SITES[wantSite]){if(state.siteId!==wantSite){siteSel.value=wantSite;await switchSite(wantSite);}showScreen('site');}
+    else{state.pendingOpen=wantSite;showScreen('home');renderHome();toast('Chantier en cours de récupération depuis le serveur…');}}
+  else{const u=await sync.user().catch(()=>null);const seen=localStorage.getItem('trace:skipLogin');
+    if(u||seen){showScreen('home');}else{showScreen('login');}
+    renderHome();}
+});
 // ---- compte & serveur (Supabase, Europe) ----
 function setCloudBadge(t){const b=$('#cloudBadge');if(b)b.textContent=t;}
 function renderCloud(){let box=$('#cloudBox');if(!box){box=document.createElement('div');box.id='cloudBox';box.style.cssText='display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 10px;font-size:12px;color:#52514e;border-bottom:1px solid #e6e3da;background:#fbfaf6';const anchor=$('#planTools')||document.body;anchor.parentNode.insertBefore(box,anchor);}
@@ -968,10 +973,114 @@ async function openUsersModal(){const rows=await sync.listProfiles();if(!rows.le
      <td><label style="white-space:nowrap"><input type="checkbox" data-uid="${r.id}" data-k="active" ${r.active?'checked':''}> actif</label></td></tr>`).join('')}</table>
    <div class="actions" style="margin-top:8px"><button class="btn block" data-close>Fermer</button></div>`);
   $('#modal').querySelectorAll('[data-uid]').forEach(el=>{el.addEventListener('change',async()=>{const uid=el.dataset.uid;const row=rows.find(r=>r.id===uid);if(!row)return;const role=$('#modal').querySelector(`select[data-uid="${uid}"]`).value;const active=$('#modal').querySelector(`input[data-uid="${uid}"]`).checked;const err=await sync.adminSetUser(uid,role,active);toast(err?('Refusé : '+err):'Compte mis à jour');});});}
-sync.onAuth(async u=>{state.cloudUser=u;if(u){state.profile=await sync.profile();if(state.profile){state.userId='__me';}}else{state.profile=null;if(state.userId==='__me')state.userId=USERS[0].id;}syncRoleSel();renderCloud();if(u){rtSubscribe(state.siteId);pullRemote(state.siteId);let remote=null;try{remote=await sync.loadSites();}catch(e){console.warn(e);}await pushHandoffs(remote);try{remote=remote||[];let added=0;remote.forEach(net=>{if(net.deleted){const hm=hiddenMap();const at=net.deletedAt?Date.parse(net.deletedAt):Date.now();const cur=SITES[net.id];const curSaved=cur&&cur.traceur&&cur.traceur.savedAt?Date.parse(cur.traceur.savedAt):0;if(!(curSaved&&curSaved>at)){if(!(net.id in hm)||hm[net.id]<at){hm[net.id]=at;try{localStorage.setItem('trace:hiddenAt',JSON.stringify(hm));}catch(e){}}if(cur)removeSiteOption(net.id);}return;}if(net.builtin||!net.lines||isHidden(net))return;if(SITES.__vide){delete SITES.__vide;const o=[...siteSel.options].find(x=>x.value==='__vide');if(o)o.remove();}if(!SITES[net.id]){SITES[net.id]=net;const o=document.createElement('option');o.value=net.id;o.textContent=net.name;siteSel.appendChild(o);added++;}else if(SITES[net.id].handoff&&SITES[net.id].bgTooBig&&net.drawing&&!siteStore[net.id]){SITES[net.id]=net;}});if(added)toast(added+' chantier(s) chargé(s) depuis le serveur');const cur=state.siteId;if(cur==='__vide'||!SITES[cur]){const last=localStorage.getItem('trace:lastSite');const pick=(last&&SITES[last])?last:Object.keys(SITES).find(k=>k!=='__vide');if(pick){siteSel.value=pick;await switchSite(pick);}}else if(siteSel.value!==cur){siteSel.value=cur;}}catch(e){console.warn(e);}}});
+sync.onAuth(async u=>{state.cloudUser=u;if(u){state.profile=await sync.profile();if(state.profile){state.userId='__me';}}else{state.profile=null;if(state.userId==='__me')state.userId=USERS[0].id;}syncRoleSel();renderCloud();
+  if(u){rtSubscribe(state.siteId);pullRemote(state.siteId);
+    // liste LÉGÈRE des chantiers du serveur (métas) — les plans complets ne sont chargés qu'à l'ouverture
+    let metas=null;try{metas=await sync.listSiteMeta();}catch(e){console.warn(e);}
+    const norm=(metas||[]).map(r=>({id:r.id,name:r.name,updated_at:r.updated_at,deleted:!!r.deleted,deletedAt:r.deletedAt||null,builtin:!!r.builtin,traceur:{savedAt:r.sat||null},w:+r.w||0,h:+r.h||0,geo:r.geo||null,origin:r.origin||null,bgo:r.bgo||null}));
+    await pushHandoffs(norm);
+    state.serverMetas=norm.filter(m=>!m.deleted&&!m.builtin);
+    norm.filter(m=>m.deleted).forEach(m=>{const at=m.deletedAt?Date.parse(m.deletedAt):Date.now();const cur=SITES[m.id];const curSaved=cur&&cur.traceur&&cur.traceur.savedAt?Date.parse(cur.traceur.savedAt):0;if(!(curSaved&&curSaved>at)){const hm=hiddenMap();if(!(m.id in hm)||hm[m.id]<at){hm[m.id]=at;try{localStorage.setItem('trace:hiddenAt',JSON.stringify(hm));}catch(e){}}if(cur)removeSiteOption(m.id);}});
+    state.serverMetas.forEach(m=>{if(!SITES[m.id]&&!isHidden({id:m.id,traceur:m.traceur})&&![...siteSel.options].some(o=>o.value===m.id)){if(SITES.__vide&&state.siteId!=='__vide'){delete SITES.__vide;const o0=[...siteSel.options].find(x=>x.value==='__vide');if(o0)o0.remove();}const o=document.createElement('option');o.value=m.id;o.textContent=m.name;siteSel.appendChild(o);}});
+    state.homeStats=await sync.siteStats();
+    renderHome();
+    if(state.pendingOpen){const p=state.pendingOpen;state.pendingOpen=null;openSiteFromHome(p);}
+  } else renderHome();});
 renderCloud();sync.user().then(u=>{state.cloudUser=u;renderCloud();});
 // retour sur l'onglet TRACÉ après un enregistrement dans le traceur (autre onglet) : on relit les chantiers remis
 document.addEventListener('visibilitychange',async()=>{if(document.visibilityState!=='visible')return;try{const hs=await loadHandoffs();let added=[];hs.forEach(net=>{if(isHidden(net))return;const known=SITES[net.id];const newer=!known||(net.traceur&&known.traceur&&net.traceur.savedAt>known.traceur.savedAt);if(!known){if(SITES.__vide){delete SITES.__vide;const o=[...siteSel.options].find(x=>x.value==='__vide');if(o)o.remove();}addSiteOption(net);added.push(net.name);}else if(newer&&!siteStore[net.id]){SITES[net.id]=net;}else if(newer&&siteStore[net.id]&&state.siteId!==net.id){delete siteStore[net.id];SITES[net.id]=net;}});if(added.length){toast('Reçu du traceur : '+added.join(', '));if(state.siteId==='__vide'||!SITES[state.siteId]){const first=hs.find(n=>!isHidden(n));if(first){siteSel.value=first.id;await switchSite(first.id);}}}}catch(e){console.warn(e);}});
 
+/* ================== écrans d'entrée : connexion + accueil (choix du chantier, direction A validée le 19/08) ================== */
+const logoSVG=(c1,c2,sz)=>`<svg width="${sz}" height="${sz}" viewBox="0 0 48 48"><g fill="none" stroke-linecap="round"><path d="M6 30 L20 30" stroke="${c1}" stroke-width="7"/><path d="M28 18 L42 18" stroke="${c1}" stroke-width="7"/><path d="M20 30 Q24 30 24 26 L24 22 Q24 18 28 18" stroke="${c1}" stroke-width="7"/><circle cx="24" cy="24" r="5.2" fill="${c2}"/></g></svg>`;
+$('#loginLogo').innerHTML=logoSVG('#0b0b0b','#eb6834',72);$('#homeLogo').innerHTML=logoSVG('#0b0b0b','#eb6834',26);
+state.screen='site';state.homeTab=localStorage.getItem('trace:homeTab')||'map';state.homeQ='';state.homeSort='recent';state.serverMetas=[];state.homeStats=null;state.homePin=null;state.pendingOpen=null;
+function showScreen(sc){state.screen=sc;$('#loginView').classList.toggle('show',sc==='login');$('#homeView').classList.toggle('show',sc==='home');}
+// contour France stylisé (lon/lat approx.) — uniquement pour situer les chantiers, rien de cartographique
+const FRPTS=[[2.37,51.05],[1.85,50.96],[1.6,50.73],[1.55,50.2],[1.08,49.93],[0.1,49.5],[0.23,49.42],[-0.36,49.34],[-1.1,49.3],[-1.62,49.65],[-1.94,49.72],[-1.6,48.84],[-1.5,48.64],[-2.03,48.65],[-3.0,48.85],[-3.98,48.72],[-4.77,48.4],[-4.74,48.03],[-4.2,47.8],[-3.35,47.7],[-2.76,47.63],[-2.2,47.27],[-2.15,46.98],[-1.78,46.5],[-1.15,46.15],[-1.03,45.62],[-1.2,44.65],[-1.56,43.48],[-1.77,43.36],[-0.5,42.85],[0.7,42.75],[1.5,42.5],[2.55,42.4],[2.9,42.45],[3.0,43.15],[3.9,43.5],[4.85,43.35],[5.35,43.28],[5.93,43.1],[6.65,43.25],[7.26,43.7],[7.5,43.78],[6.95,44.35],[7.0,44.85],[7.05,45.2],[6.9,45.85],[6.05,46.2],[6.15,46.6],[6.05,46.75],[6.95,47.3],[7.55,47.55],[7.7,48.6],[8.2,48.97],[7.05,49.2],[6.1,49.45],[4.85,49.8],[4.0,50.35],[3.2,50.75]];
+function frProj(w,h,pad){const pts=FRPTS.map(([lo,la])=>[lo*0.688,-la]);let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;pts.forEach(p=>{x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);});
+  const k=Math.min((w-2*pad)/(x1-x0),(h-2*pad)/(y1-y0));const ox=(w-(x1-x0)*k)/2,oy=(h-(y1-y0)*k)/2;
+  return {P:(lo,la)=>[(lo*0.688-x0)*k+ox,(-la-y0)*k+oy],path:pts.map((p,i)=>(i?'L':'M')+((p[0]-x0)*k+ox).toFixed(1)+' '+((p[1]-y0)*k+oy).toFixed(1)).join(' ')+' Z'};}
+// centre lon/lat d'un chantier : depuis sa copie complète si elle est là, sinon depuis la méta serveur
+function llOfMeta(m){const full=SITES[m.id];const net=full&&full.lines?full:{geo:m.geo||undefined,origin:m.origin||undefined,traceur:{bgOrigin:m.bgo||null},w:m.w||0,h:m.h||0};
+  try{const g=geoOfSite(net);if(!g)return null;const w=net.w||0,h=net.h||0;const ll=planToLonLat(g,[w/2,h/2]);return (isFinite(ll[0])&&isFinite(ll[1])&&ll[1]>40&&ll[1]<52)?ll:null;}catch(e){return null;}}
+function homeMetas(){const out=new Map();const DEMOS=new Set(['bain','saintlo']);
+  Object.entries(SITES).forEach(([id,net])=>{if(!net||id==='__vide')return;out.set(id,{id,name:net.name||id,local:true,demo:DEMOS.has(id),updatedAt:localUpdatedOf(net)||0,geo:net.geo||null,origin:net.origin||null,bgo:net.traceur&&net.traceur.bgOrigin||null,w:net.w,h:net.h});});
+  (state.serverMetas||[]).forEach(m=>{if(isHidden({id:m.id,traceur:m.traceur}))return;const cur=out.get(m.id);const upd=m.updated_at?Date.parse(m.updated_at):0;
+    if(cur){cur.updatedAt=Math.max(cur.updatedAt,upd,m.traceur&&m.traceur.savedAt?Date.parse(m.traceur.savedAt):0);cur.geo=cur.geo||m.geo;cur.origin=cur.origin||m.origin;cur.bgo=cur.bgo||m.bgo;cur.w=cur.w||m.w;cur.h=cur.h||m.h;}
+    else out.set(m.id,{id:m.id,name:m.name,local:false,demo:false,updatedAt:Math.max(upd,m.traceur&&m.traceur.savedAt?Date.parse(m.traceur.savedAt):0),geo:m.geo,origin:m.origin,bgo:m.bgo,w:m.w,h:m.h});});
+  return [...out.values()];}
+const agoTxt=t=>{if(!t)return '';const d=Date.now()-t;if(d<90e3)return 'à l\'instant';if(d<5400e3)return 'il y a '+Math.round(d/60e3)+' min';if(d<129600e3)return 'il y a '+Math.round(d/3600e3)+' h';return 'le '+new Date(t).toLocaleDateString('fr-FR');};
+function statOf(id){const st=state.homeStats&&state.homeStats[id];if(!st||!st.total)return null;return {total:st.total,pct:Math.round(100*st.manch/st.total)};}
+const pctColor=p=>p>=100?'#0ca30c':p>=60?'#2a78d6':'#eb6834';
+function renderHome(){if(!$('#homeView'))return;
+  const u=state.cloudUser,pr=state.profile;
+  $('#homeWho').innerHTML=u?`<b>${esc(pr&&pr.name?pr.name:(u.email||''))}</b><br>${esc(ROLE_LABEL[pr&&pr.role]||'')}`:`hors connexion`;
+  $('#homeAva').textContent=u?((pr&&pr.name||u.email||'?').trim().split(/[\s.@]+/).slice(0,2).map(x=>x[0]||'').join('').toUpperCase()||'?'):'→';
+  const banner=$('#homeBanner');if(u&&pr&&!pr.active){banner.style.display='';banner.textContent='Compte en attente d\'activation par le chef de chantier — seuls les chantiers de cet appareil sont visibles.';}
+  else if(!u){banner.style.display='';banner.innerHTML='Hors connexion : chantiers de cet appareil seulement. <a href="#" id="hbLogin" style="color:#1c3d6b">Se connecter</a>';}
+  else banner.style.display='none';
+  const metas=homeMetas();$('#homeCount').textContent=metas.length?`${metas.length} chantier${metas.length>1?'s':''} · choisis pour ouvrir`:'aucun chantier pour l\'instant';
+  $('#htMap').classList.toggle('on',state.homeTab==='map');$('#htList').classList.toggle('on',state.homeTab!=='map');
+  $('#homeBody').innerHTML=state.homeTab==='map'?homeMapHTML(metas):homeListHTML(metas);
+  const rs=$('#homeResume');const last=localStorage.getItem('trace:lastSite');const lm=metas.find(m=>m.id===last);
+  if(lm){const st=statOf(lm.id);rs.style.display='';rs.innerHTML=`<div style="font-size:19px">↩</div><div style="flex:1"><div style="font-size:12.5px;font-weight:700">Reprendre : ${esc(lm.name)}</div><div style="font-size:10.5px;color:var(--ink2)">${st?st.pct+' % manchonné · ':''}${esc(agoTxt(lm.updatedAt))}</div></div><div style="color:#eb6834;font-weight:800">›</div>`;rs.onclick=()=>openSiteFromHome(lm.id);}
+  else rs.style.display='none';}
+function homeMapHTML(metas){const {P,path}=frProj(300,320,24);let pins='',noLL=[];
+  metas.forEach(m=>{const ll=llOfMeta(m);if(!ll){noLL.push(m);return;}const [x,y]=P(ll[0],ll[1]);const st=statOf(m.id);const c=st?pctColor(st.pct):'#898781';
+    pins+=`<g data-pin="${esc(m.id)}" style="cursor:pointer"><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="12" fill="${c}" opacity=".16"/><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6.5" fill="${c}" stroke="#fcfcfb" stroke-width="2"/>${st&&st.pct>=100?`<text x="${x.toFixed(1)}" y="${(y+2.6).toFixed(1)}" font-size="7" font-weight="800" text-anchor="middle" fill="#fff">✓</text>`:''}</g>`;});
+  const sel=metas.find(m=>m.id===state.homePin);let bub='';
+  if(sel){const ll=llOfMeta(sel);if(ll){let [x,y]=P(ll[0],ll[1]);x=Math.max(64,Math.min(236,x));const st=statOf(sel.id);
+    bub=`<g style="pointer-events:none"><rect x="${x-58}" y="${y-42}" width="116" height="27" rx="7" fill="#0b0b0b" opacity=".93"/><path d="M ${x-5} ${y-15} L ${x} ${y-9} L ${x+5} ${y-15} Z" fill="#0b0b0b" opacity=".93"/><text x="${x}" y="${y-31}" font-size="9" font-weight="700" text-anchor="middle" fill="#fff">${esc(sel.name.slice(0,24))}</text><text x="${x}" y="${y-21}" font-size="7.5" text-anchor="middle" fill="#cfd4da">${(()=>{const s2=statOf(sel.id);return s2?`${s2.pct} % manchonné · ${s2.total} soudures`:(sel.local?'sur cet appareil':'sur le serveur');})()}</text></g>`;}}
+  return `<div class="homeMapCard"><svg viewBox="0 0 300 320"><path d="${path}" fill="#fcfcfb" stroke="#0b0b0b" stroke-width="1.6" stroke-linejoin="round"/>${pins}${bub}</svg>
+    <div style="position:absolute;left:10px;bottom:10px;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:4px 8px;font-size:9.5px;color:var(--ink2)">touche un pin · <span style="color:#eb6834">●</span> en cours <span style="color:#0ca30c">●</span> terminé</div></div>
+    ${sel?`<button class="btn primary block" style="margin-top:10px" data-open="${esc(sel.id)}">Ouvrir ${esc(sel.name.slice(0,30))}</button>`:''}
+    ${noLL.length?`<div style="margin-top:12px"><div style="font-size:11px;color:var(--ink2);margin-bottom:6px;font-weight:600">NON LOCALISÉS SUR LA CARTE</div>${noLL.map(siteCardHTML).join('')}</div>`:''}`;}
+function siteCardHTML(m){const st=statOf(m.id);const c=st?pctColor(st.pct):'#898781';
+  return `<div class="siteCard" data-open="${esc(m.id)}"><div class="n"><i style="background:${c}"></i><span style="flex:1">${esc(m.name)}</span><span style="font-size:10px;color:var(--ink2);font-weight:400">${m.demo?'démo':(st&&st.pct>=100?'✓ terminé':(m.local?'':'serveur'))}</span></div>
+    <div class="m">${st?st.total+' soudures':'—'}${m.local?' · sur cet appareil':''}</div>
+    <div class="bar"><i style="width:${st?st.pct:0}%;background:${c}"></i></div>
+    <div class="foot"><span>${st?st.pct+' % manchonné':'avancement inconnu'}</span><span>${esc(agoTxt(m.updatedAt))}</span></div></div>`;}
+function homeListHTML(metas){const q=(state.homeQ||'').toLowerCase();let list=metas.filter(m=>!q||m.name.toLowerCase().includes(q));
+  const sort=state.homeSort;list.sort((a,b)=>sort==='az'?a.name.localeCompare(b.name,'fr'):sort==='pct'?((statOf(b.id)||{pct:-1}).pct-(statOf(a.id)||{pct:-1}).pct):(b.updatedAt-a.updatedAt));
+  list=list.filter(m=>!m.demo).concat(list.filter(m=>m.demo)); // démos en bas
+  const canNew=role()==='chef'||role()==='bureau';
+  return `<input class="homeSearch" id="homeQ" placeholder="🔍 Rechercher un chantier…" value="${esc(state.homeQ||'')}">
+    <div class="homeSorts">${[['recent','Récents'],['az','A → Z'],['pct','Avancement']].map(([v,l])=>`<button data-sort="${v}" class="${sort===v?'on':''}">${l}</button>`).join('')}</div>
+    ${list.map(siteCardHTML).join('')||'<div class="muted" style="font-size:13px;padding:8px 2px">Aucun chantier ne correspond.</div>'}
+    ${canNew?`<button class="siteNew" id="homeNew">＋ Nouveau chantier (tracer un réseau ou importer un DXF)</button>`:''}`;}
+async function openSiteFromHome(id){if(!id)return false;const local=SITES[id];const hasFull=local&&local.lines&&!(local.bgTooBig&&state.cloudUser);
+  if(hasFull){await switchSite(id);siteSel.value=id;showScreen('site');return true;}
+  const w=$('#homeWait');if(state.screen==='home'){$('#homeWaitTxt').textContent='Chargement du chantier…';w.classList.add('show');}
+  let net=null;try{net=state.cloudUser?await sync.loadSite(id):null;}catch(e){console.warn(e);}
+  w.classList.remove('show');
+  if(net&&net.lines&&!net.deleted){SITES[id]=net;delete siteStore[id];if(net.traceur){try{await kv.set('trace:handoff:'+id,{...net,sent:true,sentAt:Date.now()});}catch(e){}}
+    addSiteOption(net);await switchSite(id);siteSel.value=id;showScreen('site');return true;}
+  if(local&&local.lines){await switchSite(id);siteSel.value=id;showScreen('site');toast('Version de cet appareil (serveur injoignable)');return true;}
+  toast(state.cloudUser?'Chantier introuvable sur le serveur':'Connecte-toi pour ouvrir ce chantier');return false;}
+$('#btnHome').addEventListener('click',()=>{showScreen('home');renderHome();});
+$('#htMap').addEventListener('click',()=>{state.homeTab='map';localStorage.setItem('trace:homeTab','map');renderHome();});
+$('#htList').addEventListener('click',()=>{state.homeTab='list';localStorage.setItem('trace:homeTab','list');renderHome();});
+$('#homeBody').addEventListener('click',e=>{const p=e.target.closest('[data-pin]');if(p){state.homePin=state.homePin===p.dataset.pin?null:p.dataset.pin;renderHome();return;}
+  const o=e.target.closest('[data-open]');if(o){openSiteFromHome(o.dataset.open);return;}
+  const so=e.target.closest('[data-sort]');if(so){state.homeSort=so.dataset.sort;renderHome();return;}
+  if(e.target.id==='homeNew'){openModal(`<h3>Nouveau chantier</h3><div class="actions"><button class="btn primary block" id="nwTrace">✎ Tracer un réseau (traceur)</button><button class="btn block" id="nwImport">📄 Importer un plan (DXF / PDF)</button><button class="btn block" data-close>Annuler</button></div>`);
+    $('#nwTrace').onclick=()=>{location.href='./traceur.html?site=new';};
+    $('#nwImport').onclick=async()=>{closeModal();const vid=Object.keys(SITES).find(k=>k==='__vide')||state.siteId;await openSiteFromHome('__vide')||showScreen('site');openImport();};return;}});
+$('#homeBody').addEventListener('input',e=>{if(e.target.id==='homeQ'){state.homeQ=e.target.value;const list=$('#homeBody');const pos=e.target.selectionStart;renderHome();const q2=$('#homeQ');if(q2){q2.focus();q2.setSelectionRange(pos,pos);}}});
+$('#homeAva').addEventListener('click',()=>{const u=state.cloudUser,pr=state.profile;
+  if(!u){showScreen('login');return;}
+  openModal(`<h3>${esc(pr&&pr.name?pr.name:(u.email||'Compte'))}</h3><div class="muted" style="font-size:12.5px;margin-bottom:8px">${esc(u.email||'')} · ${esc(ROLE_LABEL[pr&&pr.role]||'rôle non défini')}${pr&&!pr.active?' · <b style="color:#b25e00">en attente d’activation</b>':''}</div>
+    <div class="actions">${pr&&pr.role==='chef'?'<button class="btn block" id="accUsers">👥 Comptes (activer, rôles)</button>':''}<button class="btn block" id="accName">✎ Mon nom affiché</button><button class="btn block" id="accOut" style="color:#d03b3b">Se déconnecter</button><button class="btn block" data-close>Fermer</button></div>`);
+  const bu=$('#accUsers');if(bu)bu.onclick=()=>{closeModal();openUsersModal();};
+  $('#accName').onclick=async()=>{const n=prompt('Ton nom affiché :',pr&&pr.name||'');if(!n)return;await sync.setMyName(n.trim());state.profile=await sync.profile();closeModal();renderHome();};
+  $('#accOut').onclick=async()=>{await sync.logout();state.cloudUser=null;state.profile=null;state.serverMetas=[];state.homeStats=null;closeModal();renderHome();showScreen('login');};});
+$('#loginGo').addEventListener('click',async()=>{const em=($('#loginEmail').value||'').trim();if(!em||!em.includes('@')){$('#loginHint').innerHTML='<b>Adresse invalide.</b>';return;}
+  $('#loginGo').disabled=true;$('#loginHint').textContent='Envoi du lien…';
+  try{await sync.login(em);$('#loginHint').innerHTML='<b>Lien envoyé ✓</b><br>Ouvre le mail SUR CET APPAREIL et touche le lien.';}
+  catch(e){$('#loginHint').innerHTML='<b>Envoi impossible</b> (hors ligne ?). Réessaie, ou continue hors connexion.';}
+  $('#loginGo').disabled=false;});
+$('#loginEmail').addEventListener('keydown',e=>{if(e.key==='Enter')$('#loginGo').click();});
+$('#loginSkip').addEventListener('click',e=>{e.preventDefault();localStorage.setItem('trace:skipLogin','1');renderHome();showScreen('home');});
+document.addEventListener('click',e=>{if(e.target.id==='hbLogin'){e.preventDefault();showScreen('login');}});
 // poignée de débogage / tests (module ES : rien n'est global sinon)
-window.TRACE={state,USERS,role,renderAll,renderPlan,centerOn,allJoints,switchSite,openJoint,openEl,siteGeo,startCalage,calageTap,geo:{planToLonLat,lonLatToPlan},get lines(){return state.lines;},get net(){return NET;}};
+window.TRACE={state,USERS,role,renderAll,renderPlan,centerOn,allJoints,switchSite,openJoint,openEl,siteGeo,startCalage,calageTap,openSiteFromHome,renderHome,showScreen,geo:{planToLonLat,lonLatToPlan},go:async id=>{const t=id||Object.keys(SITES).find(k=>k!=='__vide');if(t)return openSiteFromHome(t);},get lines(){return state.lines;},get net(){return NET;}};
