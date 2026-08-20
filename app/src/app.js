@@ -172,7 +172,7 @@ async function pushHandoffs(remote){if(!(await sync.user()))return;const onServe
 function addSiteOption(net){if(!SITES[net.id]){SITES[net.id]=net;const o=document.createElement('option');o.value=net.id;o.textContent=net.name;siteSel.appendChild(o);}else{SITES[net.id]=net;const o=[...siteSel.options].find(x=>x.value===net.id);if(o)o.textContent=net.name;}}
 // historique des versions du chantier (serveur) : chaque ré-enregistrement garde la version d'avant — restauration en deux clics
 // remise à zéro d'une soudure (erreur de saisie) : tout l'avancement disparaît, la soudure elle-même reste
-function wipeWeld(j){j.status='a_souder';j.events=[];j.photos=[];j.wire='a_raccorder';j.conn={E:'E',N:'N'};j.cont=false;j.iso=false;j.isoVal='';j.note='';}
+function wipeWeld(j){j.status='a_souder';j.events=[];j.photos=[];j.wire='a_raccorder';j.conn={E:'E',N:'N'};j.cont=false;j.iso=false;j.isoVal='';j.note='';delete j.steps;}
 const weldHasData=j=>j.status!=='a_souder'||(j.events&&j.events.length)||(j.photos&&j.photos.length)||(j.wire&&j.wire!=='a_raccorder');
 async function pushWeld(j){try{await sync.ensureSite({id:state.siteId,name:NET.name,supplier:NET.supplier,serie:NET.serie});const okk=await sync.saveWeld(state.siteId,{...j});if(okk)setCloudBadge('enregistré '+new Date().toLocaleTimeString('fr-FR'));}catch(e){console.warn(e);}}
 // transfert : les données d'avancement passent sur la soudure cible ; si la cible en a déjà, on ÉCHANGE (rien ne se perd)
@@ -235,7 +235,7 @@ function setupSite(id){
   state.locate={...state.locate,line:roots[0]?roots[0].id:null};bgG.dataset.sheet='';
 }
 async function preloadRemote(id){try{if(!siteStore[id]&&await sync.user()){state.remoteLS[id]=await sync.loadLineStates(id);state.remoteWelds=await sync.loadWelds(id);}else state.remoteWelds=null;}catch(e){console.warn(e);state.remoteWelds=null;}}
-function applyRemoteWelds(){const rows=state.remoteWelds;if(!rows||!rows.length)return;let n=0;rows.forEach(r=>{const f=findWeld(r.weld_id);if(!f)return;const j=f.j;j.status=r.status||j.status;const d=r.data||{};if(d.events)j.events=d.events.map(e=>({...e,at:new Date(e.at)}));if(d.conn)j.conn=d.conn;if(d.wire)j.wire=d.wire;if(d.tee!==undefined)j.tee=d.tee||undefined;if(d.cont!==undefined)j.cont=d.cont;if(d.iso!==undefined)j.iso=d.iso;if(d.isoVal!==undefined)j.isoVal=d.isoVal;if(d.note!==undefined)j.note=d.note;if(d.photos)j.photos=d.photos;n++;});Object.values(state.lines).forEach(l=>{if(l.engine)resyncLine(l);});if(n)toast(n+' soudures rechargées depuis le serveur');state.remoteWelds=null;}
+function applyRemoteWelds(){const rows=state.remoteWelds;if(!rows||!rows.length)return;let n=0;rows.forEach(r=>{const f=findWeld(r.weld_id);if(!f)return;const j=f.j;j.status=r.status||j.status;const d=r.data||{};if(d.events)j.events=d.events.map(e=>({...e,at:new Date(e.at)}));if(d.conn)j.conn=d.conn;if(d.wire)j.wire=d.wire;if(d.tee!==undefined)j.tee=d.tee||undefined;if(d.cont!==undefined)j.cont=d.cont;if(d.iso!==undefined)j.iso=d.iso;if(d.isoVal!==undefined)j.isoVal=d.isoVal;if(d.note!==undefined)j.note=d.note;if(d.steps!==undefined)j.steps=d.steps||undefined;if(d.photos)j.photos=d.photos;n++;});Object.values(state.lines).forEach(l=>{if(l.engine)resyncLine(l);});if(n)toast(n+' soudures rechargées depuis le serveur');state.remoteWelds=null;}
 async function pullRemote(id){try{if(!(await sync.user()))return;state.remoteWelds=await sync.loadWelds(id);if(state.siteId===id){applyRemoteWelds();renderAll();}}catch(e){console.warn(e);}}
 // date de version d'une copie locale de chantier (serveur > traceur > rien)
 const localUpdatedOf=net=>net?(net.updated_at?Date.parse(net.updated_at):(net.traceur&&net.traceur.savedAt?Date.parse(net.traceur.savedAt):0)):0;
@@ -823,6 +823,8 @@ function renderPlan(){
       const detail=kpm>=12;const st=STATUS[j.status];const sel=state.sel&&state.sel.kind==='j'&&state.sel.line===id&&state.sel.cond===c&&state.sel.i===i;const dim=!passFilter(j);const eB=els[i+1];const isSxb=e.kind==='steelbend'||(eB&&eB.kind==='steelbend');
       const seg=(m0,m1)=>[{x:px+p.tx*m0*ppm,y:py+p.ty*m0*ppm},{x:px+p.tx*m1*ppm,y:py+p.ty*m1*ppm}];
       const numTxt=(x)=>(S.nums&&(showLabels||sel))?`<text class="num" x="${side>0?x:-x}" y="4" text-anchor="${side>0?'start':'end'}">${j.weldId}</text>`:''; // n° de soudure (case 👁)
+      const nd=(j.steps&&[1,2,3,4].filter(n2=>j.steps[n2]&&j.steps[n2].done).length)||0; // sous-étapes manchon faites → anneau vert ¼ / ½ / ¾ / plein autour de la pastille (maquette 20/08)
+      const ring=(r0)=>{if(!nd||j.status==='manchonnee')return '';const C=2*Math.PI*r0;return `<circle r="${r0}" fill="none" stroke="#0ca30c" stroke-width="2.4" stroke-dasharray="${(C*nd/4).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90)" stroke-linecap="round" opacity=".95" data-ring="${nd}"/>`;}; // pathLength interdit ici : innerHTML le minusculise et SVG l'ignore
       netJ+=`<g class="marker" data-line="${id}" data-cond="${c}" data-j="${i}" ${dim?'opacity=".3"':''}>`;
       if(state.transfer&&state.transfer.line===id&&state.transfer.cond===c&&state.transfer.i===i)netJ+=`<g transform="translate(${px} ${py}) scale(${1/k})"><circle r="16" fill="none" stroke="#b8560f" stroke-width="3" class="tpulse"/><circle r="22" fill="none" stroke="#b8560f" stroke-width="1.5" opacity=".5" class="tpulse"/></g>`;
       if(state.tool&&e.piece&&e.piece.ojoint)netJ+=`<g transform="translate(${px} ${py}) scale(${1/k})"><circle r="14" fill="rgba(242,140,40,.18)" stroke="#f28c28" stroke-width="3"/></g>`;
@@ -843,9 +845,9 @@ function renderPlan(){
         netJ+=`<path d="${pathD(seg(-.35,.35))}" stroke="transparent" stroke-width="${w*1.5}" fill="none" stroke-linecap="round" style="cursor:pointer"/>`;
         // pastille de statut, côté extérieur, à taille écran — reliée à sa soudure par un trait (on sait laquelle est visée), anneau à la couleur de la conduite (rouge aller / bleu retour) (case 👁 « pastilles »)
         if(S.soud){const so=side*(w*.62+13/k);const mx=px+p.ty*so,my=py-p.tx*so;
-        netJ+=`<line x1="${px}" y1="${py}" x2="${mx}" y2="${my}" stroke="${col}" stroke-width="${1.6/k}" opacity=".9"/><g transform="translate(${mx} ${my}) scale(${1/k})"><circle r="12" fill="transparent"/><circle r="8.5" fill="#fff" stroke="${col}" stroke-width="2.2"/><circle r="6" fill="${st.color}"/>${st.glyph?`<text font-size="9" font-weight="700" fill="#fff" text-anchor="middle" dominant-baseline="central" font-family="system-ui,sans-serif">${st.glyph}</text>`:''}${j.wire==='inversion'?`<circle cx="8" cy="-8" r="4" fill="#d03b3b" stroke="#fff" stroke-width="1.5"/>`:j.wire==='raccorde'?`<circle cx="8" cy="-8" r="3.5" fill="#dfe4ea" stroke="#555" stroke-width="1"/>`:''}${numTxt(11)}</g>`;}
+        netJ+=`<line x1="${px}" y1="${py}" x2="${mx}" y2="${my}" stroke="${col}" stroke-width="${1.6/k}" opacity=".9"/><g transform="translate(${mx} ${my}) scale(${1/k})"><circle r="12" fill="transparent"/><circle r="8.5" fill="#fff" stroke="${col}" stroke-width="2.2"/><circle r="6" fill="${st.color}"/>${st.glyph?`<text font-size="9" font-weight="700" fill="#fff" text-anchor="middle" dominant-baseline="central" font-family="system-ui,sans-serif">${st.glyph}</text>`:''}${ring(11.6)}${j.wire==='inversion'?`<circle cx="8" cy="-8" r="4" fill="#d03b3b" stroke="#fff" stroke-width="1.5"/>`:j.wire==='raccorde'?`<circle cx="8" cy="-8" r="3.5" fill="#dfe4ea" stroke="#555" stroke-width="1"/>`:''}${numTxt(14)}</g>`;}
       } else if(showJoints&&S.soud){const rr=Math.max(3.5/k,Math.min(9/k,.28*ppm));const so=side*(w*.9+rr*1.1+6/k);const mx=px+p.ty*so,my=py-p.tx*so;
-        netJ+=`<line x1="${px}" y1="${py}" x2="${mx}" y2="${my}" stroke="${col}" stroke-width="${1.2/k}" opacity=".8"/><g transform="translate(${mx} ${my}) scale(${1/k})"><circle r="${rr*k+5}" fill="transparent"/><circle r="${Math.max(3,rr*k*.6)}" fill="${st.color}" stroke="${col}" stroke-width="1.6"/>${numTxt(rr*k+4)}</g>`;}
+        netJ+=`<line x1="${px}" y1="${py}" x2="${mx}" y2="${my}" stroke="${col}" stroke-width="${1.2/k}" opacity=".8"/><g transform="translate(${mx} ${my}) scale(${1/k})"><circle r="${rr*k+5}" fill="transparent"/><circle r="${Math.max(3,rr*k*.6)}" fill="${st.color}" stroke="${col}" stroke-width="1.6"/>${ring(Math.max(3,rr*k*.6)+3.4)}${numTxt(rr*k+4)}</g>`;}
       netJ+=`</g>`;
     });
   });});
@@ -947,10 +949,26 @@ function jointView(l,c,j){const {els}=l.cond[c];const a=els[j.idx],b=els[j.idx+1
   const teeUI=j.teeOut?(()=>{const t=j.tee||{};const dw=state.dh.antWire==='N'?'nu':'étamé';return `<div class="card" style="margin-top:8px;background:#f4f7fb"><b>Antenne au té</b> <span class="muted" style="font-size:12px">(sortie de té : comment l'antenne est prise dans la boucle DH)</span><div class="row" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap"><select class="f" id="teeMode"><option value="serie" ${(t.mode||'serie')==='serie'?'selected':''}>en série dans la boucle de la parente</option><option value="boucle" ${t.mode==='boucle'?'selected':''}>bouclée sur elle-même au té (boucle à part)</option><option value="none" ${t.mode==='none'?'selected':''}>pas encore raccordée au té</option></select><select class="f" id="teeWire"><option value="" ${!t.wire?'selected':''}>fil dans l'antenne : ${dw} (réglage chantier)</option><option value="E" ${t.wire==='E'?'selected':''}>étamé dans l'antenne</option><option value="N" ${t.wire==='N'?'selected':''}>nu dans l'antenne</option></select></div></div>`;})():'';
   const wiringRO=(j.wire==='raccorde'||j.wire==='inversion')?`<div class="card" style="padding:6px 8px 2px">${wiringSVG(a,b,j.conn||{E:'E',N:'N'},null,false)}</div>`:'';
   const wireLine=(teeUI)+wiringRO+(j.wire==='raccorde'?`<div class="okbox">Fils raccordés (étamé ↔ étamé, nu ↔ nu), continuité ${j.cont?'OK':'—'}, isolement ${j.iso?'OK'+(j.isoVal?' ('+esc(j.isoVal)+' MΩ)':''):'—'}.</div>`:j.wire==='inversion'?`<div class="err">Inversion des fils enregistrée : étamé amont → nu aval. Manchon à reprendre avant fermeture. ${esc(j.note)}</div>`:`<p class="hint">Fils d'alarme : à raccorder au manchonnage.</p>`);
+  // ---- manchon en 4 sous-étapes (maquette validée 20/08) : chaque étape a son gars, sa date, ses photos ; l'étape 2 affiche la valeur attendue CALCULÉE ----
+  const steps=j.steps||{};const sdone=n=>!!(steps[n]&&steps[n].done);const nDone=[1,2,3,4].filter(sdone).length;const curStep=[1,2,3,4].find(n=>!sdone(n))||0;
+  const canStep=r!=='bureau';
+  const sPhotos=n=>{const ph=(steps[n]&&steps[n].photos)||[];return `<div class="thumbs" style="margin:4px 0">${ph.map(p=>`<div class="thumb"><img src="${p}"></div>`).join('')}${canStep?`<label class="thumb" style="display:flex;align-items:center;justify-content:center;border:1.5px dashed #b8b4a8;cursor:pointer;color:#8f8b80">📷<input type="file" accept="image/*" capture="environment" data-stepph="${n}" style="display:none" multiple></label>`:''}</div>`;};
+  const sHead=(n,t)=>{const s2=steps[n];return `<summary><span class="num">${sdone(n)?'✓':n}</span><b>${n} · ${t}</b><span class="who">${s2&&s2.done?esc(s2.by||'')+' · '+(s2.at?new Date(s2.at).toLocaleDateString('fr-FR'):''):(n===curStep?'à faire':'—')}</span></summary>`;};
+  const sBtn=n=>canStep?(sdone(n)?`<button class="btn block" data-stepundo="${n}" style="color:#d03b3b;font-size:12px;padding:6px">Annuler cette étape (erreur de saisie)</button>`:`<button class="btn primary block" data-stepok="${n}" style="padding:8px">Valider l'étape ${n} — ${(me()||{}).name||''} · aujourd'hui</button>`):'';
+  let att2='';{const dj=dhOfJoint(l.id,c,j.idx);if(dj){const AP2=dhAtPoint(dj.D,dj.row);const cc=[AP2.up.closed&&AP2.up.R!==null?{dir:'amont',...AP2.up}:null,AP2.down.closed&&AP2.down.R!==null?{dir:'aval',...AP2.down}:null].filter(Boolean);
+    att2=cc.length?`<div class="okbox" style="margin:4px 0;font-size:12.5px">Attendu au testeur ici : ${cc.map(x=>`<b>${fmt2(x.R)} Ω</b> (${x.dir} — ${dhDirLab(x)})`).join(' · ')}</div>`:`<p class="hint" style="margin:4px 0">Pas de boucle fermée depuis ce manchon : pose un pont ⟲ (ou déclare un bout bouclé) pour avoir une valeur attendue au testeur.</p>`;}}
+  const s2v=steps[2]||{},s3v=steps[3]||{};
+  const stepsCard=`<h3>Manchon — 4 sous-étapes <span class="muted" style="font-weight:400">· ${nDone}/4${nDone===4?' ✓':''}</span></h3>
+   <details class="dstep ${sdone(1)?'done':curStep===1?'cur':''}" ${curStep===1?'open':''}>${sHead(1,'Soudure')}<div class="sb">${sPhotos(1)}<label class="tgl"><input type="checkbox" id="st1-vis" ${steps[1]&&steps[1].visuel?'checked':''} ${sdone(1)?'disabled':''}> Contrôle visuel fait par le soudeur</label>${sBtn(1)}</div></details>
+   <details class="dstep ${sdone(2)?'done':curStep===2?'cur':''}" ${curStep===2?'open':''}>${sHead(2,'Fils raccordés')}<div class="sb">${att2}${sPhotos(2)}<div class="row" style="display:flex;gap:6px;align-items:end;flex-wrap:wrap"><div><label class="f">Mesuré au testeur (Ω)</label><input class="f" id="st2-meas" type="number" step="0.01" inputmode="decimal" value="${s2v.meas??''}" ${sdone(2)?'disabled':''} style="width:110px"></div></div><label class="tgl"><input type="checkbox" id="st2-masse" ${s2v.masse?'checked':''} ${sdone(2)?'disabled':''}> Masse OK</label><label class="tgl"><input type="checkbox" id="st2-cont" ${s2v.cont?'checked':''} ${sdone(2)?'disabled':''}> Continuité OK</label>${sBtn(2)}</div></details>
+   <details class="dstep ${sdone(3)?'done':curStep===3?'cur':''}" ${curStep===3?'open':''}>${sHead(3,'Manchon posé')}<div class="sb"><div style="margin:2px 0"><label class="tgl" style="display:inline-flex;margin-right:10px"><input type="radio" name="st3-type" value="retracte" ${(s3v.type||'retracte')==='retracte'?'checked':''} ${sdone(3)?'disabled':''}> Rétracté</label><label class="tgl" style="display:inline-flex"><input type="radio" name="st3-type" value="electro" ${s3v.type==='electro'?'checked':''} ${sdone(3)?'disabled':''}> Électrosoudé</label></div>${sPhotos(3)}<label class="tgl"><input type="checkbox" id="st3-press" ${s3v.press?'checked':''} ${sdone(3)?'disabled':''}> Test de pression OK</label>${sBtn(3)}</div></details>
+   <details class="dstep ${sdone(4)?'done':curStep===4?'cur':''}" ${curStep===4?'open':''}>${sHead(4,'Finition — bouchons soudés')}<div class="sb">${sPhotos(4)}${sBtn(4)}</div></details>
+   <p class="hint" style="margin:4px 0 0">Les grands statuts du plan (soudée / contrôlée / manchonnée) ne changent pas : déclare-les comme d'habitude. Sur le plan, la pastille porte un anneau vert ¼ / ½ / ¾ selon l'avancement, plein à 4/4.</p>`;
   return head(j.weldId,badge(st))+`<div class="kv" style="margin-top:8px"><span>DN <b>${esc(a.dn||l.dn)}</b></span><span>${c==='A'?'Aller':'Retour'}</span><span>entre <b>${a.id}</b> et <b>${b.id}</b></span><span>PK <b>${fmt(a.m1)} m</b></span><span>${esc(l.name)}</span>${j.sleeveWith?`<span style="background:#fff3d6">même manchon que <b>${esc(j.sleeveWith)}</b> (manchette nue)</span>`:''}${a.devAfter?`<span>déviation ${fmt(Math.abs(a.devAfter))}°</span>`:''}</div>
    ${(a.rot||a.flip||b.rot||b.flip)?`<div class="warnbox">${a.rot||a.flip?a.id+' est tournée ('+a.rot+'°'+(a.flip?', retournée':'')+')':''}${(a.rot||a.flip)&&(b.rot||b.flip)?' et ':''}${b.rot||b.flip?b.id+' est tournée ('+b.rot+'°'+(b.flip?', retournée':'')+')':''} : l'étamé ne sort pas du côté habituel — vérifie avant de raccorder.</div>`:''}
    <div class="actions">${acts.join('')}</div>
    <h3>Fils d'alarme</h3>${wireLine}
+   ${stepsCard}
    <h3>Historique</h3>${evs.length?`<ul class="hist">${evs.map(e=>`<li><span class="dot" style="background:${evColor(e)}"></span><div style="flex:1"><div>${evText(e)}</div><div class="who">${uname(e.by)} · ${fmtDT(e.at)}${(()=>{const d=posGap(e,l,c,j);if(d===null)return e.pos?' · 📍 position enregistrée':'';const lim=Math.max(80,3*(e.pos.acc||0));return d>lim?` · <b style="color:#d03b3b">📍 déclarée à ${fmtDist(d)} de la soudure</b> (GPS ± ${e.pos.acc} m)`:` · 📍 sur place (± ${e.pos.acc} m)`;})()}</div>${e.photos.length?`<div class="thumbs">${e.photos.map(p=>`<div class="thumb"><img src="${p}"></div>`).join('')}</div>`:''}</div></li>`).join('')}</ul>`:'<p class="hint">Aucun événement : soudure à faire.</p>'}
    <p class="hint" style="margin-top:8px"><a href="#" data-act="open-el-a" style="color:#1c3d6b">Voir ${a.id}</a> · <a href="#" data-act="open-el-b" style="color:#1c3d6b">Voir ${b.id}</a> (orientation des fils, photos)</p>`;}
 function formSoudee(l,c,j){const u=me();return head(j.weldId,badge(j.status))+`<h3 style="margin-top:6px">Déclarer soudée</h3><label class="f">Soudeur</label><input class="f" readonly value="${esc(u.name)} — ${esc(u.detail)}"><label class="f">Procédé</label><select class="f" id="f-proc">${PROCEDES.map(p=>`<option value="${p[0]}">${p[1]}</option>`).join('')}</select><label class="f">N° de coulée / lot du tube (optionnel)</label><input class="f" id="f-coulee" placeholder="ex. C4187">${photoBlock()}<label class="f">Remarque</label><textarea class="f" id="f-note"></textarea>${state.err?`<div class="err">${esc(state.err)}</div>`:''}<div class="actions"><button class="btn primary block" data-act="save-soudee">Valider — passe en « Soudée »</button><button class="btn block" data-act="back">Annuler</button></div>`;}
@@ -1076,7 +1094,18 @@ function elView(l,c,i){const e=l.cond[c].els[i];const lock=elLock(l,c,i);const p
       <div style="display:flex;gap:5px;flex-wrap:wrap">${opt('non','Fils en attente')}${opt('coiffe','Bouclé DANS la coiffe')}${opt('sortie','Bouclé SORTIE de coiffe')}</div>
       ${st4?`<div class="okbox" style="margin-top:6px">${esc(DH_END_LABEL[st4.state]||st4.state)} — ${esc(st4.by||'')} · ${st4.at?esc(new Date(st4.at).toLocaleDateString('fr-FR')):''}</div>`:'<div class="hint" style="margin-top:5px">Aucun état déclaré : le calcul suppose que le fil traverse sans monter (signalé ⚠ dans l\'onglet DH).</div>'}</div>`;})()}
    ${photoBlock(e.photos)}<label class="f">Remarque</label><textarea class="f" id="f-note">${esc(e.note)}</textarea><div class="actions"><button class="btn primary block" data-act="save-el">Enregistrer</button><button class="btn block" data-act="close">Fermer</button></div>`;}
-sheetEl.addEventListener('click',e=>{const b=e.target.closest('[data-act],[data-rot],[data-sw],[data-wire],[data-rotb],[data-flipb],[data-rota],[data-flipa],[data-saut],[data-dhend]');if(!b)return;const s=state.sel;if(!s)return;const l=state.lines[s.line];
+// lecture des champs d'une sous-étape manchon depuis la fiche (avant validation ou re-rendu)
+function collectStep(j,n){const s=j.steps[n]=j.steps[n]||{photos:[]};s.photos=s.photos||[];const q=id=>$('#'+id,sheetEl);
+  if(n===1){const v=q('st1-vis');if(v)s.visuel=v.checked;}
+  if(n===2){const m2=q('st2-meas');if(m2&&m2.value!=='')s.meas=parseFloat(String(m2.value).replace(',','.'));const ma=q('st2-masse');if(ma)s.masse=ma.checked;const co=q('st2-cont');if(co)s.cont=co.checked;}
+  if(n===3){const t=sheetEl.querySelector('input[name=st3-type]:checked');if(t)s.type=t.value;const p=q('st3-press');if(p)s.press=p.checked;}
+  return s;}
+sheetEl.addEventListener('click',e=>{const b=e.target.closest('[data-act],[data-rot],[data-sw],[data-wire],[data-rotb],[data-flipb],[data-rota],[data-flipa],[data-saut],[data-dhend],[data-stepok],[data-stepundo]');if(!b)return;const s=state.sel;if(!s)return;const l=state.lines[s.line];
+  const stp=b.dataset.stepok||b.dataset.stepundo;
+  if(stp&&s.kind==='j'){e.preventDefault();const j2=l.cond[s.cond].joints[s.i];const n=+stp;j2.steps=j2.steps||{};
+    if(b.dataset.stepundo){if(!confirm('Annuler l\'étape '+n+' de '+j2.weldId+' (erreur de saisie) ?'))return;delete j2.steps[n];}
+    else{collectStep(j2,n);j2.steps[n].done=true;j2.steps[n].by=(me()||{}).name||state.userId;j2.steps[n].at=new Date().toISOString();}
+    pushWeld(j2);renderSheet();renderPlan();toast(b.dataset.stepundo?'Étape '+n+' annulée — '+j2.weldId:'Étape '+n+'/4 validée — '+j2.weldId);return;}
   if(b.dataset.dhend){const el2=l.cond[s.cond].els[s.i];const d5=dhDataOf();if(!d5)return;const k5=dhEndKey(l.id,el2);
     if(d5.ends[k5]&&d5.ends[k5].state===b.dataset.dhend)delete d5.ends[k5];else d5.ends[k5]={state:b.dataset.dhend,by:(me()||{}).name||state.userId,at:new Date().toISOString()};
     saveDhData();renderSheet();toast('État DH enregistré — valeurs attendues recalculées');return;}
@@ -1111,7 +1140,12 @@ sheetEl.addEventListener('click',e=>{const b=e.target.closest('[data-act],[data-
   if(a==='save-controle-ok'||a==='save-controle-nok'){const ok=a==='save-controle-ok';j.events.push({type:'controle',by:state.userId,at:new Date(),pos:curPos(),data:{result:ok?'OK':'NOK',mode:val('f-mode'),ref:val('f-ref'),note:val('f-note')},photos:state.pendingPhotos});j.status=ok?'controlee':'a_reprendre';afterSave(ok?`${j.weldId} contrôlée OK`:`${j.weldId} à reprendre`);return;}
   if(a==='save-probleme'){if(!val('f-note')&&!state.pendingPhotos.length){snapshotForm();state.err='Décris le problème ou ajoute une photo.';renderSheet();return;}j.events.push({type:'probleme',by:state.userId,at:new Date(),pos:curPos(),data:{note:val('f-note')},photos:state.pendingPhotos});afterSave('Signalement envoyé au chef');return;}
 });
-sheetEl.addEventListener('change',e=>{if(e.target.id==='teeMode'||e.target.id==='teeWire'){const s0=state.sel;if(!s0||s0.kind!=='j')return;const j=state.lines[s0.line].cond[s0.cond].joints[s0.i];j.tee={...(j.tee||{}),[e.target.id==='teeMode'?'mode':'wire']:e.target.value||undefined};if(!j.tee.wire)delete j.tee.wire;sync.saveWeld(state.siteId,{...j}).then(ok=>{if(ok)setCloudBadge('enregistré '+new Date().toLocaleTimeString('fr-FR'));});toast('Raccordement de l\'antenne enregistré');return;}const c=e.target.closest('[data-conn]');if(c){snapshotForm();state.conn[c.dataset.conn]=c.value;renderSheet();return;}const inp=e.target.closest('[data-photo]');if(inp){snapshotForm();const files=[...inp.files];(async()=>{for(const f of files){const d=await compressPhoto(f);state.pendingPhotos.push(d);}renderSheet();if(files.length){const kb=Math.round(state.pendingPhotos.slice(-files.length).reduce((t,d)=>t+d.length*0.75,0)/1024);toast(files.length>1?`${files.length} photos ajoutées (${kb} Ko)`:`Photo ajoutée (${kb} Ko)`);}})();}});
+sheetEl.addEventListener('change',e=>{if(e.target.id==='teeMode'||e.target.id==='teeWire'){const s0=state.sel;if(!s0||s0.kind!=='j')return;const j=state.lines[s0.line].cond[s0.cond].joints[s0.i];j.tee={...(j.tee||{}),[e.target.id==='teeMode'?'mode':'wire']:e.target.value||undefined};if(!j.tee.wire)delete j.tee.wire;sync.saveWeld(state.siteId,{...j}).then(ok=>{if(ok)setCloudBadge('enregistré '+new Date().toLocaleTimeString('fr-FR'));});toast('Raccordement de l\'antenne enregistré');return;}const sph=e.target.closest('[data-stepph]');
+  if(sph){const s0=state.sel;if(!s0||s0.kind!=='j')return;const j2=state.lines[s0.line].cond[s0.cond].joints[s0.i];const n=+sph.dataset.stepph;j2.steps=j2.steps||{};const st2=collectStep(j2,n);const files=[...sph.files];
+    (async()=>{for(const f of files){const d=await compressPhoto(f);let u=null;try{u=await sync.uploadPhoto(state.siteId,j2.weldId,d);}catch(e2){}st2.photos.push(u||d);}
+      pushWeld(j2);renderSheet();if(files.length)toast(files.length>1?files.length+' photos ajoutées à l\'étape '+n:'Photo ajoutée à l\'étape '+n);})();
+    return;}
+  const c=e.target.closest('[data-conn]');if(c){snapshotForm();state.conn[c.dataset.conn]=c.value;renderSheet();return;}const inp=e.target.closest('[data-photo]');if(inp){snapshotForm();const files=[...inp.files];(async()=>{for(const f of files){const d=await compressPhoto(f);state.pendingPhotos.push(d);}renderSheet();if(files.length){const kb=Math.round(state.pendingPhotos.slice(-files.length).reduce((t,d)=>t+d.length*0.75,0)/1024);toast(files.length>1?`${files.length} photos ajoutées (${kb} Ko)`:`Photo ajoutée (${kb} Ko)`);}})();}});
 // photos du téléphone : 3 à 5 Mo pièce en sortie d'appareil → réduites à 1600 px de grand côté, JPEG 78 % (≈ 200-400 Ko) avant envoi : 10 à 15 × moins de stockage et de trafic, largement assez net pour un cordon ou un raccordement
 async function compressPhoto(file,max=1600,q=.78){const raw=()=>new Promise(res=>{const rd=new FileReader();rd.onload=()=>res(rd.result);rd.onerror=()=>res(null);rd.readAsDataURL(file);});
   try{let bmp=null;try{bmp=await createImageBitmap(file,{imageOrientation:'from-image'});}catch(e){bmp=await new Promise((res,rej)=>{const img=new Image();img.onload=()=>res(img);img.onerror=rej;img.src=URL.createObjectURL(file);});}
@@ -1169,7 +1203,7 @@ function linkTraceurBranches(){Object.values(state.lines).forEach(l=>{if(!l.pare
 function dhLoop(lineId,cond){const line=state.lines[lineId];if(!line||!line.cond[cond])return null;linkTraceurBranches();
   const rkm=+state.dh.rkm||12.5;const rho=rkm/1000;const dd0=dhDataOf()||{ends:{},temps:{}};const piqL=+state.dh.piqL||2;
   const piqTodo=[];const piqCuts={E:null,N:null}; // piquages à déclarer ; première coupure « piquage non bouclé » par fil (distance de fil)
-  const walk=(wire)=>{const segs=[];let d=0,cur=wire;const rec=(lid,depth)=>{const L=state.lines[lid];const cd=L&&L.cond[cond];if(!cd)return;const {els,joints}=cd;
+  const walk=(wire)=>{const segs=[];const cuts=[];let d=0,cur=wire;const rec=(lid,depth)=>{const L=state.lines[lid];const cd=L&&L.cond[cond];if(!cd)return;const {els,joints}=cd;
       els.forEach((e,i)=>{const br=e.branchLine||((typeof e.branch==='string')?e.branch:null);const child=br&&state.lines[br]&&state.lines[br].cond[cond]&&depth<4?br:null;
         const am=child?antennaMode(child,cond,e):null;
         if(child&&am.mode==='serie'&&cur===am.wire){const half=(e.len||0)/2;segs.push({line:lid,elIdx:i,kind:'main',m0:d,m1:d+half});d+=half;
@@ -1180,12 +1214,12 @@ function dhLoop(lineId,cond){const line=state.lines[lineId];if(!line||!line.cond
         else if(e.kind==='tee'&&e.vert&&!child&&cur===wireOfTee(e)){ // piquage purge (haut) / vidange (bas) : LE fil concerné monte dans le piquage
           const st2=dd0.ends[dhEndKey(lid,e)];const half=(e.len||0)/2;segs.push({line:lid,elIdx:i,kind:'main',m0:d,m1:d+half});d+=half;
           if(st2&&(st2.state==='coiffe'||st2.state==='sortie')){segs.push({line:lid,elIdx:i,kind:'piq',m0:d,m1:d+2*piqL});d+=2*piqL;} // bouclé : aller-retour dans le piquage
-          else if(st2&&st2.state==='non'){segs.push({line:lid,elIdx:i,kind:'cut',m0:d,m1:d,piq:true});if(piqCuts[wire]===null)piqCuts[wire]=d;} // fils en attente dans la coiffe : circuit coupé ici
+          else if(st2&&st2.state==='non'){segs.push({line:lid,elIdx:i,kind:'cut',m0:d,m1:d,piq:true});cuts.push(d);if(piqCuts[wire]===null)piqCuts[wire]=d;} // fils en attente dans la coiffe : circuit coupé ici
           else piqTodo.push({line:lid,elIdx:i,id:e.id,vert:e.vert,wire,at:d}); // pas déclaré : le fil traverse (à déclarer dans la fiche du té)
           segs.push({line:lid,elIdx:i,kind:'main',m0:d,m1:d+half});d+=half;}
         else{segs.push({line:lid,elIdx:i,kind:'main',m0:d,m1:d+(e.len||0)});d+=(e.len||0);}
-        const j=joints[i];if(j){segs.push({line:lid,elIdx:i,kind:'joint',m0:d,m1:d,j});if(j.wire!=='a_raccorder'){const to=(j.conn||{})[cur];if(to==='X'){segs.push({line:lid,elIdx:i,kind:'cut',m0:d,m1:d});}else if(to)cur=to;}}});};
-    rec(lineId,0);return {segs,total:d};};
+        const j=joints[i];if(j){segs.push({line:lid,elIdx:i,kind:'joint',m0:d,m1:d,j});if(j.wire!=='a_raccorder'){const to=(j.conn||{})[cur];if(to==='X'){segs.push({line:lid,elIdx:i,kind:'cut',m0:d,m1:d});cuts.push(d);}else if(to)cur=to;}}});};
+    rec(lineId,0);return {segs,total:d,cuts};};
   const E=walk('E'),N=walk('N');
   // lignes du tableau : dans l'ordre du fil étamé ; le fil nu complète les distances (et apporte les soudures d'antenne quand l'antenne est prise sur son parcours, ex. après une inversion)
   const rows=[];const byKey={};const insAt={};
@@ -1201,11 +1235,39 @@ function dhLoop(lineId,cond){const line=state.lines[lineId];if(!line||!line.cond
   const end=endIdx>=0?rows[endIdx]:null;
   // fermeture réelle de la boucle : 1) bouclage TEMPORAIRE déclaré le plus proche (atteignable) ; 2) bout de ligne déclaré bouclé (coiffe / sortie) si tout est raccordé jusqu'au bout ; 3) sinon « si pontage au dernier raccordé » (comme avant)
   const bridge=rows.find(r=>!r.open&&r.temp&&r.wire!=='a_raccorder')||null;
-  let endTip=null;{const rl=state.lines[lineId];const lastEl=rl&&rl.cond[cond]&&rl.cond[cond].els[rl.cond[cond].els.length-1];
-    const st3=lastEl&&dd0.ends[dhEndKey(lineId,lastEl)];
+  let endTip=null,tipState=null;{const rl=state.lines[lineId];const lastEl=rl&&rl.cond[cond]&&rl.cond[cond].els[rl.cond[cond].els.length-1];
+    const st3=lastEl&&dd0.ends[dhEndKey(lineId,lastEl)];tipState=st3&&(st3.state==='coiffe'||st3.state==='sortie')?st3.state:null;
     if(st3&&(st3.state==='coiffe'||st3.state==='sortie')&&rows.length&&rows.every(r=>!r.open&&r.wire!=='a_raccorder'))endTip={R:+(rho*(E.total+N.total)).toFixed(2),state:st3.state,totalE:E.total,totalN:N.total};}
   const close=bridge?{kind:'temp',row:bridge,R:bridge.R}:endTip?{kind:'tip',R:endTip.R,state:endTip.state}:end?{kind:'pont',row:end,R:end.R}:null;
-  return {rows,end,close,piqTodo,piqCuts,totalE:E.total,totalN:N.total,rho,rkm,nOk:rows.filter(r=>r.wire==='raccorde').length,nInv:rows.filter(r=>r.wire==='inversion').length,nTodo:rows.filter(r=>r.wire==='a_raccorder').length};}
+  return {rows,end,close,piqTodo,piqCuts,tipState,cutsE:E.cuts,cutsN:N.cuts,totalE:E.total,totalN:N.total,rho,rkm,nOk:rows.filter(r=>r.wire==='raccorde').length,nInv:rows.filter(r=>r.wire==='inversion').length,nTodo:rows.filter(r=>r.wire==='a_raccorder').length};}
+// boucles RÉELLEMENT mesurables depuis une soudure : parcours amont / aval en continuité électrique, jusqu'à une FERMETURE
+// (pont temporaire ⟲, bout de ligne déclaré bouclé) ou une OUVERTURE (manchon non raccordé, coupure de fil, départ, bout non bouclé).
+// C'est le raisonnement terrain : deux ponts posés autour d'un tronçon → deux boucles distinctes, une par direction (demande Ethan 20/08).
+function dhAtPoint(D,row){const i=D.rows.indexOf(row);if(i<0)return null;
+  const between=(a,b,arr)=>(arr||[]).some(x=>x>Math.min(a,b)+0.01&&x<Math.max(a,b)-0.01);
+  const mk=(r)=>{ // fermeture au pont ⟲ posé à la soudure r (raccordée ou non : le pont relie les fils là)
+    if(row.dN===null||r.dN===null)return {closed:true,kind:'temp',row:r,dE:Math.abs(row.dE-r.dE),dN:null,R:null,antenne:true};
+    if(between(row.dE,r.dE,D.cutsE)||between(row.dN,r.dN,D.cutsN))return {closed:false,openAt:r,why:'coupure'};
+    const dE=+Math.abs(row.dE-r.dE).toFixed(1),dN=+Math.abs(row.dN-r.dN).toFixed(1);
+    return {closed:true,kind:'temp',row:r,dE,dN,R:+(D.rho*(dE+dN)).toFixed(2)};};
+  const dir=(step)=>{
+    for(let j2=i+step;j2>=0&&j2<D.rows.length;j2+=step){const r=D.rows[j2];
+      if(r.temp)return mk(r);
+      if(r.wire==='a_raccorder')return {closed:false,openAt:r,dE:+Math.abs(row.dE-r.dE).toFixed(1),why:'manchon'};}
+    if(step<0)return {closed:false,openAt:null,dE:row.dE,why:'depart'};
+    if(D.tipState){const dE=+Math.max(0,D.totalE-row.dE).toFixed(1);const dN=row.dN!==null?+Math.max(0,D.totalN-row.dN).toFixed(1):null;
+      if(dN!==null&&!between(row.dE,D.totalE,D.cutsE)&&!between(row.dN,D.totalN,D.cutsN))return {closed:true,kind:'tip',state:D.tipState,dE,dN,R:+(D.rho*(dE+dN)).toFixed(2)};
+      return {closed:false,openAt:null,why:'coupure',dE};}
+    return {closed:false,openAt:null,dE:+Math.max(0,D.totalE-row.dE).toFixed(1),why:'bout'};};
+  return {up:dir(-1),down:dir(1)};}
+// libellé court d'une direction (fermée / ouverte) pour l'onglet DH et la fiche soudure
+function dhDirLab(d){if(!d)return '—';
+  if(d.closed)return d.kind==='temp'?(d.antenne?'fermée au pont ⟲ '+esc(d.row.weldId)+' (antenne : calcul non géré)':'fermée au pont ⟲ '+esc(d.row.weldId)):'fermée au bout ('+(d.state==='coiffe'?'bouclé dans la coiffe':'sortie de coiffe')+')';
+  return d.why==='manchon'?'ouverte — fils non raccordés à '+esc(d.openAt.weldId)+' ('+fmt(d.dE)+' m)':d.why==='depart'?'ouverte au départ (pas de bouclage)':d.why==='coupure'?'coupure de fil sur le trajet (piquage en attente ?)':'ouverte — bout de ligne non bouclé';}
+// boucle DH d'une soudure vue depuis sa fiche : retrouve la ligne racine (ou l'antenne bouclée sur elle-même) et la ligne du tableau
+function dhOfJoint(lineId,cond,jIdx){const mains=Object.values(state.lines).filter(l=>!l.parent||['A','R'].some(c2=>l.cond[c2]&&antennaMode(l.id,c2).mode==='boucle'));
+  for(const m of mains){if(!m.cond[cond])continue;const D=dhLoop(m.id,cond);if(!D)continue;const row=D.rows.find(r=>r.line===lineId&&r.idx===jIdx);if(row)return {D,row};}
+  return null;}
 function renderBouclage(){const el=$('#bouclage');const L=state.locate;const mains=Object.values(state.lines).filter(l=>!l.parent||['A','R'].some(c=>l.cond[c]&&antennaMode(l.id,c).mode==='boucle'));if(!mains.length){el.innerHTML='<h2 class="vt">DH — détection d\'humidité</h2><div class="card muted">Aucune ligne dans ce chantier — trace un réseau avec le traceur.</div>';return;}if(!mains.find(l=>l.id===L.line))L.line=mains[0].id;const line=state.lines[L.line];
   if(!line.cond[L.cond])L.cond=line.cond.A?'A':'R';const cond=L.cond;const D=dhLoop(L.line,cond);const rho=D.rho;
   const res=locate(L.line,cond,L.wire,+L.d);state.loc=res.ok?{...res,cond,lineId:L.line}:null;
@@ -1214,32 +1276,37 @@ function renderBouclage(){const el=$('#bouclage');const L=state.locate;const mai
   let at=state.dh.at;if(at&&!(D.rows.find(r=>r.line===at.line&&r.idx===at.idx)))at=null;
   const atRow=at?D.rows.find(r=>r.line===at.line&&r.idx===at.idx):null;const endR=D.end;
   let mesure='';
-  if(atRow){const upE=atRow.dE,upN=atRow.dN;const C2=D.close;
-    // aval : jusqu'à la fermeture réelle (bouclage temporaire / bout bouclé en coiffe), sinon jusqu'au dernier raccordé (pontage supposé)
-    const tgt=C2&&C2.kind==='tip'?null:(C2&&C2.row)||endR;
-    const dnE=C2&&C2.kind==='tip'?Math.max(0,D.totalE-atRow.dE):tgt?Math.max(0,tgt.dE-atRow.dE):0;
-    const dnN=C2&&C2.kind==='tip'?(atRow.dN!==null?Math.max(0,D.totalN-atRow.dN):null):(tgt&&tgt.dN!==null&&atRow.dN!==null)?Math.max(0,tgt.dN-atRow.dN):null;
-    const closeLab=C2?(C2.kind==='temp'?'bouclage temporaire '+esc(C2.row.weldId):C2.kind==='tip'?'bout de ligne bouclé ('+(C2.state==='coiffe'?'dans la coiffe':'sortie de coiffe')+')':'pontage supposé au dernier raccordé '+esc(C2.row.weldId)):'—';
-    const Rup=upN!==null?rho*(upE+upN):null,Rdn=dnN!==null?rho*(dnE+dnN):null;const meas=state.dh.meas;const tol=+state.dh.tol||5;let verdict='';
-    if(meas>0&&Rdn!==null){const diff=meas-Rdn;const dm=diff/(2*rho);const pct=Rdn?Math.round(100*diff/Rdn):0;const cands=D.rows.filter(r=>!r.antenna&&r.dE>atRow.dE&&r.R!==null&&Math.abs((r.dE-atRow.dE)+((r.dN||0)-(atRow.dN||0))-meas/rho)<Math.max(6,0.03*meas/rho)).slice(0,4);
-      verdict=`<div class="${Math.abs(pct)<=tol?'okbox':'warnbox'}" style="margin-top:8px">Écart ${pct>0?'+':''}${pct} % (${fmt(Math.abs(dm))} m de fil de ${diff>0?'plus':'moins'} qu'attendu, tolérance ± ${tol} %). ${Math.abs(pct)<=tol?'Cohérent : boucle continue jusqu\'au point de fermeture ('+closeLab+').':(diff<0?'Boucle plus courte : pontage ou défaut avant la fermeture'+(cands.length?' — vers '+cands.map(c=>esc(c.weldId)).join(' / '):'')+'.':'Boucle plus longue : fil supplémentaire, piquage non déclaré pris dans la boucle, ou inversion.')}</div>`;}
+  if(atRow){const AP=dhAtPoint(D,atRow);const up=AP.up,dn=AP.down;const tol=+state.dh.tol||5;
+    // les DEUX directions, chacune avec sa propre fermeture (pont ⟲ / bout bouclé) — deux ponts autour d'un tronçon = deux boucles distinctes
+    const cands=[up.closed&&up.R!==null?{dir:'amont',...up}:null,dn.closed&&dn.R!==null?{dir:'aval',...dn}:null].filter(Boolean);
+    const dirRow=(lab,d)=>`<tr${d.closed?'':' class="dim"'}><td>${lab} — ${dhDirLab(d)}</td><td>${d.dE!==undefined?fmt(d.dE)+' m':'—'}</td><td>${d.closed&&d.dN!==null?fmt(d.dN)+' m':'—'}</td><td>${d.closed&&d.R!==null?'<b>'+fmt2(d.R)+' Ω</b>':'—'}</td></tr>`;
+    const meas=state.dh.meas;let verdict='';let best=null;
+    if(meas>0){if(!cands.length)verdict=`<div class="warnbox" style="margin-top:8px">Aucune boucle FERMÉE depuis ce point : rien à comparer. Pose un bouclage temporaire ⟲ (fiche d'une soudure) ou déclare un bout de ligne bouclé, la valeur attendue apparaîtra.</div>`;
+      else{best=cands.reduce((a,b2)=>Math.abs(meas-b2.R)<=Math.abs(meas-a.R)?b2:a);const other=cands.find(c=>c!==best);
+        const diff=meas-best.R;const dm=diff/(2*rho);const pct=best.R?Math.round(100*diff/best.R):0;
+        verdict=`<div class="${Math.abs(pct)<=tol?'okbox':'warnbox'}" style="margin-top:8px">${Math.abs(pct)<=tol?`✓ Correspond à la <b>boucle ${best.dir}</b> (${dhDirLab(best)}) : attendu ${fmt2(best.R)} Ω ± ${tol} %.`:`Écart ${pct>0?'+':''}${pct} % vs la boucle ${best.dir} (attendu ${fmt2(best.R)} Ω${other?' · '+other.dir+' : '+fmt2(other.R)+' Ω':''}) — ${fmt(Math.abs(dm))} m de fil de ${diff>0?'plus':'moins'}, tolérance ± ${tol} %. ${diff<0?'Boucle plus courte : pontage ou défaut avant la fermeture.':'Boucle plus longue : fil supplémentaire, piquage non déclaré pris dans la boucle, ou inversion.'}`}</div>`;}}
     const iso=state.dh.iso;let isoV='';
     if(iso!==null&&iso!==undefined&&iso!==''){const isoN=parseFloat(String(iso).replace(',','.'));
       if(isFinite(isoN))isoV=isoN>=+state.dh.isoMin?`<div class="okbox" style="margin-top:6px">Isolement ${fmt2(isoN)} MΩ ≥ ${esc(state.dh.isoMin)} MΩ : sec ✓</div>`
         :`<div class="err" style="margin-top:6px">⚠ Isolement ${fmt2(isoN)} MΩ &lt; ${esc(state.dh.isoMin)} MΩ : humidité probable. Renseigne la localisation de l'appareil (m de fil ou %) puis « Localiser ».</div>`;}
     let locBox='';const lv=state.dh.locVal;
-    if(lv){const Lb=dnE+(dnN||0);let x=null;const pm=String(lv).trim();
-      if(/%$/.test(pm))x=parseFloat(pm)/100*Lb;else x=parseFloat(pm.replace(',','.'));
-      if(isFinite(x)&&x>0){let wire2,dFil;if(x<=dnE){wire2='E';dFil=atRow.dE+x;}else{wire2='N';dFil=(C2&&C2.kind==='tip'?D.totalN:(tgt?tgt.dN:0))-(x-dnE);}
-        const res2=locate(L.line,cond,wire2,dFil);
-        if(res2.ok)locBox=`<div class="warnbox" style="margin-top:6px"><b>Défaut estimé à ${fmt(x)} m de fil du point de mesure</b> (fil ${wire2==='E'?'étamé':'nu'}) : ≈ <b>${esc(res2.e.id)}</b>, ${esc(res2.where)} — ${esc(res2.lineName)}, PK ${fmt(res2.phys)} m. <a href="#" id="dh-locshow" style="color:#1c3d6b;font-weight:700">Voir sur le plan (trajet + zone)</a></div>`;
-        else locBox=`<div class="err" style="margin-top:6px">Distance au-delà du fil connu (${fmt(res2.total)} m).</div>`;
-        state.dhLocPending=res2.ok?{...res2,cond,lineId:L.line,dFil:x,from:atRow.weldId}:null;}}
-    mesure=`<div class="kv"><span>Point : <b>${esc(atRow.weldId)}</b> · ${esc(atRow.lineName)} · PK ${fmt(atRow.pk)} m</span><span>Fermeture : ${closeLab}</span></div>
+    if(lv){const act=best||(cands.length===1?cands[0]:cands.find(c=>c.dir==='aval')||null);
+      if(!act)locBox=`<div class="err" style="margin-top:6px">Localisation : aucune boucle fermée depuis ce point (pose un ⟲ ou déclare un bout bouclé).</div>`;
+      else{const Lb=act.dE+act.dN;let x=null;const pm=String(lv).trim();
+        if(/%$/.test(pm))x=parseFloat(pm)/100*Lb;else x=parseFloat(pm.replace(',','.'));
+        if(isFinite(x)&&x>0){if(x>Lb+0.5)locBox=`<div class="err" style="margin-top:6px">Distance au-delà de la boucle ${act.dir} (${fmt(Lb)} m de fil au total).</div>`;
+          else{const closeDN=act.kind==='tip'?D.totalN:act.row.dN;let wire2,dFil;
+            if(x<=act.dE){wire2='E';dFil=act.dir==='amont'?atRow.dE-x:atRow.dE+x;}
+            else{wire2='N';dFil=act.dir==='amont'?closeDN+(x-act.dE):closeDN-(x-act.dE);}
+            const res2=locate(L.line,cond,wire2,dFil);
+            if(res2.ok)locBox=`<div class="warnbox" style="margin-top:6px"><b>Défaut estimé à ${fmt(x)} m de fil du point de mesure</b> (boucle ${act.dir}, fil ${wire2==='E'?'étamé':'nu'}) : ≈ <b>${esc(res2.e.id)}</b>, ${esc(res2.where)} — ${esc(res2.lineName)}, PK ${fmt(res2.phys)} m. <a href="#" id="dh-locshow" style="color:#1c3d6b;font-weight:700">Voir sur le plan (trajet + zone)</a></div>`;
+            else locBox=`<div class="err" style="margin-top:6px">Distance au-delà du fil connu (${fmt(res2.total)} m).</div>`;
+            state.dhLocPending=res2.ok?{...res2,cond,lineId:L.line,dFil:x,from:atRow.weldId}:null;}}}}
+    mesure=`<div class="kv"><span>Point : <b>${esc(atRow.weldId)}</b> · ${esc(atRow.lineName)} · PK ${fmt(atRow.pk)} m</span>${atRow.temp?'<span style="background:#f3e8ff">⟲ un pont est posé À ce manchon (mesure ≈ 0 ici)</span>':''}</div>
       <table class="rc" style="margin-top:6px"><tr><th></th><th>étamé</th><th>nu</th><th>boucle (les 2 fils)</th></tr>
-      <tr><td>vers l'amont (départ ${esc(line.start?line.start.split(' — ')[0]:'')})</td><td>${fmt(upE)} m</td><td>${upN===null?'—':fmt(upN)+' m'}</td><td>${Rup===null?'—':'<b>'+fmt2(Rup)+' Ω</b>'}</td></tr>
-      <tr><td>vers l'aval (${closeLab})</td><td>${fmt(dnE)} m</td><td>${dnN===null?'—':fmt(dnN)+' m'}</td><td>${Rdn===null?'—':'<b>'+fmt2(Rdn)+' Ω</b>'}</td></tr></table>
-      <div class="muted" style="font-size:12px">La valeur ohmique compte les DEUX fils (aller jusqu'au bouclage + retour). Isolement attendu ≥ ${esc(state.dh.isoMin)} MΩ.</div>
+      ${dirRow(`vers l'amont`,up)}
+      ${dirRow(`vers l'aval`,dn)}</table>
+      <div class="muted" style="font-size:12px">Chaque direction est une boucle À PART, fermée par SON pont ⟲ ou son bout bouclé (les 2 fils comptés) — une direction « ouverte » n'a pas de valeur attendue. Isolement attendu ≥ ${esc(state.dh.isoMin)} MΩ.</div>
       <div class="row" style="margin-top:8px;display:flex;gap:6px;align-items:end;flex-wrap:wrap"><div><label class="f">Boucle mesurée (Ω)</label><input class="f" id="dh-meas" type="number" inputmode="decimal" step="0.01" value="${state.dh.meas||''}" style="width:110px"></div><div><label class="f">Isolement (MΩ)</label><input class="f" id="dh-iso2" type="number" inputmode="decimal" step="0.01" value="${state.dh.iso??''}" style="width:100px"></div><div><label class="f">Localisation (m ou %)</label><input class="f" id="dh-locval" placeholder="ex. 98 ou 52%" value="${esc(state.dh.locVal||'')}" style="width:110px"></div><button class="btn primary" id="dh-check">Comparer</button></div>
       ${verdict}${isoV}${locBox}
       ${(meas>0||isoV)?`<div class="row" style="margin-top:8px"><button class="btn" id="dh-save-mesure">💾 Enregistrer cette mesure (date, valeurs, verdict)</button></div>`:''}`;}
