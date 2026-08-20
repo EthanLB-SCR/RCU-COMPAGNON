@@ -1151,11 +1151,7 @@ const logoSVG=(c1,c2,sz)=>`<svg width="${sz}" height="${sz}" viewBox="0 0 48 48"
 $('#loginLogo').innerHTML=logoSVG('#0b0b0b','#eb6834',72);$('#homeLogo').innerHTML=logoSVG('#0b0b0b','#eb6834',26);
 state.screen='site';state.homeTab=localStorage.getItem('trace:homeTab')||'map';state.homeQ='';state.homeSort='recent';state.serverMetas=[];state.homeStats=null;state.homePin=null;state.pendingOpen=null;
 function showScreen(sc){state.screen=sc;$('#loginView').classList.toggle('show',sc==='login');$('#homeView').classList.toggle('show',sc==='home');}
-// contour France stylisé (lon/lat approx.) — uniquement pour situer les chantiers, rien de cartographique
-const FRPTS=[[2.37,51.05],[1.85,50.96],[1.6,50.73],[1.55,50.2],[1.08,49.93],[0.1,49.5],[0.23,49.42],[-0.36,49.34],[-1.1,49.3],[-1.62,49.65],[-1.94,49.72],[-1.6,48.84],[-1.5,48.64],[-2.03,48.65],[-3.0,48.85],[-3.98,48.72],[-4.77,48.4],[-4.74,48.03],[-4.2,47.8],[-3.35,47.7],[-2.76,47.63],[-2.2,47.27],[-2.15,46.98],[-1.78,46.5],[-1.15,46.15],[-1.03,45.62],[-1.2,44.65],[-1.56,43.48],[-1.77,43.36],[-0.5,42.85],[0.7,42.75],[1.5,42.5],[2.55,42.4],[2.9,42.45],[3.0,43.15],[3.9,43.5],[4.85,43.35],[5.35,43.28],[5.93,43.1],[6.65,43.25],[7.26,43.7],[7.5,43.78],[6.95,44.35],[7.0,44.85],[7.05,45.2],[6.9,45.85],[6.05,46.2],[6.15,46.6],[6.05,46.75],[6.95,47.3],[7.55,47.55],[7.7,48.6],[8.2,48.97],[7.05,49.2],[6.1,49.45],[4.85,49.8],[4.0,50.35],[3.2,50.75]];
-function frProj(w,h,pad){const pts=FRPTS.map(([lo,la])=>[lo*0.688,-la]);let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;pts.forEach(p=>{x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);});
-  const k=Math.min((w-2*pad)/(x1-x0),(h-2*pad)/(y1-y0));const ox=(w-(x1-x0)*k)/2,oy=(h-(y1-y0)*k)/2;
-  return {P:(lo,la)=>[(lo*0.688-x0)*k+ox,(-la-y0)*k+oy],path:pts.map((p,i)=>(i?'L':'M')+((p[0]-x0)*k+ox).toFixed(1)+' '+((p[1]-y0)*k+oy).toFixed(1)).join(' ')+' Z'};}
+// carte des chantiers (accueil) : vraie carte IGN « plan éteint » (direction B validée le 20/08), web mercator, zoom/glisser/pincer, regroupement
 // centre lon/lat d'un chantier : depuis sa copie complète si elle est là, sinon depuis la méta serveur
 function llOfMeta(m){const full=SITES[m.id];const net=full&&full.lines?full:{geo:m.geo||undefined,origin:m.origin||undefined,traceur:{bgOrigin:m.bgo||null},w:m.w||0,h:m.h||0};
   try{const g=geoOfSite(net);if(!g)return null;const w=net.w||0,h=net.h||0;const ll=planToLonLat(g,[w/2,h/2]);return (isFinite(ll[0])&&isFinite(ll[1])&&ll[1]>40&&ll[1]<52)?ll:null;}catch(e){return null;}}
@@ -1178,19 +1174,74 @@ function renderHome(){if(!$('#homeView'))return;
   const metas=homeMetas();$('#homeCount').textContent=metas.length?`${metas.length} chantier${metas.length>1?'s':''} · choisis pour ouvrir`:'aucun chantier pour l\'instant';
   $('#htMap').classList.toggle('on',state.homeTab==='map');$('#htList').classList.toggle('on',state.homeTab!=='map');
   $('#homeBody').innerHTML=state.homeTab==='map'?homeMapHTML(metas):homeListHTML(metas);
+  if(state.homeTab==='map')initHomeMap(metas);
   const rs=$('#homeResume');const last=localStorage.getItem('trace:lastSite');const lm=metas.find(m=>m.id===last);
   if(lm){const st=statOf(lm.id);rs.style.display='';rs.innerHTML=`<div style="font-size:19px">↩</div><div style="flex:1"><div style="font-size:12.5px;font-weight:700">Reprendre : ${esc(lm.name)}</div><div style="font-size:10.5px;color:var(--ink2)">${st?st.pct+' % manchonné · ':''}${esc(agoTxt(lm.updatedAt))}</div></div><div style="color:#eb6834;font-weight:800">›</div>`;rs.onclick=()=>openSiteFromHome(lm.id);}
   else rs.style.display='none';}
-function homeMapHTML(metas){const {P,path}=frProj(300,320,24);let pins='',noLL=[];
-  metas.forEach(m=>{const ll=llOfMeta(m);if(!ll){noLL.push(m);return;}const [x,y]=P(ll[0],ll[1]);const st=statOf(m.id);const c=st?pctColor(st.pct):'#898781';
-    pins+=`<g data-pin="${esc(m.id)}" style="cursor:pointer"><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="12" fill="${c}" opacity=".16"/><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6.5" fill="${c}" stroke="#fcfcfb" stroke-width="2"/>${st&&st.pct>=100?`<text x="${x.toFixed(1)}" y="${(y+2.6).toFixed(1)}" font-size="7" font-weight="800" text-anchor="middle" fill="#fff">✓</text>`:''}</g>`;});
-  const sel=metas.find(m=>m.id===state.homePin);let bub='';
-  if(sel){const ll=llOfMeta(sel);if(ll){let [x,y]=P(ll[0],ll[1]);x=Math.max(64,Math.min(236,x));const st=statOf(sel.id);
-    bub=`<g style="pointer-events:none"><rect x="${x-58}" y="${y-42}" width="116" height="27" rx="7" fill="#0b0b0b" opacity=".93"/><path d="M ${x-5} ${y-15} L ${x} ${y-9} L ${x+5} ${y-15} Z" fill="#0b0b0b" opacity=".93"/><text x="${x}" y="${y-31}" font-size="9" font-weight="700" text-anchor="middle" fill="#fff">${esc(sel.name.slice(0,24))}</text><text x="${x}" y="${y-21}" font-size="7.5" text-anchor="middle" fill="#cfd4da">${(()=>{const s2=statOf(sel.id);return s2?`${s2.pct} % manchonné · ${s2.total} soudures`:(sel.local?'sur cet appareil':'sur le serveur');})()}</text></g>`;}}
-  return `<div class="homeMapCard"><svg viewBox="0 0 300 320"><path d="${path}" fill="#fcfcfb" stroke="#0b0b0b" stroke-width="1.6" stroke-linejoin="round"/>${pins}${bub}</svg>
-    <div style="position:absolute;left:10px;bottom:10px;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:4px 8px;font-size:9.5px;color:var(--ink2)">touche un pin · <span style="color:#eb6834">●</span> en cours <span style="color:#0ca30c">●</span> terminé</div></div>
-    ${sel?`<button class="btn primary block" style="margin-top:10px" data-open="${esc(sel.id)}">Ouvrir ${esc(sel.name.slice(0,30))}</button>`:''}
+function homeMapHTML(metas){const noLL=metas.filter(m=>!llOfMeta(m));
+  return `<div class="homeMapCard"><div class="homeMap" id="homeMap"></div></div>
     ${noLL.length?`<div style="margin-top:12px"><div style="font-size:11px;color:var(--ink2);margin-bottom:6px;font-weight:600">NON LOCALISÉS SUR LA CARTE</div>${noLL.map(siteCardHTML).join('')}</div>`:''}`;}
+// web mercator (pixels monde au zoom z, tuiles 256)
+const mercX=(lon,z)=>(lon+180)/360*256*Math.pow(2,z);
+const mercY=(lat,z)=>{const r=lat*Math.PI/180;return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*256*Math.pow(2,z);};
+function initHomeMap(metas){const el=$('#homeMap');if(!el)return;
+  const sites=metas.map(m=>({m,ll:llOfMeta(m)})).filter(s=>s.ll);
+  el.innerHTML=`<div class="hmTiles"></div><div class="hmPins"></div><div class="hmLegend"><span style="color:#eb6834">●</span> en cours <span style="color:#0ca30c">●</span> terminé · pastille noire = plusieurs chantiers</div><div class="hmCtl"><button data-a="+" title="Zoomer">+</button><button data-a="-" title="Dézoomer">−</button><button data-a="fit" title="Tous les chantiers">⌖</button></div><div class="hmCredit">© IGN — Géoplateforme</div><div class="hmCard" id="hmCard"></div>`;
+  const tilesEl=el.querySelector('.hmTiles'),pinsEl=el.querySelector('.hmPins'),card=el.querySelector('.hmCard');
+  if(!sites.length){el.querySelector('.hmLegend').textContent='Aucun chantier localisé — cale un plan sur la carte (👁 → Caler sur la carte) ou trace sur fond DXF géoréférencé.';}
+  const ZMIN=5,ZMAX=19;
+  const st=state.homeMapView&&isFinite(state.homeMapView.cx)?state.homeMapView:null;
+  const S=st||{z:6,cx:mercX(2.5,6),cy:mercY(46.6,6)};state.homeMapView=S;
+  const fit=()=>{const w=el.clientWidth||340,h=el.clientHeight||400;
+    if(!sites.length){S.z=6;S.cx=mercX(2.5,6);S.cy=mercY(46.6,6);render();return;}
+    for(let z=13;z>=ZMIN;z--){let x0=1e15,y0=1e15,x1=-1e15,y1=-1e15;sites.forEach(s=>{x0=Math.min(x0,mercX(s.ll[0],z));x1=Math.max(x1,mercX(s.ll[0],z));y0=Math.min(y0,mercY(s.ll[1],z));y1=Math.max(y1,mercY(s.ll[1],z));});
+      if(x1-x0<w-120&&y1-y0<h-150){S.z=z;S.cx=(x0+x1)/2;S.cy=(y0+y1)/2;break;}}
+    render();};
+  function render(){const w=el.clientWidth||340,h=el.clientHeight||400,z=S.z,n=Math.pow(2,z);
+    const tx0=Math.floor((S.cx-w/2)/256),tx1=Math.floor((S.cx+w/2)/256),ty0=Math.floor((S.cy-h/2)/256),ty1=Math.floor((S.cy+h/2)/256);
+    const want={};for(let ty=Math.max(0,ty0);ty<=Math.min(n-1,ty1);ty++)for(let tx=tx0;tx<=tx1;tx++)want[z+'/'+tx+'/'+ty]={xr:((tx%n)+n)%n,ty,tx};
+    [...tilesEl.children].forEach(img=>{const k=img.dataset.k;if(!want[k]){img.remove();return;}const t=want[k];img.style.left=(t.tx*256-S.cx+w/2)+'px';img.style.top=(t.ty*256-S.cy+h/2)+'px';delete want[k];});
+    Object.entries(want).forEach(([k,t])=>{const img=document.createElement('img');img.dataset.k=k;img.src=ignTileURL('plan',z,t.xr,t.ty);img.style.left=(t.tx*256-S.cx+w/2)+'px';img.style.top=(t.ty*256-S.cy+h/2)+'px';img.draggable=false;tilesEl.appendChild(img);});
+    // pins + regroupement (< 36 px) ; au zoom maxi les chantiers d'une même adresse s'écartent en éventail
+    const pts=sites.map(s=>({s,x:mercX(s.ll[0],z)-S.cx+w/2,y:mercY(s.ll[1],z)-S.cy+h/2}));
+    const used=new Array(pts.length).fill(false);const groups=[];
+    pts.forEach((p,i)=>{if(used[i])return;const g=[p];used[i]=true;pts.forEach((q,j)=>{if(!used[j]&&Math.hypot(p.x-q.x,p.y-q.y)<36){g.push(q);used[j]=true;}});groups.push(g);});
+    pinsEl.innerHTML='';
+    groups.forEach(g=>{
+      const gx=g.reduce((a,p)=>a+p.x,0)/g.length,gy=g.reduce((a,p)=>a+p.y,0)/g.length;
+      if(gx<-80||gx>w+80||gy<-80||gy>h+80)return; // hors écran
+      if(g.length>1&&z<ZMAX){const x=gx,y=gy;
+        const c=document.createElement('div');c.className='hmCluster';c.style.left=x+'px';c.style.top=y+'px';c.textContent=g.length;
+        pinsEl.appendChild(c);return;}
+      g.forEach((p,i)=>{let px=p.x,py=p.y;
+        if(g.length>1){const a=i/g.length*2*Math.PI-Math.PI/2;px+=Math.cos(a)*24;py+=Math.sin(a)*24;} // éventail au zoom maxi
+        const stt=statOf(p.s.m.id);const col=stt?pctColor(stt.pct):'#898781';
+        const d=document.createElement('div');d.className='hmPin'+(z>=9?' lbled':'');d.style.left=px+'px';d.style.top=py+'px';d.dataset.site=p.s.m.id;
+        d.innerHTML=`<span class="lbl">${esc(p.s.m.name.slice(0,30))}</span><span class="dot" style="border-color:${col};color:${col}">${stt&&stt.pct>=100?'✓':`<i style="width:10px;height:10px;border-radius:50%;background:${col}"></i>`}</span>`;
+        pinsEl.appendChild(d);});});
+  }
+  const openCard=id=>{const s=sites.find(x=>x.m.id===id);if(!s)return;const s2=statOf(id);const col=s2?pctColor(s2.pct):'#898781';
+    card.innerHTML=`<span class="st" style="background:${col}"></span><span style="min-width:0"><span class="nm">${esc(s.m.name)}</span><br><span class="mt">${s2?`${s2.pct} % manchonné · ${s2.total} soudures · `:''}${esc(agoTxt(s.m.updatedAt))||(s.m.local?'sur cet appareil':'sur le serveur')}</span></span><button class="go" data-open="${esc(s.m.id)}">Ouvrir</button>`;
+    card.classList.add('show');};
+  const zoomAt=(dz,mx,my)=>{const nz=Math.max(ZMIN,Math.min(ZMAX,S.z+dz));if(nz===S.z)return;const f=Math.pow(2,nz-S.z);const w=el.clientWidth,h=el.clientHeight;S.cx=(S.cx+(mx-w/2))*f-(mx-w/2);S.cy=(S.cy+(my-h/2))*f-(my-h/2);S.z=nz;render();};
+  el.addEventListener('wheel',e=>{e.preventDefault();const r=el.getBoundingClientRect();zoomAt(e.deltaY<0?1:-1,e.clientX-r.left,e.clientY-r.top);},{passive:false});
+  el.addEventListener('dblclick',e=>{if(e.target.closest('.hmCtl,.hmCard'))return;const r=el.getBoundingClientRect();zoomAt(1,e.clientX-r.left,e.clientY-r.top);});
+  el.querySelector('.hmCtl').addEventListener('click',e=>{const a=e.target.dataset.a;if(!a)return;e.stopPropagation();if(a==='fit'){card.classList.remove('show');fit();return;}zoomAt(a==='+'?1:-1,el.clientWidth/2,el.clientHeight/2);});
+  // la capture pointeur retargette les « click » vers le conteneur : les taps pins/pastilles se gèrent au pointerup (cible mémorisée au pointerdown), comme sur le canvas du plan
+  const ptrs=new Map();let last=null,pinchD=null,moved=false,downTgt=null;
+  el.addEventListener('pointerdown',e=>{if(e.target.closest('.hmCtl,.hmCard'))return;el.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});if(ptrs.size===1){last={x:e.clientX,y:e.clientY};moved=false;downTgt=e.target.closest('.hmPin,.hmCluster');}el.classList.add('dragging');});
+  el.addEventListener('pointermove',e=>{if(!ptrs.has(e.pointerId))return;ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(ptrs.size===1&&last){const dx=e.clientX-last.x,dy=e.clientY-last.y;if(Math.hypot(dx,dy)>3)moved=true;S.cx-=dx;S.cy-=dy;last={x:e.clientX,y:e.clientY};render();}
+    else if(ptrs.size===2){const [a,b]=[...ptrs.values()];const d=Math.hypot(a.x-b.x,a.y-b.y);const r=el.getBoundingClientRect();const mx=(a.x+b.x)/2-r.left,my=(a.y+b.y)/2-r.top;
+      if(pinchD){if(d/pinchD>1.35){zoomAt(1,mx,my);pinchD=d;}else if(d/pinchD<0.74){zoomAt(-1,mx,my);pinchD=d;}}else pinchD=d;}});
+  const up=e=>{ptrs.delete(e.pointerId);if(ptrs.size<2)pinchD=null;if(!ptrs.size){el.classList.remove('dragging');
+    if(!moved&&last){const t=downTgt;
+      if(t&&t.classList.contains('hmCluster')){const x=parseFloat(t.style.left),y=parseFloat(t.style.top);const w=el.clientWidth,h=el.clientHeight;const nz=Math.min(ZMAX,S.z+2);const f=Math.pow(2,nz-S.z);S.cx=(S.cx+(x-w/2))*f;S.cy=(S.cy+(y-h/2))*f;S.z=nz;render();}
+      else if(t&&t.dataset.site)openCard(t.dataset.site);
+      else card.classList.remove('show');}
+    last=null;downTgt=null;}};
+  el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);
+  if(!st)fit();else render();}
 function siteCardHTML(m){const st=statOf(m.id);const c=st?pctColor(st.pct):'#898781';
   return `<div class="siteCard" data-open="${esc(m.id)}"><div class="n"><i style="background:${c}"></i><span style="flex:1">${esc(m.name)}</span><span style="font-size:10px;color:var(--ink2);font-weight:400">${m.demo?'démo':(st&&st.pct>=100?'✓ terminé':(m.local?'':'serveur'))}</span></div>
     <div class="m">${st?st.total+' soudures':'—'}${m.local?' · sur cet appareil':''}</div>
@@ -1216,7 +1267,7 @@ async function openSiteFromHome(id){if(!id)return false;const local=SITES[id];co
 $('#btnHome').addEventListener('click',()=>{showScreen('home');renderHome();});
 $('#htMap').addEventListener('click',()=>{state.homeTab='map';localStorage.setItem('trace:homeTab','map');renderHome();});
 $('#htList').addEventListener('click',()=>{state.homeTab='list';localStorage.setItem('trace:homeTab','list');renderHome();});
-$('#homeBody').addEventListener('click',e=>{const p=e.target.closest('[data-pin]');if(p){state.homePin=state.homePin===p.dataset.pin?null:p.dataset.pin;renderHome();return;}
+$('#homeBody').addEventListener('click',e=>{
   const o=e.target.closest('[data-open]');if(o){openSiteFromHome(o.dataset.open);return;}
   const so=e.target.closest('[data-sort]');if(so){state.homeSort=so.dataset.sort;renderHome();return;}
   if(e.target.id==='homeNew'){openModal(`<h3>Nouveau chantier</h3><div class="actions"><button class="btn primary block" id="nwTrace">✎ Tracer un réseau (traceur)</button><button class="btn block" id="nwImport">📄 Importer un plan (DXF / PDF)</button><button class="btn block" data-close>Annuler</button></div>`);

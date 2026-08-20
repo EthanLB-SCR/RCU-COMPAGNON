@@ -16,9 +16,14 @@ out=await page.evaluate(()=>document.querySelector('#loginHint').textContent.sli
 await page.click('#loginSkip');await page.waitForTimeout(500);
 out=await page.evaluate(()=>({home:document.querySelector('#homeView').classList.contains('show'),count:document.querySelector('#homeCount').textContent,banner:document.querySelector('#homeBanner').style.display!=='none',tabMap:document.querySelector('#htMap').classList.contains('on')}));
 console.log('accueil (2 démos, bandeau hors connexion):',JSON.stringify(out));
-// 3) carte de France : contour + pins (les démos ont-elles une géoréf ? sinon cartes « non localisés »)
-out=await page.evaluate(()=>({fr:!!document.querySelector('#homeBody svg path'),pins:document.querySelectorAll('#homeBody [data-pin]').length,cards:document.querySelectorAll('#homeBody .siteCard').length}));
-console.log('carte (contour true):',JSON.stringify(out));
+// 3) carte IGN interactive : tuiles + contrôles + crédit ; pins/clusters si les démos sont géoréférencées, sinon cartes « non localisés »
+out=await page.evaluate(()=>({map:!!document.querySelector('#homeMap'),tiles:document.querySelectorAll('#homeMap .hmTiles img').length,pins:document.querySelectorAll('#homeMap .hmPin,#homeMap .hmCluster').length,ctl:document.querySelectorAll('#homeMap .hmCtl button').length,credit:!!document.querySelector('#homeMap .hmCredit'),cards:document.querySelectorAll('#homeBody .siteCard').length}));
+console.log('carte IGN (map true, 3 boutons, crédit):',JSON.stringify(out));
+// 3b) zoom + : les tuiles changent de niveau ; clic pin (si présent) → carte info avec bouton Ouvrir
+out=await page.evaluate(()=>{const z0=+document.querySelector('#homeMap .hmTiles img')?.dataset.k.split('/')[0];document.querySelector('#homeMap [data-a="+"]').click();const z1=+document.querySelector('#homeMap .hmTiles img')?.dataset.k.split('/')[0];
+  let cardBtn=null;const pin=document.querySelector('#homeMap .hmPin');if(pin){pin.click();cardBtn=!!document.querySelector('#hmCard.show [data-open]');}
+  return {z0,z1,cardBtn};});
+console.log('zoom + / clic pin:',JSON.stringify(out));
 // 4) vue liste : recherche + tri + cartes démo
 await page.click('#htList');await page.waitForTimeout(300);
 out=await page.evaluate(()=>({cards:document.querySelectorAll('#homeBody .siteCard').length,search:!!document.querySelector('#homeQ'),sorts:document.querySelectorAll('#homeBody [data-sort]').length,newBtn:!!document.querySelector('#homeNew')}));
