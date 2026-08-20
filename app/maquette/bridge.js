@@ -27,6 +27,7 @@ export function siteFromTraceur({id,name,supplier,serie,lines,built,rules,bg,pre
     traceur:{v:1,lines:JSON.parse(JSON.stringify(lines)),rules,bgName:bg?bg.name:null,bgOpacity:bg?bg.opacity:undefined,bgOrigin:bg&&bg.origin?bg.origin:null,bgLayers:bg&&bg.netLayers?bg.netLayers:null,savedAt:new Date().toISOString()},created:new Date().toISOString()};
   if(prev&&prev.geo)site.geo=prev.geo; // calage à la main fait dans l'appli : conservé d'une version du tracé à l'autre (même repère de plan)
   if(prev&&prev.hydro)site.hydro=prev.hydro; // préparation hydraulique (coupes, points d'eau, skid) : conservée aussi
+  if(prev&&prev.dhData)site.dhData=prev.dhData; // DH : états d'extrémités, bouclages temporaires, mesures — conservés d'une version du tracé à l'autre
   return {site,lost,nW};
 }
 // soudures d'un chantier existant (pour l'appariement) : [{line,cond,m,weldId,status}]
