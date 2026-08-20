@@ -210,7 +210,7 @@ async function deleteCurrentSite(){const id=state.siteId;const net=SITES[id];if(
   delete SITES[id];delete siteStore[id];const o=[...siteSel.options].find(x=>x.value===id);if(o)o.remove();const next=Object.keys(SITES)[0];toast('Chantier supprimé — '+msg);
   if(next){siteSel.value=next;await switchSite(next);}else{location.reload();}}
 function setupSite(id){
-  state.hydroPose=null;hydroCache=null;state.hydroMapView=null;state.osmHydrants=null;const hb=$('#hydroBar');if(hb)hb.style.display='none';
+  state.hydroPose=null;hydroCache=null;state.hydroMapView=null;state.osmHydrants=null;state.hydroCalStart=null;state.hydroCalMonth=null;state.hydroCalT=0;const hb=$('#hydroBar');if(hb)hb.style.display='none';
   if(siteStore[id]){const st=siteStore[id];NET=st.NET;state.lines=st.lines;state.sheets=st.sheets;state.nextWeld=st.nextWeld;state.sheetId=st.sheetId;state.locate={...state.locate,line:st.firstLine};bgG.dataset.sheet='';return;}
   NET=SITES[id];state.lines={};state.sheets={};state.nextWeld=1;
   const sh={id:'s_'+id,name:NET.name,type:NET.sheetType||'blank',w:NET.w,h:NET.h,ppm:1,lines:[],ann:NET.ann||[],drawing:NET.drawing||null,plain:NET.source==='traceur',image:NET.image||null};state.sheets[sh.id]=sh;state.sheetId=sh.id;
@@ -449,24 +449,55 @@ async function fetchOsmHydrants(){const g=siteGeo();if(!g){toast('Cale d’abord
   toast('Serveur OSM injoignable — réessaie plus tard');}
 const fmtMin=m=>!isFinite(m)||m<=0?'—':m<1?'< 1 min':m<90?'≈ '+Math.round(m)+' min':'≈ '+Math.floor(m/60)+' h '+String(Math.round(m%60)).padStart(2,'0');
 const frDate=d=>{const x=new Date(d+'T00:00');return isFinite(x)?String(x.getDate()).padStart(2,'0')+'/'+String(x.getMonth()+1).padStart(2,'0'):d;};
-// frise du calendrier prévisionnel : une rangée par tronçon (+ « chantier »), pastilles d'opérations aux dates choisies, répétables, dans l'ordre voulu
-function calFriseSVG(h){const cal=(h.cal||[]);if(!cal.length)return '';
-  const days=[...new Set(cal.map(c=>c.d))].sort();const d0=new Date(days[0]+'T00:00'),d1=new Date(days[days.length-1]+'T00:00');
-  const nd=Math.max(1,Math.round((d1-d0)/864e5)+1);
-  const rows=[...new Set(cal.map(c=>+c.t))].sort((a,b)=>a-b);
-  const W=Math.max(380,Math.min(860,nd*30+130)),RH=36,H0=14,HH=H0+rows.length*RH+30;
-  const X=d=>{const t=(new Date(d+'T00:00')-d0)/864e5;return 84+(nd<2?(W-130)/2:t*(W-130)/(nd-1));};
-  let s=`<svg viewBox="0 0 ${W} ${HH}" style="display:block;width:100%;background:#fff;border:1px solid #e1e0d9;border-radius:12px">`;
-  const step=Math.max(1,Math.ceil(nd/12));
-  for(let i=0;i<nd;i+=1){const dd=new Date(d0.getTime()+i*864e5);const x=84+(nd<2?(W-130)/2:i*(W-130)/(nd-1));
-    s+=`<line x1="${x}" y1="${H0}" x2="${x}" y2="${HH-24}" stroke="${i%step?'#f6f5f0':'#eceade'}"/>`;
-    if(i%step===0)s+=`<text x="${x}" y="${HH-10}" font-size="9" text-anchor="middle" fill="#898781">${String(dd.getDate()).padStart(2,'0')}/${String(dd.getMonth()+1).padStart(2,'0')}</text>`;}
-  rows.forEach((t,ri)=>{const y=H0+ri*RH+RH/2;const col=t<0?'#0b0b0b':TCOLS[t%TCOLS.length];
-    s+=`<text x="6" y="${y+3.5}" font-size="10" font-weight="700" fill="${col}">${t<0?'Chantier':'Tronçon '+(t+1)}</text><line x1="76" y1="${y}" x2="${W-24}" y2="${y}" stroke="#e8e6df"/>`;
-    const byDay={};cal.forEach(c=>{if(+c.t===t)(byDay[c.d]=byDay[c.d]||[]).push(c);});
-    Object.entries(byDay).forEach(([d,cs])=>{cs.forEach((c,j)=>{const op=CAL_OPS[c.op]||CAL_OPS.autre;const x=X(d)+j*8-((cs.length-1)*4);
-      s+=`<g><circle cx="${x}" cy="${y}" r="9.5" fill="${op.color}" stroke="#fff" stroke-width="2"/><text x="${x}" y="${y+3.3}" font-size="9" text-anchor="middle">${op.ico}</text></g>`;});});});
-  return s+'</svg>';}
+/* calendrier prévisionnel (direction A+B validée le 20/08) : pastilles à GLISSER (nom écrit), deux vues sur les mêmes données —
+   « Planning » (une ligne par tronçon, fenêtre 2 semaines) et « Mois » (agenda) ; formulaire gardé en secours */
+const isoD=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const CAL_DOW=['dim','lun','mar','mer','jeu','ven','sam'];
+const calTCol=t=>+t<0?'#0b0b0b':TCOLS[+t%TCOLS.length];
+const calEvHTML=(c,i)=>{const o=CAL_OPS[c.op]||CAL_OPS.autre;return `<span class="hyEv" data-ev="${i}" style="background:${o.color};--tc:${calTCol(c.t)}" title="${esc(o.label)} · ${+c.t<0?'tout le chantier':'tronçon '+(+c.t+1)} · ${frDate(c.d)}"><span class="tb"></span>${esc(o.short)}</span>`;};
+function calPlanHTML(H,h,print){const cal=h.cal||[];let start,nd;
+  if(print){const ds=cal.map(c=>c.d).sort();start=new Date((ds[0]||isoD(new Date()))+'T00:00');const end=new Date((ds[ds.length-1]||ds[0]||isoD(new Date()))+'T00:00');nd=Math.max(7,Math.min(42,Math.round((end-start)/864e5)+2));}
+  else{if(!state.hydroCalStart){const ds=cal.map(c=>c.d).sort();const d0=ds.length?new Date(ds[0]+'T00:00'):new Date();d0.setDate(d0.getDate()-1);state.hydroCalStart=isoD(d0);}start=new Date(state.hydroCalStart+'T00:00');nd=14;}
+  const days=[];for(let i=0;i<nd;i++)days.push(new Date(start.getTime()+i*864e5));
+  const today=isoD(new Date());
+  const rows=H.troncons.map(t=>t.idx);if(H.troncons.length>1||cal.some(c=>+c.t===-1))rows.push(-1);
+  let g=`<div class="hyCalWrap"><div class="hyCalGrid" style="grid-template-columns:92px repeat(${nd},1fr);${print?'min-width:0':''}">`;
+  g+=`<div class="hyGh"></div>`+days.map(d=>{const we=d.getDay()%6===0;return `<div class="hyGh ${we?'we':''}">${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}<small>${CAL_DOW[d.getDay()]}</small></div>`;}).join('');
+  rows.forEach(t=>{g+=`<div class="hyRowh"><i style="background:${calTCol(t)}"></i>${t<0?'Chantier':'Tronçon '+(t+1)}</div>`;
+    days.forEach(d=>{const dd=isoD(d);const evs=cal.map((c,i)=>({c,i})).filter(x=>+x.c.t===t&&x.c.d===dd);
+      g+=`<div class="hyCell ${d.getDay()%6===0?'we':''} ${dd===today?'today':''}" data-cald="${dd}" data-calt="${t}">${evs.map(x=>calEvHTML(x.c,x.i)).join('')}</div>`;});});
+  return g+'</div></div>';}
+function calMoisHTML(H,h){const cal=h.cal||[];
+  if(!state.hydroCalMonth){const ds=cal.map(c=>c.d).sort();const d0=ds.length?new Date(ds[0]+'T00:00'):new Date();state.hydroCalMonth=d0.getFullYear()+'-'+String(d0.getMonth()+1).padStart(2,'0');}
+  const [y,m]=state.hydroCalMonth.split('-').map(Number);const first=new Date(y,m-1,1);const start=new Date(first.getTime()-((first.getDay()+6)%7)*864e5);
+  const today=isoD(new Date());
+  let g=`<div class="hyCalWrap"><div class="hyMonth">`+['lun','mar','mer','jeu','ven','sam','dim'].map(x=>`<div class="hyMh">${x}</div>`).join('');
+  for(let i=0;i<42;i++){const d=new Date(start.getTime()+i*864e5);const dd=isoD(d);const off=d.getMonth()!==m-1;
+    const evs=cal.map((c,j)=>({c,j})).filter(x=>x.c.d===dd);
+    g+=`<div class="hyDay ${off?'off':''} ${d.getDay()%6===0?'we':''} ${dd===today?'today':''}" data-cald="${dd}"><span class="n">${d.getDate()}</span>${evs.map(x=>calEvHTML(x.c,x.j)).join('')}</div>`;}
+  return g+'</div></div>';}
+// glisser-déposer des pastilles (souris + doigt) : palette → jour, étiquette → autre jour, étiquette → 🗑
+let calDrag=null,calGhost=null;
+document.addEventListener('pointerdown',e=>{if(!e.target.closest('#hydro'))return;if(!hydroCanEdit())return;
+  const pal=e.target.closest('.hyOp');const ev=e.target.closest('.hyEv');if(!pal&&!ev)return;const h=hydroOf();if(!h)return;e.preventDefault();
+  calDrag=pal?{op:pal.dataset.op,idx:null}:{op:(h.cal[+ev.dataset.ev]||{}).op,idx:+ev.dataset.ev};
+  const o=CAL_OPS[calDrag.op]||CAL_OPS.autre;calGhost=document.createElement('span');calGhost.className='hyEv hyGhost';calGhost.style.background=o.color;
+  calGhost.style.setProperty('--tc',calDrag.idx!==null?calTCol(h.cal[calDrag.idx].t):'#0b0b0b');
+  calGhost.innerHTML='<span class="tb"></span>'+esc(o.short);document.body.appendChild(calGhost);calGhost.style.left=e.clientX+'px';calGhost.style.top=e.clientY+'px';});
+document.addEventListener('pointermove',e=>{if(!calGhost)return;e.preventDefault();calGhost.style.left=e.clientX+'px';calGhost.style.top=e.clientY+'px';
+  $$('.hyCell.hot,.hyDay.hot,.hyTrash.hot').forEach(x=>x.classList.remove('hot'));
+  calGhost.style.display='none';const under=document.elementFromPoint(e.clientX,e.clientY);calGhost.style.display='';
+  const c=under&&under.closest?under.closest('[data-cald],[data-caltrash]'):null;if(c)c.classList.add('hot');
+  const wrap=$('#hydro .hyCalWrap');if(wrap){const r=wrap.getBoundingClientRect();if(e.clientY>r.top-20&&e.clientY<r.bottom+20){if(e.clientX>r.right-44)wrap.scrollLeft+=16;else if(e.clientX<r.left+44)wrap.scrollLeft-=16;}}},{passive:false}); // près du bord : le bandeau défile tout seul pendant le glisser
+document.addEventListener('pointerup',e=>{if(!calGhost)return;calGhost.style.display='none';const under=document.elementFromPoint(e.clientX,e.clientY);calGhost.remove();calGhost=null;
+  const h=hydroOf();if(!h){calDrag=null;return;}
+  const cell=under&&under.closest?under.closest('[data-cald]'):null;const trash=under&&under.closest?under.closest('[data-caltrash]'):null;
+  if(trash&&calDrag.idx!==null)h.cal.splice(calDrag.idx,1);
+  else if(cell){const d=cell.dataset.cald;const H=hydroBuild();
+    const t=cell.dataset.calt!==undefined?+cell.dataset.calt:(calDrag.idx!==null?+h.cal[calDrag.idx].t:(state.hydroCalT!==undefined&&state.hydroCalT!==null?state.hydroCalT:(H&&H.troncons[0]?H.troncons[0].idx:0)));
+    if(calDrag.idx!==null){h.cal[calDrag.idx].d=d;h.cal[calDrag.idx].t=t;}else h.cal.push({op:calDrag.op,t,d});}
+  else{calDrag=null;return;}
+  h.cal.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);calDrag=null;saveHydro();renderHydro();});
 const fmtVol=v=>(v<.95?String(Math.max(.01,Math.round(v*100)/100).toFixed(2)).replace('.',','):fmt(Math.round(v*10)/10))+' m³';
 // vue d'ensemble de l'onglet Hydro : le VRAI plan (fond DXF/image + réseau) en petit, zoomable comme le reste (molette / pincer / double-tap / + − ⌖)
 function hydroBgSVG(sh){ // fond de plan léger, en cache par feuille
@@ -547,9 +578,18 @@ function renderHydro(){const el=$('#hydro');if(!el)return;const h=hydroOf();
   <div class="hyMap" id="hydroMap"></div>
   <div class="muted" style="font-size:11.5px;margin:6px 0 10px;display:flex;gap:10px;flex-wrap:wrap">${H.troncons.length>6?`<span>${H.troncons.length} tronçons (couleurs sur la carte et dans le récap)</span>`:H.troncons.map(t=>`<span><i style="display:inline-block;width:11px;height:4px;background:${TCOLS[t.idx%TCOLS.length]};border-radius:2px;vertical-align:middle;margin-right:3px"></i>tronçon ${t.idx+1}</span>`).join('')}<span><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#0b0b0b;border:2px solid #ffd9a8;vertical-align:middle;margin-right:3px"></i>⇄ BP = by-pass à poser</span><span>KFL = kit fin de ligne</span><span style="color:#d03b3b">⚠ = fond bombé déjà soudé</span></div>
   ${!H.cuts.length&&H.troncons.length>1?'<div class="muted" style="font-size:11.5px;margin:-4px 0 10px">Sans coupe, chaque réseau non relié aux autres forme déjà son propre tronçon.</div>':''}
-  <h3 style="margin:10px 0 6px">3 · Calendrier prévisionnel <span class="muted" style="font-weight:400;font-size:12px">(pastilles libres : autant d’opérations que besoin, dans l’ordre voulu)</span></h3>
-  ${(h.cal||[]).length?calFriseSVG(h):'<div class="muted" style="font-size:12.5px;margin-bottom:6px">Aucune étape pour l’instant — ajoute la première ci-dessous (ex. remplissage eau brute puis épreuve puis rinçage…).</div>'}
-  ${(h.cal||[]).length?`<div style="margin:6px 0">${h.cal.map((c,i)=>{const op=CAL_OPS[c.op]||CAL_OPS.autre;return `<span class="hyChip" style="border-color:${op.color}"><i style="width:9px;height:9px;border-radius:50%;background:${op.color};display:inline-block"></i>${op.ico} ${esc(op.short)}${c.note?' · '+esc(c.note):''} · ${+c.t<0?'chantier':'T'+(+c.t+1)} · <b>${frDate(c.d)}</b>${canH?`<button data-rmcal="${i}" title="enlever">✕</button>`:''}</span>`;}).join('')}</div>`:''}
+  <h3 style="margin:10px 0 6px">3 · Calendrier prévisionnel <span class="muted" style="font-weight:400;font-size:12px">(glisse les pastilles sur les jours — autant d’opérations que besoin, dans l’ordre voulu)</span></h3>
+  ${(()=>{const calView=state.hydroCalView||'plan';let label='';
+    if(calView==='plan'){const st=new Date((state.hydroCalStart||isoD(new Date()))+'T00:00');const en=new Date(st.getTime()+13*864e5);label=frDate(isoD(st))+' → '+frDate(isoD(en));}
+    else{const mm=state.hydroCalMonth;label=mm?new Date(mm+'-01T00:00').toLocaleDateString('fr-FR',{month:'long',year:'numeric'}):'';}
+    return `<div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-bottom:7px">
+     <button class="btn sm ${calView==='plan'?'primary':''}" data-calview="plan">Planning</button><button class="btn sm ${calView==='mois'?'primary':''}" data-calview="mois">Mois</button>
+     <button class="btn sm" data-calnav="-1">‹</button><b style="font-size:12.5px;text-transform:capitalize">${esc(label)}</b><button class="btn sm" data-calnav="1">›</button>
+     ${calView==='mois'&&H.troncons.length>1?`<span class="muted" style="font-size:11px;margin-left:4px">poser sur :</span>${[...H.troncons.map(t=>t.idx),-1].map(t=>`<button class="hyTchip ${state.hydroCalT===t?'on':''}" data-calt2="${t}" style="${state.hydroCalT===t?'background:'+calTCol(t):''}">${t<0?'Chantier':'T'+(t+1)}</button>`).join('')}`:''}
+    </div>
+    ${canH?`<div class="hyPal">${Object.entries(CAL_OPS).map(([k,o])=>`<span class="hyOp" data-op="${k}" style="background:${o.color}"><i></i>${esc(o.short)}</span>`).join('')}<span class="hyTrash" data-caltrash="1">🗑 glisser ici pour enlever</span></div>`:''}
+    ${calView==='plan'?calPlanHTML(H,h):calMoisHTML(H,h)}`;})()}
+  ${(h.cal||[]).length?`<div style="margin:6px 0">${h.cal.map((c,i)=>{const op=CAL_OPS[c.op]||CAL_OPS.autre;return `<span class="hyChip" style="border-color:${op.color}"><i style="width:9px;height:9px;border-radius:50%;background:${op.color};display:inline-block"></i>${op.ico} ${esc(op.short)} · ${+c.t<0?'chantier':'T'+(+c.t+1)} · <b>${frDate(c.d)}</b>${canH?`<button data-rmcal="${i}" title="enlever">✕</button>`:''}</span>`;}).join('')}</div>`:'<div class="muted" style="font-size:12px;margin:6px 0">Aucune étape — glisse une pastille sur un jour, ou utilise le formulaire ci-dessous.</div>'}
   ${canH?`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px;margin-bottom:10px">
    <select id="hyCalOp" class="f" style="font-size:13px">${Object.entries(CAL_OPS).map(([k,o])=>`<option value="${k}">${o.ico} ${o.label}</option>`).join('')}</select>
    <select id="hyCalT" class="f" style="font-size:13px">${H.troncons.length>1?`<option value="-1">Tout le chantier</option>`:''}${H.troncons.map(t=>`<option value="${t.idx}" ${H.troncons.length===1?'selected':''}>Tronçon ${t.idx+1}</option>`).join('')}</select>
@@ -571,6 +611,12 @@ function renderHydro(){const el=$('#hydro');if(!el)return;const h=hydroOf();
   const osmB=$('#hyOsm');if(osmB)osmB.addEventListener('click',fetchOsmHydrants);
   const calAdd=$('#hyCalAdd');if(calAdd)calAdd.addEventListener('click',()=>{const op=$('#hyCalOp').value;const t=+$('#hyCalT').value;const d=$('#hyCalD').value;
     if(!d){toast('Choisis une date');return;}h.cal.push({op,t,d});h.cal.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);saveHydro();renderHydro();});
+  $$('#hydro [data-calview]').forEach(b=>b.addEventListener('click',()=>{state.hydroCalView=b.dataset.calview;renderHydro();}));
+  $$('#hydro [data-calnav]').forEach(b=>b.addEventListener('click',()=>{const dir=+b.dataset.calnav;
+    if((state.hydroCalView||'plan')==='plan'){const st=new Date((state.hydroCalStart||isoD(new Date()))+'T00:00');st.setDate(st.getDate()+dir*7);state.hydroCalStart=isoD(st);}
+    else{const [y,m]=(state.hydroCalMonth||isoD(new Date()).slice(0,7)).split('-').map(Number);const d2=new Date(y,m-1+dir,1);state.hydroCalMonth=d2.getFullYear()+'-'+String(d2.getMonth()+1).padStart(2,'0');}
+    renderHydro();}));
+  $$('#hydro [data-calt2]').forEach(b=>b.addEventListener('click',()=>{state.hydroCalT=+b.dataset.calt2;renderHydro();}));
   const rep=$('#hyReport');if(rep)rep.addEventListener('click',openHydroReport);
   const clr=$('#hyClear');if(clr)clr.addEventListener('click',()=>{if(!confirm('Effacer prestations, coupes, points d’eau, zones de remplissage, skids et calendrier de ce chantier ?'))return;NET.hydro={prest:{epreuve:true},params:{},cuts:[],water:[],fills:[],skids:[],cal:[]};saveHydro();renderHydro();});
   initHydroMap();}
@@ -607,13 +653,23 @@ function openHydroReport(){const H=hydroBuild();const h=hydroOf();if(!H||!h)retu
   table{border-collapse:collapse;width:100%;font-size:12px}td,th{border:1px solid #bbb;padding:5px 7px;text-align:left;vertical-align:top}th{background:#f0efe9}
   .muted{color:#666}.np{margin:12px 0;padding:9px 16px;font-size:14px;border-radius:8px;border:1px solid #888;background:#f5f5f2;cursor:pointer}
   .page{page-break-before:always;margin-top:26px}
+  .hyCalWrap{border:1px solid #ddd;border-radius:10px;overflow:hidden;background:#fff}
+  .hyCalGrid{display:grid}
+  .hyGh{font-size:9px;color:#666;text-align:center;padding:4px 1px;border-bottom:1px solid #ddd;background:#f6f5f0;font-weight:600}
+  .hyGh small{display:block;font-size:8px;color:#999;font-weight:400}.hyGh.we{background:#eeece4;color:#a8a49a}
+  .hyRowh{font-size:11px;font-weight:800;padding:7px 6px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:5px}
+  .hyRowh i{width:11px;height:5px;border-radius:2px;display:inline-block}
+  .hyCell{border-left:1px solid #f2f0ea;border-bottom:1px solid #eee;min-height:36px;padding:2px;display:flex;flex-direction:column}
+  .hyCell.we{background:#f8f7f2}.hyCell.today{background:#fff}
+  .hyEv{display:inline-flex;align-items:center;gap:4px;border-radius:7px;padding:2px 6px 2px 4px;font-size:9.5px;font-weight:700;color:#fff;line-height:1.25;margin:1px 0;white-space:nowrap}
+  .hyEv .tb{width:4px;align-self:stretch;border-radius:3px;background:var(--tc,#0b0b0b);box-shadow:0 0 0 1px rgba(255,255,255,.5)}
   @media print{.np{display:none}body{margin:6mm}}</style></head><body>
   <button class="np" onclick="print()">🖨 Imprimer / enregistrer en PDF</button>
   <h1>Dossier de préparation hydraulique — ${esc(NET.name)}</h1>
   <div class="muted">Édité le ${new Date().toLocaleString('fr-FR')} — TRACÉ · vue globale + une page par tronçon</div>
   <h2>Prestations</h2><div>${esc(prests)}${H.flow?' — circulation requise : extrémités bouclées par by-pass (SST et raccordements compris)':' — statique : kits fin de ligne suffisants'}</div>
   <h2>Paramètres retenus (réglables dans l’appli)</h2><div>Vitesse de rinçage ${fmt(P.vitesse)} m/s · débit borne/skid ${fmt(P.debit)} m³/h · skid ${fmt(P.skidW)} × ${fmt(P.skidL)} m</div>
-  ${(h.cal||[]).length?`<h2>Calendrier prévisionnel</h2>${calFriseSVG(h)}<table style="margin-top:6px"><tr><th>Date</th><th>Opération</th><th>Périmètre</th></tr>${calRows}</table>`:''}
+  ${(h.cal||[]).length?`<h2>Calendrier prévisionnel</h2>${calPlanHTML(H,h,true)}<table style="margin-top:6px"><tr><th>Date</th><th>Opération</th><th>Périmètre</th></tr>${calRows}</table>`:''}
   <h2>Vue d'ensemble</h2>${hydroPrintMap([bb[0]-20,bb[1]-20,(bb[2]-bb[0])+40,(bb[3]-bb[1])+40],460)}
   <div class="muted" style="margin-top:4px">${H.troncons.map(t=>`<span style="margin-right:10px"><span style="display:inline-block;width:10px;height:5px;background:${TCOLS[t.idx%TCOLS.length]};border-radius:2px"></span> T${t.idx+1}</span>`).join('')} · ⚫ BP à poser · ⚠ fond bombé déjà soudé</div>
   <h2>Synthèse par tronçon</h2><table><tr><th>T</th><th>Linéaire</th><th>Volume A+R</th><th>Débit rinçage</th><th>Pompe</th><th>Remplissage</th><th>À poser</th></tr>${rows}

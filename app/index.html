@@ -92,6 +92,35 @@
   .hyMap{position:relative;height:clamp(320px,52vh,460px);border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#f1f0eb;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
   .hyMap .hmLegend{top:auto;bottom:8px;max-width:75%}
   .hyCtl{bottom:8px !important}
+  /* calendrier prévisionnel : palette à glisser + planning par tronçon / agenda mensuel */
+  .hyPal{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+  .hyOp{display:inline-flex;align-items:center;gap:6px;border-radius:20px;padding:6px 11px;font-size:12px;font-weight:700;color:#fff;cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none;box-shadow:0 1px 4px rgba(0,0,0,.18)}
+  .hyOp i{width:7px;height:7px;border-radius:50%;background:#fff;opacity:.85}
+  .hyTrash{margin-left:auto;border:1.6px dashed #c9a0a0;color:#a05252;border-radius:12px;padding:6px 11px;font-size:11.5px;background:#fdf7f7}
+  .hyTrash.hot{background:#f7dede;border-style:solid}
+  .hyEv{display:inline-flex;align-items:center;gap:5px;border-radius:8px;padding:3px 7px 3px 5px;font-size:10.5px;font-weight:700;color:#fff;cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none;line-height:1.25;box-shadow:0 1px 3px rgba(0,0,0,.22);margin:2px 0;white-space:nowrap;max-width:100%;overflow:hidden}
+  .hyEv .tb{width:4px;align-self:stretch;border-radius:3px;background:var(--tc,#0b0b0b);box-shadow:0 0 0 1px rgba(255,255,255,.5);flex:none}
+  .hyGhost{position:fixed;z-index:99;pointer-events:none;opacity:.92;transform:translate(-50%,-120%) rotate(-2deg)}
+  .hyCalWrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:#fff}
+  .hyCalGrid{display:grid;min-width:720px}
+  .hyGh{font-size:9.5px;color:var(--ink2);text-align:center;padding:4px 1px;border-bottom:1px solid var(--line);background:#faf9f4;font-weight:600}
+  .hyGh small{display:block;font-size:8.5px;color:var(--muted);font-weight:400}
+  .hyGh.we{background:#f1efe7;color:#a8a49a}
+  .hyRowh{font-size:11.5px;font-weight:800;padding:8px 6px;border-bottom:1px solid #f0efe9;display:flex;align-items:center;gap:5px;background:#fff}
+  .hyRowh i{width:11px;height:5px;border-radius:2px;display:inline-block;flex:none}
+  .hyCell{border-left:1px solid #f4f2ec;border-bottom:1px solid #f0efe9;min-height:42px;padding:2px;display:flex;flex-direction:column;align-items:stretch}
+  .hyCell.we{background:#faf9f4}
+  .hyCell.today{background:#fff7ee;box-shadow:inset 2px 0 0 #eb6834}
+  .hyCell.hot,.hyDay.hot{background:#eaf3ff !important;outline:2px dashed #2a78d6;outline-offset:-2px}
+  .hyMonth{display:grid;grid-template-columns:repeat(7,1fr);min-width:660px}
+  .hyMh{font-size:10px;font-weight:700;color:var(--ink2);text-align:center;padding:5px 0;background:#faf9f4;border-bottom:1px solid var(--line)}
+  .hyDay{border-left:1px solid #f4f2ec;border-bottom:1px solid #f0efe9;min-height:58px;padding:2px;display:flex;flex-direction:column;align-items:stretch}
+  .hyDay .n{font-size:9.5px;color:var(--muted);font-weight:600;padding:0 3px}
+  .hyDay.off .n{color:#c9c6bc}
+  .hyDay.we{background:#faf9f4}
+  .hyDay.today .n{background:#eb6834;color:#fff;border-radius:10px;align-self:flex-start;padding:1px 6px}
+  .hyTchip{border:1.6px solid var(--line);background:#fff;border-radius:20px;padding:4px 11px;font-size:11.5px;font-weight:700;cursor:pointer;color:var(--ink)}
+  .hyTchip.on{color:#fff;border-color:transparent}
   .hist{margin:8px 0 0;padding:0;list-style:none}.hist li{display:flex;gap:8px;padding:7px 0;border-top:1px solid var(--line);font-size:13px}.hist li:first-child{border-top:0}.hist .dot{width:10px;height:10px;border-radius:50%;flex:none;margin-top:5px}.hist .who{color:var(--ink2);font-size:12px}
   .conn{display:grid;grid-template-columns:1fr auto 1fr;gap:6px;align-items:center;margin:6px 0}.conn .w{display:flex;align-items:center;gap:6px;font-size:13px}.conn .w i{width:14px;height:6px;border-radius:3px;display:inline-block}.conn select{border:1px solid var(--line);border-radius:8px;padding:6px;font-size:14px;background:var(--surface);min-width:0}
   .dial{display:flex;gap:10px;align-items:center}.dial .btns{display:grid;grid-template-columns:1fr 1fr;gap:6px;flex:1}
