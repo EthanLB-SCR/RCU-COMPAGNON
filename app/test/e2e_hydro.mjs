@@ -32,8 +32,13 @@ out=await page.evaluate(()=>{const L=Object.values(window.TRACE.lines).sort((a,b
   window.TRACE.hydro.tap(p.x,p.y);const H=window.TRACE.hydro.build();return {cuts:H.cuts.length,tr:H.troncons.length,line:L.id};});
 console.log('coupe posée → 2 tronçons:',JSON.stringify(out));
 // 5) marqueurs sur le plan (overlay) + volumes qui se somment
-out=await page.evaluate(()=>{const H=window.TRACE.hydro.build();const g=document.querySelector('#hydroG');return {overlay:g.innerHTML.includes('✂'),badges:(g.innerHTML.match(/BP/g)||[]).length>0,sum:+(H.troncons.reduce((s,t)=>s+t.vol,0)).toFixed(2),tot:+H.totals.vol.toFixed(2)};});
-console.log('overlay plan (✂ + badges BP, volumes cohérents):',JSON.stringify(out));
+out=await page.evaluate(()=>{const H=window.TRACE.hydro.build();const g=document.querySelector('#hydroG');return {overlay:g.innerHTML.includes('✂'),pastilles:g.querySelectorAll('circle').length>0,sum:+(H.troncons.reduce((s,t)=>s+t.vol,0)).toFixed(2),tot:+H.totals.vol.toFixed(2)};});
+console.log('overlay plan (✂ + pastilles, volumes cohérents):',JSON.stringify(out));
+// zoomé sur une extrémité BP, le badge texte apparaît (seuil 0,35 px/m)
+out=await page.evaluate(()=>{const H=window.TRACE.hydro.build();const en=H.troncons.flatMap(t=>t.ends).find(e=>e.need==='BP');if(!en)return {skip:true};
+  const l=window.TRACE.lines[en.line];const els=l.els;const e=els.find(x=>en.m>=x.m0&&en.m<=x.m1)||els[els.length-1];const p=e.axis[0][e.axis[0].length-1];
+  window.TRACE.centerOn(p.x,p.y,2);return {badge:(document.querySelector('#hydroG').innerHTML.match(/BP/g)||[]).length>0};});
+console.log('badge ⇄ BP visible zoomé:',JSON.stringify(out));
 // 6) point d'eau + remplissage + skid
 await page.evaluate(()=>{window.TRACE.state.hydroPose='water';const L=Object.values(window.TRACE.lines)[0];const p=L.els[0].axis[0][0];window.TRACE.hydro.tap(p.x+30,p.y+30);});
 await page.evaluate(()=>{window.TRACE.state.hydroPose='fill';const L=Object.values(window.TRACE.lines)[0];const p=L.els[0].axis[0][0];window.TRACE.hydro.tap(p.x+30,p.y+34);});

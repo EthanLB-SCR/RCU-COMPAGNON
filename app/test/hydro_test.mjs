@@ -33,7 +33,8 @@ ok(T.dnMax===100,'DN max 100');
 // extrémités : départ P raccordé (sst), bout P (endcap soudé), bout A1 (bypass), bout A2 (endcap non soudé)
 ok(T.ends.length===4,'4 extrémités');
 const endOf=(H2,ln,ty)=>H2.troncons.flatMap(t=>t.ends).find(e=>e.line===ln&&e.type===ty);
-ok(endOf(H,'P','start').need==='none'&&endOf(H,'P','start').already==='sst','départ raccordé : rien à poser');
+ok(endOf(H,'P','start').need==='none'&&endOf(H,'P','start').already==='racc','départ = raccordement (réseau existant) : rien à poser');
+ok(/raccordement/.test(endOf(H,'P','start').label),'label « raccordement » au départ');
 ok(endOf(H,'A1','tip').need==='none'&&endOf(H,'A1','tip').already==='bp','bout A1 déjà bouclé (by-pass)');
 ok(endOf(H,'P','tip').need==='KFL'&&endOf(H,'A2','tip').need==='KFL','épreuve seule : bouts en KFL');
 ok(H.alerts.length===0,'pas d\'alerte en épreuve seule');
@@ -70,6 +71,12 @@ const S={id:'S',name:'Mono',length:100,nCond:1,parent:null,parentM:0,startKind:'
 H=buildHydro([S],{prest:{rincage:true}});
 ok(near(H.troncons[0].vol,areaDN(80)*100,.01),'volume ×1 en mono-conduite');
 ok(H.troncons[0].ends.every(e=>e.need==='EVAC'),'rinçage mono-tube : évacuation libre');
+
+console.log('— bout en sous-station (SST ≠ raccordement) —');
+const B={id:'B',name:'Antenne B',length:50,nCond:2,parent:null,parentM:0,startKind:'pipe',endKind:'endpoint',endWelds:[],els:[pipe(0,50,50)]};
+H=buildHydro([B],{prest:{rincage:true}});
+const eB=H.troncons[0].ends.find(e=>e.type==='tip');
+ok(eB.already==='sst'&&eB.need==='none'&&/SST/.test(eB.label),'bout en SST : libellé « SST », rien à poser');
 
 console.log('— coupes invalides ignorées —');
 H=buildHydro(LINES,{prest:{epreuve:true},cuts:[{line:'ZZ',m:10},{line:'P',m:0.2},{line:'P',m:299.9}]});

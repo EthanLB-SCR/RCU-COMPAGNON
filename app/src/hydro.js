@@ -41,11 +41,11 @@ export function buildHydro(lines,{prest={},params={},cuts=[],fillAt=null}={}){
       // extrémités du tronçon : départs de racine, bouts de ligne, côtés de coupe
       const ends=[];
       ss.forEach(s=>{const l=byId[s.line];
-        if(s.m0<=1e-6){if(!l.parent||!byId[l.parent]){const alr=l.startKind==='endpoint'?'sst':null;ends.push({line:s.line,m:0,type:'start',label:alr?'départ (raccordé)':'départ '+(l.name||l.id),already:alr,welded:null});}}
+        if(s.m0<=1e-6){if(!l.parent||!byId[l.parent]){const alr=l.startKind==='endpoint'?'racc':null;ends.push({line:s.line,m:0,type:'start',label:alr?'raccordement ('+(l.name||l.id)+')':'départ '+(l.name||l.id),already:alr,welded:null});}} // raccordement = piquage sur le réseau existant / la chaufferie — PAS une sous-station
         else ends.push({line:s.line,m:s.m0,type:'cut',cut:s.cut0.idx,label:s.cut0.valve?'vanne '+s.cut0.valve:'coupe '+(s.cut0.idx+1),valve:!!s.cut0.valve,already:null,welded:null});
-        if(s.m1>=l.length-1e-6){const alr=l.endKind==='bypass'?'bp':l.endKind==='endpoint'?'sst':null;
+        if(s.m1>=l.length-1e-6){const alr=l.endKind==='bypass'?'bp':l.endKind==='endpoint'?'sst':null; // sst = sous-station de bâtiment au bout de l'antenne (bouclée chez elle)
           const w=(l.endWelds||[]).filter(x=>WELDED(x.status));
-          ends.push({line:s.line,m:l.length,type:'tip',label:'bout '+(l.name||l.id),already:alr,endcap:l.endKind==='endcap',welded:l.endKind==='endcap'&&w.length?w:null});}
+          ends.push({line:s.line,m:l.length,type:'tip',label:alr==='sst'?'SST ('+(l.name||l.id)+')':'bout '+(l.name||l.id),already:alr,endcap:l.endKind==='endcap',welded:l.endKind==='endcap'&&w.length?w:null});}
         else ends.push({line:s.line,m:s.m1,type:'cut',cut:s.cut1.idx,label:s.cut1.valve?'vanne '+s.cut1.valve:'coupe '+(s.cut1.idx+1),valve:!!s.cut1.valve,already:null,welded:null});});
       const hasFill=!!(fillSeg&&ss.includes(fillSeg));
       ends.forEach(en=>{const l=byId[en.line];const single=(l.nCond||2)<2;

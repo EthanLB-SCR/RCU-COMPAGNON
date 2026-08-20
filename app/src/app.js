@@ -210,7 +210,7 @@ async function deleteCurrentSite(){const id=state.siteId;const net=SITES[id];if(
   delete SITES[id];delete siteStore[id];const o=[...siteSel.options].find(x=>x.value===id);if(o)o.remove();const next=Object.keys(SITES)[0];toast('Chantier supprimé — '+msg);
   if(next){siteSel.value=next;await switchSite(next);}else{location.reload();}}
 function setupSite(id){
-  state.hydroPose=null;hydroCache=null;const hb=$('#hydroBar');if(hb)hb.style.display='none';
+  state.hydroPose=null;hydroCache=null;state.hydroMapView=null;const hb=$('#hydroBar');if(hb)hb.style.display='none';
   if(siteStore[id]){const st=siteStore[id];NET=st.NET;state.lines=st.lines;state.sheets=st.sheets;state.nextWeld=st.nextWeld;state.sheetId=st.sheetId;state.locate={...state.locate,line:st.firstLine};bgG.dataset.sheet='';return;}
   NET=SITES[id];state.lines={};state.sheets={};state.nextWeld=1;
   const sh={id:'s_'+id,name:NET.name,type:NET.sheetType||'blank',w:NET.w,h:NET.h,ppm:1,lines:[],ann:NET.ann||[],drawing:NET.drawing||null,plain:NET.source==='traceur',image:NET.image||null};state.sheets[sh.id]=sh;state.sheetId=sh.id;
@@ -406,30 +406,56 @@ function hydroOverlaySVG(k,mini){const H=hydroBuild();if(!H)return '';const h=hy
   H.troncons.forEach(t=>{const col=TCOLS[t.idx%TCOLS.length];t.segs.forEach(sg=>{const l=state.lines[sg.line];if(!l)return;
     subAxis(l,sg.m0,sg.m1).forEach(pl=>{const d=pathD(pl);s+=`<path d="${d}" stroke="#fff" stroke-width="${9/k}" fill="none" stroke-linejoin="round" stroke-linecap="round" opacity=".8"/><path d="${d}" stroke="${col}" stroke-width="${5/k}" fill="none" stroke-linejoin="round" stroke-linecap="round" opacity=".9"/>`;});});});
   if(h.skid){const P=hydroParams();const W=P.skidL*ppm,Ht=P.skidW*ppm;s+=`<g transform="translate(${h.skid.x} ${h.skid.y}) rotate(${h.skid.rot||0})"><rect x="${-W/2}" y="${-Ht/2}" width="${W}" height="${Ht}" fill="#1c6fd6" fill-opacity=".13" stroke="#1c6fd6" stroke-width="${1.6/k}" stroke-dasharray="${5/k} ${3.5/k}"/><text font-size="${Math.min(11/k,Ht*.42)}" text-anchor="middle" dominant-baseline="central" fill="#1c3d6b" font-weight="700" font-family="system-ui,sans-serif">SKID ${fmt(P.skidW)}×${fmt(P.skidL)} m</text></g>`;}
-  const badge=(x,y,txt,bg,fg,dy)=>{const w2=txt.length*6.6+16;return `<g transform="translate(${x} ${y}) scale(${1/k})"><rect x="${-w2/2}" y="${(dy||-26)}" width="${w2}" height="17" rx="8.5" fill="${bg}" opacity=".95"/><text y="${(dy||-26)+12.5}" font-size="10.5" font-weight="800" text-anchor="middle" fill="${fg}" font-family="system-ui,sans-serif">${txt}</text></g>`;};
-  const many=mini&&H.troncons.reduce((s2,t)=>s2+t.ends.filter(e=>e.need==='BP'||e.need==='KFL'||e.need==='EVAC').length,0)>10; // mini-plan chargé : pastilles seules, badges gardés pour ⚠ / 🚰
+  const kpm=k*ppm; // px écran par mètre : pilote ce qui s'affiche — dézoomé pastilles seules, zoomé les textes (mêmes règles sur le plan et la vue d'ensemble)
+  const badge=(x,y,txt,bg,fg)=>{const w2=txt.length*6+14;return `<g transform="translate(${x} ${y}) scale(${1/k})"><rect x="${-w2/2}" y="-23" width="${w2}" height="15" rx="7.5" fill="${bg}" opacity=".95"/><text y="-11.8" font-size="9.5" font-weight="800" text-anchor="middle" fill="${fg}" font-family="system-ui,sans-serif">${txt}</text></g>`;};
   H.troncons.forEach(t=>{const col=TCOLS[t.idx%TCOLS.length];t.ends.forEach(en=>{const l=state.lines[en.line];if(!l||!l.length)return;
     const p=posAtChainage(l,Math.max(0.05,Math.min(l.length-0.05,en.m)));let ox=0,oy=0;
-    if(en.type==='cut'){const up=t.segs.some(sg=>sg.line===en.line&&Math.abs(sg.m1-en.m)<1e-6);const p0=posAtChainage(l,Math.max(0,en.m-1.5)),p1=posAtChainage(l,Math.min(l.length,en.m+1.5));const nx=p1.x-p0.x,ny=p1.y-p0.y;const nl=Math.hypot(nx,ny)||1;const sg2=up?-1:1;ox=nx/nl*sg2*16/k;oy=ny/nl*sg2*16/k;}
+    if(en.type==='cut'){const up=t.segs.some(sg=>sg.line===en.line&&Math.abs(sg.m1-en.m)<1e-6);const p0=posAtChainage(l,Math.max(0,en.m-1.5)),p1=posAtChainage(l,Math.min(l.length,en.m+1.5));const nx=p1.x-p0.x,ny=p1.y-p0.y;const nl=Math.hypot(nx,ny)||1;const sg2=up?-1:1;ox=nx/nl*sg2*14/k;oy=ny/nl*sg2*14/k;}
     const x=p.x+ox,y=p.y+oy;
-    if(en.fill){s+=`<circle cx="${x}" cy="${y}" r="${5.5/k}" fill="#1c6fd6" stroke="#fff" stroke-width="${2/k}"/>`+badge(x,y,'🚰 remplissage','#1c6fd6','#fff');return;}
-    if(en.welded&&en.need==='BP'){s+=`<circle cx="${x}" cy="${y}" r="${5.5/k}" fill="#d03b3b" stroke="#fff" stroke-width="${2/k}"/>`+badge(x,y,'⚠ soudé','#d03b3b','#fff');return;}
-    if(en.need==='BP'){s+=`<circle cx="${x}" cy="${y}" r="${5.5/k}" fill="#0b0b0b" stroke="#ffd9a8" stroke-width="${2.4/k}"/>`+(many?'':badge(x,y,'⇄ BP','#0b0b0b','#ffd9a8'));return;}
-    if(en.need==='KFL'){s+=`<circle cx="${x}" cy="${y}" r="${5/k}" fill="#fff" stroke="${col}" stroke-width="${2.2/k}"/>`+(many?'':badge(x,y,'KFL','#52514e','#fff'));return;}
-    if(en.need==='EVAC'){s+=`<circle cx="${x}" cy="${y}" r="${5/k}" fill="#fff" stroke="${col}" stroke-width="${2.2/k}"/>`+(many?'':badge(x,y,'évac. libre','#3f6480','#fff'));return;}
-    if(en.already&&!many){s+=badge(x,y,en.already==='bp'?'✓ bouclé (BP)':'✓ raccordé','#8f8d86','#fff');}});});
-  H.cuts.forEach(c=>{const l=state.lines[c.line];if(!l)return;const p=posAtChainage(l,c.m);const lab=c.valve?'coupe : vanne '+c.valve:'coupe '+(c.idx+1);const w2=lab.length*6.2+14;
-    s+=`<g><circle cx="${p.x}" cy="${p.y}" r="${11/k}" fill="#fff" stroke="#0b0b0b" stroke-width="${1.8/k}"/><text x="${p.x}" y="${p.y+4.2/k}" font-size="${12/k}" text-anchor="middle">✂</text><g transform="translate(${p.x} ${p.y}) scale(${1/k})"><rect x="${-w2/2}" y="14" width="${w2}" height="16" rx="8" fill="#0b0b0b" opacity=".85"/><text y="26" font-size="9.5" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">${esc(lab)}</text></g></g>`;});
-  (h.water||[]).forEach((w,i)=>{s+=`<g><circle cx="${w.x}" cy="${w.y}" r="${14/k}" fill="#1c6fd6" opacity=".16">${mini?'':`<animate attributeName="r" values="${11/k};${17/k};${11/k}" dur="2s" repeatCount="indefinite"/>`}</circle><circle cx="${w.x}" cy="${w.y}" r="${9/k}" fill="#1c6fd6" stroke="#fff" stroke-width="${2/k}"/><text x="${w.x}" y="${w.y+3.5/k}" font-size="${9.5/k}" text-anchor="middle" fill="#fff">💧</text><text x="${w.x}" y="${w.y-13/k}" font-size="${10.5/k}" font-weight="700" text-anchor="middle" fill="#1c3d6b" font-family="system-ui,sans-serif" paint-order="stroke" stroke="#fff" stroke-width="${3/k}">B${i+1}</text></g>`;});
+    if(en.fill){s+=`<circle cx="${x}" cy="${y}" r="${5/k}" fill="#1c6fd6" stroke="#fff" stroke-width="${1.8/k}"/>`+badge(x,y,'🚰 remplissage','#1c6fd6','#fff');return;}
+    if(en.welded&&en.need==='BP'){s+=`<circle cx="${x}" cy="${y}" r="${5/k}" fill="#d03b3b" stroke="#fff" stroke-width="${1.8/k}"/>`+badge(x,y,'⚠ soudé','#d03b3b','#fff');return;}
+    if(en.need==='BP'){s+=`<circle cx="${x}" cy="${y}" r="${5/k}" fill="#0b0b0b" stroke="#ffd9a8" stroke-width="${2/k}"/>`+(kpm>=0.35?badge(x,y,'⇄ BP','#0b0b0b','#ffd9a8'):'');return;}
+    if(en.need==='KFL'){s+=`<circle cx="${x}" cy="${y}" r="${4.5/k}" fill="#fff" stroke="${col}" stroke-width="${2/k}"/>`+(kpm>=0.6?badge(x,y,'KFL','#52514e','#fff'):'');return;}
+    if(en.need==='EVAC'){s+=`<circle cx="${x}" cy="${y}" r="${4.5/k}" fill="#fff" stroke="${col}" stroke-width="${2/k}"/>`+(kpm>=0.6?badge(x,y,'évac. libre','#3f6480','#fff'):'');return;}
+    if(en.already&&kpm>=1.2){s+=badge(x,y,en.already==='bp'?'✓ bouclé (BP)':en.already==='sst'?'✓ SST':'raccordement','#8f8d86','#fff');}});}); // rien à poser = info secondaire, visible seulement zoomé
+  H.cuts.forEach(c=>{const l=state.lines[c.line];if(!l)return;const p=posAtChainage(l,c.m);const lab=c.valve?'coupe : vanne '+c.valve:'coupe '+(c.idx+1);const w2=lab.length*5.6+12;
+    s+=`<g><circle cx="${p.x}" cy="${p.y}" r="${9/k}" fill="#fff" stroke="#0b0b0b" stroke-width="${1.6/k}"/><text x="${p.x}" y="${p.y+3.6/k}" font-size="${10/k}" text-anchor="middle">✂</text><g transform="translate(${p.x} ${p.y}) scale(${1/k})"><rect x="${-w2/2}" y="12" width="${w2}" height="14" rx="7" fill="#0b0b0b" opacity=".85"/><text y="22.5" font-size="8.5" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">${esc(lab)}</text></g></g>`;});
+  (h.water||[]).forEach((w,i)=>{s+=`<g><circle cx="${w.x}" cy="${w.y}" r="${12/k}" fill="#1c6fd6" opacity=".16">${mini?'':`<animate attributeName="r" values="${9/k};${14/k};${9/k}" dur="2s" repeatCount="indefinite"/>`}</circle><circle cx="${w.x}" cy="${w.y}" r="${7.5/k}" fill="#1c6fd6" stroke="#fff" stroke-width="${1.8/k}"/><text x="${w.x}" y="${w.y+3/k}" font-size="${8/k}" text-anchor="middle" fill="#fff">💧</text><text x="${w.x}" y="${w.y-11/k}" font-size="${9.5/k}" font-weight="700" text-anchor="middle" fill="#1c3d6b" font-family="system-ui,sans-serif" paint-order="stroke" stroke="#fff" stroke-width="${3/k}">B${i+1}</text></g>`;});
   if(h.fill){const fa=H.fillAt;if(fa&&fa.x!==undefined)s+=`<path d="M${h.fill.x} ${h.fill.y} L${fa.x} ${fa.y}" stroke="#1c6fd6" stroke-width="${2/k}" stroke-dasharray="${4/k} ${3/k}" fill="none"/>`;
-    const w2=118;s+=`<g transform="translate(${h.fill.x} ${h.fill.y}) scale(${1/k})"><rect x="${-w2/2}" y="-9" width="${w2}" height="18" rx="9" fill="#1c6fd6"/><text y="4" font-size="10" font-weight="800" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">🚰 REMPLISSAGE ICI</text></g>`;}
+    const w2=104;s+=`<g transform="translate(${h.fill.x} ${h.fill.y}) scale(${1/k})"><rect x="${-w2/2}" y="-8" width="${w2}" height="16" rx="8" fill="#1c6fd6"/><text y="3.5" font-size="9" font-weight="800" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">🚰 REMPLISSAGE ICI</text></g>`;}
   return s;}
 function renderHydroOverlay(){if(!hydroG)return;if(!state.hydroPose||!NET||NET.id==='__vide'){hydroG.innerHTML='';return;}hydroG.innerHTML=`<g style="pointer-events:none">${hydroOverlaySVG(state.view.k,false)}</g>`;}
 const fmtMin=m=>!isFinite(m)||m<=0?'—':m<1?'< 1 min':m<90?'≈ '+Math.round(m)+' min':'≈ '+Math.floor(m/60)+' h '+String(Math.round(m%60)).padStart(2,'0');
 const fmtVol=v=>(v<.95?String(Math.max(.01,Math.round(v*100)/100).toFixed(2)).replace('.',','):fmt(Math.round(v*10)/10))+' m³';
-function hydroMiniSVG(){const sh=sheet();const bb=sheetBBox(sh);const pad=Math.max(18,(bb[2]-bb[0])*.09);const x0=bb[0]-pad,y0=bb[1]-pad,w=bb[2]-bb[0]+2*pad,ht=bb[3]-bb[1]+2*pad;
-  const kk=560/Math.max(w,ht);let axes='';hydroLines().forEach(l=>{(l.els||[]).forEach(e=>{const pl=e.axis&&e.axis[0];if(pl&&pl.length>1)axes+=`<path d="${pathD(pl)}" stroke="#cfccc0" stroke-width="${11/kk}" fill="none" stroke-linejoin="round" stroke-linecap="round"/>`;});});
-  return `<svg viewBox="${x0} ${y0} ${w} ${ht}" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;max-height:430px;background:#eceade;border-radius:12px">${axes}${hydroOverlaySVG(kk,true)}</svg>`;}
+// vue d'ensemble de l'onglet Hydro : le VRAI plan (fond DXF/image + réseau) en petit, zoomable comme le reste (molette / pincer / double-tap / + − ⌖)
+function hydroBgSVG(sh){ // fond de plan léger, en cache par feuille
+  if(sh.hydroBg&&sh.hydroBgId===sh.id)return sh.hydroBg;
+  const imgTag=sh.image&&sh.image.src?`<image href="${sh.image.src}" x="${sh.image.x||0}" y="${sh.image.y||0}" width="${sh.image.w}" height="${sh.image.h}" opacity="${sh.image.opacity===undefined?.5:sh.image.opacity}" preserveAspectRatio="none"/>`:'';
+  let g=`<rect x="-1e5" y="-1e5" width="2e5" height="2e5" fill="#f1f0eb"/>`+imgTag;
+  if(sh.type==='vector'&&sh.drawing&&sh.drawing.length){if(sh.drawingFar===undefined){const np=sh.drawing.reduce((t,d)=>t+(d.pts?d.pts.length:(d.loops?d.loops.reduce((x,q)=>x+q.length,0):0)),0);sh.drawingFar=np>60000?decimateDrawing(sh.drawing,{cap:45000,simp:0.5,minLen:1.5}).drawing:null;}
+    g+=`<g opacity=".5">${drawingSVG(sh.drawingFar||sh.drawing,{k:1,texts:false,colors:state.show.couleurs!==false,op:1,fillOp:1}).svg}</g>`;}
+  else if(sh.type==='image'&&sh.src)g+=`<image href="${sh.src}" x="0" y="0" width="${sh.w}" height="${sh.h}" opacity=".45"/>`;
+  sh.hydroBg=g;sh.hydroBgId=sh.id;return g;}
+function initHydroMap(){const box=$('#hydroMap');if(!box)return;const sh=sheet();const ppm=sh.ppm||1;
+  let axes='';hydroLines().forEach(l=>{(l.els||[]).forEach(e=>{const pl=e.axis&&e.axis[0];if(pl&&pl.length>1)axes+=`<path d="${pathD(pl)}" stroke="#b9b5a8" stroke-width="${Math.max(.25*ppm,2)}" fill="none" stroke-linejoin="round" stroke-linecap="round" opacity=".8"/>`;});});
+  box.innerHTML=`<svg style="position:absolute;inset:0;width:100%;height:100%"><g id="hyWorld"><g>${hydroBgSVG(sh)}</g><g>${axes}</g><g id="hyOv"></g></g></svg><div class="hmCtl hyCtl"><button data-a="+" title="Zoomer">+</button><button data-a="-" title="Dézoomer">−</button><button data-a="fit" title="Tout le réseau">⌖</button></div><div class="hmLegend">zoome (molette / pincer / double-tap) — la pose se fait sur l'onglet Plan</div>`;
+  const world=box.querySelector('#hyWorld'),ov=box.querySelector('#hyOv');
+  const V=state.hydroMapView&&isFinite(state.hydroMapView.k)?state.hydroMapView:(state.hydroMapView={k:0,tx:0,ty:0});
+  let raf2=null;const apply=()=>{world.setAttribute('transform',`translate(${V.tx} ${V.ty}) scale(${V.k})`);if(raf2)return;raf2=requestAnimationFrame(()=>{raf2=null;ov.innerHTML=hydroOverlaySVG(V.k,true);});};
+  const fit=()=>{const bb=sheetBBox(sh);const cw=box.clientWidth||360,ch=box.clientHeight||400;const m=Math.max(20,(bb[2]-bb[0])*.06);const x0=bb[0]-m,y0=bb[1]-m,x1=bb[2]+m,y1=bb[3]+m;
+    V.k=Math.min(cw/(x1-x0),ch/(y1-y0))*.97;V.tx=(cw-(x1-x0)*V.k)/2-x0*V.k;V.ty=(ch-(y1-y0)*V.k)/2-y0*V.k;apply();};
+  const zoomAt=(f,mx,my)=>{const nk=Math.min(60/ppm,Math.max(0.02/ppm,V.k*f));const r=nk/V.k;V.tx=mx-(mx-V.tx)*r;V.ty=my-(my-V.ty)*r;V.k=nk;apply();}; // kpm borné 0,02 → 60 px/m
+  box.addEventListener('wheel',e=>{e.preventDefault();const r=box.getBoundingClientRect();zoomAt(Math.exp(-e.deltaY*.0015),e.clientX-r.left,e.clientY-r.top);},{passive:false});
+  box.addEventListener('dblclick',e=>{if(e.target.closest('.hyCtl'))return;const r=box.getBoundingClientRect();zoomAt(2,e.clientX-r.left,e.clientY-r.top);});
+  box.querySelector('.hyCtl').addEventListener('click',e=>{const a=e.target.dataset.a;if(!a)return;e.stopPropagation();if(a==='fit'){fit();return;}zoomAt(a==='+'?1.6:1/1.6,box.clientWidth/2,box.clientHeight/2);});
+  const ptrs2=new Map();let last2=null,pd2=null;
+  box.addEventListener('pointerdown',e=>{if(e.target.closest('.hyCtl'))return;box.setPointerCapture(e.pointerId);ptrs2.set(e.pointerId,{x:e.clientX,y:e.clientY});if(ptrs2.size===1)last2={x:e.clientX,y:e.clientY};});
+  box.addEventListener('pointermove',e=>{if(!ptrs2.has(e.pointerId))return;ptrs2.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(ptrs2.size===1&&last2){V.tx+=e.clientX-last2.x;V.ty+=e.clientY-last2.y;last2={x:e.clientX,y:e.clientY};apply();}
+    else if(ptrs2.size===2){const [a,b]=[...ptrs2.values()];const d=Math.hypot(a.x-b.x,a.y-b.y);const r=box.getBoundingClientRect();if(pd2)zoomAt(d/pd2,(a.x+b.x)/2-r.left,(a.y+b.y)/2-r.top);pd2=d;}});
+  const up2=e=>{ptrs2.delete(e.pointerId);if(ptrs2.size<2)pd2=null;if(!ptrs2.size)last2=null;};
+  box.addEventListener('pointerup',up2);box.addEventListener('pointercancel',up2);
+  if(!V.k)fit();else apply();}
 function renderHydro(){const el=$('#hydro');if(!el)return;const h=hydroOf();
   if(!h||!hydroLines().length){el.innerHTML='<h2 class="vt">Hydraulique</h2><div class="card muted">Aucun réseau dans ce chantier — trace un réseau avec le traceur, l’onglet prépare ensuite épreuves, rinçage et remplissage.</div>';return;}
   const H=hydroBuild();const P=H.params;const canH=hydroCanEdit();const flow=H.flow;
@@ -471,8 +497,8 @@ function renderHydro(){const el=$('#hydro');if(!el)return;const h=hydroOf();
    <button class="hyPill" data-pose="skid" ${canH?'':'disabled'}>⬛ Skid${h.skid?' ✓':''}</button>
   </div>
   ${chips.length?`<div style="margin-bottom:6px">${chips.join('')}</div>`:''}
-  <div style="border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff">${hydroMiniSVG()}</div>
-  <div class="muted" style="font-size:11.5px;margin:6px 0 10px;display:flex;gap:10px;flex-wrap:wrap">${H.troncons.map(t=>`<span><i style="display:inline-block;width:11px;height:4px;background:${TCOLS[t.idx%TCOLS.length]};border-radius:2px;vertical-align:middle;margin-right:3px"></i>tronçon ${t.idx+1}</span>`).join('')}<span><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#0b0b0b;border:2px solid #ffd9a8;vertical-align:middle;margin-right:3px"></i>⇄ BP = by-pass à poser</span><span>KFL = kit fin de ligne</span><span style="color:#d03b3b">⚠ = bouchon déjà soudé</span></div>
+  <div class="hyMap" id="hydroMap"></div>
+  <div class="muted" style="font-size:11.5px;margin:6px 0 10px;display:flex;gap:10px;flex-wrap:wrap">${H.troncons.length>6?`<span>${H.troncons.length} tronçons (couleurs sur la carte et dans le récap)</span>`:H.troncons.map(t=>`<span><i style="display:inline-block;width:11px;height:4px;background:${TCOLS[t.idx%TCOLS.length]};border-radius:2px;vertical-align:middle;margin-right:3px"></i>tronçon ${t.idx+1}</span>`).join('')}<span><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#0b0b0b;border:2px solid #ffd9a8;vertical-align:middle;margin-right:3px"></i>⇄ BP = by-pass à poser</span><span>KFL = kit fin de ligne</span><span>✓ SST = bouclé en sous-station</span><span style="color:#d03b3b">⚠ = bouchon déjà soudé</span></div>
   ${!H.cuts.length&&H.troncons.length>1?'<div class="muted" style="font-size:11.5px;margin:-4px 0 10px">Sans coupe, chaque réseau non relié aux autres forme déjà son propre tronçon.</div>':''}
   <h3 style="margin:10px 0 6px">3 · Récap par tronçon</h3>
   ${H.troncons.map(trCard).join('')}
@@ -486,7 +512,8 @@ function renderHydro(){const el=$('#hydro');if(!el)return;const h=hydroOf();
   $$('#hydro [data-rmfill]').forEach(b=>b.addEventListener('click',()=>{if(!canH)return;h.fill=null;saveHydro();renderHydro();}));
   $$('#hydro [data-rmskid]').forEach(b=>b.addEventListener('click',()=>{if(!canH)return;h.skid=null;saveHydro();renderHydro();}));
   const rep=$('#hyReport');if(rep)rep.addEventListener('click',openHydroReport);
-  const clr=$('#hyClear');if(clr)clr.addEventListener('click',()=>{if(!confirm('Effacer prestations, coupes, points d’eau, remplissage et skid de ce chantier ?'))return;NET.hydro={prest:{epreuve:true},params:{},cuts:[],water:[],fill:null,skid:null};saveHydro();renderHydro();});}
+  const clr=$('#hyClear');if(clr)clr.addEventListener('click',()=>{if(!confirm('Effacer prestations, coupes, points d’eau, remplissage et skid de ce chantier ?'))return;NET.hydro={prest:{epreuve:true},params:{},cuts:[],water:[],fill:null,skid:null};saveHydro();renderHydro();});
+  initHydroMap();}
 function openHydroReport(){const H=hydroBuild();const h=hydroOf();if(!H||!h)return;const P=H.params;
   const prests=Object.keys(PREST_LABEL).filter(k=>h.prest[k]).map(k=>PREST_LABEL[k]).join(' + ')||'—';
   const rows=H.troncons.map(t=>{const nBP=t.ends.filter(e=>e.need==='BP').length,nK=t.ends.filter(e=>e.need==='KFL').length,nE=t.ends.filter(e=>e.need==='EVAC').length;
@@ -504,7 +531,7 @@ function openHydroReport(){const H=hydroBuild();const h=hydroOf();if(!H||!h)retu
   <h2>Paramètres retenus</h2><div>Vitesse de rinçage ${fmt(P.vitesse)} m/s · débit borne/skid ${fmt(P.debit)} m³/h · skid ${fmt(P.skidW)} × ${fmt(P.skidL)} m</div>
   <h2>Tronçons</h2><table><tr><th>Tronçon</th><th>Linéaire (aller)</th><th>Volume A+R</th><th>Débit rinçage</th><th>Remplissage</th><th>À poser</th><th>Alertes</th></tr>${rows}
   <tr><th>Total</th><th>${fmt(Math.round(H.totals.lenA))} m</th><th>${fmtVol(H.totals.vol)}</th><th></th><th>${fmtMin(H.totals.vol/(P.debit||1)*60)}</th><th>${[H.totals.nBP?H.totals.nBP+' BP':'',H.totals.nKFL?H.totals.nKFL+' KFL':'',H.totals.nEvac?H.totals.nEvac+' évac.':''].filter(Boolean).join(' · ')||'—'}</th><th>${H.totals.nAlert||''}</th></tr></table>
-  ${H.cuts.length?`<h2>Coupes de sectorisation</h2><ul>${H.cuts.map((c,i)=>`<li>Coupe ${i+1} — ${esc((state.lines[c.line]||{}).name||c.line)}, pk ${fmt(c.m)} m${c.valve?' (vanne '+esc(c.valve)+', reste fermée)':''}</li>`).join('')}</ul>`:''}
+  ${H.cuts.length?`<h2>Coupes de sectorisation</h2><ul>${H.cuts.map((c,i)=>`<li>Coupe ${i+1} — ${esc((state.lines[c.line]||{}).name||c.line)}, pk ${fmt(c.m)} m${c.valve?' (vanne '+esc(c.valve)+', reste fermée)':' — raccordement entre tronçons à la remise en service (soudure de raccordement hors épreuve)'}</li>`).join('')}</ul>`:''}
   ${(h.water||[]).length?`<div class="muted">${h.water.length} point${h.water.length>1?'s':''} d’eau repéré${h.water.length>1?'s':''} sur le plan${h.fill?' — remplissage défini':''}.</div>`:''}
   <h2>Visa</h2><table><tr><th style="width:33%">Préparé par</th><th style="width:33%">Vérifié par</th><th>Date d’épreuve prévue</th></tr><tr><td style="height:52px"></td><td></td><td></td></tr></table>
   </body></html>`;
@@ -1154,15 +1181,20 @@ function showScreen(sc){state.screen=sc;$('#loginView').classList.toggle('show',
 // carte des chantiers (accueil) : vraie carte IGN « plan éteint » (direction B validée le 20/08), web mercator, zoom/glisser/pincer, regroupement
 // centre lon/lat d'un chantier : depuis sa copie complète si elle est là, sinon depuis la méta serveur
 function llOfMeta(m){const full=SITES[m.id];const net=full&&full.lines?full:{geo:m.geo||undefined,origin:m.origin||undefined,traceur:{bgOrigin:m.bgo||null},w:m.w||0,h:m.h||0};
-  try{const g=geoOfSite(net);if(!g)return null;const w=net.w||0,h=net.h||0;const ll=planToLonLat(g,[w/2,h/2]);return (isFinite(ll[0])&&isFinite(ll[1])&&ll[1]>40&&ll[1]<52)?ll:null;}catch(e){return null;}}
+  try{const g=geoOfSite(net);if(!g)return null;
+    // centre RÉEL du réseau, pas le milieu de la feuille : repères de calage (posés sur le réseau) > bbox du chantier > milieu de feuille
+    let c=null;const gp=net.geo&&net.geo.pts&&net.geo.pts.length?net.geo.pts:null;
+    if(gp)c=[gp.reduce((s,p)=>s+p.plan[0],0)/gp.length,gp.reduce((s,p)=>s+p.plan[1],0)/gp.length];
+    else{const bb=(full&&full.bbox)||m.bbox;if(bb&&isFinite(+bb[0])&&+bb[2]>+bb[0])c=[(+bb[0]+ +bb[2])/2,(+bb[1]+ +bb[3])/2];else c=[(net.w||0)/2,(net.h||0)/2];}
+    const ll=planToLonLat(g,c);return (isFinite(ll[0])&&isFinite(ll[1])&&ll[1]>40&&ll[1]<52)?ll:null;}catch(e){return null;}}
 function homeMetas(){const out=new Map();const DEMOS=new Set(['bain','saintlo']);
-  Object.entries(SITES).forEach(([id,net])=>{if(!net||id==='__vide')return;out.set(id,{id,name:net.name||id,local:true,demo:DEMOS.has(id),updatedAt:localUpdatedOf(net)||0,geo:net.geo||null,origin:net.origin||null,bgo:net.traceur&&net.traceur.bgOrigin||null,w:net.w,h:net.h});});
+  Object.entries(SITES).forEach(([id,net])=>{if(!net||id==='__vide')return;out.set(id,{id,name:net.name||id,local:true,demo:DEMOS.has(id),updatedAt:localUpdatedOf(net)||0,geo:net.geo||null,origin:net.origin||null,bgo:net.traceur&&net.traceur.bgOrigin||null,w:net.w,h:net.h,bbox:net.bbox||null});});
   (state.serverMetas||[]).forEach(m=>{if(isHidden({id:m.id,traceur:m.traceur}))return;const cur=out.get(m.id);const upd=m.updated_at?Date.parse(m.updated_at):0;
-    if(cur){cur.updatedAt=Math.max(cur.updatedAt,upd,m.traceur&&m.traceur.savedAt?Date.parse(m.traceur.savedAt):0);cur.geo=cur.geo||m.geo;cur.origin=cur.origin||m.origin;cur.bgo=cur.bgo||m.bgo;cur.w=cur.w||m.w;cur.h=cur.h||m.h;}
-    else out.set(m.id,{id:m.id,name:m.name,local:false,demo:false,updatedAt:Math.max(upd,m.traceur&&m.traceur.savedAt?Date.parse(m.traceur.savedAt):0),geo:m.geo,origin:m.origin,bgo:m.bgo,w:m.w,h:m.h});});
+    if(cur){cur.updatedAt=Math.max(cur.updatedAt,upd,m.traceur&&m.traceur.savedAt?Date.parse(m.traceur.savedAt):0);cur.geo=cur.geo||m.geo;cur.origin=cur.origin||m.origin;cur.bgo=cur.bgo||m.bgo;cur.w=cur.w||m.w;cur.h=cur.h||m.h;cur.bbox=cur.bbox||m.bbox;}
+    else out.set(m.id,{id:m.id,name:m.name,local:false,demo:false,updatedAt:Math.max(upd,m.traceur&&m.traceur.savedAt?Date.parse(m.traceur.savedAt):0),geo:m.geo,origin:m.origin,bgo:m.bgo,w:m.w,h:m.h,bbox:m.bbox||null});});
   return [...out.values()];}
 const agoTxt=t=>{if(!t)return '';const d=Date.now()-t;if(d<90e3)return 'à l\'instant';if(d<5400e3)return 'il y a '+Math.round(d/60e3)+' min';if(d<129600e3)return 'il y a '+Math.round(d/3600e3)+' h';return 'le '+new Date(t).toLocaleDateString('fr-FR');};
-function statOf(id){const st=state.homeStats&&state.homeStats[id];if(!st||!st.total)return null;return {total:st.total,pct:Math.round(100*st.manch/st.total)};}
+function statOf(id){const st=state.homeStats&&state.homeStats[id];if(!st||!st.total)return null;return {total:st.total,pct:Math.round(100*(st.soud!==undefined?st.soud:st.manch)/st.total)};} // % SOUDÉ (soudée+contrôlée+manchonnée) — demande Ethan 20/08
 const pctColor=p=>p>=100?'#0ca30c':p>=60?'#2a78d6':'#eb6834';
 function renderHome(){if(!$('#homeView'))return;
   const u=state.cloudUser,pr=state.profile;
@@ -1176,7 +1208,7 @@ function renderHome(){if(!$('#homeView'))return;
   $('#homeBody').innerHTML=state.homeTab==='map'?homeMapHTML(metas):homeListHTML(metas);
   if(state.homeTab==='map')initHomeMap(metas);
   const rs=$('#homeResume');const last=localStorage.getItem('trace:lastSite');const lm=metas.find(m=>m.id===last);
-  if(lm){const st=statOf(lm.id);rs.style.display='';rs.innerHTML=`<div style="font-size:19px">↩</div><div style="flex:1"><div style="font-size:12.5px;font-weight:700">Reprendre : ${esc(lm.name)}</div><div style="font-size:10.5px;color:var(--ink2)">${st?st.pct+' % manchonné · ':''}${esc(agoTxt(lm.updatedAt))}</div></div><div style="color:#eb6834;font-weight:800">›</div>`;rs.onclick=()=>openSiteFromHome(lm.id);}
+  if(lm){const st=statOf(lm.id);rs.style.display='';rs.innerHTML=`<div style="font-size:19px">↩</div><div style="flex:1"><div style="font-size:12.5px;font-weight:700">Reprendre : ${esc(lm.name)}</div><div style="font-size:10.5px;color:var(--ink2)">${st?st.pct+' % soudé · ':''}${esc(agoTxt(lm.updatedAt))}</div></div><div style="color:#eb6834;font-weight:800">›</div>`;rs.onclick=()=>openSiteFromHome(lm.id);}
   else rs.style.display='none';}
 function homeMapHTML(metas){const noLL=metas.filter(m=>!llOfMeta(m));
   return `<div class="homeMapCard"><div class="homeMap" id="homeMap"></div></div>
@@ -1221,7 +1253,7 @@ function initHomeMap(metas){const el=$('#homeMap');if(!el)return;
         pinsEl.appendChild(d);});});
   }
   const openCard=id=>{const s=sites.find(x=>x.m.id===id);if(!s)return;const s2=statOf(id);const col=s2?pctColor(s2.pct):'#898781';
-    card.innerHTML=`<span class="st" style="background:${col}"></span><span style="min-width:0"><span class="nm">${esc(s.m.name)}</span><br><span class="mt">${s2?`${s2.pct} % manchonné · ${s2.total} soudures · `:''}${esc(agoTxt(s.m.updatedAt))||(s.m.local?'sur cet appareil':'sur le serveur')}</span></span><button class="go" data-open="${esc(s.m.id)}">Ouvrir</button>`;
+    card.innerHTML=`<span class="st" style="background:${col}"></span><span style="min-width:0"><span class="nm">${esc(s.m.name)}</span><br><span class="mt">${s2?`${s2.pct} % soudé · ${s2.total} soudures · `:''}${esc(agoTxt(s.m.updatedAt))||(s.m.local?'sur cet appareil':'sur le serveur')}</span></span><button class="go" data-open="${esc(s.m.id)}">Ouvrir</button>`;
     card.classList.add('show');};
   const zoomAt=(dz,mx,my)=>{const nz=Math.max(ZMIN,Math.min(ZMAX,S.z+dz));if(nz===S.z)return;const f=Math.pow(2,nz-S.z);const w=el.clientWidth,h=el.clientHeight;S.cx=(S.cx+(mx-w/2))*f-(mx-w/2);S.cy=(S.cy+(my-h/2))*f-(my-h/2);S.z=nz;render();};
   el.addEventListener('wheel',e=>{e.preventDefault();const r=el.getBoundingClientRect();zoomAt(e.deltaY<0?1:-1,e.clientX-r.left,e.clientY-r.top);},{passive:false});
@@ -1246,7 +1278,7 @@ function siteCardHTML(m){const st=statOf(m.id);const c=st?pctColor(st.pct):'#898
   return `<div class="siteCard" data-open="${esc(m.id)}"><div class="n"><i style="background:${c}"></i><span style="flex:1">${esc(m.name)}</span><span style="font-size:10px;color:var(--ink2);font-weight:400">${m.demo?'démo':(st&&st.pct>=100?'✓ terminé':(m.local?'':'serveur'))}</span></div>
     <div class="m">${st?st.total+' soudures':'—'}${m.local?' · sur cet appareil':''}</div>
     <div class="bar"><i style="width:${st?st.pct:0}%;background:${c}"></i></div>
-    <div class="foot"><span>${st?st.pct+' % manchonné':'avancement inconnu'}</span><span>${esc(agoTxt(m.updatedAt))}</span></div></div>`;}
+    <div class="foot"><span>${st?st.pct+' % soudé':'avancement inconnu'}</span><span>${esc(agoTxt(m.updatedAt))}</span></div></div>`;}
 function homeListHTML(metas){const q=(state.homeQ||'').toLowerCase();let list=metas.filter(m=>!q||m.name.toLowerCase().includes(q));
   const sort=state.homeSort;list.sort((a,b)=>sort==='az'?a.name.localeCompare(b.name,'fr'):sort==='pct'?((statOf(b.id)||{pct:-1}).pct-(statOf(a.id)||{pct:-1}).pct):(b.updatedAt-a.updatedAt));
   list=list.filter(m=>!m.demo).concat(list.filter(m=>m.demo)); // démos en bas
