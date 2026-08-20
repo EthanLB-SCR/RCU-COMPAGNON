@@ -6,6 +6,7 @@ import {parseDXF,parseDXFFile,analyze,buildSite,buildSiteJBTP,drawingOf,buildDra
 import {sync} from './sync.js';
 import {kv} from './kv.js';
 import {geoOfSite,planToLonLat,lonLatToPlan,tilesFor,ignTileURL,IGN_LAYERS,distLL,fmtDist,crsName,similarityFromPairs,geocode,CRS} from './geo.js';
+import {parseBL,stockLabel,stockKey,matchKey,zoneAgg,globalAgg,remainByMatch,dnOfOd} from './stock.js';
 import {buildHydro,areaDN,needsFlow,HYDRO_DEFAULTS,PREST_LABEL,CAL_OPS} from './hydro.js';
 
 /* ============================================================
@@ -172,7 +173,7 @@ async function pushHandoffs(remote){if(!(await sync.user()))return;const onServe
 function addSiteOption(net){if(!SITES[net.id]){SITES[net.id]=net;const o=document.createElement('option');o.value=net.id;o.textContent=net.name;siteSel.appendChild(o);}else{SITES[net.id]=net;const o=[...siteSel.options].find(x=>x.value===net.id);if(o)o.textContent=net.name;}}
 // historique des versions du chantier (serveur) : chaque ré-enregistrement garde la version d'avant — restauration en deux clics
 // remise à zéro d'une soudure (erreur de saisie) : tout l'avancement disparaît, la soudure elle-même reste
-function wipeWeld(j){j.status='a_souder';j.events=[];j.photos=[];j.wire='a_raccorder';j.conn={E:'E',N:'N'};j.cont=false;j.iso=false;j.isoVal='';j.note='';delete j.steps;}
+function wipeWeld(j){j.status='a_souder';j.events=[];j.photos=[];j.wire='a_raccorder';j.conn={E:'E',N:'N'};j.cont=false;j.iso=false;j.isoVal='';j.note='';delete j.steps;try{stockDropTakes(j.weldId);}catch(e){}}
 const weldHasData=j=>j.status!=='a_souder'||(j.events&&j.events.length)||(j.photos&&j.photos.length)||(j.wire&&j.wire!=='a_raccorder');
 async function pushWeld(j){try{await sync.ensureSite({id:state.siteId,name:NET.name,supplier:NET.supplier,serie:NET.serie});const okk=await sync.saveWeld(state.siteId,{...j});if(okk)setCloudBadge('enregistré '+new Date().toLocaleTimeString('fr-FR'));}catch(e){console.warn(e);}}
 // transfert : les données d'avancement passent sur la soudure cible ; si la cible en a déjà, on ÉCHANGE (rien ne se perd)
@@ -211,6 +212,7 @@ async function deleteCurrentSite(){const id=state.siteId;const net=SITES[id];if(
   if(next){siteSel.value=next;await switchSite(next);}else{location.reload();}}
 function setupSite(id){
   state.hydroPose=null;hydroCache=null;state.hydroMapView=null;state.osmHydrants=null;state.hydroCalStart=null;state.hydroCalMonth=null;state.hydroCalT=0;state.dhShowLoc=false;state.loc=null;state.dhLocPending=null;state.dh.at=null;state.dh.dir=null;state.dh.meas=null;state.dh.iso=null;state.dh.locVal='';const hb=$('#hydroBar');if(hb)hb.style.display='none';
+  state.stockPose=null;state.stockSel=null;const sb2=$('#stockBar');if(sb2)sb2.style.display='none';
   if(siteStore[id]){const st=siteStore[id];NET=st.NET;state.lines=st.lines;state.sheets=st.sheets;state.nextWeld=st.nextWeld;state.sheetId=st.sheetId;state.locate={...state.locate,line:st.firstLine};bgG.dataset.sheet='';return;}
   NET=SITES[id];state.lines={};state.sheets={};state.nextWeld=1;
   const sh={id:'s_'+id,name:NET.name,type:NET.sheetType||'blank',w:NET.w,h:NET.h,ppm:1,lines:[],ann:NET.ann||[],drawing:NET.drawing||null,plain:NET.source==='traceur',image:NET.image||null};state.sheets[sh.id]=sh;state.sheetId=sh.id;
@@ -261,7 +263,7 @@ function importReportHTML(){const r=NET.report||{};let h=`<h2>Rapport d'import �
   h+=`<p class="hint">Règle : rien n'est déplacé ni recoupé ; ce qui n'est pas reconnu est signalé ici, pas corrigé en silence.</p><div class="actions" style="margin-top:8px"><button class="btn primary block" data-close>Fermer</button></div>`;return h;}
 
 /* ---------- vue plan : rendu ---------- */
-const svg=$('#svg'),world=$('#world'),bgG=$('#bg'),netG=$('#net'),mkG=$('#markers'),canvas=$('#canvas'),mapG=$('#map'),gpsG=$('#gps'),hydroG=$('#hydroG'),dhG=$('#dhG');
+const svg=$('#svg'),world=$('#world'),bgG=$('#bg'),netG=$('#net'),mkG=$('#markers'),canvas=$('#canvas'),mapG=$('#map'),gpsG=$('#gps'),hydroG=$('#hydroG'),dhG=$('#dhG'),stockG=$('#stockG');
 // géoréférencement du chantier courant (mémorisé sur l'objet NET) : null si le plan n'a pas de coordonnées Lambert
 const geoCache=new WeakMap();function siteGeo(){if(!NET)return null;if(!geoCache.has(NET))geoCache.set(NET,geoOfSite(NET));return geoCache.get(NET);}
 /* ---------- fond de carte IGN (photo aérienne / plan IGN / cadastre) sous le plan, tuiles Web Mercator recalées dans le repère du plan ---------- */
@@ -858,12 +860,14 @@ function renderPlan(){
     const bb=sheetBBox(sh);const off=(bb[2]<vx0+20||bb[0]>vx1-20||bb[3]<vy0+20||bb[1]>vy1-20);const ob=$('#offscreen');if(ob)ob.style.display=off&&sh.lines.length?'':'none';}
   $('#legend').innerHTML=`<span><i class="bar" style="background:#c8382f"></i>aller</span><span><i class="bar" style="background:#2a5fb4"></i>retour</span>`+ORDER.map(s=>`<span><i style="${s==='a_souder'?`border-color:${STATUS[s].color};background:#fff`:`background:${STATUS[s].color};border-color:${STATUS[s].color}`}"></i>${STATUS[s].label}</span>`).join('')+`<span><i class="bar" style="background:#dfe4ea;border:1px solid #999"></i>étamé</span><span><i class="bar" style="background:#e2843a"></i>nu</span><span>${lod<3?'zoome : manchons puis détail':lod<12?'zoome pour le détail des pièces (bouts d\'acier, manchons, n°)':lod<30?'zoome encore pour les fils':'fils visibles'} · 👁 : choisir ce qui s\'affiche</span>`;
   $('#btnList').textContent=state.listMode?'Plan':'Liste';
-  renderGps();renderHydroOverlay();renderDhOverlay();
+  renderGps();renderHydroOverlay();renderDhOverlay();renderStockOverlay();
 }
 
 /* ---------- pan / zoom / tap ---------- */
 const ptrs=new Map();let gesture=null;
-canvas.addEventListener('pointerdown',e=>{if(e.target.closest('.zoomctl,.legend,.zoominfo,.disp,#offscreen,#transferBar,#calageBar,#hydroBar'))return;if($('#disp').classList.contains('show'))toggleDisp(false);canvas.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});const rect=canvas.getBoundingClientRect();
+canvas.addEventListener('pointerdown',e=>{if(e.target.closest('.zoomctl,.legend,.zoominfo,.disp,#offscreen,#transferBar,#calageBar,#hydroBar,#stockBar'))return;if($('#disp').classList.contains('show'))toggleDisp(false);canvas.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});const rect=canvas.getBoundingClientRect();
+  const stkT=e.target.closest('[data-stkh],[data-stkz]'); // zone de stockage : glisser / poignées (chef/bureau)
+  if(ptrs.size===1&&stkT&&stockCanEdit()&&!state.stockPose){const zid=stkT.dataset.stkzid||stkT.dataset.stkz;gesture={type:'stk',h:stkT.dataset.stkh||'move',zid,lx:e.clientX,ly:e.clientY,rect,moved:false};return;}
   if(ptrs.size===1){const tg=e.target.closest('[data-j],[data-el]');gesture={type:'pan',sx:e.clientX,sy:e.clientY,tx:state.view.tx,ty:state.view.ty,moved:false,target:tg,lx:e.clientX-rect.left,ly:e.clientY-rect.top,t0:Date.now()};
     if(state.tool&&tg){const l=state.lines[tg.dataset.line];const c=tg.dataset.cond;const eng=l&&engOf(l,c);const cels=l&&l.cond[c]?l.cond[c].els:null;if(eng&&cels&&state.toolLine===l.id&&state.toolCond===c){if(tg.dataset.el!==undefined){const el=cels[+tg.dataset.el];const r=el&&eng.roleOf(el.uid);if(r&&r.role==='block')gesture={type:'tdrag',line:l.id,cond:c,lx:e.clientX,ly:e.clientY,moved:false,target:tg};}
       else if(tg.dataset.j!==undefined){const el=cels[+tg.dataset.j];if(el)gesture={type:'jdrag',line:l.id,cond:c,uid:el.uid,sx:e.clientX,sy:e.clientY,lx:e.clientX,ly:e.clientY,moved:false,target:tg};}}}}
@@ -872,9 +876,18 @@ canvas.addEventListener('pointermove',e=>{if(!ptrs.has(e.pointerId))return;ptrs.
   if(gesture.type==='pan'){const dx=e.clientX-gesture.sx,dy=e.clientY-gesture.sy;if(Math.hypot(dx,dy)>5)gesture.moved=true;if(gesture.moved){state.view.tx=gesture.tx+dx;state.view.ty=gesture.ty+dy;applyView();}}
   else if(gesture.type==='tdrag'){const kk=state.view.k*sheet().ppm;const dx=(e.clientX-gesture.lx)/kk,dy=(e.clientY-gesture.ly)/kk;gesture.lx=e.clientX;gesture.ly=e.clientY;if(dx||dy){gesture.moved=true;const l=state.lines[gesture.line];const eng=l&&engOf(l,gesture.cond);if(eng)eng.dragBlock(dx,dy);}}
   else if(gesture.type==='jdrag'){if(!gesture.moved&&Math.hypot(e.clientX-gesture.sx,e.clientY-gesture.sy)<5)return;gesture.moved=true;const kk=state.view.k*sheet().ppm;const dx=(e.clientX-gesture.lx)/kk,dy=(e.clientY-gesture.ly)/kk;gesture.lx=e.clientX;gesture.ly=e.clientY;const l=state.lines[gesture.line];const eng=l&&engOf(l,gesture.cond);if(eng)eng.dragJoint(gesture.uid,dx,dy);}
+  else if(gesture.type==='stk'){const z=stockZoneById(gesture.zid);if(!z)return;const v=state.view;const wx=(e.clientX-gesture.rect.left-v.tx)/v.k,wy=(e.clientY-gesture.rect.top-v.ty)/v.k;
+    const dx=(e.clientX-gesture.lx)/v.k,dy=(e.clientY-gesture.ly)/v.k;gesture.lx=e.clientX;gesture.ly=e.clientY;if(Math.abs(dx)+Math.abs(dy)>0.01)gesture.moved=true;
+    if(gesture.h==='move'){z.x=+(z.x+dx).toFixed(2);z.y=+(z.y+dy).toFixed(2);}
+    else if(gesture.h==='rot'){z.rot=Math.round((Math.atan2(wy-z.y,wx-z.x)*180/Math.PI+90)/5)*5;}
+    else{const a=(z.rot||0)*Math.PI/180;const lx2=(wx-z.x)*Math.cos(a)+(wy-z.y)*Math.sin(a);const ly2=-(wx-z.x)*Math.sin(a)+(wy-z.y)*Math.cos(a);
+      if(gesture.h==='w')z.w=Math.max(2,+(2*Math.abs(lx2)).toFixed(1));else z.h=Math.max(1.5,+(2*Math.abs(ly2)).toFixed(1));}
+    renderStockOverlay();}
   else if(gesture.type==='pinch'&&ptrs.size===2){const [a,b]=[...ptrs.values()];const dd=Math.hypot(a.x-b.x,a.y-b.y);const nk=Math.min(60,Math.max(.05,gesture.k0*dd/gesture.d0));const rr=nk/gesture.k0;state.view.k=nk;state.view.tx=gesture.mx-(gesture.mx-gesture.tx0)*rr;state.view.ty=gesture.my-(gesture.my-gesture.ty0)*rr;applyView();}});
 let lastTap=0;
 function endPtr(e){if(!ptrs.has(e.pointerId))return;ptrs.delete(e.pointerId);
+  if(gesture&&gesture.type==='stk'){if(gesture.moved)saveStock();else{state.stockSel=state.stockSel===gesture.zid?null:gesture.zid;const z=stockZoneById(gesture.zid);if(state.stockSel&&z)updateStockBar('Zone « '+z.name+' » — glisser pour déplacer, poignées pour étirer, ↻ pour tourner, Terminer pour sortir.');else updateStockBar(null);renderStockOverlay();}
+    gesture=null;if(ptrs.size===0)scheduleRender();return;}
   if(state.tool&&gesture&&(gesture.type==='pan'||gesture.type==='tdrag'||gesture.type==='jdrag')&&!gesture.moved&&gesture.target){const t=gesture.target;const l=state.lines[t.dataset.line];
     const c=t.dataset.cond;const eng=l&&engOf(l,c);const cels=l&&l.cond[c]?l.cond[c].els:null;if(eng&&cels){activateToolLine(l.id,c);if(t.dataset.j!==undefined){const el=cels[+t.dataset.j];if(el)eng.toolTapJoint(el.uid);}else if(t.dataset.el!==undefined){const el=cels[+t.dataset.el];if(el)eng.toolTap(el.uid);}}
     gesture=null;if(ptrs.size===0)scheduleRender();return;}
@@ -882,6 +895,7 @@ function endPtr(e){if(!ptrs.has(e.pointerId))return;ptrs.delete(e.pointerId);
     if(state.transfer&&t&&t.dataset.j!==undefined){doTransferTo(t.dataset.line,t.dataset.cond,+t.dataset.j);gesture=null;if(ptrs.size===0)scheduleRender();return;}
     if(state.calage){const v=state.view;calageTap((gesture.lx-v.tx)/v.k,(gesture.ly-v.ty)/v.k);gesture=null;if(ptrs.size===0)scheduleRender();return;}
     if(state.hydroPose){const v=state.view;hydroTap((gesture.lx-v.tx)/v.k,(gesture.ly-v.ty)/v.k);gesture=null;if(ptrs.size===0)scheduleRender();return;}
+    if(state.stockPose){const v=state.view;stockTap((gesture.lx-v.tx)/v.k,(gesture.ly-v.ty)/v.k);gesture=null;if(ptrs.size===0)scheduleRender();return;}
     if(t&&t.dataset.j!==undefined)openJoint(t.dataset.line,t.dataset.cond,+t.dataset.j);
     else if(state.tracing){const v=state.view;state.tracePts.push({x:(gesture.lx-v.tx)/v.k,y:(gesture.ly-v.ty)/v.k});renderPlan();}
     else if(t&&t.dataset.el!==undefined&&state.view.k*sheet().ppm>=7)openEl(t.dataset.line,t.dataset.cond,+t.dataset.el);
@@ -896,8 +910,10 @@ $('.zoomctl').addEventListener('click',e=>{const z=e.target.dataset.z;if(!z)retu
 window.addEventListener('resize',()=>{fitView();renderPlan();});
 $('#tfCancel').addEventListener('click',endTransfer);
 $('#tfGo').addEventListener('click',()=>{const v=String($('#tfNum').value).replace(/\D/g,'');if(!v)return;let f=findWeld('S-'+v.padStart(4,'0'))||findWeld('S-'+v.padStart(3,'0'));if(!f){toast('Soudure introuvable : '+v);return;}const l=f.l,c=f.c,i=l.cond[c].joints.indexOf(f.j);doTransferTo(l.id,c,i);});
-window.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.transfer)endTransfer();if(e.key==='Escape'&&state.calage)endCalage();if(e.key==='Escape'&&state.hydroPose)endHydroPose();});
+window.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.transfer)endTransfer();if(e.key==='Escape'&&state.calage)endCalage();if(e.key==='Escape'&&state.hydroPose)endHydroPose();if(e.key==='Escape'&&(state.stockPose||state.stockSel))endStockPose();});
 $('#hyDone').addEventListener('click',endHydroPose);
+$('#stkDone').addEventListener('click',endStockPose);
+$('#stkRot').addEventListener('click',()=>{const z=stockZoneById(state.stockSel);if(!z){toast('Touche d\'abord une zone');return;}z.rot=((z.rot||0)+15)%360;saveStock();renderStockOverlay();});
 $('#hyRot').addEventListener('click',()=>{const h=hydroOf();if(!h||!h.skids||!h.skids.length)return;const sk=h.skids[h.skids.length-1];sk.rot=((sk.rot||0)+15)%360;saveHydro();renderPlan();});
 $('#disp').addEventListener('change',e=>{const k=e.target.dataset.k;if(!k)return;state.show[k]=e.target.checked;saveShow();renderDisp();renderPlan();});
 $('#disp').addEventListener('click',e=>{const cb=e.target.closest('[data-cal]');if(cb){if(cb.dataset.cal==='del'){forgetGeo();return;}startCalage();return;}const mb=e.target.closest('[data-carte]');if(mb){state.show.carte=mb.dataset.carte;saveShow();renderDisp();renderPlan();return;}const b=e.target.closest('[data-all]');if(!b)return;const on=b.dataset.all==='1';SHOW_KEYS.forEach(([k])=>{state.show[k]=on||k==='soud'||k==='fond'||k==='manch';});saveShow();renderDisp();renderPlan();});
@@ -971,7 +987,20 @@ function jointView(l,c,j){const {els}=l.cond[c];const a=els[j.idx],b=els[j.idx+1
    ${stepsCard}
    <h3>Historique</h3>${evs.length?`<ul class="hist">${evs.map(e=>`<li><span class="dot" style="background:${evColor(e)}"></span><div style="flex:1"><div>${evText(e)}</div><div class="who">${uname(e.by)} · ${fmtDT(e.at)}${(()=>{const d=posGap(e,l,c,j);if(d===null)return e.pos?' · 📍 position enregistrée':'';const lim=Math.max(80,3*(e.pos.acc||0));return d>lim?` · <b style="color:#d03b3b">📍 déclarée à ${fmtDist(d)} de la soudure</b> (GPS ± ${e.pos.acc} m)`:` · 📍 sur place (± ${e.pos.acc} m)`;})()}</div>${e.photos.length?`<div class="thumbs">${e.photos.map(p=>`<div class="thumb"><img src="${p}"></div>`).join('')}</div>`:''}</div></li>`).join('')}</ul>`:'<p class="hint">Aucun événement : soudure à faire.</p>'}
    <p class="hint" style="margin-top:8px"><a href="#" data-act="open-el-a" style="color:#1c3d6b">Voir ${a.id}</a> · <a href="#" data-act="open-el-b" style="color:#1c3d6b">Voir ${b.id}</a> (orientation des fils, photos)</p>`;}
-function formSoudee(l,c,j){const u=me();return head(j.weldId,badge(j.status))+`<h3 style="margin-top:6px">Déclarer soudée</h3><label class="f">Soudeur</label><input class="f" readonly value="${esc(u.name)} — ${esc(u.detail)}"><label class="f">Procédé</label><select class="f" id="f-proc">${PROCEDES.map(p=>`<option value="${p[0]}">${p[1]}</option>`).join('')}</select><label class="f">N° de coulée / lot du tube (optionnel)</label><input class="f" id="f-coulee" placeholder="ex. C4187">${photoBlock()}<label class="f">Remarque</label><textarea class="f" id="f-note"></textarea>${state.err?`<div class="err">${esc(state.err)}</div>`:''}<div class="actions"><button class="btn primary block" data-act="save-soudee">Valider — passe en « Soudée »</button><button class="btn block" data-act="back">Annuler</button></div>`;}
+// prélèvement au stock (maquette écran 5) : le stock le plus proche qui a la pièce est pré-choisi, un geste pour changer
+function stockNeedOf(l,c,j,mode){if(mode==='piece')return stockPieceOf(l,c,j);const e=l.cond[c].els[j.idx];return {kind:'sleeve',dn:+((e&&e.dn)||l.dn),casing:e&&e.casing,label:'Manchon DN'+((e&&e.dn)||l.dn)};}
+function stockPickHTML(l,c,j,mode){const s=stockOf();if(!s||!s.zones.some(z=>z.status==='ok'))return '';
+  const need=stockNeedOf(l,c,j,mode);if(!need)return '';
+  if(mode==='sleeve'&&j.sleeveWith&&s.takes.some(t=>t.weldId===j.sleeveWith&&/^sleeve/.test(t.key)))return `<div class="hint">Manchon déjà compté avec ${esc(j.sleeveWith)} (manchette nue : un seul manchon pour les deux soudures).</div>`;
+  const already=s.takes.find(t=>t.weldId===j.weldId&&(mode==='piece'?!/^sleeve/.test(t.key):/^sleeve/.test(t.key)));
+  if(already)return `<div class="hint">${mode==='piece'?'Pièce':'Manchon'} déjà décompté${already.zone?' — '+esc((stockZoneById(already.zone)||{}).name||''):''}.</div>`;
+  const p=posAtChainage(l,l.cond[c].els[j.idx].m1);const zs=stockZonesFor(need,p.x,p.y);
+  if(!zs.length)return '';
+  return `<h3>${mode==='piece'?'Pièce prise dans quel stockage ?':'Manchon pris dans quel stockage ?'} <span class="muted" style="font-weight:400;font-size:11.5px">${esc(need.label)} — décompte en direct</span></h3>
+   <div class="card" style="padding:8px">${zs.map((o,i)=>`<span class="hyChip" data-stkpick="${o.z.id}" data-stkneed="${mode}" style="cursor:pointer;margin:2px;${i===0?'border-color:#eb6834;background:#fff7f2':''}" ${i===0?'data-on="1"':''}>${esc(o.z.name)} <span class="dim" style="font-size:10px">${o.d<9e8?'à '+fmt(o.d)+' m · ':''}reste ${o.reste}</span></span>`).join('')}<span class="hyChip" data-stkpick="none" data-stkneed="${mode}" style="cursor:pointer;margin:2px">hors stock / ailleurs</span></div>`;}
+function stockDoPick(l,c,j,mode){const pick=sheetEl.querySelector('[data-stkpick][data-on="1"][data-stkneed="'+mode+'"]');if(!pick||pick.dataset.stkpick==='none')return;
+  const need=stockNeedOf(l,c,j,mode);if(need)stockTake(pick.dataset.stkpick,need,j.weldId,l.id,c,1);}
+function formSoudee(l,c,j){const u=me();return head(j.weldId,badge(j.status))+`<h3 style="margin-top:6px">Déclarer soudée</h3><label class="f">Soudeur</label><input class="f" readonly value="${esc(u.name)} — ${esc(u.detail)}"><label class="f">Procédé</label><select class="f" id="f-proc">${PROCEDES.map(p=>`<option value="${p[0]}">${p[1]}</option>`).join('')}</select><label class="f">N° de coulée / lot du tube (optionnel)</label><input class="f" id="f-coulee" placeholder="ex. C4187">${stockPickHTML(l,c,j,'piece')}${photoBlock()}<label class="f">Remarque</label><textarea class="f" id="f-note"></textarea>${state.err?`<div class="err">${esc(state.err)}</div>`:''}<div class="actions"><button class="btn primary block" data-act="save-soudee">Valider — passe en « Soudée »</button><button class="btn block" data-act="back">Annuler</button></div>`;}
 /* ---------- câblage d'un manchon — design validé avec Ethan (V2.3, 19/08/2026) :
    les deux bouts de tube vus de côté, l'œil un poil AU-DESSUS du tube. Chaque fil sort de la mousse à sa position
    horaire réelle (clockPos) et file TENDU vers la sortie d'en face (chemin le plus court) ; la plongée fait apparaître
@@ -1078,7 +1107,7 @@ function formManchon(l,c,j){const {els}=l.cond[c];const a=els[j.idx],b=els[j.idx
    <h3>Raccordement des fils d'alarme (amont → aval)</h3><div class="card"><div class="muted" style="font-size:12px;margin-bottom:4px">Les deux bouts de tube vus de côté, l'œil un peu au-dessus : chaque fil sort de la mousse à son heure et rejoint en tendu la sortie d'en face en suivant l'acier (s'il fait le tour, il passe derrière : partie estompée). Touche un bout de fil du tube amont (à gauche), puis le bout d'en face qu'il rejoint (ou « ∅ non raccordé »).${state.wsel?` <b>Fil ${state.wsel==='E'?'étamé':'nu'} amont choisi → touche le fil aval.</b>`:''}</div>${wiringSVG(a,b,state.conn,state.wsel,true)}${rotCtl(a,'a','amont',lockA)}${rotCtl(b,'b','aval',lockB)}${wireRow('E')}${wireRow('N')}${inv?'<div class="err">Inversion : l\'étamé amont part sur le nu aval. Enregistre si c\'est ce qui a été fait — le manchon sera signalé « à reprendre ».</div>':'<div class="okbox">Raccordement droit : étamé ↔ étamé, nu ↔ nu.</div>'}
    <div class="toggle"><span>Continuité des deux fils OK</span><button class="switch ${state.sw.cont?'on':''}" data-sw="cont"></button></div><div class="toggle"><span>Isolement fils / tube OK <input id="f-iso" placeholder="MΩ" style="width:64px;border:1px solid var(--line);border-radius:6px;padding:3px 6px;margin-left:6px;font-size:14px"></span><button class="switch ${state.sw.iso?'on':''}" data-sw="iso"></button></div></div>
    <h3>Manchon</h3><div class="card" style="padding:2px 12px"><div class="toggle"><span>Test d'étanchéité à l'air : OK</span><button class="switch ${state.sw.etanch?'on':''}" data-sw="etanch"></button></div><div class="toggle"><span>Mousse injectée, bouchons posés</span><button class="switch ${state.sw.mousse?'on':''}" data-sw="mousse"></button></div></div>
-   ${photoBlock()}<label class="f">Remarque</label><textarea class="f" id="f-note"></textarea>${state.err?`<div class="err">${esc(state.err)}</div>`:''}<div class="actions"><button class="btn primary block" data-act="save-manchon">Valider — passe en « Manchonnée »</button><button class="btn block" data-act="back">Annuler</button></div>`;}
+   ${stockPickHTML(l,c,j,'sleeve')}${photoBlock()}<label class="f">Remarque</label><textarea class="f" id="f-note"></textarea>${state.err?`<div class="err">${esc(state.err)}</div>`:''}<div class="actions"><button class="btn primary block" data-act="save-manchon">Valider — passe en « Manchonnée »</button><button class="btn block" data-act="back">Annuler</button></div>`;}
 function formControle(l,c,j){return head(j.weldId,badge(j.status))+`<h3 style="margin-top:6px">Contrôle de la soudure</h3><label class="f">Type</label><select class="f" id="f-mode"><option>Visuel</option><option selected>Radiographie</option><option>Ultrasons</option></select><label class="f">Référence du rapport / film</label><input class="f" id="f-ref" placeholder="ex. RT-231">${photoBlock()}<label class="f">Observation</label><textarea class="f" id="f-note"></textarea><div class="actions"><button class="btn primary block" data-act="save-controle-ok">Contrôle OK</button><button class="btn danger block" data-act="save-controle-nok">Contrôle NOK — à reprendre</button><button class="btn block" data-act="back">Annuler</button></div>`;}
 function formProbleme(l,c,j){return head(j.weldId,badge(j.status))+`<h3 style="margin-top:6px">Signaler un problème</h3><label class="f">Description</label><textarea class="f" id="f-note"></textarea>${photoBlock()}${state.err?`<div class="err">${esc(state.err)}</div>`:''}<div class="actions"><button class="btn primary block" data-act="save-probleme">Envoyer au chef</button><button class="btn block" data-act="back">Annuler</button></div>`;}
 function dialSVG(e){const s=90,c=45;let d=`<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}"><defs><linearGradient id="ac" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9bec4"/><stop offset="1" stop-color="#6d7278"/></linearGradient></defs><circle cx="${c}" cy="${c}" r="42" fill="#111"/><circle cx="${c}" cy="${c}" r="35" fill="#e9d36b"/><circle cx="${c}" cy="${c}" r="18" fill="url(#ac)"/>`;[0,90,180,270].forEach(a=>{d+=`<line x1="${c+40*Math.sin(rad(a))}" y1="${c-40*Math.cos(rad(a))}" x2="${c+44*Math.sin(rad(a))}" y2="${c-44*Math.cos(rad(a))}" stroke="#fff" stroke-width="1.5"/>`;});d+=`<text x="${c}" y="9" font-size="8" fill="#52514e" text-anchor="middle">12 h</text>`;d+='<g id="dialw">';['E','N'].forEach(w=>{const a=clockPos(e,w);d+=`<circle cx="${c+27*Math.sin(rad(a))}" cy="${c-27*Math.cos(rad(a))}" r="5" fill="${WIRE[w].color}" stroke="#333"/><text x="${c+27*Math.sin(rad(a))}" y="${c-27*Math.cos(rad(a))+3}" font-size="7" font-weight="700" text-anchor="middle" fill="#0b0b0b">${w==='E'?'É':'N'}</text>`;});return d+'</g></svg>';}
@@ -1100,7 +1129,8 @@ function collectStep(j,n){const s=j.steps[n]=j.steps[n]||{photos:[]};s.photos=s.
   if(n===2){const m2=q('st2-meas');if(m2&&m2.value!=='')s.meas=parseFloat(String(m2.value).replace(',','.'));const ma=q('st2-masse');if(ma)s.masse=ma.checked;const co=q('st2-cont');if(co)s.cont=co.checked;}
   if(n===3){const t=sheetEl.querySelector('input[name=st3-type]:checked');if(t)s.type=t.value;const p=q('st3-press');if(p)s.press=p.checked;}
   return s;}
-sheetEl.addEventListener('click',e=>{const b=e.target.closest('[data-act],[data-rot],[data-sw],[data-wire],[data-rotb],[data-flipb],[data-rota],[data-flipa],[data-saut],[data-dhend],[data-stepok],[data-stepundo]');if(!b)return;const s=state.sel;if(!s)return;const l=state.lines[s.line];
+sheetEl.addEventListener('click',e=>{const b=e.target.closest('[data-act],[data-rot],[data-sw],[data-wire],[data-rotb],[data-flipb],[data-rota],[data-flipa],[data-saut],[data-dhend],[data-stepok],[data-stepundo],[data-stkpick]');if(!b)return;const s=state.sel;if(!s)return;const l=state.lines[s.line];
+  if(b.dataset.stkpick!==undefined){sheetEl.querySelectorAll('[data-stkpick][data-stkneed="'+b.dataset.stkneed+'"]').forEach(x=>{x.removeAttribute('data-on');x.style.borderColor='';x.style.background='';});b.dataset.on='1';b.style.borderColor='#eb6834';b.style.background='#fff7f2';return;}
   const stp=b.dataset.stepok||b.dataset.stepundo;
   if(stp&&s.kind==='j'){e.preventDefault();const j2=l.cond[s.cond].joints[s.i];const n=+stp;j2.steps=j2.steps||{};
     if(b.dataset.stepundo){if(!confirm('Annuler l\'étape '+n+' de '+j2.weldId+' (erreur de saisie) ?'))return;delete j2.steps[n];}
@@ -1133,8 +1163,9 @@ sheetEl.addEventListener('click',e=>{const b=e.target.closest('[data-act],[data-
   if(a==='demo-photo'){snapshotForm();state.err='';const kind=state.sheetMode==='form-manchon'?'fils':state.sheetMode==='form-soudee'?'soudure':'manchon';const label=s.kind==='el'?l.cond[s.cond].els[s.i].id:l.cond[s.cond].joints[s.i].weldId;state.pendingPhotos.push(makePhoto(label+' · photo',kind));renderSheet();return;}
   if(a==='save-el'){const el=l.cond[s.cond].els[s.i];el.note=$('#f-note',sheetEl).value;el.photos.push(...state.pendingPhotos);toast(`${el.id} enregistrée (rotation ${el.rot}°${el.flip?', retournée':''})`);closeSheet();return;}
   const j=l.cond[s.cond].joints[s.i];const val=id=>$('#'+id,sheetEl)?.value;
-  if(a==='save-soudee'){if(!state.pendingPhotos.length){snapshotForm();state.err='Ajoute au moins une photo du cordon.';renderSheet();return;}j.events.push({type:'soudee',by:state.userId,at:new Date(),pos:curPos(),data:{procede:val('f-proc'),coulee:val('f-coulee'),note:val('f-note')},photos:state.pendingPhotos});j.status='soudee';afterSave(`${j.weldId} déclarée soudée`);return;}
+  if(a==='save-soudee'){if(!state.pendingPhotos.length){snapshotForm();state.err='Ajoute au moins une photo du cordon.';renderSheet();return;}stockDoPick(l,s.cond,j,'piece');j.events.push({type:'soudee',by:state.userId,at:new Date(),pos:curPos(),data:{procede:val('f-proc'),coulee:val('f-coulee'),note:val('f-note')},photos:state.pendingPhotos});j.status='soudee';afterSave(`${j.weldId} déclarée soudée`);return;}
   if(a==='save-manchon'){if(!state.sw.etanch){snapshotForm();state.err='Le test d\'étanchéité doit être validé (ou signale un problème).';renderSheet();return;}if(!state.pendingPhotos.length){snapshotForm();state.err='Ajoute une photo du raccordement des fils et du manchon.';renderSheet();return;}
+    stockDoPick(l,s.cond,j,'sleeve');
     const inv=state.conn.E!=='E'||state.conn.N!=='N';j.conn={...state.conn};j.cont=!!state.sw.cont;j.iso=!!state.sw.iso;j.isoVal=val('f-iso')||'';j.wire=inv?'inversion':'raccorde';if(inv)j.note='Inversion enregistrée au manchonnage';
     j.events.push({type:'manchonnee',by:state.userId,at:new Date(),pos:curPos(),data:{manchon:val('f-manchon'),etanch:true,mousse:!!state.sw.mousse,fils:true,inv,note:val('f-note')},photos:state.pendingPhotos});j.status='manchonnee';afterSave(inv?`${j.weldId} manchonnée — inversion signalée au chef`:`${j.weldId} manchonnée, fils raccordés ✓`);return;}
   if(a==='save-controle-ok'||a==='save-controle-nok'){const ok=a==='save-controle-ok';j.events.push({type:'controle',by:state.userId,at:new Date(),pos:curPos(),data:{result:ok?'OK':'NOK',mode:val('f-mode'),ref:val('f-ref'),note:val('f-note')},photos:state.pendingPhotos});j.status=ok?'controlee':'a_reprendre';afterSave(ok?`${j.weldId} contrôlée OK`:`${j.weldId} à reprendre`);return;}
@@ -1408,6 +1439,209 @@ function renderDhOverlay(){if(!dhG)return;const r=state.loc;if(!r||!state.dhShow
   dhG.innerHTML=`<g style="pointer-events:none">${s}</g>`;}
 const fmt2=n=>Number(n).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2});
 
+/* ---------- stockage pré-isolé (maquette validée 20/08) : livraisons camion, zones sur le plan, pointage, scission, prélèvements ---------- */
+const stockCanEdit=()=>role()==='chef'||role()==='bureau';
+function stockOf(){if(!NET||NET.id==='__vide')return null;if(!NET.stock)NET.stock={zones:[],lots:[],livs:[],moves:[],takes:[]};const s=NET.stock;s.zones=s.zones||[];s.lots=s.lots||[];s.livs=s.livs||[];s.moves=s.moves||[];s.takes=s.takes||[];return s;}
+let stockSaveT=null;
+function saveStock(){if(!NET||NET.id==='__vide')return;clearTimeout(stockSaveT);stockSaveT=setTimeout(async()=>{try{SITES[state.siteId]=NET;const h=await kv.get('trace:handoff:'+state.siteId);if(h){h.stock=NET.stock;await kv.set('trace:handoff:'+state.siteId,h);}}catch(e){}try{state.ownSiteWrite=Date.now();const okk=await sync.saveSite(NET);if(okk)setCloudBadge('stock enregistré');}catch(e){console.warn(e);}},1200);}
+function stockZoneById(id){const s=stockOf();return s&&s.zones.find(z=>z.id===id);}
+const stkFmtQ=n=>Number(n||0).toLocaleString('fr-FR');
+// pièce d'une soudure (la pièce amont) → besoin stock {kind,dn,dn2,angle,casing}
+function stockPieceOf(l,c,j){const e=l.cond[c].els[j.idx];if(!e)return null;const k=e.kind;
+  if(k==='pipe'&&!e.manchette&&!e.nue)return {kind:'pipe',dn:+e.dn||+l.dn,casing:e.casing,label:'Barre DN'+(e.dn||l.dn)};
+  if(k==='bend')return {kind:'bend',dn:+e.dn||+l.dn,angle:Math.abs(+e.angle||90),casing:e.casing,label:'Coude '+Math.round(Math.abs(e.angle||90))+'° DN'+(e.dn||l.dn)};
+  if(k==='tee')return {kind:'tee',dn:+e.dn||+l.dn,dn2:+e.dnb||undefined,casing:e.casing,label:'Té DN'+(e.dn||l.dn)+(e.dnb?'/'+e.dnb:'')};
+  if(k==='reducer')return {kind:'reducer',dn:+e.dn||+l.dn,dn2:+e.dn2||undefined,casing:e.casing,label:'Réduction'};
+  return null;}
+// zones qui ont ENCORE la pièce (ou le manchon) demandée, triées par distance au point (wx,wy)
+function stockZonesFor(need,wx,wy){const s=stockOf();if(!s)return [];const mk=matchKey(need);
+  return s.zones.filter(z=>z.status==='ok').map(z=>{const agg=zoneAgg(s,z.id);
+    let reste=0;agg.forEach(a=>{if(matchKey(a)===mk)reste+=a.reste;else if((need.kind==='sleeve')&&(a.kind==='sleeve'||a.kind==='sleeveEnd')&&a.gaine&&need.casing&&Math.abs(a.gaine-need.casing)<=6)reste+=a.reste;});
+    return {z,reste,d:(isFinite(wx)&&isFinite(z.x))?Math.hypot(z.x-wx,z.y-wy):1e9};}).filter(o=>o.reste>0).sort((a,b)=>a.d-b.d);}
+function stockTakeKeyFor(need){const s=stockOf();return matchKey(need);}
+// enregistre un prélèvement (1 pièce) dans une zone ; label = libellé humain
+function stockTake(zoneId,need,weldId,lineId,cond2,qty){const s=stockOf();if(!s)return;s.takes.push({at:new Date().toISOString(),by:(me()||{}).name||state.userId,weldId,line:lineId,cond:cond2,zone:zoneId,key:matchKey(need),label:need.label||stockLabel(need),qty:qty||1});saveStock();}
+function stockDropTakes(weldId){const s=stockOf();if(!s)return;const n0=s.takes.length;s.takes=s.takes.filter(t=>t.weldId!==weldId);if(s.takes.length!==n0)saveStock();}
+/* ----- pose / édition d'une zone sur le plan ----- */
+function startStockPose(opt){state.stockPose=opt||{};state.tab='plan';closeSheet();renderAll();updateStockBar('Touche le plan à l\'endroit du déchargement : la zone (13 × 3 m) se pose là, puis ajuste-la (glisser · poignées · ↻).');}
+function endStockPose(){state.stockPose=null;state.stockSel=null;updateStockBar(null);state.tab='stock';renderAll();}
+function updateStockBar(msg){const bar=$('#stockBar');if(!bar)return;const on=!!(state.stockPose||state.stockSel);bar.style.display=on?'flex':'none';if(on)$('#stkMsg').textContent=msg||($('#stkMsg').textContent||'');}
+function stockTap(wx,wy){const s=stockOf();if(!s)return;const P=state.stockPose||{};
+  const z={id:'Z'+(1+s.zones.reduce((m,z2)=>Math.max(m,+String(z2.id).replace(/\D/g,'')||0),0)),name:P.name||('Zone '+(s.zones.length+1)),x:+wx.toFixed(2),y:+wy.toFixed(2),w:13,h:3,rot:0,status:P.status||'prevu',photos:[],liv:P.liv||null,at:new Date().toISOString(),by:(me()||{}).name||state.userId};
+  s.zones.push(z);(P.lots||[]).forEach(l=>{l.zone=z.id;s.lots.push(l);});if(P.moveLots)P.moveLots(z.id);
+  state.stockPose=null;state.stockSel=z.id;saveStock();renderPlan();updateStockBar('Zone « '+z.name+' » posée — glisse-la, étire-la (poignées), tourne (↻), puis Terminer.');}
+function renderStockOverlay(){if(!stockG)return;const s=NET&&NET.stock;if(!s||!s.zones||!s.zones.length||!state.show.fond&&false){stockG.innerHTML='';if(!s||!s.zones.length)return;}
+  const k=state.view.k;let out='';
+  s.zones.forEach(z=>{const sel=state.stockSel===z.id;const agg=zoneAgg(s,z.id);const reste=agg.reduce((t,a)=>t+Math.max(0,a.reste),0);
+    const col=z.status==='ok'?'#0ca30c':'#c9a227';const fill=z.status==='ok'?'rgba(12,163,12,.18)':'rgba(201,162,39,.14)';
+    out+=`<g transform="translate(${z.x} ${z.y}) rotate(${z.rot||0})">
+      <rect x="${-z.w/2}" y="${-z.h/2}" width="${z.w}" height="${z.h}" rx="${Math.min(1,z.h/6)}" fill="${fill}" stroke="${col}" stroke-width="${2.2/k}" ${z.status==='ok'?'':`stroke-dasharray="${6/k} ${4/k}"`} data-stkz="${z.id}" style="cursor:pointer"/>
+      ${sel?`<rect x="${-z.w/2}" y="${-z.h/2}" width="${z.w}" height="${z.h}" fill="none" stroke="#0b0b0b" stroke-width="${1.2/k}" stroke-dasharray="${3/k} ${3/k}" style="pointer-events:none"/>
+        <circle cx="${z.w/2}" cy="0" r="${7/k}" fill="#fff" stroke="#0b0b0b" stroke-width="${2/k}" data-stkh="w" data-stkzid="${z.id}" style="cursor:ew-resize"/>
+        <circle cx="0" cy="${z.h/2}" r="${7/k}" fill="#fff" stroke="#0b0b0b" stroke-width="${2/k}" data-stkh="h" data-stkzid="${z.id}" style="cursor:ns-resize"/>
+        <circle cx="0" cy="${-z.h/2-14/k}" r="${7/k}" fill="#eb6834" stroke="#fff" stroke-width="${2/k}" data-stkh="rot" data-stkzid="${z.id}" style="cursor:grab"/>`:''}
+    </g>`;
+    const lab=`${z.name} · ${z.status==='ok'?stkFmtQ(reste)+' pcs':'prévu'}`;const wl=lab.length*6.4+16;
+    out+=`<g transform="translate(${z.x} ${z.y - (Math.abs(z.h/2*Math.cos((z.rot||0)*Math.PI/180))+Math.abs(z.w/2*Math.sin((z.rot||0)*Math.PI/180)))}) scale(${1/k})" style="pointer-events:none"><rect x="${-wl/2}" y="-26" width="${wl}" height="17" rx="8.5" fill="${col}" opacity=".92"/><text y="-13.5" font-size="10" font-weight="800" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">${esc(lab)}</text></g>`;});
+  stockG.innerHTML=out;}
+/* ----- onglet Stock ----- */
+const dlCSVFile=(name,rows)=>{const csv='﻿'+rows.map(r=>r.map(v=>{const s2=String(v??'');return /[;"\n]/.test(s2)?'"'+s2.replace(/"/g,'""')+'"':s2;}).join(';')).join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);};
+// besoin du calepinage par clé de rapprochement (barres = toute barre non manchette ; manchons ≈ 1 par soudure, paires de manchettes nues = 1)
+function stockNeeds(){const need={};const lab={};Object.values(state.lines).forEach(l=>{['A','R'].forEach(c=>{const cd=l.cond[c];if(!cd)return;
+  cd.els.forEach(e=>{let o=null;if(e.kind==='pipe'&&!e.manchette&&!e.nue)o={kind:'pipe',dn:+e.dn||+l.dn};
+    else if(e.kind==='bend')o={kind:'bend',dn:+e.dn||+l.dn,angle:Math.abs(+e.angle||90)};
+    else if(e.kind==='tee')o={kind:'tee',dn:+e.dn||+l.dn,dn2:+e.dnb||undefined};
+    else if(e.kind==='reducer')o={kind:'reducer',dn:+e.dn||+l.dn,dn2:+e.dn2||undefined};
+    if(o){const k=matchKey(o);need[k]=(need[k]||0)+1;lab[k]=stockLabel({...o,len:12});}});
+  const seenSl=new Set();cd.joints.forEach(j=>{if(j.sleeveWith&&seenSl.has(j.weldId))return;if(j.sleeveWith)seenSl.add(j.sleeveWith);const e=cd.els[j.idx];const o={kind:'sleeve',dn:+((e&&e.dn)||l.dn)};const k=matchKey(o);need[k]=(need[k]||0)+1;lab[k]=stockLabel(o);});});});return {need,lab};}
+// vue « matière » : réseau gris = posé, vert = posable avec le stock restant, orange fin = pas couvert
+function stockMatSVG(){const s=stockOf();if(!s)return '';const rem=remainByMatch(s);let nb=null;
+  Object.values(state.lines).forEach(l=>{(l.pts||[]).forEach(p=>{if(!nb)nb=[p.x,p.y,p.x,p.y];else{nb[0]=Math.min(nb[0],p.x);nb[1]=Math.min(nb[1],p.y);nb[2]=Math.max(nb[2],p.x);nb[3]=Math.max(nb[3],p.y);}});});
+  if(!nb)return '<div class="muted">Aucune ligne.</div>';const pad=Math.max(8,(nb[2]-nb[0])*.05);const vb=[nb[0]-pad,nb[1]-pad,nb[2]-nb[0]+2*pad,nb[3]-nb[1]+2*pad];const sw=Math.max(vb[2],vb[3])/220;
+  const lines=Object.values(state.lines).map(l=>{const cd=l.cond.A||l.cond.R;if(!cd)return null;const els=cd.els,joints=cd.joints;
+    const posed=els.map((e,i)=>{const jA=joints.find(j=>j.idx===i-1),jB=joints.find(j=>j.idx===i);return !!((jA&&jA.status!=='a_souder')||(jB&&jB.status!=='a_souder'));});
+    const pct=posed.filter(Boolean).length/(els.length||1);return {l,els,posed,pct};}).filter(Boolean).sort((a,b)=>b.pct-a.pct);
+  let mlOk=0,mlNo=0;let sPo='',sOk='',sNo='';
+  lines.forEach(({l,els,posed})=>{els.forEach((e,i)=>{const ax=(e.axis&&e.axis[0])||[[e.from[0]||e.from.x,e.from[1]||e.from.y],[e.to[0]||e.to.x,e.to[1]||e.to.y]];
+    const pts=ax.map(p=>Array.isArray(p)?p:[p.x,p.y]);const d='M '+pts.map(p=>p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' L ');
+    if(posed[i]){sPo+=`<path d="${d}"/>`;return;}
+    let o=null;if(e.kind==='pipe'&&!e.manchette&&!e.nue)o={kind:'pipe',dn:+e.dn||+l.dn};else if(e.kind==='bend')o={kind:'bend',dn:+e.dn||+l.dn,angle:Math.abs(+e.angle||90)};else if(e.kind==='tee')o={kind:'tee',dn:+e.dn||+l.dn,dn2:+e.dnb||undefined};else if(e.kind==='reducer')o={kind:'reducer',dn:+e.dn||+l.dn,dn2:+e.dn2||undefined};
+    if(!o){sOk+=`<path d="${d}"/>`;return;} // manchettes, bouts… suivent le mouvement sans consommer
+    const k=matchKey(o);if((rem[k]||0)>0){rem[k]--;sOk+=`<path d="${d}"/>`;mlOk+=e.len||0;}else{sNo+=`<path d="${d}"/>`;mlNo+=e.len||0;}});});
+  return `<svg viewBox="${vb.join(' ')}" style="width:100%;max-height:280px;background:#f4f3ee;border-radius:10px">
+    <g fill="none" stroke="#b6b2a6" stroke-width="${sw*2.2}" stroke-linecap="round">${sPo}</g>
+    <g fill="none" stroke="#0ca30c" stroke-width="${sw*2.6}" stroke-linecap="round">${sOk}</g>
+    <g fill="none" stroke="#e0a13c" stroke-width="${sw}" stroke-linecap="round" stroke-dasharray="${sw*4} ${sw*3}">${sNo}</g></svg>
+   <div class="kv" style="margin-top:6px"><span><i style="display:inline-block;width:14px;height:4px;background:#b6b2a6;border-radius:2px;vertical-align:middle"></i> posé</span><span><i style="display:inline-block;width:14px;height:4px;background:#0ca30c;border-radius:2px;vertical-align:middle"></i> posable avec le stock : <b>${fmt(mlOk)} ml</b></span><span><i style="display:inline-block;width:14px;height:4px;background:#e0a13c;border-radius:2px;vertical-align:middle"></i> au-delà du stock : ${fmt(mlNo)} ml</span></div>`;}
+function renderStock(){const el=$('#stock');const s=stockOf();
+  if(!s){el.innerHTML='<h2 class="vt">Stock — pièces pré-isolées</h2><div class="card muted">Aucun chantier.</div>';return;}
+  const canE=stockCanEdit();
+  const zoneCard=z=>{const agg=zoneAgg(s,z.id).sort((a,b)=>String(a.label).localeCompare(String(b.label)));
+    const rows=agg.map(a=>{const pc=a.qty?Math.max(0,Math.min(100,Math.round(100*a.reste/a.qty))):0;
+      return `<tr><td>${esc(a.label)}</td><td>${stkFmtQ(a.qty)}</td><td>${stkFmtQ(a.taken)}</td><td><b>${stkFmtQ(a.reste)}</b><div class="stbar"><i class="${pc<25?'low':''}" style="width:${pc}%"></i></div></td></tr>`;}).join('');
+    const liv=s.livs.find(v=>v.id===z.liv);
+    return `<div class="card" style="border-left:4px solid ${z.status==='ok'?'#0ca30c':'#c9a227'}">
+     <h3 style="margin:0 0 2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">${esc(z.name)} <span class="hyChip" style="border-color:${z.status==='ok'?'#9fd49f':'#c9a227'};font-size:10.5px">${z.status==='ok'?'déchargée':'prévue'}${z.at?' · '+new Date(z.at).toLocaleDateString('fr-FR'):''}</span>${liv&&liv.ecarts&&liv.ecarts.length?`<span class="hyChip" style="border-color:#e8a0a0;color:#8a1f1f;font-size:10.5px">⚠ ${liv.ecarts.length} écart${liv.ecarts.length>1?'s':''} BL</span>`:''}</h3>
+     <div class="dim" style="font-size:11px">${liv?esc(liv.label)+(liv.bl?' · BL '+esc(liv.bl):''):''} · ${fmt(z.w)} × ${fmt(z.h)} m${(z.photos||[]).length?' · 📷 '+z.photos.length:''}</div>
+     ${agg.length?`<div style="overflow:auto"><table class="rc" style="margin-top:4px"><tr><th></th><th>livré</th><th>pris</th><th>reste</th></tr>${rows}</table></div>`:'<div class="dim" style="font-size:12px;margin-top:4px">Contenu attendu au déchargement (voir la livraison).</div>'}
+     <div class="row" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">
+      <button class="btn sm" data-stkgo="${z.id}">📍 Voir sur le plan</button>
+      ${canE&&z.status!=='ok'?`<button class="btn sm primary" data-stkunload="${z.id}">Camion arrivé → déchargement</button>`:''}
+      ${canE?`<button class="btn sm" data-stksplit="${z.id}">⇄ Scinder / transférer</button>`:''}
+      <button class="btn sm" data-stkcsv="${z.id}">⬇ CSV</button>
+      ${liv?`<button class="btn sm" data-stkcr="${z.id}">📄 Compte-rendu</button>`:''}
+      ${canE?`<button class="btn sm" data-stkdel="${z.id}" style="color:#d03b3b">✕</button>`:''}
+     </div></div>`;};
+  const G=globalAgg(s);const {need,lab}=stockNeeds();
+  const gRows=G.sort((a,b)=>String(a.label).localeCompare(String(b.label))).map(a=>{const mk=matchKey(a);const nd=need[mk]||0;const short=nd&&(a.qty<nd);
+    return `<tr${short?' style="background:#fdecec"':''}><td>${esc(a.label)}</td><td>${stkFmtQ(a.qty)}</td><td>${stkFmtQ(a.taken)}</td><td><b>${stkFmtQ(a.reste)}</b>${short?` <span class="dim" style="font-size:10.5px">(il en faut ${stkFmtQ(nd)} au calepinage)</span>`:''}</td></tr>`;}).join('');
+  el.innerHTML=`<h2 class="vt">Stock — pièces pré-isolées</h2>
+   ${canE?`<div class="row" style="display:flex;gap:6px;margin-bottom:8px"><button class="btn primary" id="stk-new" style="flex:1">＋ Nouvelle livraison (camion)</button></div>`:''}
+   ${s.zones.length?s.zones.map(zoneCard).join(''):'<div class="card muted">Aucune zone de stockage : crée une livraison, la zone se pose sur le plan.</div>'}
+   ${G.length?`<div class="card"><h3 style="margin-top:0">Stock général chantier <span class="dim" style="font-size:11.5px;font-weight:400">(toutes zones)</span></h3><div style="overflow:auto"><table class="rc"><tr><th></th><th>livré</th><th>pris</th><th>reste</th></tr>${gRows}</table></div>
+    <div class="row" style="display:flex;gap:6px;margin-top:6px"><button class="btn sm" id="stk-csvg" style="flex:1">⬇ CSV stock général</button></div></div>`:''}
+   <div class="card"><h3 style="margin-top:0">Le réseau et la matière</h3><div class="dim" style="font-size:11.5px;margin-bottom:6px">Gris = déjà posé · vert = posable avec le stock restant · orange = au-delà du stock actuel.</div>${stockMatSVG()}</div>
+   ${(s.moves||[]).length?`<details class="card"><summary style="cursor:pointer;font-size:13px;color:var(--ink2)">Mouvements (${s.moves.length})</summary><table class="rc" style="margin-top:6px">${s.moves.slice(-12).reverse().map(m2=>`<tr><td>${esc(new Date(m2.at).toLocaleDateString('fr-FR'))}</td><td>${stkFmtQ(m2.qty)} × ${esc(m2.label||'')}</td><td>${esc((stockZoneById(m2.from)||{}).name||m2.from||'—')} → ${esc((stockZoneById(m2.to)||{}).name||m2.to)}</td><td class="dim">${esc(m2.by||'')}</td></tr>`).join('')}</table></details>`:''}`;
+  const q0=$('#stk-new');if(q0)q0.onclick=()=>openStockLiv();
+  const qg=$('#stk-csvg');if(qg)qg.onclick=()=>{const rows=[['Référence','Livré','Pris','Reste']];globalAgg(s).forEach(a=>rows.push([a.label,a.qty,a.taken,a.reste]));dlCSVFile((NET.name||'chantier')+' - stock général.csv',rows);};
+  el.querySelectorAll('[data-stkgo]').forEach(b=>b.onclick=()=>{const z=stockZoneById(b.dataset.stkgo);if(!z)return;state.stockSel=z.id;state.tab='plan';renderAll();centerOn(z.x,z.y,Math.max(state.view.k,6));updateStockBar('Zone « '+z.name+' » — glisser pour déplacer, poignées pour étirer, ↻ pour tourner, Terminer pour sortir.');});
+  el.querySelectorAll('[data-stkcsv]').forEach(b=>b.onclick=()=>{const z=stockZoneById(b.dataset.stkcsv);const rows=[['Référence','Livré','Pris','Reste']];zoneAgg(s,z.id).forEach(a=>rows.push([a.label,a.qty,a.taken,a.reste]));dlCSVFile((NET.name||'chantier')+' - '+z.name+'.csv',rows);});
+  el.querySelectorAll('[data-stkunload]').forEach(b=>b.onclick=()=>openStockUnload(b.dataset.stkunload));
+  el.querySelectorAll('[data-stksplit]').forEach(b=>b.onclick=()=>openStockSplit(b.dataset.stksplit));
+  el.querySelectorAll('[data-stkcr]').forEach(b=>b.onclick=()=>openStockCR(b.dataset.stkcr));
+  el.querySelectorAll('[data-stkdel]').forEach(b=>b.onclick=()=>{const z=stockZoneById(b.dataset.stkdel);const agg=zoneAgg(s,z.id);const reste=agg.reduce((t,a)=>t+a.reste,0);
+    if(!confirm(reste>0?('La zone « '+z.name+' » a encore '+reste+' pièce(s) : supprimer quand même ? (les lots et prélèvements de cette zone disparaissent du suivi)'):('Supprimer la zone « '+z.name+' » ?')))return;
+    s.zones=s.zones.filter(z2=>z2.id!==z.id);s.lots=s.lots.filter(l=>l.zone!==z.id);s.takes=s.takes.filter(t=>t.zone!==z.id);saveStock();renderStock();renderPlan();});}
+/* ----- nouvelle livraison ----- */
+function stockLivLinesHTML(lines){return `<table class="rc" id="stk-lines"><tr><th>Référence</th><th style="width:88px">Qté</th><th></th></tr>${lines.map((l,i)=>`<tr><td>${esc(l.label)}</td><td><input class="f" type="number" min="0" step="1" value="${l.qty}" data-stkq="${i}" style="width:74px;padding:4px 6px"></td><td><button data-stkx="${i}" style="border:0;background:none;cursor:pointer;color:#d03b3b">✕</button></td></tr>`).join('')}</table>`;}
+function openStockLiv(){const s=stockOf();if(!s){toast('Aucun chantier');return;}
+  const st2={src:'cat',lines:[],blInfo:''};
+  const DNS=[20,25,32,40,50,65,80,100,125,150,200,250,300,350,400];
+  const KINDS=[['pipe','Barre 12 m'],['bend','Coude'],['tee','Té'],['reducer','Réduction'],['sleeve','Manchon'],['sleeveEnd','Manchon fin de ligne'],['kit','Kit fin de ligne'],['dhec','DHEC'],['wall','Passage de mur'],['acc','Autre / accessoire']];
+  const rd=()=>{openModal(`<h3 style="margin-top:0">Nouvelle livraison — camion</h3>
+   <div class="row" style="display:flex;gap:6px"><div style="flex:1"><label class="f">Nom</label><input class="f" id="stk-name" value="Camion ${s.livs.length+1}"></div><div style="flex:1"><label class="f">N° de BL (optionnel)</label><input class="f" id="stk-bl"></div></div>
+   <div class="seg" style="display:flex;border:1.5px solid var(--line);border-radius:10px;overflow:hidden;margin:8px 0">${[['cat','Catalogue'],['bl','BL (PDF)'],['nom','Depuis le calepinage']].map(([k,t])=>`<div data-stksrc="${k}" style="flex:1;text-align:center;padding:7px 4px;font-size:12px;font-weight:700;cursor:pointer;${st2.src===k?'background:var(--ink);color:#fff':''}">${t}</div>`).join('')}</div>
+   <div id="stk-srcbox">${st2.src==='cat'?`<div class="row" style="display:flex;gap:6px;flex-wrap:wrap;align-items:end"><div><label class="f">Pièce</label><select class="f" id="stk-kind">${KINDS.map(k=>`<option value="${k[0]}">${k[1]}</option>`).join('')}</select></div><div><label class="f">DN</label><select class="f" id="stk-dn">${DNS.map(d=>`<option ${d===100?'selected':''}>${d}</option>`).join('')}</select></div><div id="stk-dn2box" style="display:none"><label class="f">DN branche</label><select class="f" id="stk-dn2">${DNS.map(d=>`<option ${d===50?'selected':''}>${d}</option>`).join('')}</select></div><div id="stk-angbox" style="display:none"><label class="f">Angle</label><select class="f" id="stk-ang">${[90,75,60,45,30,15].map(a=>`<option>${a}</option>`).join('')}</select></div><div><label class="f">Qté</label><input class="f" id="stk-qty" type="number" value="12" style="width:70px"></div><button class="btn" id="stk-add">Ajouter</button></div>`
+    :st2.src==='bl'?`<label class="f">Bon de livraison (PDF — AXIOM, Renalia, LOGSTOR reconnus)</label><input class="f" type="file" id="stk-pdf" accept="application/pdf">${st2.blInfo?`<div class="hint" style="margin-top:4px">${st2.blInfo}</div>`:''}<p class="hint">Les lignes reconnues arrivent ci-dessous : vérifie chaque quantité — jamais d'import aveugle. Un BL scanné (photo) n'a pas de texte : saisis alors par le catalogue.</p>`
+    :`<p class="hint" style="margin-top:0">Ce qui MANQUE encore au calepinage (besoin − déjà livré), pré-rempli — ajuste :</p><button class="btn ghost" id="stk-fill">Remplir avec le manquant</button>`}</div>
+   <div style="margin-top:8px">${st2.lines.length?stockLivLinesHTML(st2.lines):'<div class="dim" style="font-size:12px">Aucune ligne pour l\'instant.</div>'}</div>
+   <label style="display:flex;gap:7px;align-items:center;font-size:12.5px;margin-top:8px"><input type="checkbox" id="stk-prev" checked> Déchargement <b>prévu</b> (camion pas encore arrivé — zone hachurée, pointage à l'arrivée)</label>
+   <div class="actions" style="margin-top:8px"><button class="btn primary block" id="stk-ok">Valider → placer la zone sur le plan</button><button class="btn block" data-close>Annuler</button></div>`);
+   $('#modal').querySelectorAll('[data-stksrc]').forEach(b=>b.onclick=()=>{st2.src=b.dataset.stksrc;rd();});
+   const kd=$('#stk-kind');if(kd){const upd=()=>{$('#stk-dn2box').style.display=(kd.value==='tee'||kd.value==='reducer')?'':'none';$('#stk-angbox').style.display=kd.value==='bend'?'':'none';};kd.onchange=upd;upd();
+     $('#stk-add').onclick=()=>{const o={kind:kd.value,dn:+$('#stk-dn').value,qty:Math.max(1,+$('#stk-qty').value||1)};if(kd.value==='bend')o.angle=+$('#stk-ang').value;if(kd.value==='tee'||kd.value==='reducer')o.dn2=+$('#stk-dn2').value;if(kd.value==='pipe')o.len=12;o.label=stockLabel(o);o.key=stockKey(o);
+       const ex=st2.lines.find(l=>l.key===o.key);if(ex)ex.qty+=o.qty;else st2.lines.push(o);rd();};}
+   const pf=$('#stk-pdf');if(pf)pf.onchange=async()=>{const f=pf.files[0];if(!f)return;st2.blInfo='Lecture du PDF…';rd();
+     try{const lib=await loadPdfJs();const doc=await lib.getDocument({data:await f.arrayBuffer()}).promise;let txt='';
+       for(let p=1;p<=doc.numPages;p++){const pg=await doc.getPage(p);const tc=await pg.getTextContent();const rows=new Map();
+         tc.items.forEach(it=>{const y=Math.round(it.transform[5]/3)*3;if(!rows.has(y))rows.set(y,[]);rows.get(y).push({x:it.transform[4],s:it.str});});
+         [...rows.entries()].sort((a,b)=>b[0]-a[0]).forEach(([,items])=>{txt+=items.sort((a,b)=>a.x-b.x).map(i=>i.s).join(' ')+'\n';});}
+       const R=parseBL(txt);
+       if(R.empty||!R.lines.length){st2.blInfo='<b style="color:#8a1f1f">Aucune ligne reconnue'+(R.empty?' (PDF scanné, sans texte)':'')+'</b> — saisis par le catalogue.';}
+       else{R.lines.forEach(l=>{l.key=stockKey(l);l.label=stockLabel(l).replace('Divers',l.label||'Divers');const ex=st2.lines.find(x=>x.key===l.key);if(ex)ex.qty+=l.qty;else st2.lines.push(l);});
+         st2.blInfo='BL <b>'+esc(R.fmt.toUpperCase())+'</b> lu : '+R.lines.length+' lignes reconnues'+(R.others&&R.others.length?' · '+R.others.length+' ignorée(s)':'')+' — vérifie les quantités.';
+         if(!$('#stk-bl').value&&/BL\s*[\dA-Z]/.test(f.name))$('#stk-bl').value=f.name.replace(/\.pdf$/i,'');}
+       rd();}catch(err){console.warn(err);st2.blInfo='<b style="color:#8a1f1f">PDF illisible ici</b> ('+esc(err.message||err)+') — saisis par le catalogue.';rd();}};
+   const fl=$('#stk-fill');if(fl)fl.onclick=()=>{const {need,lab}=stockNeeds();const have={};globalAgg(s).forEach(a=>{const mk2=matchKey(a);have[mk2]=(have[mk2]||0)+a.qty;});
+     st2.lines=Object.entries(need).map(([k,n])=>{const man=n-(have[k]||0);if(man<=0)return null;const parts=k.split(':');const o={kind:parts[0],dn:+parts[1]||undefined,qty:man,label:lab[k]||k};if(parts[0]==='bend')o.angle=+parts[2];if(parts[0]==='tee'||parts[0]==='reducer')o.dn2=+parts[2]||undefined;if(parts[0]==='pipe')o.len=12;o.key=stockKey(o);return o;}).filter(Boolean);rd();};
+   $('#modal').querySelectorAll('[data-stkq]').forEach(inp=>inp.onchange=()=>{st2.lines[+inp.dataset.stkq].qty=Math.max(0,+inp.value||0);});
+   $('#modal').querySelectorAll('[data-stkx]').forEach(b=>b.onclick=()=>{st2.lines.splice(+b.dataset.stkx,1);rd();});
+   $('#stk-ok').onclick=()=>{st2.lines=st2.lines.filter(l=>l.qty>0);if(!st2.lines.length){toast('Aucune ligne');return;}
+     const liv={id:'L'+Date.now().toString(36),label:$('#stk-name').value||'Camion',bl:$('#stk-bl').value||'',at:new Date().toISOString(),by:(me()||{}).name||state.userId,status:$('#stk-prev').checked?'prevu':'ok',prevu:st2.lines.map(l=>({label:l.label,qty:l.qty}))};
+     s.livs.push(liv);const lots=st2.lines.map((l,i)=>({id:liv.id+':'+i,zone:null,key:l.key||stockKey(l),label:l.label,kind:l.kind,dn:l.dn,dn2:l.dn2,gaine:l.gaine,len:l.len,angle:l.angle,qty:l.qty}));
+     closeModal();startStockPose({liv:liv.id,name:liv.label,status:liv.status==='prevu'?'prevu':'ok',lots});};};
+  rd();}
+/* ----- déchargement (pointage BL ↔ réel) ----- */
+function openStockUnload(zoneId){const s=stockOf();const z=stockZoneById(zoneId);if(!z)return;const liv=s.livs.find(v=>v.id===z.liv);
+  const lots=s.lots.filter(l=>l.zone===zoneId);const ph=[];
+  openModal(`<h3 style="margin-top:0">Déchargement — ${esc(z.name)}</h3>
+   <label class="f">1 · Photo du déchargement (obligatoire)</label>
+   <div class="thumbs" id="stk-phs"><label class="thumb" style="display:flex;align-items:center;justify-content:center;border:1.5px dashed #b8b4a8;cursor:pointer;color:#8f8b80">📷<input type="file" accept="image/*" capture="environment" id="stk-ph" style="display:none" multiple></label></div>
+   <label class="f" style="margin-top:8px">2 · Pointage — le réel en face du prévu</label>
+   <table class="rc">${lots.map((l,i)=>`<tr><td>${esc(l.label)}</td><td class="dim">prévu : ${l.qty}</td><td><input class="f" type="number" value="${l.qty}" data-stkr="${i}" style="width:74px;padding:4px 6px"></td></tr>`).join('')}</table>
+   <div class="hint">Un écart est noté au compte-rendu (réserve à faire au chauffeur) — le stock démarre sur le RÉEL.</div>
+   <div class="actions" style="margin-top:8px"><button class="btn primary block" id="stk-unok">Valider le déchargement — la zone passe en vert</button><button class="btn block" data-close>Annuler</button></div>`);
+  $('#stk-ph').onchange=async e2=>{for(const f of [...e2.target.files]){const d=await compressPhoto(f);let u=null;try{u=await sync.uploadPhoto(state.siteId,'stock-'+z.id,d);}catch(e3){}ph.push(u||d);}
+    $('#stk-phs').insertAdjacentHTML('afterbegin',ph.map(p=>`<div class="thumb"><img src="${p}"></div>`).join(''));toast(ph.length+' photo(s)');};
+  $('#stk-unok').onclick=()=>{if(!ph.length){toast('Ajoute une photo du déchargement');return;}
+    const ecarts=[];$('#modal').querySelectorAll('[data-stkr]').forEach(inp=>{const l=lots[+inp.dataset.stkr];const reel=Math.max(0,+inp.value||0);if(reel!==l.qty)ecarts.push({label:l.label,prevu:l.qty,recu:reel});l.qty=reel;});
+    z.status='ok';z.photos=(z.photos||[]).concat(ph);z.at=new Date().toISOString();z.by=(me()||{}).name||state.userId;
+    if(liv){liv.status='ok';liv.ecarts=ecarts;liv.recuAt=z.at;}
+    saveStock();closeModal();renderStock();renderPlan();toast(ecarts.length?('Déchargé — '+ecarts.length+' écart(s) noté(s) au compte-rendu'):'Déchargé — conforme au BL ✓');};}
+/* ----- scinder / transférer ----- */
+function openStockSplit(zoneId){const s=stockOf();const z=stockZoneById(zoneId);if(!z)return;const agg=zoneAgg(s,z.id).filter(a=>a.reste>0);
+  if(!agg.length){toast('Rien à transférer dans cette zone');return;}
+  const others=s.zones.filter(z2=>z2.id!==zoneId);
+  openModal(`<h3 style="margin-top:0">Scinder / transférer — ${esc(z.name)}</h3>
+   <p class="hint" style="margin-top:0">Coche ce qui part (quantité ajustable), choisis la destination. Ex. : manchons et kits → base vie, les tubes restent.</p>
+   <table class="rc">${agg.map((a,i)=>`<tr><td><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-stksel="${i}" ${/sleeve|kit|dhec|wall|acc/.test(a.kind)?'checked':''}> ${esc(a.label)}</label></td><td class="dim">reste ${a.reste}</td><td><input class="f" type="number" value="${a.reste}" max="${a.reste}" min="1" data-stksq="${i}" style="width:70px;padding:4px 6px"></td></tr>`).join('')}</table>
+   <label class="f" style="margin-top:8px">Destination</label>
+   <select class="f" id="stk-dest">${others.map(z2=>`<option value="${z2.id}">${esc(z2.name)}</option>`).join('')}<option value="__new">➕ Nouvelle zone (base vie, autre dépôt…) — à poser sur le plan</option></select>
+   <input class="f" id="stk-destname" placeholder="Nom de la nouvelle zone (ex. Base vie)" style="margin-top:6px;${others.length?'display:none':''}">
+   <div class="actions" style="margin-top:8px"><button class="btn primary block" id="stk-splitok">Transférer</button><button class="btn block" data-close>Annuler</button></div>`);
+  const dsel=$('#stk-dest');dsel.onchange=()=>{$('#stk-destname').style.display=dsel.value==='__new'?'':'none';};if(!others.length)dsel.value='__new';
+  $('#stk-splitok').onclick=()=>{const picks=[];$('#modal').querySelectorAll('[data-stksel]').forEach(cb=>{if(!cb.checked)return;const i=+cb.dataset.stksel;const q=Math.max(1,Math.min(agg[i].reste,+$('#modal').querySelector('[data-stksq="'+i+'"]').value||agg[i].reste));picks.push({a:agg[i],q});});
+    if(!picks.length){toast('Rien de coché');return;}
+    const doMove=destId=>{picks.forEach(({a,q})=>{let left=q;s.lots.filter(l=>l.zone===zoneId&&l.key===a.key).forEach(l=>{if(left<=0)return;const take2=Math.min(l.qty,left);l.qty-=take2;left-=take2;
+        const ex=s.lots.find(l2=>l2.zone===destId&&l2.key===a.key);if(ex)ex.qty+=take2;else s.lots.push({id:l.id+'>'+destId,zone:destId,key:a.key,label:a.label,kind:a.kind,dn:a.dn,dn2:a.dn2,gaine:a.gaine,len:a.len,angle:a.angle,qty:take2});});
+      s.moves.push({at:new Date().toISOString(),by:(me()||{}).name||state.userId,label:a.label,qty:q,from:zoneId,to:destId});});
+      s.lots=s.lots.filter(l=>l.qty>0);saveStock();};
+    if(dsel.value==='__new'){const nm=$('#stk-destname').value||'Base vie';closeModal();
+      startStockPose({name:nm,status:'ok',lots:[],moveLots:destId=>{doMove(destId);renderPlan();}});}
+    else{doMove(dsel.value);closeModal();renderStock();renderPlan();toast('Transféré vers '+((stockZoneById(dsel.value)||{}).name||''));}};}
+/* ----- compte-rendu de réception (1 clic, imprimable) ----- */
+function openStockCR(zoneId){const s=stockOf();const z=stockZoneById(zoneId);const liv=s.livs.find(v=>v.id===z.liv);if(!liv)return;
+  const rows=(liv.prevu||[]).map(p=>{const ec=(liv.ecarts||[]).find(e2=>e2.label===p.label);return `<tr${ec?' style="background:#fdecec"':''}><td>${esc(p.label)}</td><td style="text-align:right">${p.qty}</td><td style="text-align:right">${ec?ec.recu:p.qty}</td><td>${ec?'<b>'+(ec.recu-ec.prevu>0?'+':'')+(ec.recu-ec.prevu)+' — réserve chauffeur</b>':'conforme'}</td></tr>`;}).join('');
+  const w=window.open('','_blank');w.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Réception ${esc(liv.label)}</title>
+   <style>body{font-family:system-ui,sans-serif;margin:28px;color:#111}h1{font-size:19px;margin:0}h2{font-size:14px;margin:18px 0 6px}table{border-collapse:collapse;width:100%;font-size:12.5px}th,td{border:1px solid #ccc;padding:5px 8px;text-align:left}th{background:#f2f1ec}img{max-width:220px;max-height:160px;border-radius:8px;margin:4px}@media print{button{display:none}}</style></head><body>
+   <button onclick="print()" style="float:right;padding:8px 14px">🖨 Imprimer / PDF</button>
+   <h1>Compte-rendu de réception — ${esc(NET.name||'')}</h1>
+   <div style="color:#555;font-size:13px">${esc(liv.label)}${liv.bl?' · BL '+esc(liv.bl):''} · zone « ${esc(z.name)} » · ${z.at?new Date(z.at).toLocaleDateString('fr-FR'):''} · reçu par ${esc(z.by||liv.by||'')}</div>
+   <h2>Pointage</h2><table><tr><th>Référence</th><th>Prévu (BL)</th><th>Reçu</th><th>Écart</th></tr>${rows}</table>
+   ${(liv.ecarts||[]).length?`<p style="color:#8a1f1f"><b>${liv.ecarts.length} écart(s)</b> — réserve portée au transporteur.</p>`:'<p style="color:#116611"><b>Réception conforme au bon de livraison.</b></p>'}
+   ${(z.photos||[]).length?'<h2>Photos</h2>'+z.photos.map(p=>`<img src="${p}">`).join(''):''}
+   <p style="margin-top:26px">Signature : ______________________</p></body></html>`);w.document.close();}
+
 /* ---------- liste ---------- */
 function renderListe(){const el=$('#liste');let h='<h2 class="vt">Liste des soudures</h2>';Object.values(state.lines).forEach(l=>{['A','R'].forEach(c=>{if(!l.cond[c])return;const J=l.cond[c].joints.filter(passFilter);if(!J.length)return;h+=`<h3 style="color:${c==='A'?'#c8382f':'#2a5fb4'}">${esc(l.name)} — ${c==='A'?'aller':'retour'} (${J.length})</h3><div class="card" style="padding:0 8px">${J.map(j=>`<div class="wrow" data-line="${l.id}" data-cond="${c}" data-i="${j.idx}"><b>${j.weldId}</b><span class="meta">PK ${fmt(l.cond[c].els[j.idx].m1)} m · Dn${esc(j.dn||l.dn)}${j.fc?' · <b style="color:#b8560f">FC '+fmt(Math.abs(j.dev))+'°</b>':''}${j.wire==='inversion'?' · <b style="color:#d03b3b">inversion fils</b>':j.wire==='raccorde'?' · fils ✓':''}</span>${badge(j.status)}</div>`).join('')}</div>`;});});el.innerHTML=h;}
 $('#liste').addEventListener('click',e=>{const r=e.target.closest('.wrow');if(!r)return;goToJoint(state.lines[r.dataset.line],r.dataset.cond,+r.dataset.i);});
@@ -1504,7 +1738,7 @@ function renderRecap(){const el=$('#recap');if(!el)return;if(!NET||!Object.keys(
   $('#csvWelds').onclick=()=>{const rows=[['N°','Ligne','Conduite','DN','PK (m)','Statut','Fausse coupe (°)','Sortie de té','Même manchon que','Fils','Dernier événement','Par','Le','Photos','Note']];
     D.welds.forEach(({j,l,c,dn,pk})=>{const ev=(j.events||[]).slice(-1)[0];rows.push([j.weldId,l.name,c==='A'?'aller':'retour',dn,fmt(pk),(STATUS[j.status]||{}).label||j.status,j.fc?fmt(Math.abs(j.dev)):'',j.teeOut?'oui':'',j.sleeveWith||'',j.wire==='inversion'?'inversion':j.wire==='raccorde'?'raccordés':'',ev?ev.type:'',ev?ev.by:'',ev&&ev.at?new Date(ev.at).toLocaleString('fr-FR'):'',(j.photos||[]).length+(j.events||[]).reduce((s,e)=>s+((e.photos||[]).length),0),j.note||'']);});dl(slug+'_soudures.csv',rows);};
   $('#csvPieces').onclick=()=>{const rows=[['Pièce','DN','Quantité','Aller','Retour','ml','Référence catalogue']];D.pieces.forEach(g=>rows.push([g.lab,g.dn||'',g.n,g.nA,g.nR,g.ml?fmt(g.ml):'',g.ref||'']));dl(slug+'_pieces.csv',rows);};}
-function renderAll(){if(state.tab==='catalogue')renderCatalogue();if(state.tab==='recap')renderRecap();if(state.tab==='hydro'){hydroCache=null;renderHydro();}$$('#tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.tab===state.tab));$$('.view').forEach(v=>v.classList.toggle('active',v.id==='view-'+state.tab));renderPlan();if(state.tab==='bouclage')renderBouclage();renderListe();}
+function renderAll(){if(state.tab==='catalogue')renderCatalogue();if(state.tab==='recap')renderRecap();if(state.tab==='hydro'){hydroCache=null;renderHydro();}if(state.tab==='stock')renderStock();$$('#tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.tab===state.tab));$$('.view').forEach(v=>v.classList.toggle('active',v.id==='view-'+state.tab));renderPlan();if(state.tab==='bouclage')renderBouclage();renderListe();}
 $('#tabbar').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;state.tab=b.dataset.tab;closeSheet();renderAll();});
 const roleSel=$('#roleSel');function syncRoleSel(){roleSel.innerHTML='';if(state.profile){const o=document.createElement('option');o.value='__me';o.textContent=`${state.profile.name||state.profile.email} — ${ROLE_LABEL[state.profile.role]||state.profile.role}`;roleSel.appendChild(o);}USERS.forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=`${u.name} — ${ROLE_LABEL[u.role]}`;roleSel.appendChild(o);});roleSel.value=state.userId;}
 USERS.forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=`${u.name} — ${ROLE_LABEL[u.role]}`;roleSel.appendChild(o);});

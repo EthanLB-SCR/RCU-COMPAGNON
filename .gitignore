@@ -9,3 +9,4 @@ plans/
 app/test/node_modules/
 app/test/*.png
 app/dist-maquette/
+app/test/bl/
