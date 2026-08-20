@@ -1180,21 +1180,37 @@ state.screen='site';state.homeTab=localStorage.getItem('trace:homeTab')||'map';s
 function showScreen(sc){state.screen=sc;$('#loginView').classList.toggle('show',sc==='login');$('#homeView').classList.toggle('show',sc==='home');}
 // carte des chantiers (accueil) : vraie carte IGN « plan éteint » (direction B validée le 20/08), web mercator, zoom/glisser/pincer, regroupement
 // centre lon/lat d'un chantier : depuis sa copie complète si elle est là, sinon depuis la méta serveur
+// centre du RÉSEAU d'un chantier (repère plan) : médiane des milieux de lignes — insensible à un cartouche, un fond étendu ou une ligne partie à des km
+function netCenterOf(net){const lines=net&&net.lines;if(!lines||!lines.length)return null;const cs=[];
+  lines.forEach(L=>{let x0=1e15,y0=1e15,x1=-1e15,y1=-1e15;const take=(x,y)=>{if(!isFinite(x)||!isFinite(y))return;x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y);};
+    if(L.axis&&L.axis.length)L.axis.forEach(p=>take(+p[0],+p[1]));
+    else if(L.pts&&L.pts.length)L.pts.forEach(p=>Array.isArray(p)?take(+p[0],+p[1]):take(+p.x,+p.y));
+    else if(L.els&&L.els.length)L.els.forEach(e=>{if(e.from)Array.isArray(e.from)?take(+e.from[0],+e.from[1]):take(+e.from.x,+e.from.y);if(e.to)Array.isArray(e.to)?take(+e.to[0],+e.to[1]):take(+e.to.x,+e.to.y);});
+    if(x0<=x1)cs.push([(x0+x1)/2,(y0+y1)/2]);});
+  if(!cs.length)return null;const med=a=>{const s2=[...a].sort((p,q)=>p-q);return s2[Math.floor(s2.length/2)];};
+  return [med(cs.map(c=>c[0])),med(cs.map(c=>c[1]))];}
 function llOfMeta(m){const full=SITES[m.id];const net=full&&full.lines?full:{geo:m.geo||undefined,origin:m.origin||undefined,traceur:{bgOrigin:m.bgo||null},w:m.w||0,h:m.h||0};
   try{const g=geoOfSite(net);if(!g)return null;
-    // centre RÉEL du réseau, pas le milieu de la feuille : repères de calage (posés sur le réseau) > bbox du chantier > milieu de feuille
+    // centre RÉEL du réseau : repères de calage (posés sur le réseau) > médiane des lignes (copie locale) > emprise du réseau seul (nbox) > emprise étendue > milieu de feuille
     let c=null;const gp=net.geo&&net.geo.pts&&net.geo.pts.length?net.geo.pts:null;
     if(gp)c=[gp.reduce((s,p)=>s+p.plan[0],0)/gp.length,gp.reduce((s,p)=>s+p.plan[1],0)/gp.length];
-    else{const bb=(full&&full.bbox)||m.bbox;if(bb&&isFinite(+bb[0])&&+bb[2]>+bb[0])c=[(+bb[0]+ +bb[2])/2,(+bb[1]+ +bb[3])/2];else c=[(net.w||0)/2,(net.h||0)/2];}
+    if(!c&&full&&full.lines)c=netCenterOf(full);
+    if(!c){const nb=(full&&full.nbox)||m.nbox;if(nb&&isFinite(+nb[0])&&+nb[2]>=+nb[0])c=[(+nb[0]+ +nb[2])/2,(+nb[1]+ +nb[3])/2];}
+    if(!c){const bb=(full&&full.bbox)||m.bbox;if(bb&&isFinite(+bb[0])&&+bb[2]>+bb[0])c=[(+bb[0]+ +bb[2])/2,(+bb[1]+ +bb[3])/2];else c=[(net.w||0)/2,(net.h||0)/2];}
     const ll=planToLonLat(g,c);return (isFinite(ll[0])&&isFinite(ll[1])&&ll[1]>40&&ll[1]<52)?ll:null;}catch(e){return null;}}
+const nwOf=net=>{if(net&&net.report&&+net.report.welds)return +net.report.welds;let n=0;((net&&net.lines)||[]).forEach(L=>{if(L.cond)['A','R'].forEach(c=>{const cd=L.cond[c];if(cd&&cd.welds)n+=cd.welds.length;else if(cd&&cd.joints)n+=cd.joints.length;});});return n;}; // soudures du RÉSEAU entier (calepinage), pas seulement celles déjà déclarées
+let HOME_NW={}; // total de soudures par chantier, pour le % de l'accueil
 function homeMetas(){const out=new Map();const DEMOS=new Set(['bain','saintlo']);
-  Object.entries(SITES).forEach(([id,net])=>{if(!net||id==='__vide')return;out.set(id,{id,name:net.name||id,local:true,demo:DEMOS.has(id),updatedAt:localUpdatedOf(net)||0,geo:net.geo||null,origin:net.origin||null,bgo:net.traceur&&net.traceur.bgOrigin||null,w:net.w,h:net.h,bbox:net.bbox||null});});
+  Object.entries(SITES).forEach(([id,net])=>{if(!net||id==='__vide')return;out.set(id,{id,name:net.name||id,local:true,demo:DEMOS.has(id),updatedAt:localUpdatedOf(net)||0,geo:net.geo||null,origin:net.origin||null,bgo:net.traceur&&net.traceur.bgOrigin||null,w:net.w,h:net.h,bbox:net.bbox||null,nbox:net.nbox||null,nw:nwOf(net)});});
   (state.serverMetas||[]).forEach(m=>{if(isHidden({id:m.id,traceur:m.traceur}))return;const cur=out.get(m.id);const upd=m.updated_at?Date.parse(m.updated_at):0;
-    if(cur){cur.updatedAt=Math.max(cur.updatedAt,upd,m.traceur&&m.traceur.savedAt?Date.parse(m.traceur.savedAt):0);cur.geo=cur.geo||m.geo;cur.origin=cur.origin||m.origin;cur.bgo=cur.bgo||m.bgo;cur.w=cur.w||m.w;cur.h=cur.h||m.h;cur.bbox=cur.bbox||m.bbox;}
-    else out.set(m.id,{id:m.id,name:m.name,local:false,demo:false,updatedAt:Math.max(upd,m.traceur&&m.traceur.savedAt?Date.parse(m.traceur.savedAt):0),geo:m.geo,origin:m.origin,bgo:m.bgo,w:m.w,h:m.h,bbox:m.bbox||null});});
+    if(cur){cur.updatedAt=Math.max(cur.updatedAt,upd,m.traceur&&m.traceur.savedAt?Date.parse(m.traceur.savedAt):0);cur.geo=cur.geo||m.geo;cur.origin=cur.origin||m.origin;cur.bgo=cur.bgo||m.bgo;cur.w=cur.w||m.w;cur.h=cur.h||m.h;cur.bbox=cur.bbox||m.bbox;cur.nbox=cur.nbox||m.nbox;cur.nw=cur.nw||+m.nw||0;}
+    else out.set(m.id,{id:m.id,name:m.name,local:false,demo:false,updatedAt:Math.max(upd,m.traceur&&m.traceur.savedAt?Date.parse(m.traceur.savedAt):0),geo:m.geo,origin:m.origin,bgo:m.bgo,w:m.w,h:m.h,bbox:m.bbox||null,nbox:m.nbox||null,nw:+m.nw||0});});
+  HOME_NW={};out.forEach((m,id)=>{HOME_NW[id]=m.nw||0;});
   return [...out.values()];}
 const agoTxt=t=>{if(!t)return '';const d=Date.now()-t;if(d<90e3)return 'à l\'instant';if(d<5400e3)return 'il y a '+Math.round(d/60e3)+' min';if(d<129600e3)return 'il y a '+Math.round(d/3600e3)+' h';return 'le '+new Date(t).toLocaleDateString('fr-FR');};
-function statOf(id){const st=state.homeStats&&state.homeStats[id];if(!st||!st.total)return null;return {total:st.total,pct:Math.round(100*(st.soud!==undefined?st.soud:st.manch)/st.total)};} // % SOUDÉ (soudée+contrôlée+manchonnée) — demande Ethan 20/08
+function statOf(id){const st=state.homeStats&&state.homeStats[id];if(!st||!st.total)return null;const done=st.soud!==undefined?st.soud:st.manch;
+  const nw=HOME_NW[id]||0;const total=nw>st.total?nw:st.total; // total = TOUTES les soudures du réseau (la table welds n'a que celles déjà déclarées)
+  return {total,done,pct:Math.min(100,Math.round(100*done/total))};} // % soudé = soudée+contrôlée+manchonnée / soudures du réseau — demande Ethan 20/08
 const pctColor=p=>p>=100?'#0ca30c':p>=60?'#2a78d6':'#eb6834';
 function renderHome(){if(!$('#homeView'))return;
   const u=state.cloudUser,pr=state.profile;
@@ -1253,7 +1269,7 @@ function initHomeMap(metas){const el=$('#homeMap');if(!el)return;
         pinsEl.appendChild(d);});});
   }
   const openCard=id=>{const s=sites.find(x=>x.m.id===id);if(!s)return;const s2=statOf(id);const col=s2?pctColor(s2.pct):'#898781';
-    card.innerHTML=`<span class="st" style="background:${col}"></span><span style="min-width:0"><span class="nm">${esc(s.m.name)}</span><br><span class="mt">${s2?`${s2.pct} % soudé · ${s2.total} soudures · `:''}${esc(agoTxt(s.m.updatedAt))||(s.m.local?'sur cet appareil':'sur le serveur')}</span></span><button class="go" data-open="${esc(s.m.id)}">Ouvrir</button>`;
+    card.innerHTML=`<span class="st" style="background:${col}"></span><span style="min-width:0"><span class="nm">${esc(s.m.name)}</span><br><span class="mt">${s2?`${s2.pct} % soudé · ${s2.done}/${s2.total} soudures · `:''}${esc(agoTxt(s.m.updatedAt))||(s.m.local?'sur cet appareil':'sur le serveur')}</span></span><button class="go" data-open="${esc(s.m.id)}">Ouvrir</button>`;
     card.classList.add('show');};
   const zoomAt=(dz,mx,my)=>{const nz=Math.max(ZMIN,Math.min(ZMAX,S.z+dz));if(nz===S.z)return;const f=Math.pow(2,nz-S.z);const w=el.clientWidth,h=el.clientHeight;S.cx=(S.cx+(mx-w/2))*f-(mx-w/2);S.cy=(S.cy+(my-h/2))*f-(my-h/2);S.z=nz;render();};
   el.addEventListener('wheel',e=>{e.preventDefault();const r=el.getBoundingClientRect();zoomAt(e.deltaY<0?1:-1,e.clientX-r.left,e.clientY-r.top);},{passive:false});
@@ -1322,4 +1338,4 @@ $('#loginEmail').addEventListener('keydown',e=>{if(e.key==='Enter')$('#loginGo')
 $('#loginSkip').addEventListener('click',e=>{e.preventDefault();localStorage.setItem('trace:skipLogin','1');renderHome();showScreen('home');});
 document.addEventListener('click',e=>{if(e.target.id==='hbLogin'){e.preventDefault();showScreen('login');}});
 // poignée de débogage / tests (module ES : rien n'est global sinon)
-window.TRACE={state,USERS,role,renderAll,renderPlan,centerOn,allJoints,switchSite,openJoint,openEl,siteGeo,startCalage,calageTap,openSiteFromHome,renderHome,showScreen,geo:{planToLonLat,lonLatToPlan},hydro:{of:hydroOf,build:hydroBuild,pose:startHydroPose,tap:hydroTap,end:endHydroPose,save:saveHydro,nearest:nearestOnLines},go:async id=>{const t=id||Object.keys(SITES).find(k=>k!=='__vide');if(t)return openSiteFromHome(t);},get lines(){return state.lines;},get net(){return NET;}};
+window.TRACE={state,USERS,role,renderAll,renderPlan,centerOn,allJoints,switchSite,openJoint,openEl,siteGeo,startCalage,calageTap,openSiteFromHome,renderHome,showScreen,geo:{planToLonLat,lonLatToPlan},hydro:{of:hydroOf,build:hydroBuild,pose:startHydroPose,tap:hydroTap,end:endHydroPose,save:saveHydro,nearest:nearestOnLines},go:async id=>{const t=id||Object.keys(SITES).find(k=>k!=='__vide');if(t)return openSiteFromHome(t);},get lines(){return state.lines;},get net(){return NET;},get sites(){return SITES;}};
