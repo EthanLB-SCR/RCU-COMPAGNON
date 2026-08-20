@@ -44,8 +44,16 @@ await page.evaluate(()=>{window.TRACE.state.hydroPose='water';const L=Object.val
 await page.evaluate(()=>{window.TRACE.state.hydroPose='fill';const L=Object.values(window.TRACE.lines)[0];const p=L.els[0].axis[0][0];window.TRACE.hydro.tap(p.x+30,p.y+34);});
 await page.evaluate(()=>{window.TRACE.state.hydroPose='skid';const L=Object.values(window.TRACE.lines)[0];const p=L.els[0].axis[0][0];window.TRACE.hydro.tap(p.x+60,p.y+60);});
 await page.waitForTimeout(400);
-out=await page.evaluate(()=>{const h=window.TRACE.hydro.of();const g=document.querySelector('#hydroG').innerHTML;return {water:h.water.length,fill:!!h.fill,skid:!!h.skid,gB:g.includes('B1'),gR:g.includes('REMPLISSAGE'),gS:g.includes('SKID')};});
+out=await page.evaluate(()=>{const h=window.TRACE.hydro.of();const g=document.querySelector('#hydroG').innerHTML;return {water:h.water.length,fills:h.fills.length,skids:h.skids.length,gB:g.includes('B1'),gR:g.includes('REMPLISSAGE'),gS:g.includes('SKID')};});
 console.log('💧 + 🚰 + skid posés et dessinés:',JSON.stringify(out));
+// 6b) 2e zone de remplissage sur l'autre tronçon → plus de tronçon sans zone
+out=await page.evaluate(()=>{const T=window.TRACE;const H0=T.hydro.build();const t2=H0.troncons.find(t=>!t.hasFill&&t.lenA>50);let posed=false;
+  if(t2){const sg=t2.segs[0];const l=T.lines[sg.line];const m=(sg.m0+sg.m1)/2;const e=l.els.find(e=>m>=e.m0&&m<=e.m1)||l.els[0];const p=e.axis[0][0];T.state.hydroPose='fill';T.hydro.tap(p.x+8,p.y+8);posed=true;}
+  const H=T.hydro.build();return {posed,fills:T.hydro.of().fills.length,noFillAvant:H0.totals.noFill,noFillApres:H.totals.noFill};});
+console.log('2e zone de remplissage:',JSON.stringify(out));
+// 6c) pompe estimée présente quand rinçage coché
+out=await page.evaluate(()=>{const H=window.TRACE.hydro.build();const t=H.troncons.find(t=>t.pump);return t?{q:t.pump.q,hmt:t.pump.hmt,okQ:t.pump.q>0,okH:t.pump.hmt>3&&t.pump.hmt<200}:{aucune:true};});
+console.log('pompe (débit+HMT):',JSON.stringify(out));
 // 7) Terminer → retour onglet hydro, chips + récap + total
 await page.click('#hyDone');await page.waitForTimeout(500);
 out=await page.evaluate(()=>({tab:window.TRACE.state.tab,chips:document.querySelectorAll('#hydro .hyChip').length,trCards:document.querySelectorAll('#hydro .hyTr').length,total:/Total chantier/.test(document.querySelector('#hydro').textContent),fillTr:window.TRACE.hydro.build().troncons.some(t=>t.hasFill)}));
@@ -54,15 +62,27 @@ console.log('retour onglet (chips, cartes, remplissage rattaché):',JSON.stringi
 out=await page.evaluate(()=>{const Ls=Object.values(window.TRACE.lines);let done=null;
   for(const L of Ls){const last=L.els[L.els.length-1];if(last&&last.kind==='endcap'){const iE=L.els.indexOf(last);const j=L.cond.A&&L.cond.A.joints[iE-1];if(j){j.status='controlee';done={line:L.id,weld:j.weldId};break;}}}
   if(!done)return {skip:'aucune ligne en endcap dans ce chantier de démo'};
-  window.TRACE.renderAll();const H=window.TRACE.hydro.build();return {done,alerts:H.totals.nAlert,txt:/bouchon déjà soudé/i.test(document.querySelector('#hydro').textContent)};});
-console.log('alerte bouchon soudé:',JSON.stringify(out));
+  window.TRACE.renderAll();const H=window.TRACE.hydro.build();return {done,alerts:H.totals.nAlert,txt:/fond bombé déjà soudé/i.test(document.querySelector('#hydro').textContent)};});
+console.log('alerte fond bombé soudé:',JSON.stringify(out));
+// 8b) calendrier : ajout de 2 étapes par le formulaire (eau brute puis épreuve), frise + chips
+await page.evaluate(()=>{document.querySelector('#hyCalOp').value='brut';document.querySelector('#hyCalT').value=String(window.TRACE.hydro.build().troncons[0].idx);document.querySelector('#hyCalD').value='2026-08-24';document.querySelector('#hyCalAdd').click();});
+await page.waitForTimeout(300);
+await page.evaluate(()=>{document.querySelector('#hyCalOp').value='epreuve';document.querySelector('#hyCalT').value=String(window.TRACE.hydro.build().troncons[0].idx);document.querySelector('#hyCalD').value='2026-08-26';document.querySelector('#hyCalAdd').click();});
+await page.waitForTimeout(300);
+out=await page.evaluate(()=>{const h=window.TRACE.hydro.of();return {n:h.cal.length,ordre:h.cal.map(c=>c.op).join('>'),frise:!!document.querySelector('#hydro svg circle'),chips:document.querySelectorAll('#hydro [data-rmcal]').length,dansCarte:/Calendrier/.test(document.querySelector('#hydro .hyTr')?.textContent||'')};});
+console.log('calendrier (2 étapes, triées):',JSON.stringify(out));
+// 8c) répéter la même opération une 2e fois (2 remplissages eau brute possibles)
+await page.evaluate(()=>{document.querySelector('#hyCalOp').value='brut';document.querySelector('#hyCalD').value='2026-08-27';document.querySelector('#hyCalAdd').click();});
+await page.waitForTimeout(300);
+out=await page.evaluate(()=>({n:window.TRACE.hydro.of().cal.length,deuxBrut:window.TRACE.hydro.of().cal.filter(c=>c.op==='brut').length===2}));
+console.log('opération répétable:',JSON.stringify(out));
 // 9) suppression par chip ✕ (une coupe) → retour à 1 tronçon de moins
 out=await page.evaluate(()=>{const n0=window.TRACE.hydro.build().troncons.length;const b=document.querySelector('#hydro [data-rmcut]');if(b)b.click();return {n0};});
 await page.waitForTimeout(400);
 out.n1=await page.evaluate(()=>window.TRACE.hydro.build().troncons.length);
 console.log('suppression coupe par chip:',JSON.stringify(out));
 // 10) persistance : NET.hydro écrit + repris par hydroOf après re-切替 d'onglet
-out=await page.evaluate(()=>{const net=window.TRACE.net;return {saved:!!net.hydro,cuts:net.hydro.cuts.length,water:net.hydro.water.length,prest:net.hydro.prest.rincage};});
+out=await page.evaluate(()=>{const net=window.TRACE.net;return {saved:!!net.hydro,cuts:net.hydro.cuts.length,water:net.hydro.water.length,fills:net.hydro.fills.length,cal:net.hydro.cal.length,prest:net.hydro.prest.rincage};});
 console.log('persisté dans le chantier:',JSON.stringify(out));
 await page.screenshot({path:new URL('./e2e_hydro.png',import.meta.url).pathname,fullPage:false});
 // 11) rôle soudeur : boutons désactivés

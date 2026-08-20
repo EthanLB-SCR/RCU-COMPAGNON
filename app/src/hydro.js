@@ -12,7 +12,8 @@ export const HYDRO_DEFAULTS={vitesse:1,debit:30,skidW:3,skidL:8}; // paramètres
 export const PREST_LABEL={epreuve:'Épreuve hydraulique',rincage:'Rinçage dynamique',passivation:'Passivation',remplissage:'Remplissage définitif (eau adoucie)'};
 const WELDED=s=>s==='soudee'||s==='controlee'||s==='manchonnee';
 
-export function buildHydro(lines,{prest={},params={},cuts=[],fillAt=null}={}){
+export function buildHydro(lines,{prest={},params={},cuts=[],fills=null,fillAt=null}={}){
+  const FILLS=(fills&&fills.length?fills:(fillAt?[fillAt]:[])).filter(f=>f&&f.line); // plusieurs zones de remplissage (au moins une par tronçon en pratique)
   const P={...HYDRO_DEFAULTS,...(params||{})};const flow=needsFlow(prest);
   const byId={};lines.forEach(l=>byId[l.id]=l);
   // 1) coupes valides (sur une ligne existante, pas au ras d'un bout), détection vanne à ± son emprise
@@ -27,7 +28,7 @@ export function buildHydro(lines,{prest={},params={},cuts=[],fillAt=null}={}){
   // 3) composantes connexes : l'antenne est reliée à son parent au chaînage parentM
   const uf=segs.map((_,i)=>i);const find=i=>{while(uf[i]!==i){uf[i]=uf[uf[i]];i=uf[i];}return i;};const uni=(a,b)=>{const ra=find(a),rb=find(b);if(ra!==rb)uf[rb]=ra;};
   lines.forEach(l=>{if(!l.parent||!byId[l.parent])return;const ps=segAt(l.parent,Math.max(0,Math.min(byId[l.parent].length,+l.parentM||0)));const s0=(segOf[l.id]||[])[0];if(ps&&s0)uni(ps.si,s0.si);});
-  const fillSeg=fillAt&&byId[fillAt.line]?segAt(fillAt.line,+fillAt.m||0):null;
+  const fillSegs=FILLS.map(f=>byId[f.line]?{f,seg:segAt(f.line,+f.m||0)}:null).filter(x=>x&&x.seg);
   // 4) tronçons = composantes
   const comp={};segs.forEach(s=>{const r=find(s.si);(comp[r]=comp[r]||[]).push(s);});
   const lineOrder={};lines.forEach((l,i)=>lineOrder[l.id]=i);
@@ -47,18 +48,29 @@ export function buildHydro(lines,{prest={},params={},cuts=[],fillAt=null}={}){
           const w=(l.endWelds||[]).filter(x=>WELDED(x.status));
           ends.push({line:s.line,m:l.length,type:'tip',label:alr==='sst'?'SST ('+(l.name||l.id)+')':'bout '+(l.name||l.id),already:alr,endcap:l.endKind==='endcap',welded:l.endKind==='endcap'&&w.length?w:null});}
         else ends.push({line:s.line,m:s.m1,type:'cut',cut:s.cut1.idx,label:s.cut1.valve?'vanne '+s.cut1.valve:'coupe '+(s.cut1.idx+1),valve:!!s.cut1.valve,already:null,welded:null});});
-      const hasFill=!!(fillSeg&&ss.includes(fillSeg));
+      const myFills=fillSegs.filter(x=>ss.includes(x.seg));const hasFill=myFills.length>0;
       ends.forEach(en=>{const l=byId[en.line];const single=(l.nCond||2)<2;
-        if(hasFill&&fillAt&&en.line===fillAt.line&&Math.abs(en.m-(+fillAt.m||0))<=12){en.need='none';en.fill=true;return;} // le skid branché là boucle cette extrémité
-        if(en.already){en.need='none';return;}
+        if(myFills.some(x=>en.line===x.f.line&&Math.abs(en.m-(+x.f.m||0))<=12)){en.need='none';en.fill=true;return;} // le skid branché là boucle cette extrémité
+        if(en.already==='bp'){en.need='none';return;} // un by-pass déjà posé au bout : bouclé
+        // 'sst' : en sous-station aussi il faut poser le by-pass (on ne boucle pas à travers l'échangeur) — précision Ethan 20/08
+        // 'racc' (raccordement au réseau existant) : PAS encore soudé pendant l'épreuve → extrémité ouverte, à boucher (épreuve) ou à boucler (circulation)
         if(en.type==='cut'&&en.valve){en.need='none';return;} // coupe sur vanne : elle reste fermée
         en.need=single?(flow?'EVAC':'KFL'):(flow?'BP':'KFL');});
       const debit=prest.rincage?areaDN(dnMax)*P.vitesse*3600:0; // rinçage ≥ vitesse dans le plus gros DN du tronçon
       const minutes=P.debit>0?vol/P.debit*60:0; // remplissage au débit de la borne
-      return {idx:ti,segs:ss.map(s=>({line:s.line,m0:s.m0,m1:s.m1})),lines:lineIds,lenA,vol,dns:Object.entries(dns).map(([dn,ln])=>[+dn,ln]).sort((a,b)=>b[1]-a[1]),dnMax,ends,hasFill,debit,minutes};});
+      const dnsArr=Object.entries(dns).map(([dn,ln])=>[+dn,ln]).sort((a,b)=>b[1]-a[1]);
+      // pompe de rinçage : débit cible (v dans le plus gros DN) + HMT estimée — rinçage PAR PASSES (une branche à la fois),
+      // la pompe voit la classe de DN la plus défavorable à la vitesse cible (Darcy, λ Blasius, eau froide), aller+retour, +20 % singularités, +3 m de garde
+      let pump=null;if(prest.rincage&&debit>0){const v=P.vitesse;let dH=0;
+        dnsArr.forEach(([dn,ln])=>{const D=DN_INT[dn]||Math.max(.01,dn/1000*.95);const Re=v*D/1e-6;const lam=Re>4000?0.316/Math.pow(Re,0.25):64/Math.max(Re,1);const hh=lam*(ln/D)*v*v/(2*9.81);if(hh>dH)dH=hh;});
+        const hmt=Math.ceil(dH*2*1.2+3);pump={q:Math.ceil(debit),hmt,dp:+(hmt/10.2).toFixed(1)};}
+      const needFill=anyPrest(prest)&&!hasFill; // toute prestation demande de l'eau : il faut une zone de remplissage par tronçon
+      return {idx:ti,segs:ss.map(s=>({line:s.line,m0:s.m0,m1:s.m1})),lines:lineIds,lenA,vol,dns:dnsArr,dnMax,ends,hasFill,nFills:myFills.length,needFill,debit,minutes,pump};});
   // 5) alertes (bouchon déjà soudé là où il aurait fallu un by-pass) + totaux
   const alerts=[];troncons.forEach(t=>t.ends.forEach(en=>{if(en.need==='BP'&&en.welded)alerts.push({t:t.idx,line:en.line,welds:en.welded.map(w=>w.weldId),label:en.label});}));
   const count=k=>troncons.reduce((s,t)=>s+t.ends.filter(e=>e.need===k).length,0);
   return {flow,prest,params:P,cuts:cl,troncons,alerts,
-    totals:{lenA:troncons.reduce((s,t)=>s+t.lenA,0),vol:troncons.reduce((s,t)=>s+t.vol,0),nBP:count('BP'),nKFL:count('KFL'),nEvac:count('EVAC'),nAlert:alerts.length}};
+    totals:{lenA:troncons.reduce((s,t)=>s+t.lenA,0),vol:troncons.reduce((s,t)=>s+t.vol,0),nBP:count('BP'),nKFL:count('KFL'),nEvac:count('EVAC'),nAlert:alerts.length,noFill:troncons.filter(t=>t.needFill).length}};
 }
+// opérations du calendrier prévisionnel (pastilles posées librement, répétables, dans l'ordre voulu)
+export const CAL_OPS={brut:{label:'Remplissage eau brute',short:'Eau brute',color:'#7d94b8',ico:'💧'},epreuve:{label:'Épreuve hydraulique',short:'Épreuve',color:'#eb6834',ico:'🧪'},rincage:{label:'Rinçage dynamique',short:'Rinçage',color:'#1c6fd6',ico:'🌊'},vidange:{label:'Vidange eau brute',short:'Vidange',color:'#8f8d86',ico:'🕳'},adoucie:{label:'Remplissage eau adoucie',short:'Eau adoucie',color:'#0ca30c',ico:'🚰'},passivation:{label:'Passivation',short:'Passivation',color:'#8a2be2',ico:'⚗️'},autre:{label:'Autre opération',short:'Autre',color:'#b8860b',ico:'📌'}};

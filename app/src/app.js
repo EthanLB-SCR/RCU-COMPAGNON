@@ -6,7 +6,7 @@ import {parseDXF,parseDXFFile,analyze,buildSite,buildSiteJBTP,drawingOf,buildDra
 import {sync} from './sync.js';
 import {kv} from './kv.js';
 import {geoOfSite,planToLonLat,lonLatToPlan,tilesFor,ignTileURL,IGN_LAYERS,distLL,fmtDist,crsName,similarityFromPairs,geocode,CRS} from './geo.js';
-import {buildHydro,areaDN,needsFlow,HYDRO_DEFAULTS,PREST_LABEL} from './hydro.js';
+import {buildHydro,areaDN,needsFlow,HYDRO_DEFAULTS,PREST_LABEL,CAL_OPS} from './hydro.js';
 
 /* ============================================================
    TRACÉ v0.3 — plan d'ensemble + calque tubes/fils + bouclage
@@ -210,7 +210,7 @@ async function deleteCurrentSite(){const id=state.siteId;const net=SITES[id];if(
   delete SITES[id];delete siteStore[id];const o=[...siteSel.options].find(x=>x.value===id);if(o)o.remove();const next=Object.keys(SITES)[0];toast('Chantier supprimé — '+msg);
   if(next){siteSel.value=next;await switchSite(next);}else{location.reload();}}
 function setupSite(id){
-  state.hydroPose=null;hydroCache=null;state.hydroMapView=null;const hb=$('#hydroBar');if(hb)hb.style.display='none';
+  state.hydroPose=null;hydroCache=null;state.hydroMapView=null;state.osmHydrants=null;const hb=$('#hydroBar');if(hb)hb.style.display='none';
   if(siteStore[id]){const st=siteStore[id];NET=st.NET;state.lines=st.lines;state.sheets=st.sheets;state.nextWeld=st.nextWeld;state.sheetId=st.sheetId;state.locate={...state.locate,line:st.firstLine};bgG.dataset.sheet='';return;}
   NET=SITES[id];state.lines={};state.sheets={};state.nextWeld=1;
   const sh={id:'s_'+id,name:NET.name,type:NET.sheetType||'blank',w:NET.w,h:NET.h,ppm:1,lines:[],ann:NET.ann||[],drawing:NET.drawing||null,plain:NET.source==='traceur',image:NET.image||null};state.sheets[sh.id]=sh;state.sheetId=sh.id;
@@ -364,7 +364,10 @@ state.hydroPose=null;let hydroCache=null;let hydroSaveT=null;
 const TCOLS=['#eb6834','#2a78d6','#0ca30c','#8a2be2','#b8860b','#d03b3b','#0b7a75','#c2185b'];
 const HYDRO_ICON={epreuve:'🧪',rincage:'🌊',passivation:'⚗️',remplissage:'💧'};
 const HYDRO_DESC={epreuve:'Mise en pression (1,3 × PS, paliers). Statique : l’eau ne circule pas.',rincage:'Circulation ≥ vitesse cible pour évacuer laitier et débris. Aller → bout → retour.',passivation:'Circulation d’une solution de traitement, temps de contact à respecter.',remplissage:'Remplissage lent par le point bas, purges hautes ouvertes, eau traitée.'};
-function hydroOf(){if(!NET||NET.id==='__vide')return null;if(!NET.hydro)NET.hydro={prest:{epreuve:true},params:{},cuts:[],water:[],fill:null,skid:null};const h=NET.hydro;h.prest=h.prest||{};h.params=h.params||{};h.cuts=h.cuts||[];h.water=h.water||[];return h;}
+function hydroOf(){if(!NET||NET.id==='__vide')return null;if(!NET.hydro)NET.hydro={prest:{epreuve:true},params:{},cuts:[],water:[],fills:[],skids:[],cal:[]};const h=NET.hydro;h.prest=h.prest||{};h.params=h.params||{};h.cuts=h.cuts||[];h.water=h.water||[];h.cal=h.cal||[];
+  if(!h.fills){h.fills=h.fill?[h.fill]:[];delete h.fill;} // migration : une seule zone → plusieurs zones de remplissage
+  if(!h.skids){h.skids=h.skid?[h.skid]:[];delete h.skid;}
+  return h;}
 function hydroParams(){const h=hydroOf();return {...HYDRO_DEFAULTS,...((h&&h.params)||{})};}
 function hydroLines(){const sh=sheet();return ((sh&&sh.lines)||[]).map(id=>state.lines[id]).filter(Boolean);}
 function hydroNorm(){return hydroLines().map(l=>{const els=(l.els||[]).map(e=>({id:e.id,kind:e.kind,dn:e.dn,m0:e.m0,m1:e.m1,len:e.len}));
@@ -380,14 +383,14 @@ function nearestOnLines(wx,wy){let best=null;hydroLines().forEach(l=>{(l.els||[]
   return best;}
 function subAxis(l,ma,mb){const out=[];(l.els||[]).forEach(e=>{const a=Math.max(ma,e.m0),b=Math.min(mb,e.m1);if(b-a<=0.02)return;const pl=e.axis&&e.axis[0];if(!pl||pl.length<2)return;const L=polyLen(pl);const sp=e.m1-e.m0||1;out.push(axisSub(pl,L*(a-e.m0)/sp,L*(b-e.m0)/sp));});return out;}
 function hydroBuild(){if(hydroCache)return hydroCache;const h=hydroOf();if(!h)return null;
-  let fillAt=null;if(h.fill){const n=nearestOnLines(h.fill.x,h.fill.y);if(n)fillAt={line:n.line,m:n.m,x:n.x,y:n.y};}
-  hydroCache=buildHydro(hydroNorm(),{prest:h.prest,params:hydroParams(),cuts:h.cuts,fillAt});hydroCache.fillAt=fillAt;return hydroCache;}
+  const fillAts=(h.fills||[]).map(f=>{const n=nearestOnLines(f.x,f.y);return n?{line:n.line,m:n.m,x:n.x,y:n.y,fx:f.x,fy:f.y}:null;}).filter(Boolean);
+  hydroCache=buildHydro(hydroNorm(),{prest:h.prest,params:hydroParams(),cuts:h.cuts,fills:fillAts});hydroCache.fillAts=fillAts;return hydroCache;}
 function saveHydro(){const h=hydroOf();if(!h)return;hydroCache=null;if(SITES[NET.id])SITES[NET.id].hydro=h;
   kv.get('trace:handoff:'+NET.id).then(x=>{if(x){x.hydro=h;return kv.set('trace:handoff:'+NET.id,x);}}).catch(()=>{});
   clearTimeout(hydroSaveT);hydroSaveT=setTimeout(async()=>{try{const {demo,...clean}=NET;const okk=await sync.saveSite(clean);if(okk){state.ownSiteWrite=Date.now();setCloudBadge('hydraulique enregistrée '+new Date().toLocaleTimeString('fr-FR'));}}catch(e){console.warn(e);}},1200);}
 const hydroCanEdit=()=>role()==='chef'||role()==='bureau';
-const HY_MSG={cut:'✂ <b>Sectoriser :</b> touche le réseau là où l’épreuve s’arrête (vanne ou soudure). Re-touche une coupe pour l’enlever.',water:'💧 <b>Point d’eau :</b> touche l’emplacement de la borne incendie / du poteau. Re-touche pour enlever.',fill:'🚰 <b>Remplissage :</b> touche l’endroit où le skid se branche au réseau.',skid:'⬛ <b>Skid :</b> touche l’emprise au sol souhaitée (↻ pour pivoter).'};
-function updateHydroBar(){const bar=$('#hydroBar');if(!bar)return;const on=!!state.hydroPose;bar.style.display=on?'flex':'none';if(!on)return;$('#hyMsg').innerHTML=HY_MSG[state.hydroPose]||'';$('#hyRot').style.display=state.hydroPose==='skid'&&hydroOf()&&hydroOf().skid?'':'none';}
+const HY_MSG={cut:'✂ <b>Sectoriser :</b> touche le réseau là où l’épreuve s’arrête (vanne ou soudure). Re-touche une coupe pour l’enlever.',water:'💧 <b>Point d’eau :</b> touche l’emplacement de la borne (une borne OSM affichée = tape dessus pour la retenir). Re-touche pour enlever.',fill:'🚰 <b>Zones de remplissage :</b> touche l’endroit où le skid se branche — une zone par tronçon. Re-touche pour enlever.',skid:'⬛ <b>Skids :</b> touche chaque emprise au sol souhaitée (↻ pivote le dernier posé).'};
+function updateHydroBar(){const bar=$('#hydroBar');if(!bar)return;const on=!!state.hydroPose;bar.style.display=on?'flex':'none';if(!on)return;$('#hyMsg').innerHTML=HY_MSG[state.hydroPose]||'';const h=hydroOf();$('#hyRot').style.display=state.hydroPose==='skid'&&h&&h.skids&&h.skids.length?'':'none';}
 function startHydroPose(kind){if(!hydroCanEdit()){toast('Réservé au chef / bureau');return;}if(!NET||NET.id==='__vide'||!hydroLines().length){toast('Aucun réseau dans ce chantier');return;}
   state.hydroPose=kind;hydroCache=null;state.tab='plan';closeSheet();renderAll();updateHydroBar();}
 function endHydroPose(){if(!state.hydroPose)return;state.hydroPose=null;updateHydroBar();state.tab='hydro';renderAll();}
@@ -398,14 +401,20 @@ function hydroTap(wx,wy){const h=hydroOf();if(!h)return;const k=state.view.k;con
     h.cuts.push({line:n.line,m:+n.m.toFixed(1)});saveHydro();const H=hydroBuild();toast('Coupe posée — '+H.troncons.length+' tronçon'+(H.troncons.length>1?'s':''));renderPlan();return;}
   if(kind==='water'){const hit=h.water.findIndex(w=>Math.hypot(w.x-wx,w.y-wy)<rmR);
     if(hit>=0){h.water.splice(hit,1);saveHydro();toast('Point d’eau enlevé');renderPlan();return;}
-    h.water.push({x:+wx.toFixed(1),y:+wy.toFixed(1)});saveHydro();toast('Point d’eau B'+h.water.length);renderPlan();return;}
-  if(kind==='fill'){if(h.fill&&Math.hypot(h.fill.x-wx,h.fill.y-wy)<rmR){h.fill=null;saveHydro();toast('Remplissage enlevé');renderPlan();return;}
-    h.fill={x:+wx.toFixed(1),y:+wy.toFixed(1)};saveHydro();toast('Point de remplissage posé');renderPlan();return;}
-  if(kind==='skid'){h.skid={x:+wx.toFixed(1),y:+wy.toFixed(1),rot:(h.skid&&h.skid.rot)||0};saveHydro();updateHydroBar();toast('Skid posé — ↻ pour pivoter');renderPlan();return;}}
+    const osm=(state.osmHydrants||[]).reduce((b,o)=>{const d=Math.hypot(o.x-wx,o.y-wy);return d<rmR&&(!b||d<b.d)?{o,d}:b;},null); // borne OSM proche : on la retient à sa position exacte
+    const px2=osm?osm.o.x:+wx.toFixed(1),py2=osm?osm.o.y:+wy.toFixed(1);
+    h.water.push({x:px2,y:py2});saveHydro();toast(osm?'Borne OSM retenue (B'+h.water.length+')':'Point d’eau B'+h.water.length);renderPlan();return;}
+  if(kind==='fill'){const hit=h.fills.findIndex(f=>Math.hypot(f.x-wx,f.y-wy)<rmR);
+    if(hit>=0){h.fills.splice(hit,1);saveHydro();toast('Zone de remplissage enlevée');renderPlan();return;}
+    h.fills.push({x:+wx.toFixed(1),y:+wy.toFixed(1)});saveHydro();const H=hydroBuild();toast('Zone de remplissage Z'+h.fills.length+(H&&H.totals.noFill?' — il reste '+H.totals.noFill+' tronçon(s) sans zone':''));renderPlan();return;}
+  if(kind==='skid'){const hit=h.skids.findIndex(sk=>Math.hypot(sk.x-wx,sk.y-wy)<rmR*1.6);
+    if(hit>=0){h.skids.splice(hit,1);saveHydro();updateHydroBar();toast('Skid enlevé');renderPlan();return;}
+    h.skids.push({x:+wx.toFixed(1),y:+wy.toFixed(1),rot:0});saveHydro();updateHydroBar();toast('Skid posé — ↻ pour pivoter');renderPlan();return;}}
 function hydroOverlaySVG(k,mini){const H=hydroBuild();if(!H)return '';const h=hydroOf();const ppm=sheet().ppm||1;let s='';
   H.troncons.forEach(t=>{const col=TCOLS[t.idx%TCOLS.length];t.segs.forEach(sg=>{const l=state.lines[sg.line];if(!l)return;
     subAxis(l,sg.m0,sg.m1).forEach(pl=>{const d=pathD(pl);s+=`<path d="${d}" stroke="#fff" stroke-width="${9/k}" fill="none" stroke-linejoin="round" stroke-linecap="round" opacity=".8"/><path d="${d}" stroke="${col}" stroke-width="${5/k}" fill="none" stroke-linejoin="round" stroke-linecap="round" opacity=".9"/>`;});});});
-  if(h.skid){const P=hydroParams();const W=P.skidL*ppm,Ht=P.skidW*ppm;s+=`<g transform="translate(${h.skid.x} ${h.skid.y}) rotate(${h.skid.rot||0})"><rect x="${-W/2}" y="${-Ht/2}" width="${W}" height="${Ht}" fill="#1c6fd6" fill-opacity=".13" stroke="#1c6fd6" stroke-width="${1.6/k}" stroke-dasharray="${5/k} ${3.5/k}"/><text font-size="${Math.min(11/k,Ht*.42)}" text-anchor="middle" dominant-baseline="central" fill="#1c3d6b" font-weight="700" font-family="system-ui,sans-serif">SKID ${fmt(P.skidW)}×${fmt(P.skidL)} m</text></g>`;}
+  (h.skids||[]).forEach(sk=>{const P=hydroParams();const W=P.skidL*ppm,Ht=P.skidW*ppm;s+=`<g transform="translate(${sk.x} ${sk.y}) rotate(${sk.rot||0})"><rect x="${-W/2}" y="${-Ht/2}" width="${W}" height="${Ht}" fill="#1c6fd6" fill-opacity=".13" stroke="#1c6fd6" stroke-width="${1.6/k}" stroke-dasharray="${5/k} ${3.5/k}"/><text font-size="${Math.min(11/k,Ht*.42)}" text-anchor="middle" dominant-baseline="central" fill="#1c3d6b" font-weight="700" font-family="system-ui,sans-serif">SKID ${fmt(P.skidW)}×${fmt(P.skidL)} m</text></g>`;});
+  (state.osmHydrants||[]).forEach(o=>{s+=`<g opacity=".85"><rect x="${o.x-6/k}" y="${o.y-6/k}" width="${12/k}" height="${12/k}" rx="${3/k}" fill="#fff" stroke="#4a7dbb" stroke-width="${1.6/k}"/><text x="${o.x}" y="${o.y+2.8/k}" font-size="${7.5/k}" font-weight="800" text-anchor="middle" fill="#4a7dbb" font-family="system-ui,sans-serif">BI</text></g>`;}); // bornes incendie OSM (indicatives)
   const kpm=k*ppm; // px écran par mètre : pilote ce qui s'affiche — dézoomé pastilles seules, zoomé les textes (mêmes règles sur le plan et la vue d'ensemble)
   const badge=(x,y,txt,bg,fg)=>{const w2=txt.length*6+14;return `<g transform="translate(${x} ${y}) scale(${1/k})"><rect x="${-w2/2}" y="-23" width="${w2}" height="15" rx="7.5" fill="${bg}" opacity=".95"/><text y="-11.8" font-size="9.5" font-weight="800" text-anchor="middle" fill="${fg}" font-family="system-ui,sans-serif">${txt}</text></g>`;};
   H.troncons.forEach(t=>{const col=TCOLS[t.idx%TCOLS.length];t.ends.forEach(en=>{const l=state.lines[en.line];if(!l||!l.length)return;
@@ -421,11 +430,43 @@ function hydroOverlaySVG(k,mini){const H=hydroBuild();if(!H)return '';const h=hy
   H.cuts.forEach(c=>{const l=state.lines[c.line];if(!l)return;const p=posAtChainage(l,c.m);const lab=c.valve?'coupe : vanne '+c.valve:'coupe '+(c.idx+1);const w2=lab.length*5.6+12;
     s+=`<g><circle cx="${p.x}" cy="${p.y}" r="${9/k}" fill="#fff" stroke="#0b0b0b" stroke-width="${1.6/k}"/><text x="${p.x}" y="${p.y+3.6/k}" font-size="${10/k}" text-anchor="middle">✂</text><g transform="translate(${p.x} ${p.y}) scale(${1/k})"><rect x="${-w2/2}" y="12" width="${w2}" height="14" rx="7" fill="#0b0b0b" opacity=".85"/><text y="22.5" font-size="8.5" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">${esc(lab)}</text></g></g>`;});
   (h.water||[]).forEach((w,i)=>{s+=`<g><circle cx="${w.x}" cy="${w.y}" r="${12/k}" fill="#1c6fd6" opacity=".16">${mini?'':`<animate attributeName="r" values="${9/k};${14/k};${9/k}" dur="2s" repeatCount="indefinite"/>`}</circle><circle cx="${w.x}" cy="${w.y}" r="${7.5/k}" fill="#1c6fd6" stroke="#fff" stroke-width="${1.8/k}"/><text x="${w.x}" y="${w.y+3/k}" font-size="${8/k}" text-anchor="middle" fill="#fff">💧</text><text x="${w.x}" y="${w.y-11/k}" font-size="${9.5/k}" font-weight="700" text-anchor="middle" fill="#1c3d6b" font-family="system-ui,sans-serif" paint-order="stroke" stroke="#fff" stroke-width="${3/k}">B${i+1}</text></g>`;});
-  if(h.fill){const fa=H.fillAt;if(fa&&fa.x!==undefined)s+=`<path d="M${h.fill.x} ${h.fill.y} L${fa.x} ${fa.y}" stroke="#1c6fd6" stroke-width="${2/k}" stroke-dasharray="${4/k} ${3/k}" fill="none"/>`;
-    const w2=104;s+=`<g transform="translate(${h.fill.x} ${h.fill.y}) scale(${1/k})"><rect x="${-w2/2}" y="-8" width="${w2}" height="16" rx="8" fill="#1c6fd6"/><text y="3.5" font-size="9" font-weight="800" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">🚰 REMPLISSAGE ICI</text></g>`;}
+  (h.fills||[]).forEach((f,i)=>{const fa=(H.fillAts||[]).find(x=>x.fx===f.x&&x.fy===f.y);if(fa&&fa.x!==undefined)s+=`<path d="M${f.x} ${f.y} L${fa.x} ${fa.y}" stroke="#1c6fd6" stroke-width="${2/k}" stroke-dasharray="${4/k} ${3/k}" fill="none"/>`;
+    const lab=`🚰 REMPLISSAGE Z${i+1}`;const w2=lab.length*6+16;s+=`<g transform="translate(${f.x} ${f.y}) scale(${1/k})"><rect x="${-w2/2}" y="-8" width="${w2}" height="16" rx="8" fill="#1c6fd6"/><text y="3.5" font-size="9" font-weight="800" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">${lab}</text></g>`;});
   return s;}
 function renderHydroOverlay(){if(!hydroG)return;if(!state.hydroPose||!NET||NET.id==='__vide'){hydroG.innerHTML='';return;}hydroG.innerHTML=`<g style="pointer-events:none">${hydroOverlaySVG(state.view.k,false)}</g>`;}
+// bornes incendie de la ville (OpenStreetMap / Overpass) : indicatives, affichées « BI » — en mode 💧 un tap dessus les retient à leur position exacte
+async function fetchOsmHydrants(){const g=siteGeo();if(!g){toast('Cale d’abord le chantier sur la carte (👁 → « Caler sur la carte ») pour chercher les bornes');return;}
+  const sh=sheet();const bb=sheetBBox(sh);const [lo1,la1]=planToLonLat(g,[bb[0],bb[3]]);const [lo2,la2]=planToLonLat(g,[bb[2],bb[1]]);
+  const S=Math.min(la1,la2)-0.003,N=Math.max(la1,la2)+0.003,W2=Math.min(lo1,lo2)-0.004,E=Math.max(lo1,lo2)+0.004;
+  toast('Recherche des bornes incendie (OpenStreetMap)…');
+  const q=`[out:json][timeout:25];node["emergency"="fire_hydrant"](${S.toFixed(5)},${W2.toFixed(5)},${N.toFixed(5)},${E.toFixed(5)});out;`;
+  for(const base of ['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter']){
+    try{const r=await fetch(base,{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}});
+      if(!r.ok)continue;const j=await r.json();const el=(j.elements||[]).filter(e=>isFinite(e.lat)&&isFinite(e.lon));
+      state.osmHydrants=el.map(e=>{const [x,y]=lonLatToPlan(g,e.lon,e.lat);return {x:+x.toFixed(1),y:+y.toFixed(1),lat:e.lat,lon:e.lon};});
+      toast(el.length?el.length+' borne(s) « BI » affichées (OSM) — en mode 💧, tape dessus pour en retenir':'Aucune borne incendie OSM autour du chantier (la base OSM n’est pas exhaustive — pose-les à la main)');
+      renderPlan();if(state.tab==='hydro')renderHydro();return;}catch(e){console.warn(e);}}
+  toast('Serveur OSM injoignable — réessaie plus tard');}
 const fmtMin=m=>!isFinite(m)||m<=0?'—':m<1?'< 1 min':m<90?'≈ '+Math.round(m)+' min':'≈ '+Math.floor(m/60)+' h '+String(Math.round(m%60)).padStart(2,'0');
+const frDate=d=>{const x=new Date(d+'T00:00');return isFinite(x)?String(x.getDate()).padStart(2,'0')+'/'+String(x.getMonth()+1).padStart(2,'0'):d;};
+// frise du calendrier prévisionnel : une rangée par tronçon (+ « chantier »), pastilles d'opérations aux dates choisies, répétables, dans l'ordre voulu
+function calFriseSVG(h){const cal=(h.cal||[]);if(!cal.length)return '';
+  const days=[...new Set(cal.map(c=>c.d))].sort();const d0=new Date(days[0]+'T00:00'),d1=new Date(days[days.length-1]+'T00:00');
+  const nd=Math.max(1,Math.round((d1-d0)/864e5)+1);
+  const rows=[...new Set(cal.map(c=>+c.t))].sort((a,b)=>a-b);
+  const W=Math.max(380,Math.min(860,nd*30+130)),RH=36,H0=14,HH=H0+rows.length*RH+30;
+  const X=d=>{const t=(new Date(d+'T00:00')-d0)/864e5;return 84+(nd<2?(W-130)/2:t*(W-130)/(nd-1));};
+  let s=`<svg viewBox="0 0 ${W} ${HH}" style="display:block;width:100%;background:#fff;border:1px solid #e1e0d9;border-radius:12px">`;
+  const step=Math.max(1,Math.ceil(nd/12));
+  for(let i=0;i<nd;i+=1){const dd=new Date(d0.getTime()+i*864e5);const x=84+(nd<2?(W-130)/2:i*(W-130)/(nd-1));
+    s+=`<line x1="${x}" y1="${H0}" x2="${x}" y2="${HH-24}" stroke="${i%step?'#f6f5f0':'#eceade'}"/>`;
+    if(i%step===0)s+=`<text x="${x}" y="${HH-10}" font-size="9" text-anchor="middle" fill="#898781">${String(dd.getDate()).padStart(2,'0')}/${String(dd.getMonth()+1).padStart(2,'0')}</text>`;}
+  rows.forEach((t,ri)=>{const y=H0+ri*RH+RH/2;const col=t<0?'#0b0b0b':TCOLS[t%TCOLS.length];
+    s+=`<text x="6" y="${y+3.5}" font-size="10" font-weight="700" fill="${col}">${t<0?'Chantier':'Tronçon '+(t+1)}</text><line x1="76" y1="${y}" x2="${W-24}" y2="${y}" stroke="#e8e6df"/>`;
+    const byDay={};cal.forEach(c=>{if(+c.t===t)(byDay[c.d]=byDay[c.d]||[]).push(c);});
+    Object.entries(byDay).forEach(([d,cs])=>{cs.forEach((c,j)=>{const op=CAL_OPS[c.op]||CAL_OPS.autre;const x=X(d)+j*8-((cs.length-1)*4);
+      s+=`<g><circle cx="${x}" cy="${y}" r="9.5" fill="${op.color}" stroke="#fff" stroke-width="2"/><text x="${x}" y="${y+3.3}" font-size="9" text-anchor="middle">${op.ico}</text></g>`;});});});
+  return s+'</svg>';}
 const fmtVol=v=>(v<.95?String(Math.max(.01,Math.round(v*100)/100).toFixed(2)).replace('.',','):fmt(Math.round(v*10)/10))+' m³';
 // vue d'ensemble de l'onglet Hydro : le VRAI plan (fond DXF/image + réseau) en petit, zoomable comme le reste (molette / pincer / double-tap / + − ⌖)
 function hydroBgSVG(sh){ // fond de plan léger, en cache par feuille
@@ -463,19 +504,24 @@ function renderHydro(){const el=$('#hydro');if(!el)return;const h=hydroOf();
   const prestCard=k=>`<div class="hyCard ${h.prest[k]?'on':''}" data-p="${k}"><div style="display:flex;gap:8px;align-items:baseline"><span>${HYDRO_ICON[k]}</span><b style="font-size:14px">${PREST_LABEL[k]}</b></div><div class="muted" style="font-size:12px;margin-top:3px">${HYDRO_DESC[k]}</div>${needTag(k)}<span class="tick">${h.prest[k]?'✓':''}</span></div>`;
   const chips=[];H.cuts.forEach((c,i)=>chips.push(`<span class="hyChip">✂ ${esc(c.valve?'coupe : vanne '+c.valve:'coupe '+(i+1))} · ${esc((state.lines[c.line]||{}).name||c.line)} pk ${fmt(c.m)}<button data-rmcut="${i}" title="enlever">✕</button></span>`));
   (h.water||[]).forEach((w,i)=>chips.push(`<span class="hyChip">💧 B${i+1}<button data-rmwater="${i}" title="enlever">✕</button></span>`));
-  if(h.fill)chips.push(`<span class="hyChip">🚰 remplissage<button data-rmfill="1" title="enlever">✕</button></span>`);
-  if(h.skid)chips.push(`<span class="hyChip">⬛ skid ${fmt(P.skidW)}×${fmt(P.skidL)} m<button data-rmskid="1" title="enlever">✕</button></span>`);
+  (h.fills||[]).forEach((f,i)=>chips.push(`<span class="hyChip">🚰 Z${i+1}<button data-rmfill="${i}" title="enlever">✕</button></span>`));
+  (h.skids||[]).forEach((sk,i)=>chips.push(`<span class="hyChip">⬛ skid ${i+1} (${fmt(P.skidW)}×${fmt(P.skidL)} m)<button data-rmskid="${i}" title="enlever">✕</button></span>`));
+  const fillOfT=t=>{const zs=[];(H.fillAts||[]).forEach((fa,i)=>{if(t.segs.some(sg=>sg.line===fa.line&&fa.m>=sg.m0-1e-6&&fa.m<=sg.m1+1e-6))zs.push('Z'+(i+1));});return zs;};
   const trCard=t=>{const col=TCOLS[t.idx%TCOLS.length];const dnTxt=t.dns.slice(0,3).map(d=>d[0]).join('/');
     const nBP=t.ends.filter(e=>e.need==='BP').length,nK=t.ends.filter(e=>e.need==='KFL').length,nE=t.ends.filter(e=>e.need==='EVAC').length;
-    const pose=[];if(nBP)pose.push('<b>'+nBP+' BP</b>');if(nK)pose.push('<b>'+nK+' KFL</b>');if(nE)pose.push('<b>'+nE+' évac.</b>');if(t.hasFill)pose.push('remplissage 🚰');
+    const zs=fillOfT(t);const pose=[];if(nBP)pose.push('<b>'+nBP+' BP</b>');if(nK)pose.push('<b>'+nK+' KFL</b>');if(nE)pose.push('<b>'+nE+' évac.</b>');if(zs.length)pose.push('remplissage 🚰 '+zs.join(' + '));
     const al=t.ends.filter(e=>e.need==='BP'&&e.welded);
+    const calT=(h.cal||[]).filter(c=>+c.t===t.idx||+c.t===-1);
     return `<div class="hyTr"><div class="hd"><i style="width:12px;height:5px;background:${col};border-radius:2px"></i><b style="font-size:13.5px;flex:1">Tronçon ${t.idx+1} — ${t.lines.map(id=>esc((state.lines[id]||{}).name||id)).slice(0,3).join(' + ')}${t.lines.length>3?'…':''}</b><span class="muted" style="font-size:10.5px">${t.ends.length} extrémité${t.ends.length>1?'s':''}</span></div>
     <table><tr><td class="muted">Linéaire (aller)</td><td><b>${fmt(Math.round(t.lenA))} m</b>${dnTxt?' · DN'+dnTxt:''}</td></tr>
     <tr><td class="muted">Volume aller + retour</td><td><b>${fmtVol(t.vol)}</b></td></tr>
     ${h.prest.rincage?`<tr><td class="muted">Rinçage ≥ ${fmt(P.vitesse)} m/s (DN${t.dnMax})</td><td><b>${fmt(Math.round(t.debit))} m³/h</b></td></tr>`:''}
+    ${t.pump?`<tr><td class="muted">Pompe de rinçage (estimation)</td><td><b>≥ ${fmt(t.pump.q)} m³/h · HMT ≈ ${t.pump.hmt} m</b> (ΔP ≈ ${String(t.pump.dp).replace('.',',')} bar)</td></tr>`:''}
     <tr><td class="muted">Remplissage à ${fmt(P.debit)} m³/h</td><td><b>${fmtMin(t.minutes)}</b></td></tr>
     <tr><td class="muted">À poser</td><td>${pose.length?pose.join(' · '):'—'}</td></tr>
-    ${al.map(e=>`<tr><td colspan="2" style="color:#8a1f1f;background:#fdecec">⚠ ${esc(e.label)} : bouchon déjà soudé (${e.welded.map(x=>x.weldId).join(', ')}) — un by-pass aurait été préférable${h.prest.rincage?' pour le rinçage':''}</td></tr>`).join('')}
+    ${calT.length?`<tr><td class="muted">Calendrier</td><td>${calT.map(c=>{const op=CAL_OPS[c.op]||CAL_OPS.autre;return `<span title="${esc(op.label)}">${op.ico} ${frDate(c.d)}</span>`;}).join(' → ')}</td></tr>`:''}
+    ${t.needFill?'<tr><td colspan="2" style="color:#7a5200;background:#fff3d6">⚠ Pas de zone de remplissage sur ce tronçon — pose 🚰 (une zone par tronçon).</td></tr>':''}
+    ${al.map(e=>`<tr><td colspan="2" style="color:#8a1f1f;background:#fdecec">⚠ ${esc(e.label)} : fond bombé déjà soudé (${e.welded.map(x=>x.weldId).join(', ')}) — un by-pass aurait été préférable${h.prest.rincage?' pour le rinçage':''}</td></tr>`).join('')}
     </table></div>`;};
   const tot=H.totals;const totPose=[];if(tot.nBP)totPose.push(tot.nBP+' BP');if(tot.nKFL)totPose.push(tot.nKFL+' KFL');if(tot.nEvac)totPose.push(tot.nEvac+' évac.');
   el.innerHTML=`<h2 class="vt">Hydraulique — ${esc(NET.name)}</h2>
@@ -493,49 +539,93 @@ function renderHydro(){const el=$('#hydro');if(!el)return;const h=hydroOf();
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
    <button class="hyPill" data-pose="cut" ${canH?'':'disabled'}>✂ Sectoriser${H.cuts.length?' ('+H.cuts.length+')':''}</button>
    <button class="hyPill" data-pose="water" ${canH?'':'disabled'}>💧 Point d’eau${h.water.length?' ('+h.water.length+')':''}</button>
-   <button class="hyPill" data-pose="fill" ${canH?'':'disabled'}>🚰 Remplissage${h.fill?' ✓':''}</button>
-   <button class="hyPill" data-pose="skid" ${canH?'':'disabled'}>⬛ Skid${h.skid?' ✓':''}</button>
+   <button class="hyPill" data-pose="fill" ${canH?'':'disabled'}>🚰 Remplissage${h.fills.length?' ('+h.fills.length+')':''}</button>
+   <button class="hyPill" data-pose="skid" ${canH?'':'disabled'}>⬛ Skid${h.skids.length?' ('+h.skids.length+')':''}</button>
+   <button class="hyPill" id="hyOsm" style="background:#dfe8f4;color:#1c3d6b">🔎 Bornes de la ville${state.osmHydrants?' ('+state.osmHydrants.length+')':''}</button>
   </div>
   ${chips.length?`<div style="margin-bottom:6px">${chips.join('')}</div>`:''}
   <div class="hyMap" id="hydroMap"></div>
-  <div class="muted" style="font-size:11.5px;margin:6px 0 10px;display:flex;gap:10px;flex-wrap:wrap">${H.troncons.length>6?`<span>${H.troncons.length} tronçons (couleurs sur la carte et dans le récap)</span>`:H.troncons.map(t=>`<span><i style="display:inline-block;width:11px;height:4px;background:${TCOLS[t.idx%TCOLS.length]};border-radius:2px;vertical-align:middle;margin-right:3px"></i>tronçon ${t.idx+1}</span>`).join('')}<span><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#0b0b0b;border:2px solid #ffd9a8;vertical-align:middle;margin-right:3px"></i>⇄ BP = by-pass à poser</span><span>KFL = kit fin de ligne</span><span>✓ SST = bouclé en sous-station</span><span style="color:#d03b3b">⚠ = bouchon déjà soudé</span></div>
+  <div class="muted" style="font-size:11.5px;margin:6px 0 10px;display:flex;gap:10px;flex-wrap:wrap">${H.troncons.length>6?`<span>${H.troncons.length} tronçons (couleurs sur la carte et dans le récap)</span>`:H.troncons.map(t=>`<span><i style="display:inline-block;width:11px;height:4px;background:${TCOLS[t.idx%TCOLS.length]};border-radius:2px;vertical-align:middle;margin-right:3px"></i>tronçon ${t.idx+1}</span>`).join('')}<span><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#0b0b0b;border:2px solid #ffd9a8;vertical-align:middle;margin-right:3px"></i>⇄ BP = by-pass à poser</span><span>KFL = kit fin de ligne</span><span style="color:#d03b3b">⚠ = fond bombé déjà soudé</span></div>
   ${!H.cuts.length&&H.troncons.length>1?'<div class="muted" style="font-size:11.5px;margin:-4px 0 10px">Sans coupe, chaque réseau non relié aux autres forme déjà son propre tronçon.</div>':''}
-  <h3 style="margin:10px 0 6px">3 · Récap par tronçon</h3>
+  <h3 style="margin:10px 0 6px">3 · Calendrier prévisionnel <span class="muted" style="font-weight:400;font-size:12px">(pastilles libres : autant d’opérations que besoin, dans l’ordre voulu)</span></h3>
+  ${(h.cal||[]).length?calFriseSVG(h):'<div class="muted" style="font-size:12.5px;margin-bottom:6px">Aucune étape pour l’instant — ajoute la première ci-dessous (ex. remplissage eau brute puis épreuve puis rinçage…).</div>'}
+  ${(h.cal||[]).length?`<div style="margin:6px 0">${h.cal.map((c,i)=>{const op=CAL_OPS[c.op]||CAL_OPS.autre;return `<span class="hyChip" style="border-color:${op.color}"><i style="width:9px;height:9px;border-radius:50%;background:${op.color};display:inline-block"></i>${op.ico} ${esc(op.short)}${c.note?' · '+esc(c.note):''} · ${+c.t<0?'chantier':'T'+(+c.t+1)} · <b>${frDate(c.d)}</b>${canH?`<button data-rmcal="${i}" title="enlever">✕</button>`:''}</span>`;}).join('')}</div>`:''}
+  ${canH?`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px;margin-bottom:10px">
+   <select id="hyCalOp" class="f" style="font-size:13px">${Object.entries(CAL_OPS).map(([k,o])=>`<option value="${k}">${o.ico} ${o.label}</option>`).join('')}</select>
+   <select id="hyCalT" class="f" style="font-size:13px">${H.troncons.length>1?`<option value="-1">Tout le chantier</option>`:''}${H.troncons.map(t=>`<option value="${t.idx}" ${H.troncons.length===1?'selected':''}>Tronçon ${t.idx+1}</option>`).join('')}</select>
+   <input type="date" id="hyCalD" class="f" style="font-size:13px">
+   <button class="btn sm primary" id="hyCalAdd">＋ Ajouter</button>
+  </div>`:''}
+  <h3 style="margin:10px 0 6px">4 · Récap par tronçon</h3>
   ${H.troncons.map(trCard).join('')}
-  <div style="background:#eef1f5;border:1px solid #cdd4dd;border-radius:10px;padding:8px 10px;font-size:12.5px;color:#3f4750;margin-bottom:10px"><b>Total chantier :</b> ${fmt(Math.round(tot.lenA))} m · ${fmtVol(tot.vol)}${totPose.length?' · '+totPose.join(' · ')+' à poser':''}${tot.nAlert?` · <span style="color:#b02a2a;font-weight:700">${tot.nAlert} alerte${tot.nAlert>1?'s':''}</span>`:''}${h.skid?' · 1 skid ('+fmt(P.skidW)+'×'+fmt(P.skidL)+' m)':''}</div>
-  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px"><button class="btn" id="hyReport">📄 Rapport imprimable (PDF)</button>${canH?'<button class="btn sm" id="hyClear" style="color:#d03b3b">🗑 Tout effacer</button>':''}</div>`;
+  <div style="background:#eef1f5;border:1px solid #cdd4dd;border-radius:10px;padding:8px 10px;font-size:12.5px;color:#3f4750;margin-bottom:10px"><b>Total chantier :</b> ${fmt(Math.round(tot.lenA))} m · ${fmtVol(tot.vol)}${totPose.length?' · '+totPose.join(' · ')+' à poser':''}${tot.nAlert?` · <span style="color:#b02a2a;font-weight:700">${tot.nAlert} alerte${tot.nAlert>1?'s':''}</span>`:''}${tot.noFill?` · <span style="color:#7a5200;font-weight:700">${tot.noFill} tronçon${tot.noFill>1?'s':''} sans zone de remplissage</span>`:''}${h.skids.length?' · '+h.skids.length+' skid'+(h.skids.length>1?'s':'')+' ('+fmt(P.skidW)+'×'+fmt(P.skidL)+' m)':''}</div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px"><button class="btn primary" id="hyReport">📄 Dossier de prépa (global + 1 page par tronçon)</button>${canH?'<button class="btn sm" id="hyClear" style="color:#d03b3b">🗑 Tout effacer</button>':''}</div>`;
   $$('#hydro [data-p]').forEach(c=>c.addEventListener('click',()=>{if(!canH){toast('Réservé au chef / bureau');return;}h.prest[c.dataset.p]=!h.prest[c.dataset.p];saveHydro();renderHydro();}));
   $$('#hydro [data-hp]').forEach(inp=>inp.addEventListener('change',()=>{const v=parseFloat(String(inp.value).replace(',','.'));if(isFinite(v)&&v>0){h.params[inp.dataset.hp]=v;saveHydro();renderHydro();}}));
   $$('#hydro [data-pose]').forEach(b=>b.addEventListener('click',()=>startHydroPose(b.dataset.pose)));
   $$('#hydro [data-rmcut]').forEach(b=>b.addEventListener('click',()=>{if(!canH)return;h.cuts.splice(+b.dataset.rmcut,1);saveHydro();renderHydro();}));
   $$('#hydro [data-rmwater]').forEach(b=>b.addEventListener('click',()=>{if(!canH)return;h.water.splice(+b.dataset.rmwater,1);saveHydro();renderHydro();}));
-  $$('#hydro [data-rmfill]').forEach(b=>b.addEventListener('click',()=>{if(!canH)return;h.fill=null;saveHydro();renderHydro();}));
-  $$('#hydro [data-rmskid]').forEach(b=>b.addEventListener('click',()=>{if(!canH)return;h.skid=null;saveHydro();renderHydro();}));
+  $$('#hydro [data-rmfill]').forEach(b=>b.addEventListener('click',()=>{if(!canH)return;h.fills.splice(+b.dataset.rmfill,1);saveHydro();renderHydro();}));
+  $$('#hydro [data-rmskid]').forEach(b=>b.addEventListener('click',()=>{if(!canH)return;h.skids.splice(+b.dataset.rmskid,1);saveHydro();renderHydro();}));
+  $$('#hydro [data-rmcal]').forEach(b=>b.addEventListener('click',()=>{if(!canH)return;h.cal.splice(+b.dataset.rmcal,1);saveHydro();renderHydro();}));
+  const osmB=$('#hyOsm');if(osmB)osmB.addEventListener('click',fetchOsmHydrants);
+  const calAdd=$('#hyCalAdd');if(calAdd)calAdd.addEventListener('click',()=>{const op=$('#hyCalOp').value;const t=+$('#hyCalT').value;const d=$('#hyCalD').value;
+    if(!d){toast('Choisis une date');return;}h.cal.push({op,t,d});h.cal.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);saveHydro();renderHydro();});
   const rep=$('#hyReport');if(rep)rep.addEventListener('click',openHydroReport);
-  const clr=$('#hyClear');if(clr)clr.addEventListener('click',()=>{if(!confirm('Effacer prestations, coupes, points d’eau, remplissage et skid de ce chantier ?'))return;NET.hydro={prest:{epreuve:true},params:{},cuts:[],water:[],fill:null,skid:null};saveHydro();renderHydro();});
+  const clr=$('#hyClear');if(clr)clr.addEventListener('click',()=>{if(!confirm('Effacer prestations, coupes, points d’eau, zones de remplissage, skids et calendrier de ce chantier ?'))return;NET.hydro={prest:{epreuve:true},params:{},cuts:[],water:[],fills:[],skids:[],cal:[]};saveHydro();renderHydro();});
   initHydroMap();}
-function openHydroReport(){const H=hydroBuild();const h=hydroOf();if(!H||!h)return;const P=H.params;
+// carte imprimable : fond de plan + axes + overlay hydro, cadrée sur un viewBox (global ou zoom tronçon)
+function hydroPrintMap(vb,hMax){const sh=sheet();const k=720/Math.max(1,vb[2]); // taille des textes/badges comme si la carte faisait 720 px de large
+  let axes='';hydroLines().forEach(l=>{(l.els||[]).forEach(e=>{const pl=e.axis&&e.axis[0];if(pl&&pl.length>1)axes+=`<path d="${pathD(pl)}" stroke="#b9b5a8" stroke-width="${Math.max(.25*(sh.ppm||1),2/k)}" fill="none" stroke-linejoin="round" stroke-linecap="round" opacity=".8"/>`;});});
+  return `<svg viewBox="${vb.join(' ')}" style="width:100%;max-height:${hMax||420}px;background:#f1f0eb;border:1px solid #ccc;border-radius:8px" preserveAspectRatio="xMidYMid meet"><g opacity=".55">${hydroBgSVG(sh)}</g><g>${axes}</g>${hydroOverlaySVG(k,true)}</svg>`;}
+function tronconBBox(t){let x0=1e15,y0=1e15,x1=-1e15,y1=-1e15;t.segs.forEach(sg=>{const l=state.lines[sg.line];if(!l)return;subAxis(l,sg.m0,sg.m1).forEach(pl=>pl.forEach(p=>{x0=Math.min(x0,p.x);y0=Math.min(y0,p.y);x1=Math.max(x1,p.x);y1=Math.max(y1,p.y);}));});
+  if(x0>x1)return null;const m=Math.max(15,(x1-x0)*.12,(y1-y0)*.12);return [x0-m,y0-m,(x1-x0)+2*m,(y1-y0)+2*m];}
+function openHydroReport(){const H=hydroBuild();const h=hydroOf();if(!H||!h)return;const P=H.params;const sh=sheet();const bb=sheetBBox(sh);
   const prests=Object.keys(PREST_LABEL).filter(k=>h.prest[k]).map(k=>PREST_LABEL[k]).join(' + ')||'—';
+  const needTxt=en=>en.fill?'zone de remplissage (bouclée par le skid)':en.need==='BP'?'by-pass à poser':en.need==='KFL'?'kit fin de ligne / fond bombé provisoire':en.need==='EVAC'?'évacuation libre (mono-tube)':en.valve?'vanne fermée':en.already==='bp'?'déjà bouclé (by-pass)':'—';
+  const calRows=(h.cal||[]).map(c=>{const op=CAL_OPS[c.op]||CAL_OPS.autre;return `<tr><td>${frDate(c.d)}</td><td>${op.ico} ${esc(op.label)}</td><td>${+c.t<0?'Tout le chantier':'Tronçon '+(+c.t+1)}</td></tr>`;}).join('');
+  const fillOfT=t=>{const zs=[];(H.fillAts||[]).forEach((fa,i)=>{if(t.segs.some(sg=>sg.line===fa.line&&fa.m>=sg.m0-1e-6&&fa.m<=sg.m1+1e-6))zs.push('Z'+(i+1));});return zs;};
   const rows=H.troncons.map(t=>{const nBP=t.ends.filter(e=>e.need==='BP').length,nK=t.ends.filter(e=>e.need==='KFL').length,nE=t.ends.filter(e=>e.need==='EVAC').length;
-    const al=t.ends.filter(e=>e.need==='BP'&&e.welded).map(e=>esc(e.label)+' : bouchon soudé ('+e.welded.map(x=>x.weldId).join(', ')+')').join(' ; ');
-    return `<tr><td>T${t.idx+1} — ${t.lines.map(id=>esc((state.lines[id]||{}).name||id)).join(' + ')}</td><td>${fmt(Math.round(t.lenA))} m · DN${t.dns.slice(0,3).map(d=>d[0]).join('/')}</td><td>${fmtVol(t.vol)}</td><td>${h.prest.rincage?fmt(Math.round(t.debit))+' m³/h':'—'}</td><td>${fmtMin(t.minutes)}</td><td>${[nBP?nBP+' BP':'',nK?nK+' KFL':'',nE?nE+' évac.':'',t.hasFill?'remplissage':''].filter(Boolean).join(' · ')||'—'}</td><td style="color:#b02a2a">${al||''}</td></tr>`;}).join('');
-  const html=`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Hydraulique — ${esc(NET.name)}</title><style>
-  body{font-family:system-ui,sans-serif;color:#111;margin:28px;font-size:13px}h1{font-size:19px;margin:0 0 2px}h2{font-size:14px;margin:18px 0 6px}
+    return `<tr><td>T${t.idx+1}</td><td>${fmt(Math.round(t.lenA))} m · DN${t.dns.slice(0,3).map(d=>d[0]).join('/')}</td><td>${fmtVol(t.vol)}</td><td>${h.prest.rincage?fmt(Math.round(t.debit))+' m³/h':'—'}</td><td>${t.pump?'≥ '+fmt(t.pump.q)+' m³/h · '+t.pump.hmt+' m':'—'}</td><td>${fmtMin(t.minutes)}</td><td>${[nBP?nBP+' BP':'',nK?nK+' KFL':'',nE?nE+' évac.':'',fillOfT(t).length?'🚰 '+fillOfT(t).join('+'):''].filter(Boolean).join(' · ')||'—'}</td></tr>`;}).join('');
+  const tronPage=t=>{const col=TCOLS[t.idx%TCOLS.length];const vb=tronconBBox(t);const calT=(h.cal||[]).filter(c=>+c.t===t.idx||+c.t===-1);
+    const al=t.ends.filter(e=>e.need==='BP'&&e.welded);
+    return `<div class="page"><h2 style="border-left:10px solid ${col};padding-left:8px">Tronçon ${t.idx+1} — ${t.lines.map(id=>esc((state.lines[id]||{}).name||id)).join(' + ')}</h2>
+    ${vb?hydroPrintMap(vb,430):''}
+    <table style="margin-top:8px"><tr><th style="width:38%">Linéaire (aller)</th><td>${fmt(Math.round(t.lenA))} m · DN${t.dns.map(d=>d[0]).join('/')}</td></tr>
+    <tr><th>Volume aller + retour</th><td>${fmtVol(t.vol)}</td></tr>
+    ${h.prest.rincage?`<tr><th>Débit de rinçage (≥ ${fmt(P.vitesse)} m/s dans le DN${t.dnMax})</th><td>${fmt(Math.round(t.debit))} m³/h</td></tr>`:''}
+    ${t.pump?`<tr><th>Pompe (estimation pertes de charge)</th><td>≥ ${fmt(t.pump.q)} m³/h · HMT ≈ ${t.pump.hmt} m (ΔP ≈ ${String(t.pump.dp).replace('.',',')} bar)</td></tr>`:''}
+    <tr><th>Durée de remplissage à ${fmt(P.debit)} m³/h</th><td>${fmtMin(t.minutes)}</td></tr>
+    <tr><th>Zones de remplissage</th><td>${fillOfT(t).join(' + ')||(t.needFill?'⚠ AUCUNE — à définir':'—')}</td></tr></table>
+    <h3>Extrémités du tronçon</h3><table><tr><th>Extrémité</th><th>À prévoir</th></tr>
+    ${t.ends.map(en=>`<tr><td>${esc(en.label)}</td><td${en.need==='BP'?' style="font-weight:700"':''}>${needTxt(en)}${en.welded?' — <span style="color:#b02a2a">fond bombé déjà soudé ('+en.welded.map(x=>x.weldId).join(', ')+')</span>':''}</td></tr>`).join('')}</table>
+    ${al.length?`<div style="background:#fdecec;border:1px solid #e8b6b6;border-radius:8px;padding:7px 10px;margin-top:8px;color:#8a1f1f">${al.map(e=>'⚠ '+esc(e.label)+' : fond bombé déjà soudé ('+e.welded.map(x=>x.weldId).join(', ')+') — un by-pass aurait été préférable').join('<br>')}</div>`:''}
+    ${calT.length?`<h3>Étapes prévues</h3><table><tr><th>Date</th><th>Opération</th></tr>${calT.map(c=>{const op=CAL_OPS[c.op]||CAL_OPS.autre;return `<tr><td>${frDate(c.d)}</td><td>${op.ico} ${esc(op.label)}${+c.t<0?' (tout le chantier)':''}</td></tr>`;}).join('')}</table>`:''}
+    </div>`;};
+  const html=`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Prépa hydraulique — ${esc(NET.name)}</title><style>
+  body{font-family:system-ui,sans-serif;color:#111;margin:24px;font-size:13px}h1{font-size:19px;margin:0 0 2px}h2{font-size:15px;margin:16px 0 6px}h3{font-size:13px;margin:12px 0 4px}
   table{border-collapse:collapse;width:100%;font-size:12px}td,th{border:1px solid #bbb;padding:5px 7px;text-align:left;vertical-align:top}th{background:#f0efe9}
-  .muted{color:#666}.np{margin:14px 0;padding:9px 16px;font-size:14px;border-radius:8px;border:1px solid #888;background:#f5f5f2;cursor:pointer}
-  @media print{.np{display:none}body{margin:8mm}}</style></head><body>
+  .muted{color:#666}.np{margin:12px 0;padding:9px 16px;font-size:14px;border-radius:8px;border:1px solid #888;background:#f5f5f2;cursor:pointer}
+  .page{page-break-before:always;margin-top:26px}
+  @media print{.np{display:none}body{margin:6mm}}</style></head><body>
   <button class="np" onclick="print()">🖨 Imprimer / enregistrer en PDF</button>
-  <h1>Préparation hydraulique — ${esc(NET.name)}</h1>
-  <div class="muted">Édité le ${new Date().toLocaleString('fr-FR')} — TRACÉ</div>
-  <h2>Prestations</h2><div>${esc(prests)}${H.flow?' — circulation requise : extrémités bouclées par by-pass':' — statique : kits fin de ligne suffisants'}</div>
-  <h2>Paramètres retenus</h2><div>Vitesse de rinçage ${fmt(P.vitesse)} m/s · débit borne/skid ${fmt(P.debit)} m³/h · skid ${fmt(P.skidW)} × ${fmt(P.skidL)} m</div>
-  <h2>Tronçons</h2><table><tr><th>Tronçon</th><th>Linéaire (aller)</th><th>Volume A+R</th><th>Débit rinçage</th><th>Remplissage</th><th>À poser</th><th>Alertes</th></tr>${rows}
-  <tr><th>Total</th><th>${fmt(Math.round(H.totals.lenA))} m</th><th>${fmtVol(H.totals.vol)}</th><th></th><th>${fmtMin(H.totals.vol/(P.debit||1)*60)}</th><th>${[H.totals.nBP?H.totals.nBP+' BP':'',H.totals.nKFL?H.totals.nKFL+' KFL':'',H.totals.nEvac?H.totals.nEvac+' évac.':''].filter(Boolean).join(' · ')||'—'}</th><th>${H.totals.nAlert||''}</th></tr></table>
+  <h1>Dossier de préparation hydraulique — ${esc(NET.name)}</h1>
+  <div class="muted">Édité le ${new Date().toLocaleString('fr-FR')} — TRACÉ · vue globale + une page par tronçon</div>
+  <h2>Prestations</h2><div>${esc(prests)}${H.flow?' — circulation requise : extrémités bouclées par by-pass (SST et raccordements compris)':' — statique : kits fin de ligne suffisants'}</div>
+  <h2>Paramètres retenus (réglables dans l’appli)</h2><div>Vitesse de rinçage ${fmt(P.vitesse)} m/s · débit borne/skid ${fmt(P.debit)} m³/h · skid ${fmt(P.skidW)} × ${fmt(P.skidL)} m</div>
+  ${(h.cal||[]).length?`<h2>Calendrier prévisionnel</h2>${calFriseSVG(h)}<table style="margin-top:6px"><tr><th>Date</th><th>Opération</th><th>Périmètre</th></tr>${calRows}</table>`:''}
+  <h2>Vue d'ensemble</h2>${hydroPrintMap([bb[0]-20,bb[1]-20,(bb[2]-bb[0])+40,(bb[3]-bb[1])+40],460)}
+  <div class="muted" style="margin-top:4px">${H.troncons.map(t=>`<span style="margin-right:10px"><span style="display:inline-block;width:10px;height:5px;background:${TCOLS[t.idx%TCOLS.length]};border-radius:2px"></span> T${t.idx+1}</span>`).join('')} · ⚫ BP à poser · ⚠ fond bombé déjà soudé</div>
+  <h2>Synthèse par tronçon</h2><table><tr><th>T</th><th>Linéaire</th><th>Volume A+R</th><th>Débit rinçage</th><th>Pompe</th><th>Remplissage</th><th>À poser</th></tr>${rows}
+  <tr><th>Total</th><th>${fmt(Math.round(H.totals.lenA))} m</th><th>${fmtVol(H.totals.vol)}</th><th></th><th></th><th>${fmtMin(H.totals.vol/(P.debit||1)*60)}</th><th>${[H.totals.nBP?H.totals.nBP+' BP':'',H.totals.nKFL?H.totals.nKFL+' KFL':'',H.totals.nEvac?H.totals.nEvac+' évac.':''].filter(Boolean).join(' · ')||'—'}</th></tr></table>
+  ${H.totals.noFill?`<div style="background:#fff3d6;border:1px solid #f0c76a;border-radius:8px;padding:7px 10px;margin-top:8px;color:#7a5200">⚠ ${H.totals.noFill} tronçon(s) sans zone de remplissage — à définir avant l’épreuve.</div>`:''}
   ${H.cuts.length?`<h2>Coupes de sectorisation</h2><ul>${H.cuts.map((c,i)=>`<li>Coupe ${i+1} — ${esc((state.lines[c.line]||{}).name||c.line)}, pk ${fmt(c.m)} m${c.valve?' (vanne '+esc(c.valve)+', reste fermée)':' — raccordement entre tronçons à la remise en service (soudure de raccordement hors épreuve)'}</li>`).join('')}</ul>`:''}
-  ${(h.water||[]).length?`<div class="muted">${h.water.length} point${h.water.length>1?'s':''} d’eau repéré${h.water.length>1?'s':''} sur le plan${h.fill?' — remplissage défini':''}.</div>`:''}
-  <h2>Visa</h2><table><tr><th style="width:33%">Préparé par</th><th style="width:33%">Vérifié par</th><th>Date d’épreuve prévue</th></tr><tr><td style="height:52px"></td><td></td><td></td></tr></table>
+  ${(h.water||[]).length?`<div class="muted">${h.water.length} point${h.water.length>1?'s':''} d’eau retenu${h.water.length>1?'s':''} · ${h.fills.length} zone${h.fills.length>1?'s':''} de remplissage · ${h.skids.length} skid${h.skids.length>1?'s':''}.</div>`:''}
+  ${H.troncons.map(tronPage).join('')}
+  <div class="page"><h2>Visa</h2><table><tr><th style="width:33%">Préparé par</th><th style="width:33%">Vérifié par</th><th>Dates retenues</th></tr><tr><td style="height:56px"></td><td></td><td></td></tr></table>
+  <div class="muted" style="margin-top:8px">Volumes calculés sur les Ø intérieurs acier P235 ; pompe estimée par pertes de charge (Darcy-Blasius, +20 % singularités, +3 m) — à confirmer par le loueur. Bornes « BI » : source OpenStreetMap, à vérifier sur site.</div></div>
   </body></html>`;
-  const w=window.open('about:blank');if(!w){toast('Autorise l’ouverture de fenêtres pour le rapport');return;}w.document.write(html);w.document.close();}
+  const w=window.open('about:blank');if(!w){toast('Autorise l’ouverture de fenêtres pour le dossier');return;}w.document.write(html);w.document.close();}
 function applyView(){const {k,tx,ty}=state.view;world.setAttribute('transform',`translate(${tx} ${ty}) scale(${k})`);$('#zoominfo').textContent=`1 m ≈ ${fmt(k*sheet().ppm)} px`;}
 function sheetBBox(sh){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;sh.lines.forEach(id=>state.lines[id].els.forEach(e=>{if(!e.bbox||!isFinite(e.bbox[0])||!isFinite(e.bbox[3])||(e.bbox[2]-e.bbox[0])>3000||(e.bbox[3]-e.bbox[1])>3000)return;x0=Math.min(x0,e.bbox[0]);y0=Math.min(y0,e.bbox[1]);x1=Math.max(x1,e.bbox[2]);y1=Math.max(y1,e.bbox[3]);}));if(x0>x1){x0=0;y0=0;x1=sh.w;y1=sh.h;}return [x0,y0,x1,y1];}
 function fitView(){const sh=sheet();const cw=canvas.clientWidth||400,ch=canvas.clientHeight||500;let [x0,y0,x1,y1]=sheetBBox(sh);const m=Math.max(20,(x1-x0)*.04);x0-=m;x1+=m;y0-=m;y1+=m;const k=Math.min(cw/(x1-x0),ch/(y1-y0))*.97;state.view={k,tx:(cw-(x1-x0)*k)/2-x0*k,ty:(ch-(y1-y0)*k)/2-y0*k};applyView();}
@@ -709,7 +799,7 @@ $('#tfCancel').addEventListener('click',endTransfer);
 $('#tfGo').addEventListener('click',()=>{const v=String($('#tfNum').value).replace(/\D/g,'');if(!v)return;let f=findWeld('S-'+v.padStart(4,'0'))||findWeld('S-'+v.padStart(3,'0'));if(!f){toast('Soudure introuvable : '+v);return;}const l=f.l,c=f.c,i=l.cond[c].joints.indexOf(f.j);doTransferTo(l.id,c,i);});
 window.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.transfer)endTransfer();if(e.key==='Escape'&&state.calage)endCalage();if(e.key==='Escape'&&state.hydroPose)endHydroPose();});
 $('#hyDone').addEventListener('click',endHydroPose);
-$('#hyRot').addEventListener('click',()=>{const h=hydroOf();if(!h||!h.skid)return;h.skid.rot=((h.skid.rot||0)+15)%360;saveHydro();renderPlan();});
+$('#hyRot').addEventListener('click',()=>{const h=hydroOf();if(!h||!h.skids||!h.skids.length)return;const sk=h.skids[h.skids.length-1];sk.rot=((sk.rot||0)+15)%360;saveHydro();renderPlan();});
 $('#disp').addEventListener('change',e=>{const k=e.target.dataset.k;if(!k)return;state.show[k]=e.target.checked;saveShow();renderDisp();renderPlan();});
 $('#disp').addEventListener('click',e=>{const cb=e.target.closest('[data-cal]');if(cb){if(cb.dataset.cal==='del'){forgetGeo();return;}startCalage();return;}const mb=e.target.closest('[data-carte]');if(mb){state.show.carte=mb.dataset.carte;saveShow();renderDisp();renderPlan();return;}const b=e.target.closest('[data-all]');if(!b)return;const on=b.dataset.all==='1';SHOW_KEYS.forEach(([k])=>{state.show[k]=on||k==='soud'||k==='fond'||k==='manch';});saveShow();renderDisp();renderPlan();});
 $('#filters').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;state.filter=c.dataset.f;renderPlan();});

@@ -33,19 +33,22 @@ ok(T.dnMax===100,'DN max 100');
 // extrémités : départ P raccordé (sst), bout P (endcap soudé), bout A1 (bypass), bout A2 (endcap non soudé)
 ok(T.ends.length===4,'4 extrémités');
 const endOf=(H2,ln,ty)=>H2.troncons.flatMap(t=>t.ends).find(e=>e.line===ln&&e.type===ty);
-ok(endOf(H,'P','start').need==='none'&&endOf(H,'P','start').already==='racc','départ = raccordement (réseau existant) : rien à poser');
+ok(endOf(H,'P','start').need==='KFL'&&endOf(H,'P','start').already==='racc','raccordement pas encore soudé : à boucher pour l\'épreuve (KFL)');
 ok(/raccordement/.test(endOf(H,'P','start').label),'label « raccordement » au départ');
 ok(endOf(H,'A1','tip').need==='none'&&endOf(H,'A1','tip').already==='bp','bout A1 déjà bouclé (by-pass)');
 ok(endOf(H,'P','tip').need==='KFL'&&endOf(H,'A2','tip').need==='KFL','épreuve seule : bouts en KFL');
 ok(H.alerts.length===0,'pas d\'alerte en épreuve seule');
+ok(H.troncons[0].needFill===true&&H.totals.noFill===1,'pas de zone de remplissage → signalé');
 
 console.log('— rinçage : BP requis + alerte bouchon soudé —');
 H=buildHydro(LINES,{prest:{epreuve:true,rincage:true}});
 ok(H.flow===true,'flow');
 ok(endOf(H,'P','tip').need==='BP'&&endOf(H,'A2','tip').need==='BP','bouts en BP');
+ok(endOf(H,'P','start').need==='BP','raccordement non soudé + circulation : BP aussi à l\'extrémité du raccordement');
 ok(H.alerts.length===1&&H.alerts[0].welds.includes('S-0154'),'alerte : bouchon P déjà soudé (S-0154)');
 ok(endOf(H,'A2','tip').welded===null,'A2 non soudé : pas d\'alerte');
 ok(near(H.troncons[0].debit,areaDN(100)*3600,.2),'débit rinçage sur DN100');
+ok(H.troncons[0].pump&&H.troncons[0].pump.q>=32&&H.troncons[0].pump.hmt>3&&H.troncons[0].pump.hmt<60,'pompe : débit + HMT plausibles ('+H.troncons[0].pump.q+' m³/h, '+H.troncons[0].pump.hmt+' m)');
 
 console.log('— coupe sur la vanne V1 (150 m) —');
 H=buildHydro(LINES,{prest:{epreuve:true,rincage:true},cuts:[{line:'P',m:150}]});
@@ -58,13 +61,15 @@ ok(near(T1.lenA,150+80,.1)&&near(T2.lenA,150+60,.1),'linéaires 230/210');
 ok(T1.ends.filter(e=>e.type==='cut').every(e=>e.need==='none'),'coupe sur vanne : vanne fermée, rien à poser');
 ok(near(T1.vol+T2.vol,volAtt,.01),'les volumes des tronçons se somment au total');
 
-console.log('— coupe hors vanne (80 m) + remplissage au départ —');
-H=buildHydro(LINES,{prest:{rincage:true},cuts:[{line:'P',m:80}],fillAt:{line:'P',m:2}});
+console.log('— coupe hors vanne (80 m) + DEUX zones de remplissage (une par tronçon) —');
+H=buildHydro(LINES,{prest:{rincage:true},cuts:[{line:'P',m:80}],fills:[{line:'P',m:2},{line:'P',m:295}]});
 ok(H.cuts[0].valve===null,'coupe libre (pas de vanne)');
-const Ta=H.troncons.find(t=>t.hasFill);
-ok(Ta&&Ta.segs.some(s=>s.line==='P'&&s.m0===0),'le remplissage est rattaché au tronçon du départ');
+ok(H.troncons.every(t=>t.hasFill)&&H.totals.noFill===0,'chaque tronçon a sa zone de remplissage');
 ok(H.troncons.flatMap(t=>t.ends).filter(e=>e.type==='cut').every(e=>e.need==='BP'),'coupe libre + rinçage : BP des deux côtés');
-ok(endOf(H,'P','start').fill===true&&endOf(H,'P','start').need==='none','l\'extrémité du remplissage est bouclée par le skid');
+ok(endOf(H,'P','start').fill===true&&endOf(H,'P','start').need==='none','l\'extrémité de la zone 1 est bouclée par le skid');
+ok(endOf(H,'P','tip').fill===true&&endOf(H,'P','tip').need==='none','l\'extrémité de la zone 2 aussi (bout de P)');
+H=buildHydro(LINES,{prest:{rincage:true},cuts:[{line:'P',m:80}],fills:[{line:'P',m:2}]});
+ok(H.totals.noFill===1,'un tronçon sans zone → signalé');
 
 console.log('— mono-conduite : évacuation au lieu de by-pass —');
 const S={id:'S',name:'Mono',length:100,nCond:1,parent:null,parentM:0,startKind:'pipe',endKind:'pipe',endWelds:[],els:[pipe(0,100,80)]};
@@ -72,11 +77,13 @@ H=buildHydro([S],{prest:{rincage:true}});
 ok(near(H.troncons[0].vol,areaDN(80)*100,.01),'volume ×1 en mono-conduite');
 ok(H.troncons[0].ends.every(e=>e.need==='EVAC'),'rinçage mono-tube : évacuation libre');
 
-console.log('— bout en sous-station (SST ≠ raccordement) —');
+console.log('— bout en sous-station (SST ≠ raccordement ; BP à poser en SST aussi) —');
 const B={id:'B',name:'Antenne B',length:50,nCond:2,parent:null,parentM:0,startKind:'pipe',endKind:'endpoint',endWelds:[],els:[pipe(0,50,50)]};
 H=buildHydro([B],{prest:{rincage:true}});
 const eB=H.troncons[0].ends.find(e=>e.type==='tip');
-ok(eB.already==='sst'&&eB.need==='none'&&/SST/.test(eB.label),'bout en SST : libellé « SST », rien à poser');
+ok(eB.already==='sst'&&eB.need==='BP'&&/SST/.test(eB.label),'SST + circulation : BP à poser en sous-station (pas à travers l\'échangeur)');
+H=buildHydro([B],{prest:{epreuve:true}});
+ok(H.troncons[0].ends.find(e=>e.type==='tip').need==='KFL','SST + épreuve seule : bouchon');
 
 console.log('— coupes invalides ignorées —');
 H=buildHydro(LINES,{prest:{epreuve:true},cuts:[{line:'ZZ',m:10},{line:'P',m:0.2},{line:'P',m:299.9}]});
