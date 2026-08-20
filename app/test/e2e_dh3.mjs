@@ -62,8 +62,13 @@ await page.evaluate(()=>{document.querySelector('#loc-d').value='5';});
 await page.click('#loc-go');await page.waitForTimeout(400);
 out=await page.evaluate(()=>{const el=document.querySelector('#bouclage');const ok=[...el.querySelectorAll('.okbox')].map(b=>b.textContent.replace(/\s+/g,' ')).find(t=>/depuis S-/.test(t));
   return {fromSel:!!document.querySelector('#loc-from'),dirSel:!!document.querySelector('#loc-dir'),res:ok?ok.slice(0,150):null};});
-console.log('3b) réflectomètre depuis le manchon choisi:',JSON.stringify(out));
+console.log('3b) localisation depuis le manchon choisi:',JSON.stringify(out));
 const c3b=out.fromSel&&out.dirSel&&!!out.res;
+// 3c) « Voir sur le plan » : le trajet part DU MANCHON (badge M + n°), cote = distance de fil depuis le branchement
+await page.click('#loc-show');await page.waitForTimeout(600);
+out=await page.evaluate(()=>{const g=document.querySelector('#dhG');return {tab:window.TRACE.state.tab,M:/MESURE : S-0003/.test(g.textContent),cote:/5 m ►/.test(g.textContent),lab:/défaut ≈ 5 m/.test(g.textContent),trajet:g.querySelectorAll('path').length>0};});
+console.log('3c) trajet depuis le manchon (badge M, cote 5 m):',JSON.stringify(out));
+const c3c=out.M&&out.cote&&out.lab&&out.trajet;
 // 4) fiche soudure joints[2] : 4 sous-étapes + attendu au testeur (les 2 boucles)
 await page.click('#tabbar [data-tab=plan]');await page.waitForTimeout(300);
 await page.evaluate(({line,idx2})=>{const T=window.TRACE;const L=T.lines[line];const i=L.cond.A.joints.findIndex(j=>j.idx===idx2);T.openJoint(line,'A',i);},{line:ids.line,idx2:ids.idx2});
@@ -87,8 +92,8 @@ await page.click('[data-stepundo="2"]').catch(()=>{});
 page.on('dialog',d=>d.accept());
 out=await page.evaluate(()=>({undo:!!document.querySelector('[data-stepundo="2"]')}));
 console.log('6) bouton annuler présent:',JSON.stringify(out));
-const ALL=c1&&c2a&&c2b&&c2c&&c3&&c3b&&c4&&c5;
-console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2a,c2b,c2c,c3,c3b,c4,c5}));
+const ALL=c1&&c2a&&c2b&&c2c&&c3&&c3b&&c3c&&c4&&c5;
+console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2a,c2b,c2c,c3,c3b,c3c,c4,c5}));
 console.log(logs.length?logs:'[]');
 await browser.close();
 process.exit(ALL?0:1);

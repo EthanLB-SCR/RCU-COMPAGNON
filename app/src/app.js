@@ -1281,7 +1281,7 @@ function renderBouclage(){const el=$('#bouclage');const L=state.locate;const mai
     if(refBase===null)res={ok:false,noWire:true};
     else{const dFil=(L.dir==='up')?refBase-(+L.d||0):refBase+(+L.d||0);
       res=dFil<0?{ok:false,uphill:true,total:refBase}:locate(L.line,cond,L.wire,dFil);}}
-  state.loc=res.ok?{...res,cond,lineId:L.line}:null;
+  state.loc=res.ok?{...res,cond,lineId:L.line,dFil:+L.d||0,from:useAt?{line:atRow.line,pk:atRow.pk,weldId:atRow.weldId}:null}:null; // from = manchon de branchement → le trajet dessiné part de LÀ, pas du départ de la ligne
   let mesure='';let mesCtx=null; // contexte de la boucle choisie, gardé avec chaque mesure enregistrée (le bouclage de l'instant t donne son sens à la valeur — demande Ethan 20/08)
   if(atRow){const AP=dhAtPoint(D,atRow);const up=AP.up,dn=AP.down;const tol=+state.dh.tol||5;
     // les DEUX directions, chacune avec sa propre fermeture (pont ⟲ / bout bouclé) — l'utilisateur CHOISIT la boucle qu'il mesure (carte cliquable)
@@ -1313,7 +1313,7 @@ function renderBouclage(){const el=$('#bouclage');const L=state.locate;const mai
             const res2=locate(L.line,cond,wire2,dFil);
             if(res2.ok)locBox=`<div class="warnbox" style="margin-top:6px"><b>Défaut estimé à ${fmt(x)} m de fil du point de mesure</b> (boucle ${act.dir}, fil ${wire2==='E'?'étamé':'nu'}) : ≈ <b>${esc(res2.e.id)}</b>, ${esc(res2.where)} — ${esc(res2.lineName)}, PK ${fmt(res2.phys)} m. <a href="#" id="dh-locshow" style="color:#1c3d6b;font-weight:700">Voir sur le plan (trajet + zone)</a></div>`;
             else locBox=`<div class="err" style="margin-top:6px">Distance au-delà du fil connu (${fmt(res2.total)} m).</div>`;
-            state.dhLocPending=res2.ok?{...res2,cond,lineId:L.line,dFil:x,from:atRow.weldId}:null;}}}}
+            state.dhLocPending=res2.ok?{...res2,cond,lineId:L.line,dFil:x,from:{line:atRow.line,pk:atRow.pk,weldId:atRow.weldId}}:null;}}}}
     mesCtx=act?{dir:act.dir,closure:act.kind==='temp'?'pont ⟲ '+act.row.weldId:'bout bouclé ('+(act.state==='coiffe'?'dans la coiffe':'sortie de coiffe')+')',closureId:act.kind==='temp'?act.row.weldId:'bout',expected:act.R,dE:act.dE,dN:act.dN}:null;
     const calc=act?`<details class="muted" style="font-size:12px;margin-top:6px"><summary style="cursor:pointer;color:#52514e">Le calcul, pas à pas (boucle ${act.dir})</summary>
       <div style="padding:6px 2px;line-height:1.65">Du manchon <b>${esc(atRow.weldId)}</b> jusqu'à la fermeture (${dhDirLab(act)}) :<br>
@@ -1351,8 +1351,8 @@ function renderBouclage(){const el=$('#bouclage');const L=state.locate;const mai
      <div class="muted" style="font-size:11.5px;margin-top:4px">Ligne surlignée = fin actuelle de la boucle. Lignes grisées = au-delà du premier manchon non raccordé. « ↳ » = soudure d'antenne, prise en série sur l'étamé (aller-retour compté).</div></div>
    <div class="card" id="dh-mesure"><h3 style="margin-top:0">Mesure en un point</h3>${mesure}</div>
    ${mesRows?`<div class="card"><h3 style="margin-top:0">Dernières mesures enregistrées</h3><div class="muted" style="font-size:11.5px;margin-bottom:4px">Chaque mesure garde le bouclage de l'instant t (direction, fermeture, longueurs, attendu) : la valeur reste interprétable même quand les ponts auront bougé.</div><table class="rc"><tr><th>Date</th><th>Point</th><th>Mesuré</th><th>Bouclage à l'instant t</th><th></th><th>Par</th></tr>${mesRows}</table>${(dd.mesures||[]).length>5?`<div class="muted" style="font-size:11px">${dd.mesures.length} mesures au total (les 5 dernières affichées).</div>`:''}</div>`:''}
-   <div class="card"><h3 style="margin-top:0">Localiser un défaut réflectomètre</h3>
-   <div class="muted" style="font-size:12px;margin-bottom:6px">Le réflectomètre annonce une distance le long du fil où il est branché. Dis d'où tu es branché et vers où tu vises : l'appli remonte au bon endroit du plan.</div>
+   <div class="card"><h3 style="margin-top:0">Localiser un défaut</h3>
+   <div class="muted" style="font-size:12px;margin-bottom:6px">L'appareil annonce une distance le long du fil où il est branché. Dis d'où tu es branché et vers où tu vises : l'appli remonte au bon endroit du plan.</div>
    <div class="row" style="display:flex;gap:6px;flex-wrap:wrap;align-items:end"><div style="flex:none"><label class="f">Branché à</label><select class="f" id="loc-from" style="min-width:132px">${atRow?`<option value="at" ${useAt?'selected':''}>${esc(atRow.weldId)} · choisi</option>`:''}<option value="start" ${!useAt?'selected':''}>${esc(line.start.split(' — ')[0])} · départ</option></select></div>${useAt?`<div style="flex:none"><label class="f">Je vise</label><select class="f" id="loc-dir" style="min-width:92px"><option value="down" ${L.dir!=='up'?'selected':''}>l'aval</option><option value="up" ${L.dir==='up'?'selected':''}>l'amont</option></select></div>`:''}<div style="flex:none"><label class="f">Fil</label><select class="f" id="loc-wire" style="min-width:86px"><option value="E" ${L.wire==='E'?'selected':''}>Étamé</option><option value="N" ${L.wire==='N'?'selected':''}>Nu</option></select></div><div><label class="f">Distance (m)</label><input class="f" id="loc-d" type="number" inputmode="decimal" step="0.1" value="${L.d}" style="width:96px"></div><button class="btn primary" id="loc-go" style="height:38px">Localiser</button></div>
    ${res.ok?`<div class="okbox" style="margin-top:10px"><b>≈ ${res.e.id} (${res.e.type==='barre'?'barre '+fmt(res.e.len)+' m':res.e.kind||res.e.type}), ${res.where}</b> — à ${fmt(res.fromJ)} m du manchon amont, ${fmt(res.toJ)} m du manchon aval · ${esc(res.lineName)} (PK ${fmt(res.phys)} m)${useAt?` · <span class="dim">${fmt(+L.d||0)} m depuis ${esc(atRow.weldId)} vers ${L.dir==='up'?"l'amont":"l'aval"} sur ${L.wire==='E'?"l'étamé":'le nu'}</span>`:''}. <a href="#" id="loc-show" style="color:#1c3d6b">Voir sur le plan</a></div>`
     :res.noWire?`<div class="err" style="margin-top:10px">Le fil nu ne passe pas par ce manchon (soudure d'antenne prise sur l'étamé) — branche-toi sur l'étamé.</div>`
@@ -1386,17 +1386,24 @@ function renderBouclage(){const el=$('#bouclage');const L=state.locate;const mai
 // défaut DH sur le plan : le TRAJET du fil est surligné depuis le départ de la ligne racine, la distance cotée, la zone du défaut marquée (± incertitude) — « pas juste un point »
 function renderDhOverlay(){if(!dhG)return;const r=state.loc;if(!r||!state.dhShowLoc||!state.lines[r.line]){dhG.innerHTML='';return;}
   const k=state.view.k;const l=state.lines[r.line];
-  const segsP=[];{let L2=l,m=r.phys;while(L2){segsP.unshift({l:L2,m1:m});const pm=+L2.parentM||0;L2=L2.parent&&state.lines[L2.parent]?state.lines[L2.parent]:null;m=pm;}}
-  let s='';segsP.forEach(sg=>{subAxis(sg.l,0,sg.m1).forEach(pl=>{const d=pathD(pl);
+  const segsP=[];{let L2=l,m=r.phys;while(L2){segsP.unshift({l:L2,m0:0,m1:m});const pm=+L2.parentM||0;L2=L2.parent&&state.lines[L2.parent]?state.lines[L2.parent]:null;m=pm;}}
+  // le trajet part du MANCHON DE BRANCHEMENT (r.from) quand il est connu — pas du départ de la ligne (retour Ethan 20/08)
+  if(r.from&&r.from.line){const i0=segsP.findIndex(sg=>sg.l.id===r.from.line);if(i0>=0){segsP.splice(0,i0);segsP[0].m0=r.from.pk;}}
+  let s='';segsP.forEach(sg=>{const a=Math.min(sg.m0||0,sg.m1),b=Math.max(sg.m0||0,sg.m1);subAxis(sg.l,a,b).forEach(pl=>{const d=pathD(pl);
     s+=`<path d="${d}" stroke="#fff" stroke-width="${8/k}" fill="none" stroke-linejoin="round" stroke-linecap="round" opacity=".75"/><path d="${d}" stroke="#b8560f" stroke-width="${4/k}" fill="none" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="${9/k} ${5/k}"><animate attributeName="stroke-dashoffset" values="${28/k};0" dur="1.2s" repeatCount="indefinite"/></path>`;});});
+  // point de branchement : rond bleu « M » + n° du manchon (comme la maquette validée)
+  if(r.from&&r.from.line&&state.lines[r.from.line]){const q0=posAtChainage(state.lines[r.from.line],r.from.pk);
+    s+=`<circle cx="${q0.x}" cy="${q0.y}" r="${9/k}" fill="#1c6fd6" stroke="#fff" stroke-width="${2.4/k}"/><text x="${q0.x}" y="${q0.y+3.4/k}" font-size="${9/k}" font-weight="900" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">M</text>`;
+    const lm=`MESURE : ${r.from.weldId}`;const wm=lm.length*6.2+16;
+    s+=`<g transform="translate(${q0.x} ${q0.y}) scale(${1/k})"><rect x="${-wm/2}" y="13" width="${wm}" height="16" rx="8" fill="#1c6fd6"/><text y="24.5" font-size="9.5" font-weight="700" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">${esc(lm)}</text></g>`;}
   const tolM=Math.max(3,(r.dFil||r.phys)*0.02); // incertitude ± 2 % (mini 3 m)
   subAxis(l,Math.max(0,r.phys-tolM),Math.min(l.length,r.phys+tolM)).forEach(pl=>{s+=`<path d="${pathD(pl)}" stroke="#d03b3b" stroke-width="${13/k}" fill="none" stroke-linecap="round" opacity=".25"/>`;});
   const p=posAtChainage(l,r.phys);
   s+=`<circle cx="${p.x}" cy="${p.y}" r="${14/k}" fill="#d03b3b" opacity=".2"><animate attributeName="r" values="${10/k};${18/k};${10/k}" dur="1.6s" repeatCount="indefinite"/></circle><circle cx="${p.x}" cy="${p.y}" r="${7/k}" fill="#d03b3b" stroke="#fff" stroke-width="${2.4/k}"/><text x="${p.x}" y="${p.y+3.4/k}" font-size="${9/k}" font-weight="900" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">!</text>`;
   const lab=`défaut ≈ ${fmt(r.dFil||0)} m de fil · ${r.e?r.e.id:''} · ± ${fmt(tolM)} m`;const w2=lab.length*6+16;
   s+=`<g transform="translate(${p.x} ${p.y}) scale(${1/k})"><rect x="${-w2/2}" y="-38" width="${w2}" height="17" rx="8.5" fill="#d03b3b"/><text y="-25.5" font-size="10" font-weight="800" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">${esc(lab)}</text></g>`;
-  // cote à mi-trajet sur la racine
-  if(segsP.length){const sg0=segsP[0];const mm=sg0.m1/2;const q=posAtChainage(sg0.l,mm);const cl=`${fmt(r.dFil||r.phys)} m ►`;const w3=cl.length*6.5+14;
+  // cote à mi-trajet (distance DE FIL depuis le branchement quand elle est connue)
+  if(segsP.length){const sg0=segsP[0];const mm=(Math.min(sg0.m0||0,sg0.m1)+Math.max(sg0.m0||0,sg0.m1))/2;const q=posAtChainage(sg0.l,mm);const cl=`${fmt(r.dFil||r.phys)} m ►`;const w3=cl.length*6.5+14;
     s+=`<g transform="translate(${q.x} ${q.y}) scale(${1/k})"><rect x="${-w3/2}" y="-9" width="${w3}" height="17" rx="8.5" fill="#0b0b0b" opacity=".85"/><text y="3.8" font-size="10" font-weight="800" text-anchor="middle" fill="#ffd9a8" font-family="system-ui,sans-serif">${esc(cl)}</text></g>`;}
   dhG.innerHTML=`<g style="pointer-events:none">${s}</g>`;}
 const fmt2=n=>Number(n).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2});
