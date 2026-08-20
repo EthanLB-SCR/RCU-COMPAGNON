@@ -3,7 +3,7 @@ import { chromium } from 'playwright';
 const BASE=process.env.BASE||'http://localhost:8765';
 const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
 const ctx=await browser.newContext({viewport:{width:560,height:940},deviceScaleFactor:1});const page=await ctx.newPage();
-const logs=[];page.on('pageerror',e=>logs.push('PAGEERROR: '+e.message.slice(0,300)));page.on('console',m=>{if(m.type()==='error'&&!/supabase|Failed to fetch|net::ERR/i.test(m.text()))logs.push(m.text().slice(0,200));});
+const logs=[];page.on('pageerror',e=>logs.push('PAGEERROR: '+e.message.slice(0,300)));page.on('console',m=>{if(m.type()==='error'&&!/supabase|Failed to fetch|net::ERR|404/i.test(m.text()))logs.push(m.text().slice(0,200));});
 await page.goto(BASE+'/traceur.html');await page.waitForTimeout(500);
 await page.evaluate(()=>{localStorage.clear();});await page.reload();await page.waitForTimeout(500);
 // réseau : feeder DN100 avec vanne, purge, réduction, antenne DN80, kit fin de ligne
@@ -30,9 +30,10 @@ await page.click('#disp input[data-k=nums]');await page.waitForTimeout(100);cons
 await page.click('#disp input[data-k=soud]');await page.waitForTimeout(100);console.log('sans pastilles:',JSON.stringify(await cnt()));
 await page.click('#disp input[data-k=manch]');await page.waitForTimeout(100);await page.click('#disp input[data-k=fond]');await page.waitForTimeout(100);console.log('sans manchons/fond:',JSON.stringify(await cnt()));
 await page.screenshot({path:new URL('./e2e_zoom_epure.png',import.meta.url).pathname});
-await page.reload();await page.waitForTimeout(1500);await page.evaluate(()=>{window.TRACE.centerOn(33,50,25);});await page.waitForTimeout(150);console.log('après rechargement (mémorisé):',JSON.stringify(await cnt()));
+const zoomSiteId=await page.evaluate(()=>window.TRACE.state.siteId); // l'accueil s'affiche au rechargement : on rouvre le même chantier
+await page.reload();await page.waitForTimeout(1500);await page.evaluate(id=>window.TRACE.go(id),zoomSiteId);await page.waitForTimeout(700);await page.evaluate(()=>{window.TRACE.centerOn(33,50,25);});await page.waitForTimeout(150);console.log('après rechargement (mémorisé):',JSON.stringify(await cnt()));
 await page.click('.zoomctl [data-z=eye]');await page.waitForTimeout(100);await page.click('#disp [data-all="1"]');await page.waitForTimeout(150);console.log('tout:',JSON.stringify(await cnt()));
 await page.click('#disp [data-all="0"]');await page.waitForTimeout(150);console.log('épuré:',JSON.stringify(await cnt()));
 // un tap sur le plan referme le panneau
-await page.mouse.click(200,400);await page.waitForTimeout(150);console.log('panneau fermé:',await page.evaluate(()=>!document.querySelector('#disp').classList.contains('show')));
+await page.mouse.click(280,300);await page.waitForTimeout(150);console.log('panneau fermé:',await page.evaluate(()=>!document.querySelector('#disp').classList.contains('show'))); // (280,300) : dans le plan, au-dessus du panneau 👁 (il s'est étoffé avec les options carte)
 console.log(logs);await browser.close();

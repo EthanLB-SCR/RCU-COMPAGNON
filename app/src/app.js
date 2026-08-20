@@ -6,6 +6,7 @@ import {parseDXF,parseDXFFile,analyze,buildSite,buildSiteJBTP,drawingOf,buildDra
 import {sync} from './sync.js';
 import {kv} from './kv.js';
 import {geoOfSite,planToLonLat,lonLatToPlan,tilesFor,ignTileURL,IGN_LAYERS,distLL,fmtDist,crsName,similarityFromPairs,geocode,CRS} from './geo.js';
+import {buildHydro,areaDN,needsFlow,HYDRO_DEFAULTS,PREST_LABEL} from './hydro.js';
 
 /* ============================================================
    TRACÉ v0.3 — plan d'ensemble + calque tubes/fils + bouclage
@@ -209,6 +210,7 @@ async function deleteCurrentSite(){const id=state.siteId;const net=SITES[id];if(
   delete SITES[id];delete siteStore[id];const o=[...siteSel.options].find(x=>x.value===id);if(o)o.remove();const next=Object.keys(SITES)[0];toast('Chantier supprimé — '+msg);
   if(next){siteSel.value=next;await switchSite(next);}else{location.reload();}}
 function setupSite(id){
+  state.hydroPose=null;hydroCache=null;const hb=$('#hydroBar');if(hb)hb.style.display='none';
   if(siteStore[id]){const st=siteStore[id];NET=st.NET;state.lines=st.lines;state.sheets=st.sheets;state.nextWeld=st.nextWeld;state.sheetId=st.sheetId;state.locate={...state.locate,line:st.firstLine};bgG.dataset.sheet='';return;}
   NET=SITES[id];state.lines={};state.sheets={};state.nextWeld=1;
   const sh={id:'s_'+id,name:NET.name,type:NET.sheetType||'blank',w:NET.w,h:NET.h,ppm:1,lines:[],ann:NET.ann||[],drawing:NET.drawing||null,plain:NET.source==='traceur',image:NET.image||null};state.sheets[sh.id]=sh;state.sheetId=sh.id;
@@ -259,7 +261,7 @@ function importReportHTML(){const r=NET.report||{};let h=`<h2>Rapport d'import �
   h+=`<p class="hint">Règle : rien n'est déplacé ni recoupé ; ce qui n'est pas reconnu est signalé ici, pas corrigé en silence.</p><div class="actions" style="margin-top:8px"><button class="btn primary block" data-close>Fermer</button></div>`;return h;}
 
 /* ---------- vue plan : rendu ---------- */
-const svg=$('#svg'),world=$('#world'),bgG=$('#bg'),netG=$('#net'),mkG=$('#markers'),canvas=$('#canvas'),mapG=$('#map'),gpsG=$('#gps');
+const svg=$('#svg'),world=$('#world'),bgG=$('#bg'),netG=$('#net'),mkG=$('#markers'),canvas=$('#canvas'),mapG=$('#map'),gpsG=$('#gps'),hydroG=$('#hydroG');
 // géoréférencement du chantier courant (mémorisé sur l'objet NET) : null si le plan n'a pas de coordonnées Lambert
 const geoCache=new WeakMap();function siteGeo(){if(!NET)return null;if(!geoCache.has(NET))geoCache.set(NET,geoOfSite(NET));return geoCache.get(NET);}
 /* ---------- fond de carte IGN (photo aérienne / plan IGN / cadastre) sous le plan, tuiles Web Mercator recalées dans le repère du plan ---------- */
@@ -357,6 +359,156 @@ $('#cgGo').addEventListener('click',async()=>{const C=state.calage;if(!C||C.mode
 $('#cgAddr').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#cgGo').click();}});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible'&&state.gps.watch!==null){navigator.geolocation.clearWatch(state.gps.watch);state.gps.watch=null;const b=gpsBtn();if(b)b.classList.remove('gpsOn','gpsWait');gpsG.innerHTML='';}});
 const sheet=()=>state.sheets[state.sheetId];
+/* ---------- onglet Hydraulique : prestations, sectorisation en tronçons, volumes, by-pass / kits fin de ligne, skid ---------- */
+state.hydroPose=null;let hydroCache=null;let hydroSaveT=null;
+const TCOLS=['#eb6834','#2a78d6','#0ca30c','#8a2be2','#b8860b','#d03b3b','#0b7a75','#c2185b'];
+const HYDRO_ICON={epreuve:'🧪',rincage:'🌊',passivation:'⚗️',remplissage:'💧'};
+const HYDRO_DESC={epreuve:'Mise en pression (1,3 × PS, paliers). Statique : l’eau ne circule pas.',rincage:'Circulation ≥ vitesse cible pour évacuer laitier et débris. Aller → bout → retour.',passivation:'Circulation d’une solution de traitement, temps de contact à respecter.',remplissage:'Remplissage lent par le point bas, purges hautes ouvertes, eau traitée.'};
+function hydroOf(){if(!NET||NET.id==='__vide')return null;if(!NET.hydro)NET.hydro={prest:{epreuve:true},params:{},cuts:[],water:[],fill:null,skid:null};const h=NET.hydro;h.prest=h.prest||{};h.params=h.params||{};h.cuts=h.cuts||[];h.water=h.water||[];return h;}
+function hydroParams(){const h=hydroOf();return {...HYDRO_DEFAULTS,...((h&&h.params)||{})};}
+function hydroLines(){const sh=sheet();return ((sh&&sh.lines)||[]).map(id=>state.lines[id]).filter(Boolean);}
+function hydroNorm(){return hydroLines().map(l=>{const els=(l.els||[]).map(e=>({id:e.id,kind:e.kind,dn:e.dn,m0:e.m0,m1:e.m1,len:e.len}));
+  const real=(l.els||[]).filter(e=>!e.link);const first=real[0],last=real[real.length-1];
+  const endKind=(l.els||[]).slice(-3).some(e=>e.kind==='bypass')?'bypass':(last?last.kind:'pipe');
+  let pm=l.parentM;if(pm==null&&l.parent&&state.lines[l.parent]){const P=state.lines[l.parent];const pe=(l.parentElIdx!=null&&P.els&&P.els[l.parentElIdx])||((P.els||[]).find(e=>e.branch===l.id||e.branchLine===l.id));pm=pe?((pe.m0+pe.m1)/2):0;}
+  const endWelds=[];if(last&&last.kind==='endcap'){const iE=(l.els||[]).indexOf(last);['A','R'].forEach(c=>{const cd=l.cond[c];if(!cd)return;const j=cd.joints[iE-1]||cd.joints[cd.joints.length-1];if(j)endWelds.push({weldId:j.weldId,status:j.status,cond:c});});}
+  return {id:l.id,name:l.name||l.id,length:l.length||0,nCond:l.single?1:2,els,parent:(l.parent&&state.lines[l.parent])?l.parent:null,parentM:pm||0,startKind:first?first.kind:'pipe',endKind,endWelds};});}
+function nearestOnLines(wx,wy){let best=null;hydroLines().forEach(l=>{(l.els||[]).forEach(e=>{const pl=e.axis&&e.axis[0];if(!pl||pl.length<2)return;let dAcc=0;
+  for(let i=1;i<pl.length;i++){const a=pl[i-1],b=pl[i];const vx=b.x-a.x,vy=b.y-a.y;const s2=vx*vx+vy*vy;const segL=Math.sqrt(s2);const t=s2?Math.max(0,Math.min(1,((wx-a.x)*vx+(wy-a.y)*vy)/s2)):0;
+    const px=a.x+vx*t,py=a.y+vy*t;const d=Math.hypot(wx-px,wy-py);if(!best||d<best.d)best={d,x:px,y:py,line:l.id,el:e,frac:dAcc+segL*t};dAcc+=segL;}});});
+  if(best){const pl=best.el.axis[0];best.m=best.el.m0+(best.frac/Math.max(.001,polyLen(pl)))*(best.el.m1-best.el.m0);}
+  return best;}
+function subAxis(l,ma,mb){const out=[];(l.els||[]).forEach(e=>{const a=Math.max(ma,e.m0),b=Math.min(mb,e.m1);if(b-a<=0.02)return;const pl=e.axis&&e.axis[0];if(!pl||pl.length<2)return;const L=polyLen(pl);const sp=e.m1-e.m0||1;out.push(axisSub(pl,L*(a-e.m0)/sp,L*(b-e.m0)/sp));});return out;}
+function hydroBuild(){if(hydroCache)return hydroCache;const h=hydroOf();if(!h)return null;
+  let fillAt=null;if(h.fill){const n=nearestOnLines(h.fill.x,h.fill.y);if(n)fillAt={line:n.line,m:n.m,x:n.x,y:n.y};}
+  hydroCache=buildHydro(hydroNorm(),{prest:h.prest,params:hydroParams(),cuts:h.cuts,fillAt});hydroCache.fillAt=fillAt;return hydroCache;}
+function saveHydro(){const h=hydroOf();if(!h)return;hydroCache=null;if(SITES[NET.id])SITES[NET.id].hydro=h;
+  kv.get('trace:handoff:'+NET.id).then(x=>{if(x){x.hydro=h;return kv.set('trace:handoff:'+NET.id,x);}}).catch(()=>{});
+  clearTimeout(hydroSaveT);hydroSaveT=setTimeout(async()=>{try{const {demo,...clean}=NET;const okk=await sync.saveSite(clean);if(okk){state.ownSiteWrite=Date.now();setCloudBadge('hydraulique enregistrée '+new Date().toLocaleTimeString('fr-FR'));}}catch(e){console.warn(e);}},1200);}
+const hydroCanEdit=()=>role()==='chef'||role()==='bureau';
+const HY_MSG={cut:'✂ <b>Sectoriser :</b> touche le réseau là où l’épreuve s’arrête (vanne ou soudure). Re-touche une coupe pour l’enlever.',water:'💧 <b>Point d’eau :</b> touche l’emplacement de la borne incendie / du poteau. Re-touche pour enlever.',fill:'🚰 <b>Remplissage :</b> touche l’endroit où le skid se branche au réseau.',skid:'⬛ <b>Skid :</b> touche l’emprise au sol souhaitée (↻ pour pivoter).'};
+function updateHydroBar(){const bar=$('#hydroBar');if(!bar)return;const on=!!state.hydroPose;bar.style.display=on?'flex':'none';if(!on)return;$('#hyMsg').innerHTML=HY_MSG[state.hydroPose]||'';$('#hyRot').style.display=state.hydroPose==='skid'&&hydroOf()&&hydroOf().skid?'':'none';}
+function startHydroPose(kind){if(!hydroCanEdit()){toast('Réservé au chef / bureau');return;}if(!NET||NET.id==='__vide'||!hydroLines().length){toast('Aucun réseau dans ce chantier');return;}
+  state.hydroPose=kind;hydroCache=null;state.tab='plan';closeSheet();renderAll();updateHydroBar();}
+function endHydroPose(){if(!state.hydroPose)return;state.hydroPose=null;updateHydroBar();state.tab='hydro';renderAll();}
+function hydroTap(wx,wy){const h=hydroOf();if(!h)return;const k=state.view.k;const rmR=18/k;const kind=state.hydroPose;
+  if(kind==='cut'){const hitC=h.cuts.findIndex(c=>{const l=state.lines[c.line];if(!l)return false;const p=posAtChainage(l,c.m);return Math.hypot(p.x-wx,p.y-wy)<rmR;});
+    if(hitC>=0){h.cuts.splice(hitC,1);saveHydro();toast('Coupe enlevée');renderPlan();return;}
+    const n=nearestOnLines(wx,wy);if(!n||n.d>36/k){toast('Touche le réseau (zoome si besoin)');return;}
+    h.cuts.push({line:n.line,m:+n.m.toFixed(1)});saveHydro();const H=hydroBuild();toast('Coupe posée — '+H.troncons.length+' tronçon'+(H.troncons.length>1?'s':''));renderPlan();return;}
+  if(kind==='water'){const hit=h.water.findIndex(w=>Math.hypot(w.x-wx,w.y-wy)<rmR);
+    if(hit>=0){h.water.splice(hit,1);saveHydro();toast('Point d’eau enlevé');renderPlan();return;}
+    h.water.push({x:+wx.toFixed(1),y:+wy.toFixed(1)});saveHydro();toast('Point d’eau B'+h.water.length);renderPlan();return;}
+  if(kind==='fill'){if(h.fill&&Math.hypot(h.fill.x-wx,h.fill.y-wy)<rmR){h.fill=null;saveHydro();toast('Remplissage enlevé');renderPlan();return;}
+    h.fill={x:+wx.toFixed(1),y:+wy.toFixed(1)};saveHydro();toast('Point de remplissage posé');renderPlan();return;}
+  if(kind==='skid'){h.skid={x:+wx.toFixed(1),y:+wy.toFixed(1),rot:(h.skid&&h.skid.rot)||0};saveHydro();updateHydroBar();toast('Skid posé — ↻ pour pivoter');renderPlan();return;}}
+function hydroOverlaySVG(k,mini){const H=hydroBuild();if(!H)return '';const h=hydroOf();const ppm=sheet().ppm||1;let s='';
+  H.troncons.forEach(t=>{const col=TCOLS[t.idx%TCOLS.length];t.segs.forEach(sg=>{const l=state.lines[sg.line];if(!l)return;
+    subAxis(l,sg.m0,sg.m1).forEach(pl=>{const d=pathD(pl);s+=`<path d="${d}" stroke="#fff" stroke-width="${9/k}" fill="none" stroke-linejoin="round" stroke-linecap="round" opacity=".8"/><path d="${d}" stroke="${col}" stroke-width="${5/k}" fill="none" stroke-linejoin="round" stroke-linecap="round" opacity=".9"/>`;});});});
+  if(h.skid){const P=hydroParams();const W=P.skidL*ppm,Ht=P.skidW*ppm;s+=`<g transform="translate(${h.skid.x} ${h.skid.y}) rotate(${h.skid.rot||0})"><rect x="${-W/2}" y="${-Ht/2}" width="${W}" height="${Ht}" fill="#1c6fd6" fill-opacity=".13" stroke="#1c6fd6" stroke-width="${1.6/k}" stroke-dasharray="${5/k} ${3.5/k}"/><text font-size="${Math.min(11/k,Ht*.42)}" text-anchor="middle" dominant-baseline="central" fill="#1c3d6b" font-weight="700" font-family="system-ui,sans-serif">SKID ${fmt(P.skidW)}×${fmt(P.skidL)} m</text></g>`;}
+  const badge=(x,y,txt,bg,fg,dy)=>{const w2=txt.length*6.6+16;return `<g transform="translate(${x} ${y}) scale(${1/k})"><rect x="${-w2/2}" y="${(dy||-26)}" width="${w2}" height="17" rx="8.5" fill="${bg}" opacity=".95"/><text y="${(dy||-26)+12.5}" font-size="10.5" font-weight="800" text-anchor="middle" fill="${fg}" font-family="system-ui,sans-serif">${txt}</text></g>`;};
+  const many=mini&&H.troncons.reduce((s2,t)=>s2+t.ends.filter(e=>e.need==='BP'||e.need==='KFL'||e.need==='EVAC').length,0)>10; // mini-plan chargé : pastilles seules, badges gardés pour ⚠ / 🚰
+  H.troncons.forEach(t=>{const col=TCOLS[t.idx%TCOLS.length];t.ends.forEach(en=>{const l=state.lines[en.line];if(!l||!l.length)return;
+    const p=posAtChainage(l,Math.max(0.05,Math.min(l.length-0.05,en.m)));let ox=0,oy=0;
+    if(en.type==='cut'){const up=t.segs.some(sg=>sg.line===en.line&&Math.abs(sg.m1-en.m)<1e-6);const p0=posAtChainage(l,Math.max(0,en.m-1.5)),p1=posAtChainage(l,Math.min(l.length,en.m+1.5));const nx=p1.x-p0.x,ny=p1.y-p0.y;const nl=Math.hypot(nx,ny)||1;const sg2=up?-1:1;ox=nx/nl*sg2*16/k;oy=ny/nl*sg2*16/k;}
+    const x=p.x+ox,y=p.y+oy;
+    if(en.fill){s+=`<circle cx="${x}" cy="${y}" r="${5.5/k}" fill="#1c6fd6" stroke="#fff" stroke-width="${2/k}"/>`+badge(x,y,'🚰 remplissage','#1c6fd6','#fff');return;}
+    if(en.welded&&en.need==='BP'){s+=`<circle cx="${x}" cy="${y}" r="${5.5/k}" fill="#d03b3b" stroke="#fff" stroke-width="${2/k}"/>`+badge(x,y,'⚠ soudé','#d03b3b','#fff');return;}
+    if(en.need==='BP'){s+=`<circle cx="${x}" cy="${y}" r="${5.5/k}" fill="#0b0b0b" stroke="#ffd9a8" stroke-width="${2.4/k}"/>`+(many?'':badge(x,y,'⇄ BP','#0b0b0b','#ffd9a8'));return;}
+    if(en.need==='KFL'){s+=`<circle cx="${x}" cy="${y}" r="${5/k}" fill="#fff" stroke="${col}" stroke-width="${2.2/k}"/>`+(many?'':badge(x,y,'KFL','#52514e','#fff'));return;}
+    if(en.need==='EVAC'){s+=`<circle cx="${x}" cy="${y}" r="${5/k}" fill="#fff" stroke="${col}" stroke-width="${2.2/k}"/>`+(many?'':badge(x,y,'évac. libre','#3f6480','#fff'));return;}
+    if(en.already&&!many){s+=badge(x,y,en.already==='bp'?'✓ bouclé (BP)':'✓ raccordé','#8f8d86','#fff');}});});
+  H.cuts.forEach(c=>{const l=state.lines[c.line];if(!l)return;const p=posAtChainage(l,c.m);const lab=c.valve?'coupe : vanne '+c.valve:'coupe '+(c.idx+1);const w2=lab.length*6.2+14;
+    s+=`<g><circle cx="${p.x}" cy="${p.y}" r="${11/k}" fill="#fff" stroke="#0b0b0b" stroke-width="${1.8/k}"/><text x="${p.x}" y="${p.y+4.2/k}" font-size="${12/k}" text-anchor="middle">✂</text><g transform="translate(${p.x} ${p.y}) scale(${1/k})"><rect x="${-w2/2}" y="14" width="${w2}" height="16" rx="8" fill="#0b0b0b" opacity=".85"/><text y="26" font-size="9.5" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">${esc(lab)}</text></g></g>`;});
+  (h.water||[]).forEach((w,i)=>{s+=`<g><circle cx="${w.x}" cy="${w.y}" r="${14/k}" fill="#1c6fd6" opacity=".16">${mini?'':`<animate attributeName="r" values="${11/k};${17/k};${11/k}" dur="2s" repeatCount="indefinite"/>`}</circle><circle cx="${w.x}" cy="${w.y}" r="${9/k}" fill="#1c6fd6" stroke="#fff" stroke-width="${2/k}"/><text x="${w.x}" y="${w.y+3.5/k}" font-size="${9.5/k}" text-anchor="middle" fill="#fff">💧</text><text x="${w.x}" y="${w.y-13/k}" font-size="${10.5/k}" font-weight="700" text-anchor="middle" fill="#1c3d6b" font-family="system-ui,sans-serif" paint-order="stroke" stroke="#fff" stroke-width="${3/k}">B${i+1}</text></g>`;});
+  if(h.fill){const fa=H.fillAt;if(fa&&fa.x!==undefined)s+=`<path d="M${h.fill.x} ${h.fill.y} L${fa.x} ${fa.y}" stroke="#1c6fd6" stroke-width="${2/k}" stroke-dasharray="${4/k} ${3/k}" fill="none"/>`;
+    const w2=118;s+=`<g transform="translate(${h.fill.x} ${h.fill.y}) scale(${1/k})"><rect x="${-w2/2}" y="-9" width="${w2}" height="18" rx="9" fill="#1c6fd6"/><text y="4" font-size="10" font-weight="800" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">🚰 REMPLISSAGE ICI</text></g>`;}
+  return s;}
+function renderHydroOverlay(){if(!hydroG)return;if(!state.hydroPose||!NET||NET.id==='__vide'){hydroG.innerHTML='';return;}hydroG.innerHTML=`<g style="pointer-events:none">${hydroOverlaySVG(state.view.k,false)}</g>`;}
+const fmtMin=m=>!isFinite(m)||m<=0?'—':m<1?'< 1 min':m<90?'≈ '+Math.round(m)+' min':'≈ '+Math.floor(m/60)+' h '+String(Math.round(m%60)).padStart(2,'0');
+const fmtVol=v=>(v<.95?String(Math.max(.01,Math.round(v*100)/100).toFixed(2)).replace('.',','):fmt(Math.round(v*10)/10))+' m³';
+function hydroMiniSVG(){const sh=sheet();const bb=sheetBBox(sh);const pad=Math.max(18,(bb[2]-bb[0])*.09);const x0=bb[0]-pad,y0=bb[1]-pad,w=bb[2]-bb[0]+2*pad,ht=bb[3]-bb[1]+2*pad;
+  const kk=560/Math.max(w,ht);let axes='';hydroLines().forEach(l=>{(l.els||[]).forEach(e=>{const pl=e.axis&&e.axis[0];if(pl&&pl.length>1)axes+=`<path d="${pathD(pl)}" stroke="#cfccc0" stroke-width="${11/kk}" fill="none" stroke-linejoin="round" stroke-linecap="round"/>`;});});
+  return `<svg viewBox="${x0} ${y0} ${w} ${ht}" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;max-height:430px;background:#eceade;border-radius:12px">${axes}${hydroOverlaySVG(kk,true)}</svg>`;}
+function renderHydro(){const el=$('#hydro');if(!el)return;const h=hydroOf();
+  if(!h||!hydroLines().length){el.innerHTML='<h2 class="vt">Hydraulique</h2><div class="card muted">Aucun réseau dans ce chantier — trace un réseau avec le traceur, l’onglet prépare ensuite épreuves, rinçage et remplissage.</div>';return;}
+  const H=hydroBuild();const P=H.params;const canH=hydroCanEdit();const flow=H.flow;
+  const needTag=k=>k==='epreuve'?'<span class="hyNeed">✓ kits fin de ligne suffisants</span>':'<span class="hyNeed bp">⇄ by-pass requis aux extrémités</span>';
+  const prestCard=k=>`<div class="hyCard ${h.prest[k]?'on':''}" data-p="${k}"><div style="display:flex;gap:8px;align-items:baseline"><span>${HYDRO_ICON[k]}</span><b style="font-size:14px">${PREST_LABEL[k]}</b></div><div class="muted" style="font-size:12px;margin-top:3px">${HYDRO_DESC[k]}</div>${needTag(k)}<span class="tick">${h.prest[k]?'✓':''}</span></div>`;
+  const chips=[];H.cuts.forEach((c,i)=>chips.push(`<span class="hyChip">✂ ${esc(c.valve?'coupe : vanne '+c.valve:'coupe '+(i+1))} · ${esc((state.lines[c.line]||{}).name||c.line)} pk ${fmt(c.m)}<button data-rmcut="${i}" title="enlever">✕</button></span>`));
+  (h.water||[]).forEach((w,i)=>chips.push(`<span class="hyChip">💧 B${i+1}<button data-rmwater="${i}" title="enlever">✕</button></span>`));
+  if(h.fill)chips.push(`<span class="hyChip">🚰 remplissage<button data-rmfill="1" title="enlever">✕</button></span>`);
+  if(h.skid)chips.push(`<span class="hyChip">⬛ skid ${fmt(P.skidW)}×${fmt(P.skidL)} m<button data-rmskid="1" title="enlever">✕</button></span>`);
+  const trCard=t=>{const col=TCOLS[t.idx%TCOLS.length];const dnTxt=t.dns.slice(0,3).map(d=>d[0]).join('/');
+    const nBP=t.ends.filter(e=>e.need==='BP').length,nK=t.ends.filter(e=>e.need==='KFL').length,nE=t.ends.filter(e=>e.need==='EVAC').length;
+    const pose=[];if(nBP)pose.push('<b>'+nBP+' BP</b>');if(nK)pose.push('<b>'+nK+' KFL</b>');if(nE)pose.push('<b>'+nE+' évac.</b>');if(t.hasFill)pose.push('remplissage 🚰');
+    const al=t.ends.filter(e=>e.need==='BP'&&e.welded);
+    return `<div class="hyTr"><div class="hd"><i style="width:12px;height:5px;background:${col};border-radius:2px"></i><b style="font-size:13.5px;flex:1">Tronçon ${t.idx+1} — ${t.lines.map(id=>esc((state.lines[id]||{}).name||id)).slice(0,3).join(' + ')}${t.lines.length>3?'…':''}</b><span class="muted" style="font-size:10.5px">${t.ends.length} extrémité${t.ends.length>1?'s':''}</span></div>
+    <table><tr><td class="muted">Linéaire (aller)</td><td><b>${fmt(Math.round(t.lenA))} m</b>${dnTxt?' · DN'+dnTxt:''}</td></tr>
+    <tr><td class="muted">Volume aller + retour</td><td><b>${fmtVol(t.vol)}</b></td></tr>
+    ${h.prest.rincage?`<tr><td class="muted">Rinçage ≥ ${fmt(P.vitesse)} m/s (DN${t.dnMax})</td><td><b>${fmt(Math.round(t.debit))} m³/h</b></td></tr>`:''}
+    <tr><td class="muted">Remplissage à ${fmt(P.debit)} m³/h</td><td><b>${fmtMin(t.minutes)}</b></td></tr>
+    <tr><td class="muted">À poser</td><td>${pose.length?pose.join(' · '):'—'}</td></tr>
+    ${al.map(e=>`<tr><td colspan="2" style="color:#8a1f1f;background:#fdecec">⚠ ${esc(e.label)} : bouchon déjà soudé (${e.welded.map(x=>x.weldId).join(', ')}) — un by-pass aurait été préférable${h.prest.rincage?' pour le rinçage':''}</td></tr>`).join('')}
+    </table></div>`;};
+  const tot=H.totals;const totPose=[];if(tot.nBP)totPose.push(tot.nBP+' BP');if(tot.nKFL)totPose.push(tot.nKFL+' KFL');if(tot.nEvac)totPose.push(tot.nEvac+' évac.');
+  el.innerHTML=`<h2 class="vt">Hydraulique — ${esc(NET.name)}</h2>
+  <h3 style="margin:10px 0 6px">1 · Prestations à préparer</h3>
+  ${['epreuve','rincage','passivation','remplissage'].map(prestCard).join('')}
+  ${h.prest.epreuve&&flow?'<div style="background:#fff3d6;border:1px solid #f0c76a;border-radius:10px;padding:7px 10px;font-size:12px;color:#7a5200;margin-bottom:8px"><b>Épreuve + circulation cochées</b> → la circulation impose des by-pass : autant les poser AVANT l’épreuve (ils servent aux deux).</div>':''}
+  <details style="margin:4px 0 10px"><summary class="muted" style="cursor:pointer;font-size:13px">⚙ Paramètres (réglables)</summary>
+   <div class="hyParam" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px">
+    <div><label>Vitesse de rinçage (m/s)</label><input type="number" step="0.1" min="0.2" data-hp="vitesse" value="${P.vitesse}" ${canH?'':'disabled'}></div>
+    <div><label>Débit borne / skid (m³/h)</label><input type="number" step="1" min="1" data-hp="debit" value="${P.debit}" ${canH?'':'disabled'}></div>
+    <div><label>Skid — largeur (m)</label><input type="number" step="0.5" min="1" data-hp="skidW" value="${P.skidW}" ${canH?'':'disabled'}></div>
+    <div><label>Skid — longueur (m)</label><input type="number" step="0.5" min="1" data-hp="skidL" value="${P.skidL}" ${canH?'':'disabled'}></div>
+   </div></details>
+  <h3 style="margin:10px 0 6px">2 · Sectorisation & points d’eau <span class="muted" style="font-weight:400;font-size:12px">(la pose se fait sur le plan)</span></h3>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+   <button class="hyPill" data-pose="cut" ${canH?'':'disabled'}>✂ Sectoriser${H.cuts.length?' ('+H.cuts.length+')':''}</button>
+   <button class="hyPill" data-pose="water" ${canH?'':'disabled'}>💧 Point d’eau${h.water.length?' ('+h.water.length+')':''}</button>
+   <button class="hyPill" data-pose="fill" ${canH?'':'disabled'}>🚰 Remplissage${h.fill?' ✓':''}</button>
+   <button class="hyPill" data-pose="skid" ${canH?'':'disabled'}>⬛ Skid${h.skid?' ✓':''}</button>
+  </div>
+  ${chips.length?`<div style="margin-bottom:6px">${chips.join('')}</div>`:''}
+  <div style="border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff">${hydroMiniSVG()}</div>
+  <div class="muted" style="font-size:11.5px;margin:6px 0 10px;display:flex;gap:10px;flex-wrap:wrap">${H.troncons.map(t=>`<span><i style="display:inline-block;width:11px;height:4px;background:${TCOLS[t.idx%TCOLS.length]};border-radius:2px;vertical-align:middle;margin-right:3px"></i>tronçon ${t.idx+1}</span>`).join('')}<span><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#0b0b0b;border:2px solid #ffd9a8;vertical-align:middle;margin-right:3px"></i>⇄ BP = by-pass à poser</span><span>KFL = kit fin de ligne</span><span style="color:#d03b3b">⚠ = bouchon déjà soudé</span></div>
+  ${!H.cuts.length&&H.troncons.length>1?'<div class="muted" style="font-size:11.5px;margin:-4px 0 10px">Sans coupe, chaque réseau non relié aux autres forme déjà son propre tronçon.</div>':''}
+  <h3 style="margin:10px 0 6px">3 · Récap par tronçon</h3>
+  ${H.troncons.map(trCard).join('')}
+  <div style="background:#eef1f5;border:1px solid #cdd4dd;border-radius:10px;padding:8px 10px;font-size:12.5px;color:#3f4750;margin-bottom:10px"><b>Total chantier :</b> ${fmt(Math.round(tot.lenA))} m · ${fmtVol(tot.vol)}${totPose.length?' · '+totPose.join(' · ')+' à poser':''}${tot.nAlert?` · <span style="color:#b02a2a;font-weight:700">${tot.nAlert} alerte${tot.nAlert>1?'s':''}</span>`:''}${h.skid?' · 1 skid ('+fmt(P.skidW)+'×'+fmt(P.skidL)+' m)':''}</div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px"><button class="btn" id="hyReport">📄 Rapport imprimable (PDF)</button>${canH?'<button class="btn sm" id="hyClear" style="color:#d03b3b">🗑 Tout effacer</button>':''}</div>`;
+  $$('#hydro [data-p]').forEach(c=>c.addEventListener('click',()=>{if(!canH){toast('Réservé au chef / bureau');return;}h.prest[c.dataset.p]=!h.prest[c.dataset.p];saveHydro();renderHydro();}));
+  $$('#hydro [data-hp]').forEach(inp=>inp.addEventListener('change',()=>{const v=parseFloat(String(inp.value).replace(',','.'));if(isFinite(v)&&v>0){h.params[inp.dataset.hp]=v;saveHydro();renderHydro();}}));
+  $$('#hydro [data-pose]').forEach(b=>b.addEventListener('click',()=>startHydroPose(b.dataset.pose)));
+  $$('#hydro [data-rmcut]').forEach(b=>b.addEventListener('click',()=>{if(!canH)return;h.cuts.splice(+b.dataset.rmcut,1);saveHydro();renderHydro();}));
+  $$('#hydro [data-rmwater]').forEach(b=>b.addEventListener('click',()=>{if(!canH)return;h.water.splice(+b.dataset.rmwater,1);saveHydro();renderHydro();}));
+  $$('#hydro [data-rmfill]').forEach(b=>b.addEventListener('click',()=>{if(!canH)return;h.fill=null;saveHydro();renderHydro();}));
+  $$('#hydro [data-rmskid]').forEach(b=>b.addEventListener('click',()=>{if(!canH)return;h.skid=null;saveHydro();renderHydro();}));
+  const rep=$('#hyReport');if(rep)rep.addEventListener('click',openHydroReport);
+  const clr=$('#hyClear');if(clr)clr.addEventListener('click',()=>{if(!confirm('Effacer prestations, coupes, points d’eau, remplissage et skid de ce chantier ?'))return;NET.hydro={prest:{epreuve:true},params:{},cuts:[],water:[],fill:null,skid:null};saveHydro();renderHydro();});}
+function openHydroReport(){const H=hydroBuild();const h=hydroOf();if(!H||!h)return;const P=H.params;
+  const prests=Object.keys(PREST_LABEL).filter(k=>h.prest[k]).map(k=>PREST_LABEL[k]).join(' + ')||'—';
+  const rows=H.troncons.map(t=>{const nBP=t.ends.filter(e=>e.need==='BP').length,nK=t.ends.filter(e=>e.need==='KFL').length,nE=t.ends.filter(e=>e.need==='EVAC').length;
+    const al=t.ends.filter(e=>e.need==='BP'&&e.welded).map(e=>esc(e.label)+' : bouchon soudé ('+e.welded.map(x=>x.weldId).join(', ')+')').join(' ; ');
+    return `<tr><td>T${t.idx+1} — ${t.lines.map(id=>esc((state.lines[id]||{}).name||id)).join(' + ')}</td><td>${fmt(Math.round(t.lenA))} m · DN${t.dns.slice(0,3).map(d=>d[0]).join('/')}</td><td>${fmtVol(t.vol)}</td><td>${h.prest.rincage?fmt(Math.round(t.debit))+' m³/h':'—'}</td><td>${fmtMin(t.minutes)}</td><td>${[nBP?nBP+' BP':'',nK?nK+' KFL':'',nE?nE+' évac.':'',t.hasFill?'remplissage':''].filter(Boolean).join(' · ')||'—'}</td><td style="color:#b02a2a">${al||''}</td></tr>`;}).join('');
+  const html=`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Hydraulique — ${esc(NET.name)}</title><style>
+  body{font-family:system-ui,sans-serif;color:#111;margin:28px;font-size:13px}h1{font-size:19px;margin:0 0 2px}h2{font-size:14px;margin:18px 0 6px}
+  table{border-collapse:collapse;width:100%;font-size:12px}td,th{border:1px solid #bbb;padding:5px 7px;text-align:left;vertical-align:top}th{background:#f0efe9}
+  .muted{color:#666}.np{margin:14px 0;padding:9px 16px;font-size:14px;border-radius:8px;border:1px solid #888;background:#f5f5f2;cursor:pointer}
+  @media print{.np{display:none}body{margin:8mm}}</style></head><body>
+  <button class="np" onclick="print()">🖨 Imprimer / enregistrer en PDF</button>
+  <h1>Préparation hydraulique — ${esc(NET.name)}</h1>
+  <div class="muted">Édité le ${new Date().toLocaleString('fr-FR')} — TRACÉ</div>
+  <h2>Prestations</h2><div>${esc(prests)}${H.flow?' — circulation requise : extrémités bouclées par by-pass':' — statique : kits fin de ligne suffisants'}</div>
+  <h2>Paramètres retenus</h2><div>Vitesse de rinçage ${fmt(P.vitesse)} m/s · débit borne/skid ${fmt(P.debit)} m³/h · skid ${fmt(P.skidW)} × ${fmt(P.skidL)} m</div>
+  <h2>Tronçons</h2><table><tr><th>Tronçon</th><th>Linéaire (aller)</th><th>Volume A+R</th><th>Débit rinçage</th><th>Remplissage</th><th>À poser</th><th>Alertes</th></tr>${rows}
+  <tr><th>Total</th><th>${fmt(Math.round(H.totals.lenA))} m</th><th>${fmtVol(H.totals.vol)}</th><th></th><th>${fmtMin(H.totals.vol/(P.debit||1)*60)}</th><th>${[H.totals.nBP?H.totals.nBP+' BP':'',H.totals.nKFL?H.totals.nKFL+' KFL':'',H.totals.nEvac?H.totals.nEvac+' évac.':''].filter(Boolean).join(' · ')||'—'}</th><th>${H.totals.nAlert||''}</th></tr></table>
+  ${H.cuts.length?`<h2>Coupes de sectorisation</h2><ul>${H.cuts.map((c,i)=>`<li>Coupe ${i+1} — ${esc((state.lines[c.line]||{}).name||c.line)}, pk ${fmt(c.m)} m${c.valve?' (vanne '+esc(c.valve)+', reste fermée)':''}</li>`).join('')}</ul>`:''}
+  ${(h.water||[]).length?`<div class="muted">${h.water.length} point${h.water.length>1?'s':''} d’eau repéré${h.water.length>1?'s':''} sur le plan${h.fill?' — remplissage défini':''}.</div>`:''}
+  <h2>Visa</h2><table><tr><th style="width:33%">Préparé par</th><th style="width:33%">Vérifié par</th><th>Date d’épreuve prévue</th></tr><tr><td style="height:52px"></td><td></td><td></td></tr></table>
+  </body></html>`;
+  const w=window.open('about:blank');if(!w){toast('Autorise l’ouverture de fenêtres pour le rapport');return;}w.document.write(html);w.document.close();}
 function applyView(){const {k,tx,ty}=state.view;world.setAttribute('transform',`translate(${tx} ${ty}) scale(${k})`);$('#zoominfo').textContent=`1 m ≈ ${fmt(k*sheet().ppm)} px`;}
 function sheetBBox(sh){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;sh.lines.forEach(id=>state.lines[id].els.forEach(e=>{if(!e.bbox||!isFinite(e.bbox[0])||!isFinite(e.bbox[3])||(e.bbox[2]-e.bbox[0])>3000||(e.bbox[3]-e.bbox[1])>3000)return;x0=Math.min(x0,e.bbox[0]);y0=Math.min(y0,e.bbox[1]);x1=Math.max(x1,e.bbox[2]);y1=Math.max(y1,e.bbox[3]);}));if(x0>x1){x0=0;y0=0;x1=sh.w;y1=sh.h;}return [x0,y0,x1,y1];}
 function fitView(){const sh=sheet();const cw=canvas.clientWidth||400,ch=canvas.clientHeight||500;let [x0,y0,x1,y1]=sheetBBox(sh);const m=Math.max(20,(x1-x0)*.04);x0-=m;x1+=m;y0-=m;y1+=m;const k=Math.min(cw/(x1-x0),ch/(y1-y0))*.97;state.view={k,tx:(cw-(x1-x0)*k)/2-x0*k,ty:(ch-(y1-y0)*k)/2-y0*k};applyView();}
@@ -490,12 +642,12 @@ function renderPlan(){
     const bb=sheetBBox(sh);const off=(bb[2]<vx0+20||bb[0]>vx1-20||bb[3]<vy0+20||bb[1]>vy1-20);const ob=$('#offscreen');if(ob)ob.style.display=off&&sh.lines.length?'':'none';}
   $('#legend').innerHTML=`<span><i class="bar" style="background:#c8382f"></i>aller</span><span><i class="bar" style="background:#2a5fb4"></i>retour</span>`+ORDER.map(s=>`<span><i style="${s==='a_souder'?`border-color:${STATUS[s].color};background:#fff`:`background:${STATUS[s].color};border-color:${STATUS[s].color}`}"></i>${STATUS[s].label}</span>`).join('')+`<span><i class="bar" style="background:#dfe4ea;border:1px solid #999"></i>étamé</span><span><i class="bar" style="background:#e2843a"></i>nu</span><span>${lod<3?'zoome : manchons puis détail':lod<12?'zoome pour le détail des pièces (bouts d\'acier, manchons, n°)':lod<30?'zoome encore pour les fils':'fils visibles'} · 👁 : choisir ce qui s\'affiche</span>`;
   $('#btnList').textContent=state.listMode?'Plan':'Liste';
-  renderGps();
+  renderGps();renderHydroOverlay();
 }
 
 /* ---------- pan / zoom / tap ---------- */
 const ptrs=new Map();let gesture=null;
-canvas.addEventListener('pointerdown',e=>{if(e.target.closest('.zoomctl,.legend,.zoominfo,.disp,#offscreen,#transferBar,#calageBar'))return;if($('#disp').classList.contains('show'))toggleDisp(false);canvas.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});const rect=canvas.getBoundingClientRect();
+canvas.addEventListener('pointerdown',e=>{if(e.target.closest('.zoomctl,.legend,.zoominfo,.disp,#offscreen,#transferBar,#calageBar,#hydroBar'))return;if($('#disp').classList.contains('show'))toggleDisp(false);canvas.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});const rect=canvas.getBoundingClientRect();
   if(ptrs.size===1){const tg=e.target.closest('[data-j],[data-el]');gesture={type:'pan',sx:e.clientX,sy:e.clientY,tx:state.view.tx,ty:state.view.ty,moved:false,target:tg,lx:e.clientX-rect.left,ly:e.clientY-rect.top,t0:Date.now()};
     if(state.tool&&tg){const l=state.lines[tg.dataset.line];const c=tg.dataset.cond;const eng=l&&engOf(l,c);const cels=l&&l.cond[c]?l.cond[c].els:null;if(eng&&cels&&state.toolLine===l.id&&state.toolCond===c){if(tg.dataset.el!==undefined){const el=cels[+tg.dataset.el];const r=el&&eng.roleOf(el.uid);if(r&&r.role==='block')gesture={type:'tdrag',line:l.id,cond:c,lx:e.clientX,ly:e.clientY,moved:false,target:tg};}
       else if(tg.dataset.j!==undefined){const el=cels[+tg.dataset.j];if(el)gesture={type:'jdrag',line:l.id,cond:c,uid:el.uid,sx:e.clientX,sy:e.clientY,lx:e.clientX,ly:e.clientY,moved:false,target:tg};}}}}
@@ -513,6 +665,7 @@ function endPtr(e){if(!ptrs.has(e.pointerId))return;ptrs.delete(e.pointerId);
   if(gesture&&gesture.type==='pan'&&!gesture.moved){const now=Date.now();const t=gesture.target;
     if(state.transfer&&t&&t.dataset.j!==undefined){doTransferTo(t.dataset.line,t.dataset.cond,+t.dataset.j);gesture=null;if(ptrs.size===0)scheduleRender();return;}
     if(state.calage){const v=state.view;calageTap((gesture.lx-v.tx)/v.k,(gesture.ly-v.ty)/v.k);gesture=null;if(ptrs.size===0)scheduleRender();return;}
+    if(state.hydroPose){const v=state.view;hydroTap((gesture.lx-v.tx)/v.k,(gesture.ly-v.ty)/v.k);gesture=null;if(ptrs.size===0)scheduleRender();return;}
     if(t&&t.dataset.j!==undefined)openJoint(t.dataset.line,t.dataset.cond,+t.dataset.j);
     else if(state.tracing){const v=state.view;state.tracePts.push({x:(gesture.lx-v.tx)/v.k,y:(gesture.ly-v.ty)/v.k});renderPlan();}
     else if(t&&t.dataset.el!==undefined&&state.view.k*sheet().ppm>=7)openEl(t.dataset.line,t.dataset.cond,+t.dataset.el);
@@ -527,7 +680,9 @@ $('.zoomctl').addEventListener('click',e=>{const z=e.target.dataset.z;if(!z)retu
 window.addEventListener('resize',()=>{fitView();renderPlan();});
 $('#tfCancel').addEventListener('click',endTransfer);
 $('#tfGo').addEventListener('click',()=>{const v=String($('#tfNum').value).replace(/\D/g,'');if(!v)return;let f=findWeld('S-'+v.padStart(4,'0'))||findWeld('S-'+v.padStart(3,'0'));if(!f){toast('Soudure introuvable : '+v);return;}const l=f.l,c=f.c,i=l.cond[c].joints.indexOf(f.j);doTransferTo(l.id,c,i);});
-window.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.transfer)endTransfer();if(e.key==='Escape'&&state.calage)endCalage();});
+window.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.transfer)endTransfer();if(e.key==='Escape'&&state.calage)endCalage();if(e.key==='Escape'&&state.hydroPose)endHydroPose();});
+$('#hyDone').addEventListener('click',endHydroPose);
+$('#hyRot').addEventListener('click',()=>{const h=hydroOf();if(!h||!h.skid)return;h.skid.rot=((h.skid.rot||0)+15)%360;saveHydro();renderPlan();});
 $('#disp').addEventListener('change',e=>{const k=e.target.dataset.k;if(!k)return;state.show[k]=e.target.checked;saveShow();renderDisp();renderPlan();});
 $('#disp').addEventListener('click',e=>{const cb=e.target.closest('[data-cal]');if(cb){if(cb.dataset.cal==='del'){forgetGeo();return;}startCalage();return;}const mb=e.target.closest('[data-carte]');if(mb){state.show.carte=mb.dataset.carte;saveShow();renderDisp();renderPlan();return;}const b=e.target.closest('[data-all]');if(!b)return;const on=b.dataset.all==='1';SHOW_KEYS.forEach(([k])=>{state.show[k]=on||k==='soud'||k==='fond'||k==='manch';});saveShow();renderDisp();renderPlan();});
 $('#filters').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;state.filter=c.dataset.f;renderPlan();});
@@ -929,7 +1084,7 @@ function renderRecap(){const el=$('#recap');if(!el)return;if(!NET||!Object.keys(
   $('#csvWelds').onclick=()=>{const rows=[['N°','Ligne','Conduite','DN','PK (m)','Statut','Fausse coupe (°)','Sortie de té','Même manchon que','Fils','Dernier événement','Par','Le','Photos','Note']];
     D.welds.forEach(({j,l,c,dn,pk})=>{const ev=(j.events||[]).slice(-1)[0];rows.push([j.weldId,l.name,c==='A'?'aller':'retour',dn,fmt(pk),(STATUS[j.status]||{}).label||j.status,j.fc?fmt(Math.abs(j.dev)):'',j.teeOut?'oui':'',j.sleeveWith||'',j.wire==='inversion'?'inversion':j.wire==='raccorde'?'raccordés':'',ev?ev.type:'',ev?ev.by:'',ev&&ev.at?new Date(ev.at).toLocaleString('fr-FR'):'',(j.photos||[]).length+(j.events||[]).reduce((s,e)=>s+((e.photos||[]).length),0),j.note||'']);});dl(slug+'_soudures.csv',rows);};
   $('#csvPieces').onclick=()=>{const rows=[['Pièce','DN','Quantité','Aller','Retour','ml','Référence catalogue']];D.pieces.forEach(g=>rows.push([g.lab,g.dn||'',g.n,g.nA,g.nR,g.ml?fmt(g.ml):'',g.ref||'']));dl(slug+'_pieces.csv',rows);};}
-function renderAll(){if(state.tab==='catalogue')renderCatalogue();if(state.tab==='recap')renderRecap();$$('#tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.tab===state.tab));$$('.view').forEach(v=>v.classList.toggle('active',v.id==='view-'+state.tab));renderPlan();if(state.tab==='bouclage')renderBouclage();renderListe();}
+function renderAll(){if(state.tab==='catalogue')renderCatalogue();if(state.tab==='recap')renderRecap();if(state.tab==='hydro'){hydroCache=null;renderHydro();}$$('#tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.tab===state.tab));$$('.view').forEach(v=>v.classList.toggle('active',v.id==='view-'+state.tab));renderPlan();if(state.tab==='bouclage')renderBouclage();renderListe();}
 $('#tabbar').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;state.tab=b.dataset.tab;closeSheet();renderAll();});
 const roleSel=$('#roleSel');function syncRoleSel(){roleSel.innerHTML='';if(state.profile){const o=document.createElement('option');o.value='__me';o.textContent=`${state.profile.name||state.profile.email} — ${ROLE_LABEL[state.profile.role]||state.profile.role}`;roleSel.appendChild(o);}USERS.forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=`${u.name} — ${ROLE_LABEL[u.role]}`;roleSel.appendChild(o);});roleSel.value=state.userId;}
 USERS.forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=`${u.name} — ${ROLE_LABEL[u.role]}`;roleSel.appendChild(o);});
@@ -951,7 +1106,8 @@ state.siteId=(wantSite&&SITES[wantSite])?wantSite:(lastSite&&SITES[lastSite])?la
 setupSite(state.siteId);renderAll();requestAnimationFrame(()=>{fitView();renderPlan();});
 // chantiers remis par le traceur (IndexedDB) ; ?site= ouvre directement, sinon écran d'accueil (ou connexion à la première visite)
 loadHandoffs().then(async hs=>{hs.forEach(net=>{if(isHidden(net))return;if(SITES.__vide){delete SITES.__vide;const o=[...siteSel.options].find(x=>x.value==='__vide');if(o)o.remove();}addSiteOption(net);});
-  if(wantSite){if(SITES[wantSite]){if(state.siteId!==wantSite){siteSel.value=wantSite;await switchSite(wantSite);}showScreen('site');}
+  if(wantSite){try{localStorage.setItem('trace:skipLogin','1');}catch(e){} // arrivé par le traceur : plus d'écran de connexion imposé au prochain lancement
+    if(SITES[wantSite]){if(state.siteId!==wantSite){siteSel.value=wantSite;await switchSite(wantSite);}showScreen('site');}
     else{state.pendingOpen=wantSite;showScreen('home');renderHome();toast('Chantier en cours de récupération depuis le serveur…');}}
   else{const u=await sync.user().catch(()=>null);const seen=localStorage.getItem('trace:skipLogin');
     if(u||seen){showScreen('home');}else{showScreen('login');}
@@ -1083,4 +1239,4 @@ $('#loginEmail').addEventListener('keydown',e=>{if(e.key==='Enter')$('#loginGo')
 $('#loginSkip').addEventListener('click',e=>{e.preventDefault();localStorage.setItem('trace:skipLogin','1');renderHome();showScreen('home');});
 document.addEventListener('click',e=>{if(e.target.id==='hbLogin'){e.preventDefault();showScreen('login');}});
 // poignée de débogage / tests (module ES : rien n'est global sinon)
-window.TRACE={state,USERS,role,renderAll,renderPlan,centerOn,allJoints,switchSite,openJoint,openEl,siteGeo,startCalage,calageTap,openSiteFromHome,renderHome,showScreen,geo:{planToLonLat,lonLatToPlan},go:async id=>{const t=id||Object.keys(SITES).find(k=>k!=='__vide');if(t)return openSiteFromHome(t);},get lines(){return state.lines;},get net(){return NET;}};
+window.TRACE={state,USERS,role,renderAll,renderPlan,centerOn,allJoints,switchSite,openJoint,openEl,siteGeo,startCalage,calageTap,openSiteFromHome,renderHome,showScreen,geo:{planToLonLat,lonLatToPlan},hydro:{of:hydroOf,build:hydroBuild,pose:startHydroPose,tap:hydroTap,end:endHydroPose,save:saveHydro,nearest:nearestOnLines},go:async id=>{const t=id||Object.keys(SITES).find(k=>k!=='__vide');if(t)return openSiteFromHome(t);},get lines(){return state.lines;},get net(){return NET;}};
