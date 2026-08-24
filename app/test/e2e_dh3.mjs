@@ -66,9 +66,12 @@ console.log('3b) localisation depuis le manchon choisi:',JSON.stringify(out));
 const c3b=out.fromSel&&out.dirSel&&!!out.res;
 // 3c) « Voir sur le plan » : le trajet part DU MANCHON (badge M + n°), cote = distance de fil depuis le branchement
 await page.click('#loc-show');await page.waitForTimeout(600);
-out=await page.evaluate(()=>{const g=document.querySelector('#dhG');return {tab:window.TRACE.state.tab,M:/MESURE : S-0003/.test(g.textContent),cote:/5 m ►/.test(g.textContent),lab:/défaut ≈ 5 m/.test(g.textContent),trajet:g.querySelectorAll('path').length>0};});
-console.log('3c) trajet depuis le manchon (badge M, cote 5 m):',JSON.stringify(out));
-const c3c=out.M&&out.cote&&out.lab&&out.trajet;
+out=await page.evaluate(({line,idx2})=>{const g=document.querySelector('#dhG');const T=window.TRACE;
+  const cM=g.querySelector('circle[fill="#1c6fd6"]');const to=T.lines[line].cond.A.els[idx2].to; // le badge M doit être SUR le manchon de la conduite mesurée, pas sur l'axe central
+  const dM=cM?Math.hypot(+cM.getAttribute('cx')-to.x,+cM.getAttribute('cy')-to.y):99;
+  return {tab:T.state.tab,M:/MESURE : S-0003/.test(g.textContent),cote:/5 m ►/.test(g.textContent),lab:/défaut ≈ 5 m/.test(g.textContent),trajet:g.querySelectorAll('path').length>0,dM:+dM.toFixed(2)};},{line:ids.line,idx2:ids.idx2});
+console.log('3c) trajet depuis le manchon, badge M SUR la conduite:',JSON.stringify(out));
+const c3c=out.M&&out.cote&&out.lab&&out.trajet&&out.dM<0.5;
 // 4) fiche soudure joints[2] : 4 sous-étapes + attendu au testeur (les 2 boucles)
 await page.click('#tabbar [data-tab=plan]');await page.waitForTimeout(300);
 await page.evaluate(({line,idx2})=>{const T=window.TRACE;const L=T.lines[line];const i=L.cond.A.joints.findIndex(j=>j.idx===idx2);T.openJoint(line,'A',i);},{line:ids.line,idx2:ids.idx2});

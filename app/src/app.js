@@ -6,7 +6,7 @@ import {parseDXF,parseDXFFile,analyze,buildSite,buildSiteJBTP,drawingOf,buildDra
 import {sync} from './sync.js';
 import {kv} from './kv.js';
 import {geoOfSite,planToLonLat,lonLatToPlan,tilesFor,ignTileURL,IGN_LAYERS,distLL,fmtDist,crsName,similarityFromPairs,geocode,CRS} from './geo.js';
-import {parseBL,stockLabel,stockKey,matchKey,zoneAgg,globalAgg,remainByMatch,dnOfOd} from './stock.js';
+import {parseBL,stockLabel,stockKey,matchKey,zoneAgg,globalAgg,remainByMatch,zoneStatusOf,dnOfOd,K_LABEL as STK_LABEL} from './stock.js';
 import {buildHydro,areaDN,needsFlow,HYDRO_DEFAULTS,PREST_LABEL,CAL_OPS} from './hydro.js';
 
 /* ============================================================
@@ -212,7 +212,7 @@ async function deleteCurrentSite(){const id=state.siteId;const net=SITES[id];if(
   if(next){siteSel.value=next;await switchSite(next);}else{location.reload();}}
 function setupSite(id){
   state.hydroPose=null;hydroCache=null;state.hydroMapView=null;state.osmHydrants=null;state.hydroCalStart=null;state.hydroCalMonth=null;state.hydroCalT=0;state.dhShowLoc=false;state.loc=null;state.dhLocPending=null;state.dh.at=null;state.dh.dir=null;state.dh.meas=null;state.dh.iso=null;state.dh.locVal='';const hb=$('#hydroBar');if(hb)hb.style.display='none';
-  state.stockPose=null;state.stockSel=null;const sb2=$('#stockBar');if(sb2)sb2.style.display='none';
+  state.stockPose=null;state.stockSel=null;state.stockMatSel='';const sb2=$('#stockBar');if(sb2)sb2.style.display='none';
   if(siteStore[id]){const st=siteStore[id];NET=st.NET;state.lines=st.lines;state.sheets=st.sheets;state.nextWeld=st.nextWeld;state.sheetId=st.sheetId;state.locate={...state.locate,line:st.firstLine};bgG.dataset.sheet='';return;}
   NET=SITES[id];state.lines={};state.sheets={};state.nextWeld=1;
   const sh={id:'s_'+id,name:NET.name,type:NET.sheetType||'blank',w:NET.w,h:NET.h,ppm:1,lines:[],ann:NET.ann||[],drawing:NET.drawing||null,plain:NET.source==='traceur',image:NET.image||null};state.sheets[sh.id]=sh;state.sheetId=sh.id;
@@ -865,7 +865,7 @@ function renderPlan(){
 
 /* ---------- pan / zoom / tap ---------- */
 const ptrs=new Map();let gesture=null;
-canvas.addEventListener('pointerdown',e=>{if(e.target.closest('.zoomctl,.legend,.zoominfo,.disp,#offscreen,#transferBar,#calageBar,#hydroBar,#stockBar'))return;if($('#disp').classList.contains('show'))toggleDisp(false);canvas.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});const rect=canvas.getBoundingClientRect();
+canvas.addEventListener('pointerdown',e=>{if(e.target.closest('.zoomctl,.legend,.zoominfo,.disp,#offscreen,#transferBar,#calageBar,#hydroBar,#stockBar'))return;if($('#disp').classList.contains('show'))toggleDisp(false);try{canvas.setPointerCapture(e.pointerId);}catch(e2){}ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});const rect=canvas.getBoundingClientRect();
   const stkT=e.target.closest('[data-stkh],[data-stkz]'); // zone de stockage : glisser / poignées (chef/bureau)
   if(ptrs.size===1&&stkT&&stockCanEdit()&&!state.stockPose){const zid=stkT.dataset.stkzid||stkT.dataset.stkz;gesture={type:'stk',h:stkT.dataset.stkh||'move',zid,lx:e.clientX,ly:e.clientY,rect,moved:false};return;}
   if(ptrs.size===1){const tg=e.target.closest('[data-j],[data-el]');gesture={type:'pan',sx:e.clientX,sy:e.clientY,tx:state.view.tx,ty:state.view.ty,moved:false,target:tg,lx:e.clientX-rect.left,ly:e.clientY-rect.top,t0:Date.now()};
@@ -886,7 +886,9 @@ canvas.addEventListener('pointermove',e=>{if(!ptrs.has(e.pointerId))return;ptrs.
   else if(gesture.type==='pinch'&&ptrs.size===2){const [a,b]=[...ptrs.values()];const dd=Math.hypot(a.x-b.x,a.y-b.y);const nk=Math.min(60,Math.max(.05,gesture.k0*dd/gesture.d0));const rr=nk/gesture.k0;state.view.k=nk;state.view.tx=gesture.mx-(gesture.mx-gesture.tx0)*rr;state.view.ty=gesture.my-(gesture.my-gesture.ty0)*rr;applyView();}});
 let lastTap=0;
 function endPtr(e){if(!ptrs.has(e.pointerId))return;ptrs.delete(e.pointerId);
-  if(gesture&&gesture.type==='stk'){if(gesture.moved)saveStock();else{state.stockSel=state.stockSel===gesture.zid?null:gesture.zid;const z=stockZoneById(gesture.zid);if(state.stockSel&&z)updateStockBar('Zone « '+z.name+' » — glisser pour déplacer, poignées pour étirer, ↻ pour tourner, Terminer pour sortir.');else updateStockBar(null);renderStockOverlay();}
+  if(gesture&&gesture.type==='stk'){if(gesture.moved)saveStock();else{const was=state.stockSel===gesture.zid;state.stockSel=gesture.zid;const z=stockZoneById(gesture.zid);
+      if(z){updateStockBar('Zone « '+z.name+' » — glisser pour déplacer, poignées pour étirer, ↻ pour tourner, Terminer pour sortir.');if(!was)openStockZoneModal(z.id);} // tap = fiche de la zone (reste, provenance, attendu) ; re-tap = juste l'édition
+      renderStockOverlay();}
     gesture=null;if(ptrs.size===0)scheduleRender();return;}
   if(state.tool&&gesture&&(gesture.type==='pan'||gesture.type==='tdrag'||gesture.type==='jdrag')&&!gesture.moved&&gesture.target){const t=gesture.target;const l=state.lines[t.dataset.line];
     const c=t.dataset.cond;const eng=l&&engOf(l,c);const cels=l&&l.cond[c]?l.cond[c].els:null;if(eng&&cels){activateToolLine(l.id,c);if(t.dataset.j!==undefined){const el=cels[+t.dataset.j];if(el)eng.toolTapJoint(el.uid);}else if(t.dataset.el!==undefined){const el=cels[+t.dataset.el];if(el)eng.toolTap(el.uid);}}
@@ -998,8 +1000,24 @@ function stockPickHTML(l,c,j,mode){const s=stockOf();if(!s||!s.zones.some(z=>z.s
   if(!zs.length)return '';
   return `<h3>${mode==='piece'?'Pièce prise dans quel stockage ?':'Manchon pris dans quel stockage ?'} <span class="muted" style="font-weight:400;font-size:11.5px">${esc(need.label)} — décompte en direct</span></h3>
    <div class="card" style="padding:8px">${zs.map((o,i)=>`<span class="hyChip" data-stkpick="${o.z.id}" data-stkneed="${mode}" style="cursor:pointer;margin:2px;${i===0?'border-color:#eb6834;background:#fff7f2':''}" ${i===0?'data-on="1"':''}>${esc(o.z.name)} <span class="dim" style="font-size:10px">${o.d<9e8?'à '+fmt(o.d)+' m · ':''}reste ${o.reste}</span></span>`).join('')}<span class="hyChip" data-stkpick="none" data-stkneed="${mode}" style="cursor:pointer;margin:2px">hors stock / ailleurs</span></div>`;}
-function stockDoPick(l,c,j,mode){const pick=sheetEl.querySelector('[data-stkpick][data-on="1"][data-stkneed="'+mode+'"]');if(!pick||pick.dataset.stkpick==='none')return;
-  const need=stockNeedOf(l,c,j,mode);if(need)stockTake(pick.dataset.stkpick,need,j.weldId,l.id,c,1);}
+// applique le choix de stockage ; renvoie FALSE si l'utilisateur ne confirme pas (le formulaire s'arrête pour qu'il re-choisisse)
+function stockDoPick(l,c,j,mode){const s=stockOf();const pick=sheetEl.querySelector('[data-stkpick][data-on="1"][data-stkneed="'+mode+'"]');if(!pick||!s)return true;
+  const need=stockNeedOf(l,c,j,mode);if(!need)return true;
+  const p=posAtChainage(l,l.cond[c].els[j.idx].m1);const zs=stockZonesFor(need,p.x,p.y);
+  if(pick.dataset.stkpick==='none'){ // « hors stock » alors qu'une zone l'a : on demande — sinon les stocks partent en vrille sans que personne s'en rende compte
+    if(zs.length&&!confirm('« Hors stock » choisi, alors que « '+zs[0].z.name+' » a cette pièce'+(zs[0].d<9e8?' à '+fmt(zs[0].d)+' m':'')+'.\nLa pièce ne sera décomptée nulle part — tu confirmes ?'))return false;
+    return true;}
+  if(zs.length&&zs[0].z.id!==pick.dataset.stkpick){const zp=stockZoneById(pick.dataset.stkpick);
+    if(!confirm('La zone la plus proche qui a cette pièce est « '+zs[0].z.name+' »'+(zs[0].d<9e8?' ('+fmt(zs[0].d)+' m)':'')+'.\nTu confirmes que la pièce vient de « '+(zp?zp.name:pick.dataset.stkpick)+' » ?'))return false;}
+  stockTake(pick.dataset.stkpick,need,j.weldId,l.id,c,1);
+  if(mode==='sleeve'){ // mousse PU : 1 manchon = 1 pochette (kit) sinon 1 produit A + 1 produit B — décomptés automatiquement dans la même zone
+    const zid=pick.dataset.stkpick;const agg=zoneAgg(s,zid);const mk3=k2=>matchKey({kind:k2});
+    const auto=[];const kit=agg.find(a=>a.kind==='puKit'&&a.reste>0);
+    if(kit)auto.push({key:mk3('puKit'),label:kit.label});
+    else ['puA','puB'].forEach(k2=>{const a2=agg.find(a=>a.kind===k2&&a.reste>0);if(a2)auto.push({key:mk3(k2),label:a2.label});});
+    auto.forEach(o=>s.takes.push({at:new Date().toISOString(),by:(me()||{}).name||state.userId,weldId:j.weldId,line:l.id,cond:c,zone:zid,key:o.key,label:o.label,qty:1,auto:true}));
+    if(auto.length){saveStock();toast('Mousse décomptée avec le manchon ('+auto.map(o=>o.label).join(' + ')+')');}}
+  return true;}
 function formSoudee(l,c,j){const u=me();return head(j.weldId,badge(j.status))+`<h3 style="margin-top:6px">Déclarer soudée</h3><label class="f">Soudeur</label><input class="f" readonly value="${esc(u.name)} — ${esc(u.detail)}"><label class="f">Procédé</label><select class="f" id="f-proc">${PROCEDES.map(p=>`<option value="${p[0]}">${p[1]}</option>`).join('')}</select><label class="f">N° de coulée / lot du tube (optionnel)</label><input class="f" id="f-coulee" placeholder="ex. C4187">${stockPickHTML(l,c,j,'piece')}${photoBlock()}<label class="f">Remarque</label><textarea class="f" id="f-note"></textarea>${state.err?`<div class="err">${esc(state.err)}</div>`:''}<div class="actions"><button class="btn primary block" data-act="save-soudee">Valider — passe en « Soudée »</button><button class="btn block" data-act="back">Annuler</button></div>`;}
 /* ---------- câblage d'un manchon — design validé avec Ethan (V2.3, 19/08/2026) :
    les deux bouts de tube vus de côté, l'œil un poil AU-DESSUS du tube. Chaque fil sort de la mousse à sa position
@@ -1163,9 +1181,9 @@ sheetEl.addEventListener('click',e=>{const b=e.target.closest('[data-act],[data-
   if(a==='demo-photo'){snapshotForm();state.err='';const kind=state.sheetMode==='form-manchon'?'fils':state.sheetMode==='form-soudee'?'soudure':'manchon';const label=s.kind==='el'?l.cond[s.cond].els[s.i].id:l.cond[s.cond].joints[s.i].weldId;state.pendingPhotos.push(makePhoto(label+' · photo',kind));renderSheet();return;}
   if(a==='save-el'){const el=l.cond[s.cond].els[s.i];el.note=$('#f-note',sheetEl).value;el.photos.push(...state.pendingPhotos);toast(`${el.id} enregistrée (rotation ${el.rot}°${el.flip?', retournée':''})`);closeSheet();return;}
   const j=l.cond[s.cond].joints[s.i];const val=id=>$('#'+id,sheetEl)?.value;
-  if(a==='save-soudee'){if(!state.pendingPhotos.length){snapshotForm();state.err='Ajoute au moins une photo du cordon.';renderSheet();return;}stockDoPick(l,s.cond,j,'piece');j.events.push({type:'soudee',by:state.userId,at:new Date(),pos:curPos(),data:{procede:val('f-proc'),coulee:val('f-coulee'),note:val('f-note')},photos:state.pendingPhotos});j.status='soudee';afterSave(`${j.weldId} déclarée soudée`);return;}
+  if(a==='save-soudee'){if(!state.pendingPhotos.length){snapshotForm();state.err='Ajoute au moins une photo du cordon.';renderSheet();return;}if(stockDoPick(l,s.cond,j,'piece')===false){snapshotForm();state.err='Prélèvement au stock : confirme la zone (ou choisis-en une autre).';renderSheet();return;}j.events.push({type:'soudee',by:state.userId,at:new Date(),pos:curPos(),data:{procede:val('f-proc'),coulee:val('f-coulee'),note:val('f-note')},photos:state.pendingPhotos});j.status='soudee';afterSave(`${j.weldId} déclarée soudée`);return;}
   if(a==='save-manchon'){if(!state.sw.etanch){snapshotForm();state.err='Le test d\'étanchéité doit être validé (ou signale un problème).';renderSheet();return;}if(!state.pendingPhotos.length){snapshotForm();state.err='Ajoute une photo du raccordement des fils et du manchon.';renderSheet();return;}
-    stockDoPick(l,s.cond,j,'sleeve');
+    if(stockDoPick(l,s.cond,j,'sleeve')===false){snapshotForm();state.err='Prélèvement au stock : confirme la zone (ou choisis-en une autre).';renderSheet();return;}
     const inv=state.conn.E!=='E'||state.conn.N!=='N';j.conn={...state.conn};j.cont=!!state.sw.cont;j.iso=!!state.sw.iso;j.isoVal=val('f-iso')||'';j.wire=inv?'inversion':'raccorde';if(inv)j.note='Inversion enregistrée au manchonnage';
     j.events.push({type:'manchonnee',by:state.userId,at:new Date(),pos:curPos(),data:{manchon:val('f-manchon'),etanch:true,mousse:!!state.sw.mousse,fils:true,inv,note:val('f-note')},photos:state.pendingPhotos});j.status='manchonnee';afterSave(inv?`${j.weldId} manchonnée — inversion signalée au chef`:`${j.weldId} manchonnée, fils raccordés ✓`);return;}
   if(a==='save-controle-ok'||a==='save-controle-nok'){const ok=a==='save-controle-ok';j.events.push({type:'controle',by:state.userId,at:new Date(),pos:curPos(),data:{result:ok?'OK':'NOK',mode:val('f-mode'),ref:val('f-ref'),note:val('f-note')},photos:state.pendingPhotos});j.status=ok?'controlee':'a_reprendre';afterSave(ok?`${j.weldId} contrôlée OK`:`${j.weldId} à reprendre`);return;}
@@ -1312,7 +1330,7 @@ function renderBouclage(){const el=$('#bouclage');const L=state.locate;const mai
     if(refBase===null)res={ok:false,noWire:true};
     else{const dFil=(L.dir==='up')?refBase-(+L.d||0):refBase+(+L.d||0);
       res=dFil<0?{ok:false,uphill:true,total:refBase}:locate(L.line,cond,L.wire,dFil);}}
-  state.loc=res.ok?{...res,cond,lineId:L.line,dFil:+L.d||0,from:useAt?{line:atRow.line,pk:atRow.pk,weldId:atRow.weldId}:null}:null; // from = manchon de branchement → le trajet dessiné part de LÀ, pas du départ de la ligne
+  state.loc=res.ok?{...res,cond,lineId:L.line,dFil:+L.d||0,from:useAt?{line:atRow.line,idx:atRow.idx,pk:atRow.pk,weldId:atRow.weldId}:null}:null; // from = manchon de branchement → le trajet dessiné part de LÀ, sur la conduite mesurée
   let mesure='';let mesCtx=null; // contexte de la boucle choisie, gardé avec chaque mesure enregistrée (le bouclage de l'instant t donne son sens à la valeur — demande Ethan 20/08)
   if(atRow){const AP=dhAtPoint(D,atRow);const up=AP.up,dn=AP.down;const tol=+state.dh.tol||5;
     // les DEUX directions, chacune avec sa propre fermeture (pont ⟲ / bout bouclé) — l'utilisateur CHOISIT la boucle qu'il mesure (carte cliquable)
@@ -1344,7 +1362,7 @@ function renderBouclage(){const el=$('#bouclage');const L=state.locate;const mai
             const res2=locate(L.line,cond,wire2,dFil);
             if(res2.ok)locBox=`<div class="warnbox" style="margin-top:6px"><b>Défaut estimé à ${fmt(x)} m de fil du point de mesure</b> (boucle ${act.dir}, fil ${wire2==='E'?'étamé':'nu'}) : ≈ <b>${esc(res2.e.id)}</b>, ${esc(res2.where)} — ${esc(res2.lineName)}, PK ${fmt(res2.phys)} m. <a href="#" id="dh-locshow" style="color:#1c3d6b;font-weight:700">Voir sur le plan (trajet + zone)</a></div>`;
             else locBox=`<div class="err" style="margin-top:6px">Distance au-delà du fil connu (${fmt(res2.total)} m).</div>`;
-            state.dhLocPending=res2.ok?{...res2,cond,lineId:L.line,dFil:x,from:{line:atRow.line,pk:atRow.pk,weldId:atRow.weldId}}:null;}}}}
+            state.dhLocPending=res2.ok?{...res2,cond,lineId:L.line,dFil:x,from:{line:atRow.line,idx:atRow.idx,pk:atRow.pk,weldId:atRow.weldId}}:null;}}}}
     mesCtx=act?{dir:act.dir,closure:act.kind==='temp'?'pont ⟲ '+act.row.weldId:'bout bouclé ('+(act.state==='coiffe'?'dans la coiffe':'sortie de coiffe')+')',closureId:act.kind==='temp'?act.row.weldId:'bout',expected:act.R,dE:act.dE,dN:act.dN}:null;
     const calc=act?`<details class="muted" style="font-size:12px;margin-top:6px"><summary style="cursor:pointer;color:#52514e">Le calcul, pas à pas (boucle ${act.dir})</summary>
       <div style="padding:6px 2px;line-height:1.65">Du manchon <b>${esc(atRow.weldId)}</b> jusqu'à la fermeture (${dhDirLab(act)}) :<br>
@@ -1414,27 +1432,44 @@ function renderBouclage(){const el=$('#bouclage');const L=state.locate;const mai
   const dls=$('#dh-locshow');if(dls)dls.onclick=ev=>{ev.preventDefault();const r=state.dhLocPending;if(!r)return;state.loc=r;state.dhShowLoc=true;state.tab='plan';renderAll();const l=state.lines[r.line];const p=posAtChainage(l,r.phys);centerOn(p.x,p.y,Math.max(state.view.k,10/(l.ppm||1)));toast('Défaut affiché : trajet + zone (± incertitude) sur le plan');};
   $('#loc-go').onclick=()=>{state.locate={...state.locate,line:$('#bl-line').value,cond:$('#bl-cond').value,wire:$('#loc-wire').value,d:parseFloat($('#loc-d').value.replace(',','.'))||0};renderBouclage();};
   const sh=$('#loc-show');if(sh)sh.onclick=ev=>{ev.preventDefault();const r=state.loc;state.dhShowLoc=true;const l=state.lines[r.line];state.tab='plan';renderAll();const p=posAtChainage(l,r.phys);centerOn(p.x,p.y,Math.max(state.view.k,14/l.ppm));toast('Défaut affiché : trajet + zone sur le plan (se retire en changeant de chantier ou via la fiche)');};}
+// position sur LA CONDUITE (pas l'axe central de la ligne) à un chaînage donné — le fil suit le tube mesuré, pas le milieu de la tranchée (retour Ethan 20/08 : « ça part du tube d'à côté »)
+function condPos(l,c,m){const cd=l&&l.cond&&l.cond[c];if(!cd||!cd.els.length)return posAtChainage(l,m);
+  const els=cd.els;let e=els.find(x=>m>=x.m0&&m<=x.m1)||(m<els[0].m0?els[0]:els[els.length-1]);
+  const t=(e.m1>e.m0)?Math.min(1,Math.max(0,(m-e.m0)/(e.m1-e.m0))):0;
+  const pts=[];(e.axis&&e.axis.length?e.axis:[[e.from,e.to]]).forEach(pl=>pl.forEach(p=>pts.push(Array.isArray(p)?{x:p[0],y:p[1]}:p)));
+  if(pts.length<2)return pts[0]||posAtChainage(l,m);
+  const seg=[];let L2=0;for(let i=1;i<pts.length;i++){const d=Math.hypot(pts[i].x-pts[i-1].x,pts[i].y-pts[i-1].y);seg.push(d);L2+=d;}
+  let target=t*L2;for(let i=1;i<pts.length;i++){if(target<=seg[i-1]||i===pts.length-1){const u=seg[i-1]?Math.min(1,target/seg[i-1]):0;return {x:pts[i-1].x+(pts[i].x-pts[i-1].x)*u,y:pts[i-1].y+(pts[i].y-pts[i-1].y)*u};}target-=seg[i-1];}
+  return pts[pts.length-1];}
+// portion d'axe de la CONDUITE entre deux chaînages (pièces entières + bords échantillonnés)
+function condSubAxis(l,c,a,b){const cd=l&&l.cond&&l.cond[c];if(!cd||!cd.els.length)return subAxis(l,Math.min(a,b),Math.max(a,b));
+  const lo=Math.min(a,b),hi=Math.max(a,b);const pts=[];
+  cd.els.forEach(e=>{if(e.m1<=lo||e.m0>=hi)return;
+    if(e.m0>=lo&&e.m1<=hi){(e.axis&&e.axis.length?e.axis:[[e.from,e.to]]).forEach(pl=>pl.forEach(p=>pts.push(Array.isArray(p)?{x:p[0],y:p[1]}:p)));}
+    else{const m0=Math.max(lo,e.m0),m1=Math.min(hi,e.m1);const n=Math.max(2,Math.ceil((m1-m0)/1.5));for(let i=0;i<=n;i++)pts.push(condPos(l,c,m0+(m1-m0)*i/n));}});
+  return pts.length>1?[pts]:[];}
 // défaut DH sur le plan : le TRAJET du fil est surligné depuis le départ de la ligne racine, la distance cotée, la zone du défaut marquée (± incertitude) — « pas juste un point »
 function renderDhOverlay(){if(!dhG)return;const r=state.loc;if(!r||!state.dhShowLoc||!state.lines[r.line]){dhG.innerHTML='';return;}
   const k=state.view.k;const l=state.lines[r.line];
   const segsP=[];{let L2=l,m=r.phys;while(L2){segsP.unshift({l:L2,m0:0,m1:m});const pm=+L2.parentM||0;L2=L2.parent&&state.lines[L2.parent]?state.lines[L2.parent]:null;m=pm;}}
   // le trajet part du MANCHON DE BRANCHEMENT (r.from) quand il est connu — pas du départ de la ligne (retour Ethan 20/08)
   if(r.from&&r.from.line){const i0=segsP.findIndex(sg=>sg.l.id===r.from.line);if(i0>=0){segsP.splice(0,i0);segsP[0].m0=r.from.pk;}}
-  let s='';segsP.forEach(sg=>{const a=Math.min(sg.m0||0,sg.m1),b=Math.max(sg.m0||0,sg.m1);subAxis(sg.l,a,b).forEach(pl=>{const d=pathD(pl);
+  const cnd=r.cond||'A';
+  let s='';segsP.forEach(sg=>{const a=Math.min(sg.m0||0,sg.m1),b=Math.max(sg.m0||0,sg.m1);condSubAxis(sg.l,cnd,a,b).forEach(pl=>{const d=pathD(pl);
     s+=`<path d="${d}" stroke="#fff" stroke-width="${8/k}" fill="none" stroke-linejoin="round" stroke-linecap="round" opacity=".75"/><path d="${d}" stroke="#b8560f" stroke-width="${4/k}" fill="none" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="${9/k} ${5/k}"><animate attributeName="stroke-dashoffset" values="${28/k};0" dur="1.2s" repeatCount="indefinite"/></path>`;});});
-  // point de branchement : rond bleu « M » + n° du manchon (comme la maquette validée)
-  if(r.from&&r.from.line&&state.lines[r.from.line]){const q0=posAtChainage(state.lines[r.from.line],r.from.pk);
+  // point de branchement : rond bleu « M » + n° du manchon, posé EXACTEMENT sur le manchon de la conduite mesurée
+  if(r.from&&r.from.line&&state.lines[r.from.line]){const jl=state.lines[r.from.line];const q0=(r.from.idx!==undefined&&jl.cond&&jl.cond[cnd])?jointPos(jl,r.from.idx,cnd):condPos(jl,cnd,r.from.pk);
     s+=`<circle cx="${q0.x}" cy="${q0.y}" r="${9/k}" fill="#1c6fd6" stroke="#fff" stroke-width="${2.4/k}"/><text x="${q0.x}" y="${q0.y+3.4/k}" font-size="${9/k}" font-weight="900" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">M</text>`;
     const lm=`MESURE : ${r.from.weldId}`;const wm=lm.length*6.2+16;
     s+=`<g transform="translate(${q0.x} ${q0.y}) scale(${1/k})"><rect x="${-wm/2}" y="13" width="${wm}" height="16" rx="8" fill="#1c6fd6"/><text y="24.5" font-size="9.5" font-weight="700" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">${esc(lm)}</text></g>`;}
   const tolM=Math.max(3,(r.dFil||r.phys)*0.02); // incertitude ± 2 % (mini 3 m)
-  subAxis(l,Math.max(0,r.phys-tolM),Math.min(l.length,r.phys+tolM)).forEach(pl=>{s+=`<path d="${pathD(pl)}" stroke="#d03b3b" stroke-width="${13/k}" fill="none" stroke-linecap="round" opacity=".25"/>`;});
-  const p=posAtChainage(l,r.phys);
+  condSubAxis(l,cnd,Math.max(0,r.phys-tolM),Math.min(l.length,r.phys+tolM)).forEach(pl=>{s+=`<path d="${pathD(pl)}" stroke="#d03b3b" stroke-width="${13/k}" fill="none" stroke-linecap="round" opacity=".25"/>`;});
+  const p=condPos(l,cnd,r.phys);
   s+=`<circle cx="${p.x}" cy="${p.y}" r="${14/k}" fill="#d03b3b" opacity=".2"><animate attributeName="r" values="${10/k};${18/k};${10/k}" dur="1.6s" repeatCount="indefinite"/></circle><circle cx="${p.x}" cy="${p.y}" r="${7/k}" fill="#d03b3b" stroke="#fff" stroke-width="${2.4/k}"/><text x="${p.x}" y="${p.y+3.4/k}" font-size="${9/k}" font-weight="900" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">!</text>`;
   const lab=`défaut ≈ ${fmt(r.dFil||0)} m de fil · ${r.e?r.e.id:''} · ± ${fmt(tolM)} m`;const w2=lab.length*6+16;
   s+=`<g transform="translate(${p.x} ${p.y}) scale(${1/k})"><rect x="${-w2/2}" y="-38" width="${w2}" height="17" rx="8.5" fill="#d03b3b"/><text y="-25.5" font-size="10" font-weight="800" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">${esc(lab)}</text></g>`;
   // cote à mi-trajet (distance DE FIL depuis le branchement quand elle est connue)
-  if(segsP.length){const sg0=segsP[0];const mm=(Math.min(sg0.m0||0,sg0.m1)+Math.max(sg0.m0||0,sg0.m1))/2;const q=posAtChainage(sg0.l,mm);const cl=`${fmt(r.dFil||r.phys)} m ►`;const w3=cl.length*6.5+14;
+  if(segsP.length){const sg0=segsP[0];const mm=(Math.min(sg0.m0||0,sg0.m1)+Math.max(sg0.m0||0,sg0.m1))/2;const q=condPos(sg0.l,cnd,mm);const cl=`${fmt(r.dFil||r.phys)} m ►`;const w3=cl.length*6.5+14;
     s+=`<g transform="translate(${q.x} ${q.y}) scale(${1/k})"><rect x="${-w3/2}" y="-9" width="${w3}" height="17" rx="8.5" fill="#0b0b0b" opacity=".85"/><text y="3.8" font-size="10" font-weight="800" text-anchor="middle" fill="#ffd9a8" font-family="system-ui,sans-serif">${esc(cl)}</text></g>`;}
   dhG.innerHTML=`<g style="pointer-events:none">${s}</g>`;}
 const fmt2=n=>Number(n).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -1459,8 +1494,21 @@ function stockZonesFor(need,wx,wy){const s=stockOf();if(!s)return [];const mk=ma
     let reste=0;agg.forEach(a=>{if(matchKey(a)===mk)reste+=a.reste;else if((need.kind==='sleeve')&&(a.kind==='sleeve'||a.kind==='sleeveEnd')&&a.gaine&&need.casing&&Math.abs(a.gaine-need.casing)<=6)reste+=a.reste;});
     return {z,reste,d:(isFinite(wx)&&isFinite(z.x))?Math.hypot(z.x-wx,z.y-wy):1e9};}).filter(o=>o.reste>0).sort((a,b)=>a.d-b.d);}
 function stockTakeKeyFor(need){const s=stockOf();return matchKey(need);}
-// enregistre un prélèvement (1 pièce) dans une zone ; label = libellé humain
-function stockTake(zoneId,need,weldId,lineId,cond2,qty){const s=stockOf();if(!s)return;s.takes.push({at:new Date().toISOString(),by:(me()||{}).name||state.userId,weldId,line:lineId,cond:cond2,zone:zoneId,key:matchKey(need),label:need.label||stockLabel(need),qty:qty||1});saveStock();}
+// enregistre un prélèvement (1 pièce) dans une zone — TRAÇABILITÉ CAMION : imputé au plus ancien camion encore en stock ici pour cette référence (FIFO)
+function stockTake(zoneId,need,weldId,lineId,cond2,qty){const s=stockOf();if(!s)return null;const key=matchKey(need);
+  let liv=null;{const lots=s.lots.filter(l2=>l2.zone===zoneId&&!l2.pend&&matchKey(l2)===key);
+    const consumed=s.takes.filter(t=>t.zone===zoneId&&t.key===key).reduce((a,t)=>a+(t.qty||1),0);
+    let acc=0;for(const l2 of lots){acc+=l2.qty;if(consumed<acc){liv=l2.liv||null;break;}}}
+  const take={at:new Date().toISOString(),by:(me()||{}).name||state.userId,weldId,line:lineId,cond:cond2,zone:zoneId,key,label:need.label||stockLabel(need),qty:qty||1,liv};
+  s.takes.push(take);saveStock();return take;}
+// reste par CAMION dans une zone (FIFO par référence) — « d'où viennent les pièces encore posées là »
+function livBreakdown(s,zoneId){const per={};const keys=new Set(s.lots.filter(l2=>l2.zone===zoneId).map(l2=>matchKey(l2)));
+  keys.forEach(key=>{const lots=s.lots.filter(l2=>l2.zone===zoneId&&matchKey(l2)===key);
+    let consumed=s.takes.filter(t=>t.zone===zoneId&&t.key===key).reduce((a,t)=>a+(t.qty||1),0);
+    lots.forEach(l2=>{const lv=l2.liv||'—';per[lv]=per[lv]||{rest:0,pend:0};
+      if(l2.pend){per[lv].pend+=l2.qty;return;}
+      const eat=Math.min(consumed,l2.qty);consumed-=eat;per[lv].rest+=l2.qty-eat;});});
+  return per;}
 function stockDropTakes(weldId){const s=stockOf();if(!s)return;const n0=s.takes.length;s.takes=s.takes.filter(t=>t.weldId!==weldId);if(s.takes.length!==n0)saveStock();}
 /* ----- pose / édition d'une zone sur le plan ----- */
 function startStockPose(opt){state.stockPose=opt||{};state.tab='plan';closeSheet();renderAll();updateStockBar('Touche le plan à l\'endroit du déchargement : la zone (13 × 3 m) se pose là, puis ajuste-la (glisser · poignées · ↻).');}
@@ -1472,16 +1520,16 @@ function stockTap(wx,wy){const s=stockOf();if(!s)return;const P=state.stockPose|
   state.stockPose=null;state.stockSel=z.id;saveStock();renderPlan();updateStockBar('Zone « '+z.name+' » posée — glisse-la, étire-la (poignées), tourne (↻), puis Terminer.');}
 function renderStockOverlay(){if(!stockG)return;const s=NET&&NET.stock;if(!s||!s.zones||!s.zones.length||!state.show.fond&&false){stockG.innerHTML='';if(!s||!s.zones.length)return;}
   const k=state.view.k;let out='';
-  s.zones.forEach(z=>{const sel=state.stockSel===z.id;const agg=zoneAgg(s,z.id);const reste=agg.reduce((t,a)=>t+Math.max(0,a.reste),0);
-    const col=z.status==='ok'?'#0ca30c':'#c9a227';const fill=z.status==='ok'?'rgba(12,163,12,.18)':'rgba(201,162,39,.14)';
+  s.zones.forEach(z=>{const sel=state.stockSel===z.id;const agg=zoneAgg(s,z.id);const reste=agg.reduce((t,a)=>t+Math.max(0,a.reste),0);const pend=agg.reduce((t,a)=>t+(a.pend||0),0);
+    const st4=zoneStatusOf(s,z);const col=st4==='ok'?'#0ca30c':'#c9a227';const fill=st4==='ok'?'rgba(12,163,12,.18)':'rgba(201,162,39,.14)';
     out+=`<g transform="translate(${z.x} ${z.y}) rotate(${z.rot||0})">
-      <rect x="${-z.w/2}" y="${-z.h/2}" width="${z.w}" height="${z.h}" rx="${Math.min(1,z.h/6)}" fill="${fill}" stroke="${col}" stroke-width="${2.2/k}" ${z.status==='ok'?'':`stroke-dasharray="${6/k} ${4/k}"`} data-stkz="${z.id}" style="cursor:pointer"/>
+      <rect x="${-z.w/2}" y="${-z.h/2}" width="${z.w}" height="${z.h}" rx="${Math.min(1,z.h/6)}" fill="${fill}" stroke="${col}" stroke-width="${2.2/k}" ${st4==='ok'?'':`stroke-dasharray="${6/k} ${4/k}"`} data-stkz="${z.id}" style="cursor:pointer"/>
       ${sel?`<rect x="${-z.w/2}" y="${-z.h/2}" width="${z.w}" height="${z.h}" fill="none" stroke="#0b0b0b" stroke-width="${1.2/k}" stroke-dasharray="${3/k} ${3/k}" style="pointer-events:none"/>
         <circle cx="${z.w/2}" cy="0" r="${7/k}" fill="#fff" stroke="#0b0b0b" stroke-width="${2/k}" data-stkh="w" data-stkzid="${z.id}" style="cursor:ew-resize"/>
         <circle cx="0" cy="${z.h/2}" r="${7/k}" fill="#fff" stroke="#0b0b0b" stroke-width="${2/k}" data-stkh="h" data-stkzid="${z.id}" style="cursor:ns-resize"/>
         <circle cx="0" cy="${-z.h/2-14/k}" r="${7/k}" fill="#eb6834" stroke="#fff" stroke-width="${2/k}" data-stkh="rot" data-stkzid="${z.id}" style="cursor:grab"/>`:''}
     </g>`;
-    const lab=`${z.name} · ${z.status==='ok'?stkFmtQ(reste)+' pcs':'prévu'}`;const wl=lab.length*6.4+16;
+    const lab=`${z.name} · ${st4==='ok'?stkFmtQ(reste)+' pcs'+(pend?' (+'+stkFmtQ(pend)+' attendues)':''):'prévu · '+stkFmtQ(pend)+' pcs attendues'}`;const wl=lab.length*6.4+16;
     out+=`<g transform="translate(${z.x} ${z.y - (Math.abs(z.h/2*Math.cos((z.rot||0)*Math.PI/180))+Math.abs(z.w/2*Math.sin((z.rot||0)*Math.PI/180)))}) scale(${1/k})" style="pointer-events:none"><rect x="${-wl/2}" y="-26" width="${wl}" height="17" rx="8.5" fill="${col}" opacity=".92"/><text y="-13.5" font-size="10" font-weight="800" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">${esc(lab)}</text></g>`;});
   stockG.innerHTML=out;}
 /* ----- onglet Stock ----- */
@@ -1495,10 +1543,13 @@ function stockNeeds(){const need={};const lab={};Object.values(state.lines).forE
     if(o){const k=matchKey(o);need[k]=(need[k]||0)+1;lab[k]=stockLabel({...o,len:12});}});
   const seenSl=new Set();cd.joints.forEach(j=>{if(j.sleeveWith&&seenSl.has(j.weldId))return;if(j.sleeveWith)seenSl.add(j.sleeveWith);const e=cd.els[j.idx];const o={kind:'sleeve',dn:+((e&&e.dn)||l.dn)};const k=matchKey(o);need[k]=(need[k]||0)+1;lab[k]=stockLabel(o);});});});return {need,lab};}
 // vue « matière » : réseau gris = posé, vert = posable avec le stock restant, orange fin = pas couvert
-function stockMatSVG(){const s=stockOf();if(!s)return '';const rem=remainByMatch(s);let nb=null;
-  Object.values(state.lines).forEach(l=>{(l.pts||[]).forEach(p=>{if(!nb)nb=[p.x,p.y,p.x,p.y];else{nb[0]=Math.min(nb[0],p.x);nb[1]=Math.min(nb[1],p.y);nb[2]=Math.max(nb[2],p.x);nb[3]=Math.max(nb[3],p.y);}});});
+function stockMatSVG(rootId){const s=stockOf();if(!s)return '';const rem=remainByMatch(s);let nb=null;
+  // zoom par tronçon : la ligne principale choisie + toutes ses antennes (chaîne des parents) — la vue globale ne dit rien sur un chantier de 30 camions
+  const inSel=l=>{if(!rootId)return true;let L2=l;for(let g=0;g<8&&L2;g++){if(L2.id===rootId)return true;L2=L2.parent&&state.lines[L2.parent]?state.lines[L2.parent]:null;}return false;};
+  const SEL=Object.values(state.lines).filter(inSel);
+  SEL.forEach(l=>{(l.pts||[]).forEach(p=>{if(!nb)nb=[p.x,p.y,p.x,p.y];else{nb[0]=Math.min(nb[0],p.x);nb[1]=Math.min(nb[1],p.y);nb[2]=Math.max(nb[2],p.x);nb[3]=Math.max(nb[3],p.y);}});});
   if(!nb)return '<div class="muted">Aucune ligne.</div>';const pad=Math.max(8,(nb[2]-nb[0])*.05);const vb=[nb[0]-pad,nb[1]-pad,nb[2]-nb[0]+2*pad,nb[3]-nb[1]+2*pad];const sw=Math.max(vb[2],vb[3])/220;
-  const lines=Object.values(state.lines).map(l=>{const cd=l.cond.A||l.cond.R;if(!cd)return null;const els=cd.els,joints=cd.joints;
+  const lines=SEL.map(l=>{const cd=l.cond.A||l.cond.R;if(!cd)return null;const els=cd.els,joints=cd.joints;
     const posed=els.map((e,i)=>{const jA=joints.find(j=>j.idx===i-1),jB=joints.find(j=>j.idx===i);return !!((jA&&jA.status!=='a_souder')||(jB&&jB.status!=='a_souder'));});
     const pct=posed.filter(Boolean).length/(els.length||1);return {l,els,posed,pct};}).filter(Boolean).sort((a,b)=>b.pct-a.pct);
   let mlOk=0,mlNo=0;let sPo='',sOk='',sNo='';
@@ -1516,48 +1567,88 @@ function stockMatSVG(){const s=stockOf();if(!s)return '';const rem=remainByMatch
 function renderStock(){const el=$('#stock');const s=stockOf();
   if(!s){el.innerHTML='<h2 class="vt">Stock — pièces pré-isolées</h2><div class="card muted">Aucun chantier.</div>';return;}
   const canE=stockCanEdit();
+  const livName=id=>{const v=s.livs.find(x=>x.id===id);return v?v.label+(v.bl?' · '+v.bl:''):'—';};
+  const nPrevu=s.livs.filter(v=>v.status==='prevu').length;const nEcarts=s.livs.reduce((t,v)=>t+((v.ecarts||[]).length?1:0),0);
+  // ----- registre des livraisons / BL (même les « fictifs » saisis au catalogue) : la trace de chaque camion -----
+  const livRow=v=>{const zs=[...new Set(s.lots.filter(l2=>l2.liv===v.id).map(l2=>l2.zone))].map(zid=>(stockZoneById(zid)||{}).name||zid);
+    const rest=s.zones.reduce((t,z)=>{const b=livBreakdown(s,z.id)[v.id];return t+(b?b.rest:0);},0);
+    const pend=s.lots.filter(l2=>l2.liv===v.id&&l2.pend).reduce((t,l2)=>t+l2.qty,0);
+    return `<tr><td><b>${esc(v.label)}</b>${v.bl?`<br><span class="dim" style="font-size:10.5px">BL ${esc(v.bl)}</span>`:''}</td>
+     <td>${esc(new Date(v.at).toLocaleDateString('fr-FR'))}</td>
+     <td>${v.status==='prevu'?'<span class="hyChip" style="border-color:#c9a227;font-size:10px;padding:1px 7px">attendu</span>':'<span class="hyChip" style="border-color:#9fd49f;font-size:10px;padding:1px 7px">déchargé</span>'}${(v.ecarts||[]).length?` <span class="hyChip" style="border-color:#e8a0a0;color:#8a1f1f;font-size:10px;padding:1px 7px">⚠ ${v.ecarts.length}</span>`:''}</td>
+     <td style="font-size:11px">${zs.map(esc).join('<br>')||'—'}</td>
+     <td>${v.status==='prevu'?stkFmtQ(pend)+' att.':'<b>'+stkFmtQ(rest)+'</b>'}</td>
+     <td style="white-space:nowrap">${canE&&v.status==='prevu'?`<button class="btn sm primary" data-stkunload="${v.id}">Pointage</button> <button class="btn sm" data-stkpresplit="${v.id}" title="répartir sur plusieurs zones AVANT l'arrivée — le pointage validera le tout">⇄</button>`:''}${v.status!=='prevu'?`<button class="btn sm" data-stkcr="${v.id}">📄 CR</button>`:''}</td></tr>`;};
+  // ----- carte compacte d'une zone (dépliable — un chantier peut avoir 30 camions) -----
   const zoneCard=z=>{const agg=zoneAgg(s,z.id).sort((a,b)=>String(a.label).localeCompare(String(b.label)));
+    const reste=agg.reduce((t,a)=>t+Math.max(0,a.reste),0);const pend=agg.reduce((t,a)=>t+(a.pend||0),0);const st4=zoneStatusOf(s,z);
     const rows=agg.map(a=>{const pc=a.qty?Math.max(0,Math.min(100,Math.round(100*a.reste/a.qty))):0;
-      return `<tr><td>${esc(a.label)}</td><td>${stkFmtQ(a.qty)}</td><td>${stkFmtQ(a.taken)}</td><td><b>${stkFmtQ(a.reste)}</b><div class="stbar"><i class="${pc<25?'low':''}" style="width:${pc}%"></i></div></td></tr>`;}).join('');
-    const liv=s.livs.find(v=>v.id===z.liv);
-    return `<div class="card" style="border-left:4px solid ${z.status==='ok'?'#0ca30c':'#c9a227'}">
-     <h3 style="margin:0 0 2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">${esc(z.name)} <span class="hyChip" style="border-color:${z.status==='ok'?'#9fd49f':'#c9a227'};font-size:10.5px">${z.status==='ok'?'déchargée':'prévue'}${z.at?' · '+new Date(z.at).toLocaleDateString('fr-FR'):''}</span>${liv&&liv.ecarts&&liv.ecarts.length?`<span class="hyChip" style="border-color:#e8a0a0;color:#8a1f1f;font-size:10.5px">⚠ ${liv.ecarts.length} écart${liv.ecarts.length>1?'s':''} BL</span>`:''}</h3>
-     <div class="dim" style="font-size:11px">${liv?esc(liv.label)+(liv.bl?' · BL '+esc(liv.bl):''):''} · ${fmt(z.w)} × ${fmt(z.h)} m${(z.photos||[]).length?' · 📷 '+z.photos.length:''}</div>
-     ${agg.length?`<div style="overflow:auto"><table class="rc" style="margin-top:4px"><tr><th></th><th>livré</th><th>pris</th><th>reste</th></tr>${rows}</table></div>`:'<div class="dim" style="font-size:12px;margin-top:4px">Contenu attendu au déchargement (voir la livraison).</div>'}
+      return `<tr><td>${esc(a.label)}</td><td>${stkFmtQ(a.qty)}${a.pend?` <span class="dim" style="font-size:10px">(+${stkFmtQ(a.pend)} att.)</span>`:''}</td><td>${stkFmtQ(a.taken)}</td><td><b>${stkFmtQ(a.reste)}</b><div class="stbar"><i class="${pc<25?'low':''}" style="width:${pc}%"></i></div></td></tr>`;}).join('');
+    const bd2=livBreakdown(s,z.id);const prov=Object.entries(bd2).filter(([,o])=>o.rest>0||o.pend>0).map(([lv,o])=>`<span class="hyChip" style="font-size:10.5px" title="reste issu de ce camion (transferts suivis)">${esc(livName(lv))} : ${o.rest?stkFmtQ(o.rest)+' pcs':''}${o.pend?' '+stkFmtQ(o.pend)+' att.':''}</span>`).join(' ');
+    return `<details class="card" style="border-left:4px solid ${st4==='ok'?'#0ca30c':'#c9a227'}" ${s.zones.length<=2?'open':''}>
+     <summary style="cursor:pointer;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13.5px"><b>${esc(z.name)}</b>
+      <span class="hyChip" style="border-color:${st4==='ok'?'#9fd49f':'#c9a227'};font-size:10.5px">${st4==='ok'?'en stock':'prévue'}</span>
+      <span class="dim" style="font-size:12px">reste <b>${stkFmtQ(reste)}</b> pcs${pend?' · '+stkFmtQ(pend)+' attendues':''}</span></summary>
+     <div class="dim" style="font-size:11px;margin-top:4px">${fmt(z.w)} × ${fmt(z.h)} m${(z.photos||[]).length?' · 📷 '+z.photos.length:''}${prov?'<div style="margin-top:3px">'+prov+'</div>':''}</div>
+     ${agg.filter(a=>a.qty||a.taken).length?`<div style="overflow:auto"><table class="rc" style="margin-top:4px"><tr><th></th><th>livré</th><th>pris</th><th>reste</th></tr>${rows}</table></div>`:'<div class="dim" style="font-size:12px;margin-top:4px">Rien de déchargé ici pour l\'instant.</div>'}
      <div class="row" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">
-      <button class="btn sm" data-stkgo="${z.id}">📍 Voir sur le plan</button>
-      ${canE&&z.status!=='ok'?`<button class="btn sm primary" data-stkunload="${z.id}">Camion arrivé → déchargement</button>`:''}
+      <button class="btn sm" data-stkgo="${z.id}">📍 Plan</button>
       ${canE?`<button class="btn sm" data-stksplit="${z.id}">⇄ Scinder / transférer</button>`:''}
       <button class="btn sm" data-stkcsv="${z.id}">⬇ CSV</button>
-      ${liv?`<button class="btn sm" data-stkcr="${z.id}">📄 Compte-rendu</button>`:''}
       ${canE?`<button class="btn sm" data-stkdel="${z.id}" style="color:#d03b3b">✕</button>`:''}
-     </div></div>`;};
+     </div></details>`;};
   const G=globalAgg(s);const {need,lab}=stockNeeds();
   const gRows=G.sort((a,b)=>String(a.label).localeCompare(String(b.label))).map(a=>{const mk=matchKey(a);const nd=need[mk]||0;const short=nd&&(a.qty<nd);
-    return `<tr${short?' style="background:#fdecec"':''}><td>${esc(a.label)}</td><td>${stkFmtQ(a.qty)}</td><td>${stkFmtQ(a.taken)}</td><td><b>${stkFmtQ(a.reste)}</b>${short?` <span class="dim" style="font-size:10.5px">(il en faut ${stkFmtQ(nd)} au calepinage)</span>`:''}</td></tr>`;}).join('');
+    return `<tr${short?' style="background:#fdecec"':''}><td>${esc(a.label)}</td><td>${stkFmtQ(a.qty)}${a.pend?` <span class="dim" style="font-size:10px">(+${stkFmtQ(a.pend)} att.)</span>`:''}</td><td>${stkFmtQ(a.taken)}</td><td><b>${stkFmtQ(a.reste)}</b>${short?` <span class="dim" style="font-size:10.5px">(il en faut ${stkFmtQ(nd)} au calepinage)</span>`:''}</td></tr>`;}).join('');
+  // vue matière : zoom par tronçon (ligne principale + ses antennes)
+  const mains2=Object.values(state.lines).filter(l2=>!l2.parent);
+  const matSel=state.stockMatSel&&state.lines[state.stockMatSel]?state.stockMatSel:'';
   el.innerHTML=`<h2 class="vt">Stock — pièces pré-isolées</h2>
+   <div class="kv" style="margin-bottom:6px"><span>${s.zones.length} zone${s.zones.length>1?'s':''}</span><span>${s.livs.length} camion${s.livs.length>1?'s':''}${nPrevu?' · <b>'+nPrevu+' attendu'+(nPrevu>1?'s':'')+'</b>':''}</span>${nEcarts?`<span style="background:#fdecec"><b style="color:#d03b3b">${nEcarts} livraison${nEcarts>1?'s':''} avec écart</b></span>`:''}</div>
    ${canE?`<div class="row" style="display:flex;gap:6px;margin-bottom:8px"><button class="btn primary" id="stk-new" style="flex:1">＋ Nouvelle livraison (camion)</button></div>`:''}
+   ${s.livs.length?`<details class="card" ${s.livs.length<=4?'open':''}><summary style="cursor:pointer;font-size:13.5px"><b>Livraisons / BL</b> <span class="dim" style="font-size:12px">(${s.livs.length} — chaque pièce garde son camion d\'origine, même transférée)</span></summary>
+    <div style="overflow:auto"><table class="rc" style="margin-top:6px"><tr><th>Camion / BL</th><th>Date</th><th>Statut</th><th>Zones</th><th>Reste</th><th></th></tr>${s.livs.slice().reverse().map(livRow).join('')}</table></div></details>`:''}
    ${s.zones.length?s.zones.map(zoneCard).join(''):'<div class="card muted">Aucune zone de stockage : crée une livraison, la zone se pose sur le plan.</div>'}
-   ${G.length?`<div class="card"><h3 style="margin-top:0">Stock général chantier <span class="dim" style="font-size:11.5px;font-weight:400">(toutes zones)</span></h3><div style="overflow:auto"><table class="rc"><tr><th></th><th>livré</th><th>pris</th><th>reste</th></tr>${gRows}</table></div>
-    <div class="row" style="display:flex;gap:6px;margin-top:6px"><button class="btn sm" id="stk-csvg" style="flex:1">⬇ CSV stock général</button></div></div>`:''}
-   <div class="card"><h3 style="margin-top:0">Le réseau et la matière</h3><div class="dim" style="font-size:11.5px;margin-bottom:6px">Gris = déjà posé · vert = posable avec le stock restant · orange = au-delà du stock actuel.</div>${stockMatSVG()}</div>
-   ${(s.moves||[]).length?`<details class="card"><summary style="cursor:pointer;font-size:13px;color:var(--ink2)">Mouvements (${s.moves.length})</summary><table class="rc" style="margin-top:6px">${s.moves.slice(-12).reverse().map(m2=>`<tr><td>${esc(new Date(m2.at).toLocaleDateString('fr-FR'))}</td><td>${stkFmtQ(m2.qty)} × ${esc(m2.label||'')}</td><td>${esc((stockZoneById(m2.from)||{}).name||m2.from||'—')} → ${esc((stockZoneById(m2.to)||{}).name||m2.to)}</td><td class="dim">${esc(m2.by||'')}</td></tr>`).join('')}</table></details>`:''}`;
+   ${G.length?`<details class="card" open><summary style="cursor:pointer;font-size:13.5px"><b>Stock général chantier</b> <span class="dim" style="font-size:12px">(toutes zones)</span></summary><div style="overflow:auto"><table class="rc" style="margin-top:6px"><tr><th></th><th>livré</th><th>pris</th><th>reste</th></tr>${gRows}</table></div>
+    <div class="row" style="display:flex;gap:6px;margin-top:6px"><button class="btn sm" id="stk-csvg" style="flex:1">⬇ CSV stock général</button></div></details>`:''}
+   <div class="card"><h3 style="margin-top:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">Le réseau et la matière
+    <select class="f" id="stk-matline" style="font-size:12px;padding:4px 8px;margin-left:auto"><option value="">Tout le réseau</option>${mains2.map(l2=>`<option value="${l2.id}" ${matSel===l2.id?'selected':''}>${esc(l2.name)} + antennes</option>`).join('')}</select></h3>
+    <div class="dim" style="font-size:11.5px;margin-bottom:6px">Gris = déjà posé · vert = posable avec le stock restant · orange = au-delà du stock actuel.</div>${stockMatSVG(matSel)}</div>
+   ${(s.moves||[]).length?`<details class="card"><summary style="cursor:pointer;font-size:13px;color:var(--ink2)">Mouvements (${s.moves.length})</summary><table class="rc" style="margin-top:6px">${s.moves.slice(-12).reverse().map(m2=>`<tr><td>${esc(new Date(m2.at).toLocaleDateString('fr-FR'))}</td><td>${stkFmtQ(m2.qty)} × ${esc(m2.label||'')}${m2.pre?' <span class="dim" style="font-size:10px">(répartition avant arrivée)</span>':''}</td><td>${esc((stockZoneById(m2.from)||{}).name||m2.from||'—')} → ${esc((stockZoneById(m2.to)||{}).name||m2.to)}</td><td class="dim">${esc(m2.by||'')}</td></tr>`).join('')}</table></details>`:''}`;
   const q0=$('#stk-new');if(q0)q0.onclick=()=>openStockLiv();
   const qg=$('#stk-csvg');if(qg)qg.onclick=()=>{const rows=[['Référence','Livré','Pris','Reste']];globalAgg(s).forEach(a=>rows.push([a.label,a.qty,a.taken,a.reste]));dlCSVFile((NET.name||'chantier')+' - stock général.csv',rows);};
+  const ml2=$('#stk-matline');if(ml2)ml2.onchange=()=>{state.stockMatSel=ml2.value;renderStock();};
   el.querySelectorAll('[data-stkgo]').forEach(b=>b.onclick=()=>{const z=stockZoneById(b.dataset.stkgo);if(!z)return;state.stockSel=z.id;state.tab='plan';renderAll();centerOn(z.x,z.y,Math.max(state.view.k,6));updateStockBar('Zone « '+z.name+' » — glisser pour déplacer, poignées pour étirer, ↻ pour tourner, Terminer pour sortir.');});
   el.querySelectorAll('[data-stkcsv]').forEach(b=>b.onclick=()=>{const z=stockZoneById(b.dataset.stkcsv);const rows=[['Référence','Livré','Pris','Reste']];zoneAgg(s,z.id).forEach(a=>rows.push([a.label,a.qty,a.taken,a.reste]));dlCSVFile((NET.name||'chantier')+' - '+z.name+'.csv',rows);});
   el.querySelectorAll('[data-stkunload]').forEach(b=>b.onclick=()=>openStockUnload(b.dataset.stkunload));
+  el.querySelectorAll('[data-stkpresplit]').forEach(b=>b.onclick=()=>openStockPreSplit(b.dataset.stkpresplit));
   el.querySelectorAll('[data-stksplit]').forEach(b=>b.onclick=()=>openStockSplit(b.dataset.stksplit));
   el.querySelectorAll('[data-stkcr]').forEach(b=>b.onclick=()=>openStockCR(b.dataset.stkcr));
   el.querySelectorAll('[data-stkdel]').forEach(b=>b.onclick=()=>{const z=stockZoneById(b.dataset.stkdel);const agg=zoneAgg(s,z.id);const reste=agg.reduce((t,a)=>t+a.reste,0);
     if(!confirm(reste>0?('La zone « '+z.name+' » a encore '+reste+' pièce(s) : supprimer quand même ? (les lots et prélèvements de cette zone disparaissent du suivi)'):('Supprimer la zone « '+z.name+' » ?')))return;
-    s.zones=s.zones.filter(z2=>z2.id!==z.id);s.lots=s.lots.filter(l=>l.zone!==z.id);s.takes=s.takes.filter(t=>t.zone!==z.id);saveStock();renderStock();renderPlan();});}
+    s.zones=s.zones.filter(z2=>z2.id!==z.id);s.lots=s.lots.filter(l2=>l2.zone!==z.id);s.takes=s.takes.filter(t=>t.zone!==z.id);saveStock();renderStock();renderPlan();});}
+// fiche d\'une zone au TAP sur le plan : le restant, la provenance par camion, l\'attendu — sans quitter la carte
+function openStockZoneModal(zoneId){const s=stockOf();const z=stockZoneById(zoneId);if(!s||!z)return;
+  const agg=zoneAgg(s,z.id).filter(a=>a.qty||a.pend||a.taken);const st4=zoneStatusOf(s,z);
+  const bd2=livBreakdown(s,z.id);const livName=id=>{const v=s.livs.find(x=>x.id===id);return v?v.label+(v.bl?' · '+v.bl:''):'(camion inconnu)';};
+  const pendLivs=[...new Set(s.lots.filter(l2=>l2.zone===z.id&&l2.pend).map(l2=>l2.liv))];
+  openModal(`<h3 style="margin-top:0">${esc(z.name)} <span class="hyChip" style="border-color:${st4==='ok'?'#9fd49f':'#c9a227'};font-size:10.5px">${st4==='ok'?'en stock':'prévue'}</span></h3>
+   ${agg.length?`<div style="overflow:auto;max-height:40vh"><table class="rc"><tr><th></th><th>livré</th><th>pris</th><th>reste</th></tr>${agg.map(a=>`<tr><td>${esc(a.label)}</td><td>${stkFmtQ(a.qty)}${a.pend?` <span class="dim" style="font-size:10px">(+${stkFmtQ(a.pend)} att.)</span>`:''}</td><td>${stkFmtQ(a.taken)}</td><td><b>${stkFmtQ(a.reste)}</b></td></tr>`).join('')}</table></div>`:'<p class="hint">Rien ici pour l\'instant.</p>'}
+   ${Object.keys(bd2).length?`<div class="dim" style="font-size:11px;margin-top:6px">Provenance : ${Object.entries(bd2).filter(([,o])=>o.rest>0||o.pend>0).map(([lv,o])=>esc(livName(lv))+' ('+(o.rest?stkFmtQ(o.rest)+' pcs':'')+(o.pend?' '+stkFmtQ(o.pend)+' att.':'')+')').join(' · ')}</div>`:''}
+   ${pendLivs.length?`<div class="warnbox" style="margin-top:6px">Camion${pendLivs.length>1?'s':''} attendu${pendLivs.length>1?'s':''} ici : ${pendLivs.map(lv=>esc(livName(lv))).join(', ')} — pointage à l\'arrivée (onglet Stock).</div>`:''}
+   <div class="actions" style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+    ${stockCanEdit()?`<button class="btn" data-close style="flex:1">✥ Ajuster la zone (poignées)</button><button class="btn" id="stkzm-split" style="flex:1">⇄ Scinder</button>`:''}
+    <button class="btn" id="stkzm-tab" style="flex:1">Onglet Stock</button><button class="btn block" data-close style="flex:1">Fermer</button></div>`);
+  const sp=$('#stkzm-split');if(sp)sp.onclick=()=>{closeModal();openStockSplit(z.id);};
+  const tb=$('#stkzm-tab');if(tb)tb.onclick=()=>{closeModal();endStockPose();};}
+
 /* ----- nouvelle livraison ----- */
 function stockLivLinesHTML(lines){return `<table class="rc" id="stk-lines"><tr><th>Référence</th><th style="width:88px">Qté</th><th></th></tr>${lines.map((l,i)=>`<tr><td>${esc(l.label)}</td><td><input class="f" type="number" min="0" step="1" value="${l.qty}" data-stkq="${i}" style="width:74px;padding:4px 6px"></td><td><button data-stkx="${i}" style="border:0;background:none;cursor:pointer;color:#d03b3b">✕</button></td></tr>`).join('')}</table>`;}
 function openStockLiv(){const s=stockOf();if(!s){toast('Aucun chantier');return;}
   const st2={src:'cat',lines:[],blInfo:''};
   const DNS=[20,25,32,40,50,65,80,100,125,150,200,250,300,350,400];
-  const KINDS=[['pipe','Barre 12 m'],['bend','Coude'],['tee','Té'],['reducer','Réduction'],['sleeve','Manchon'],['sleeveEnd','Manchon fin de ligne'],['kit','Kit fin de ligne'],['dhec','DHEC'],['wall','Passage de mur'],['acc','Autre / accessoire']];
+  const KINDS=[['pipe','Barre 12 m'],['bend','Coude'],['tee','Té'],['reducer','Réduction'],['sleeve','Manchon'],['sleeveEnd','Manchon fin de ligne'],['kit','Kit fin de ligne'],['dhec','DHEC'],['wall','Passage de mur'],['puKit','Pochette de mousse (kit A+B)'],['puA','Mousse PU — produit A'],['puB','Mousse PU — produit B'],['acc','Autre / accessoire']];
+  const NODN=k2=>k2==='puA'||k2==='puB'||k2==='puKit'||k2==='acc';
   const rd=()=>{openModal(`<h3 style="margin-top:0">Nouvelle livraison — camion</h3>
    <div class="row" style="display:flex;gap:6px"><div style="flex:1"><label class="f">Nom</label><input class="f" id="stk-name" value="Camion ${s.livs.length+1}"></div><div style="flex:1"><label class="f">N° de BL (optionnel)</label><input class="f" id="stk-bl"></div></div>
    <div class="seg" style="display:flex;border:1.5px solid var(--line);border-radius:10px;overflow:hidden;margin:8px 0">${[['cat','Catalogue'],['bl','BL (PDF)'],['nom','Depuis le calepinage']].map(([k,t])=>`<div data-stksrc="${k}" style="flex:1;text-align:center;padding:7px 4px;font-size:12px;font-weight:700;cursor:pointer;${st2.src===k?'background:var(--ink);color:#fff':''}">${t}</div>`).join('')}</div>
@@ -1565,11 +1656,13 @@ function openStockLiv(){const s=stockOf();if(!s){toast('Aucun chantier');return;
     :st2.src==='bl'?`<label class="f">Bon de livraison (PDF — AXIOM, Renalia, LOGSTOR reconnus)</label><input class="f" type="file" id="stk-pdf" accept="application/pdf">${st2.blInfo?`<div class="hint" style="margin-top:4px">${st2.blInfo}</div>`:''}<p class="hint">Les lignes reconnues arrivent ci-dessous : vérifie chaque quantité — jamais d'import aveugle. Un BL scanné (photo) n'a pas de texte : saisis alors par le catalogue.</p>`
     :`<p class="hint" style="margin-top:0">Ce qui MANQUE encore au calepinage (besoin − déjà livré), pré-rempli — ajuste :</p><button class="btn ghost" id="stk-fill">Remplir avec le manquant</button>`}</div>
    <div style="margin-top:8px">${st2.lines.length?stockLivLinesHTML(st2.lines):'<div class="dim" style="font-size:12px">Aucune ligne pour l\'instant.</div>'}</div>
-   <label style="display:flex;gap:7px;align-items:center;font-size:12.5px;margin-top:8px"><input type="checkbox" id="stk-prev" checked> Déchargement <b>prévu</b> (camion pas encore arrivé — zone hachurée, pointage à l'arrivée)</label>
-   <div class="actions" style="margin-top:8px"><button class="btn primary block" id="stk-ok">Valider → placer la zone sur le plan</button><button class="btn block" data-close>Annuler</button></div>`);
+   <label style="display:flex;gap:7px;align-items:center;font-size:12.5px;margin-top:8px"><input type="checkbox" id="stk-prev" checked> Déchargement <b>prévu</b> (camion pas encore arrivé — attendu jusqu'au pointage à l'arrivée ; pré-répartissable sur plusieurs zones)</label>
+   <label class="f" style="margin-top:6px">Déchargé / à décharger dans</label>
+   <select class="f" id="stk-zone"><option value="__new">➕ Nouvelle zone — à poser sur le plan</option>${s.zones.map(z2=>`<option value="${z2.id}">${esc(z2.name)} (zone existante — un camion de plus dedans)</option>`).join('')}</select>
+   <div class="actions" style="margin-top:8px"><button class="btn primary block" id="stk-ok">Valider la livraison</button><button class="btn block" data-close>Annuler</button></div>`);
    $('#modal').querySelectorAll('[data-stksrc]').forEach(b=>b.onclick=()=>{st2.src=b.dataset.stksrc;rd();});
-   const kd=$('#stk-kind');if(kd){const upd=()=>{$('#stk-dn2box').style.display=(kd.value==='tee'||kd.value==='reducer')?'':'none';$('#stk-angbox').style.display=kd.value==='bend'?'':'none';};kd.onchange=upd;upd();
-     $('#stk-add').onclick=()=>{const o={kind:kd.value,dn:+$('#stk-dn').value,qty:Math.max(1,+$('#stk-qty').value||1)};if(kd.value==='bend')o.angle=+$('#stk-ang').value;if(kd.value==='tee'||kd.value==='reducer')o.dn2=+$('#stk-dn2').value;if(kd.value==='pipe')o.len=12;o.label=stockLabel(o);o.key=stockKey(o);
+   const kd=$('#stk-kind');if(kd){const upd=()=>{$('#stk-dn2box').style.display=(kd.value==='tee'||kd.value==='reducer')?'':'none';$('#stk-angbox').style.display=kd.value==='bend'?'':'none';$('#stk-dn').parentElement.style.display=NODN(kd.value)?'none':'';};kd.onchange=upd;upd();
+     $('#stk-add').onclick=()=>{const o={kind:kd.value,dn:NODN(kd.value)?undefined:+$('#stk-dn').value,qty:Math.max(1,+$('#stk-qty').value||1)};if(kd.value==='bend')o.angle=+$('#stk-ang').value;if(kd.value==='tee'||kd.value==='reducer')o.dn2=+$('#stk-dn2').value;if(kd.value==='pipe')o.len=12;o.label=stockLabel(o);o.key=stockKey(o);
        const ex=st2.lines.find(l=>l.key===o.key);if(ex)ex.qty+=o.qty;else st2.lines.push(o);rd();};}
    const pf=$('#stk-pdf');if(pf)pf.onchange=async()=>{const f=pf.files[0];if(!f)return;st2.blInfo='Lecture du PDF…';rd();
      try{const lib=await loadPdfJs();const doc=await lib.getDocument({data:await f.arrayBuffer()}).promise;let txt='';
@@ -1577,7 +1670,8 @@ function openStockLiv(){const s=stockOf();if(!s){toast('Aucun chantier');return;
          tc.items.forEach(it=>{const y=Math.round(it.transform[5]/3)*3;if(!rows.has(y))rows.set(y,[]);rows.get(y).push({x:it.transform[4],s:it.str});});
          [...rows.entries()].sort((a,b)=>b[0]-a[0]).forEach(([,items])=>{txt+=items.sort((a,b)=>a.x-b.x).map(i=>i.s).join(' ')+'\n';});}
        const R=parseBL(txt);
-       if(R.empty||!R.lines.length){st2.blInfo='<b style="color:#8a1f1f">Aucune ligne reconnue'+(R.empty?' (PDF scanné, sans texte)':'')+'</b> — saisis par le catalogue.';}
+       if(R.empty||!R.lines.length){const smp=txt.split('\n').map(x=>x.trim()).filter(Boolean).slice(0,8).join('<br>').slice(0,600);
+         st2.blInfo='<b style="color:#8a1f1f">Aucune ligne reconnue'+(R.empty?' (PDF scanné, sans texte — une photo de BL ne se lit pas)':'')+'</b> — saisis par le catalogue.'+(smp?'<details style="margin-top:4px"><summary style="cursor:pointer">Ce que je lis dans ce PDF (envoie-moi ce BL pour que je l\'apprenne)</summary><div class="dim" style="font-size:10.5px;line-height:1.5">'+smp+'</div></details>':'');}
        else{R.lines.forEach(l=>{l.key=stockKey(l);l.label=stockLabel(l).replace('Divers',l.label||'Divers');const ex=st2.lines.find(x=>x.key===l.key);if(ex)ex.qty+=l.qty;else st2.lines.push(l);});
          st2.blInfo='BL <b>'+esc(R.fmt.toUpperCase())+'</b> lu : '+R.lines.length+' lignes reconnues'+(R.others&&R.others.length?' · '+R.others.length+' ignorée(s)':'')+' — vérifie les quantités.';
          if(!$('#stk-bl').value&&/BL\s*[\dA-Z]/.test(f.name))$('#stk-bl').value=f.name.replace(/\.pdf$/i,'');}
@@ -1587,34 +1681,58 @@ function openStockLiv(){const s=stockOf();if(!s){toast('Aucun chantier');return;
    $('#modal').querySelectorAll('[data-stkq]').forEach(inp=>inp.onchange=()=>{st2.lines[+inp.dataset.stkq].qty=Math.max(0,+inp.value||0);});
    $('#modal').querySelectorAll('[data-stkx]').forEach(b=>b.onclick=()=>{st2.lines.splice(+b.dataset.stkx,1);rd();});
    $('#stk-ok').onclick=()=>{st2.lines=st2.lines.filter(l=>l.qty>0);if(!st2.lines.length){toast('Aucune ligne');return;}
-     const liv={id:'L'+Date.now().toString(36),label:$('#stk-name').value||'Camion',bl:$('#stk-bl').value||'',at:new Date().toISOString(),by:(me()||{}).name||state.userId,status:$('#stk-prev').checked?'prevu':'ok',prevu:st2.lines.map(l=>({label:l.label,qty:l.qty}))};
-     s.livs.push(liv);const lots=st2.lines.map((l,i)=>({id:liv.id+':'+i,zone:null,key:l.key||stockKey(l),label:l.label,kind:l.kind,dn:l.dn,dn2:l.dn2,gaine:l.gaine,len:l.len,angle:l.angle,qty:l.qty}));
-     closeModal();startStockPose({liv:liv.id,name:liv.label,status:liv.status==='prevu'?'prevu':'ok',lots});};};
+     const prev2=$('#stk-prev').checked;
+     const liv={id:'L'+Date.now().toString(36),label:$('#stk-name').value||'Camion',bl:$('#stk-bl').value||'',at:new Date().toISOString(),by:(me()||{}).name||state.userId,status:prev2?'prevu':'ok',prevu:st2.lines.map(l=>({label:l.label,qty:l.qty}))};
+     s.livs.push(liv);const lots=st2.lines.map((l,i)=>({id:liv.id+':'+i,liv:liv.id,zone:null,pend:prev2,key:l.key||stockKey(l),label:l.label,kind:l.kind,dn:l.dn,dn2:l.dn2,gaine:l.gaine,len:l.len,angle:l.angle,qty:l.qty}));
+     const dest=$('#stk-zone').value;
+     if(dest!=='__new'){lots.forEach(l2=>{l2.zone=dest;s.lots.push(l2);});saveStock();closeModal();renderStock();renderPlan();toast(prev2?'Camion attendu — pointage à l\'arrivée (registre des livraisons)':'Livraison ajoutée à « '+((stockZoneById(dest)||{}).name||'')+' »');}
+     else{closeModal();startStockPose({liv:liv.id,name:liv.label,status:prev2?'prevu':'ok',lots});}};};
   rd();}
-/* ----- déchargement (pointage BL ↔ réel) ----- */
-function openStockUnload(zoneId){const s=stockOf();const z=stockZoneById(zoneId);if(!z)return;const liv=s.livs.find(v=>v.id===z.liv);
-  const lots=s.lots.filter(l=>l.zone===zoneId);const ph=[];
-  openModal(`<h3 style="margin-top:0">Déchargement — ${esc(z.name)}</h3>
+/* ----- déchargement : pointage par LIVRAISON (le camion peut être réparti sur plusieurs zones : tout se valide d'un coup) ----- */
+function openStockUnload(livId){const s=stockOf();const liv=s.livs.find(v=>v.id===livId);if(!liv)return;
+  const lots=s.lots.filter(l=>l.liv===livId&&l.pend);if(!lots.length){toast('Rien à pointer pour ce camion');return;}
+  const multi=new Set(lots.map(l=>l.zone)).size>1;const ph=[];
+  openModal(`<h3 style="margin-top:0">Camion arrivé — ${esc(liv.label)}${liv.bl?' · BL '+esc(liv.bl):''}</h3>
    <label class="f">1 · Photo du déchargement (obligatoire)</label>
    <div class="thumbs" id="stk-phs"><label class="thumb" style="display:flex;align-items:center;justify-content:center;border:1.5px dashed #b8b4a8;cursor:pointer;color:#8f8b80">📷<input type="file" accept="image/*" capture="environment" id="stk-ph" style="display:none" multiple></label></div>
    <label class="f" style="margin-top:8px">2 · Pointage — le réel en face du prévu</label>
-   <table class="rc">${lots.map((l,i)=>`<tr><td>${esc(l.label)}</td><td class="dim">prévu : ${l.qty}</td><td><input class="f" type="number" value="${l.qty}" data-stkr="${i}" style="width:74px;padding:4px 6px"></td></tr>`).join('')}</table>
+   <table class="rc">${lots.map((l,i)=>`<tr><td>${esc(l.label)}${multi?` <span class="dim" style="font-size:10px">→ ${esc((stockZoneById(l.zone)||{}).name||'')}</span>`:''}</td><td class="dim">prévu : ${l.qty}</td><td><input class="f" type="number" value="${l.qty}" data-stkr="${i}" style="width:74px;padding:4px 6px"></td></tr>`).join('')}</table>
    <div class="hint">Un écart est noté au compte-rendu (réserve à faire au chauffeur) — le stock démarre sur le RÉEL.</div>
-   <div class="actions" style="margin-top:8px"><button class="btn primary block" id="stk-unok">Valider le déchargement — la zone passe en vert</button><button class="btn block" data-close>Annuler</button></div>`);
-  $('#stk-ph').onchange=async e2=>{for(const f of [...e2.target.files]){const d=await compressPhoto(f);let u=null;try{u=await sync.uploadPhoto(state.siteId,'stock-'+z.id,d);}catch(e3){}ph.push(u||d);}
+   <div class="actions" style="margin-top:8px"><button class="btn primary block" id="stk-unok">Valider le déchargement${multi?' (toutes les zones du camion)':''}</button><button class="btn block" data-close>Annuler</button></div>`);
+  $('#stk-ph').onchange=async e2=>{for(const f of [...e2.target.files]){const d=await compressPhoto(f);let u=null;try{u=await sync.uploadPhoto(state.siteId,'stock-'+liv.id,d);}catch(e3){}ph.push(u||d);}
     $('#stk-phs').insertAdjacentHTML('afterbegin',ph.map(p=>`<div class="thumb"><img src="${p}"></div>`).join(''));toast(ph.length+' photo(s)');};
   $('#stk-unok').onclick=()=>{if(!ph.length){toast('Ajoute une photo du déchargement');return;}
-    const ecarts=[];$('#modal').querySelectorAll('[data-stkr]').forEach(inp=>{const l=lots[+inp.dataset.stkr];const reel=Math.max(0,+inp.value||0);if(reel!==l.qty)ecarts.push({label:l.label,prevu:l.qty,recu:reel});l.qty=reel;});
-    z.status='ok';z.photos=(z.photos||[]).concat(ph);z.at=new Date().toISOString();z.by=(me()||{}).name||state.userId;
-    if(liv){liv.status='ok';liv.ecarts=ecarts;liv.recuAt=z.at;}
+    const ecarts=[];$('#modal').querySelectorAll('[data-stkr]').forEach(inp=>{const l=lots[+inp.dataset.stkr];const reel=Math.max(0,+inp.value||0);if(reel!==l.qty)ecarts.push({label:l.label,prevu:l.qty,recu:reel});l.qty=reel;l.pend=false;});
+    s.lots=s.lots.filter(l=>l.qty>0);
+    [...new Set(lots.map(l=>l.zone))].forEach(zid=>{const z=stockZoneById(zid);if(z&&z.status!=='ok'){z.status='ok';z.at=new Date().toISOString();z.by=(me()||{}).name||state.userId;}});
+    liv.status='ok';liv.ecarts=ecarts;liv.recuAt=new Date().toISOString();liv.photos=(liv.photos||[]).concat(ph);
     saveStock();closeModal();renderStock();renderPlan();toast(ecarts.length?('Déchargé — '+ecarts.length+' écart(s) noté(s) au compte-rendu'):'Déchargé — conforme au BL ✓');};}
-/* ----- scinder / transférer ----- */
+/* ----- PRÉ-répartition d'un camion ATTENDU sur plusieurs zones (ça ne vaut pas déchargement : le pointage reste à faire) ----- */
+function openStockPreSplit(livId){const s=stockOf();const liv=s.livs.find(v=>v.id===livId);if(!liv)return;
+  const lots=s.lots.filter(l=>l.liv===livId&&l.pend);if(!lots.length){toast('Rien à répartir');return;}
+  openModal(`<h3 style="margin-top:0">Répartir avant l'arrivée — ${esc(liv.label)}</h3>
+   <p class="hint" style="margin-top:0">Le camion n'est PAS encore là : tu prépares où chaque chose sera déchargée. Le pointage à l'arrivée validera l'ensemble.</p>
+   <table class="rc">${lots.map((l,i)=>`<tr><td><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-stksel="${i}"> ${esc(l.label)}</label></td><td class="dim">${esc((stockZoneById(l.zone)||{}).name||'—')} · ${l.qty}</td><td><input class="f" type="number" value="${l.qty}" max="${l.qty}" min="1" data-stksq="${i}" style="width:70px;padding:4px 6px"></td></tr>`).join('')}</table>
+   <label class="f" style="margin-top:8px">Vers</label>
+   <select class="f" id="stk-dest">${s.zones.map(z2=>`<option value="${z2.id}">${esc(z2.name)}</option>`).join('')}<option value="__new">➕ Nouvelle zone — à poser sur le plan</option></select>
+   <input class="f" id="stk-destname" placeholder="Nom de la nouvelle zone" style="margin-top:6px;display:none">
+   <div class="actions" style="margin-top:8px"><button class="btn primary block" id="stk-preok">Répartir</button><button class="btn block" data-close>Annuler</button></div>`);
+  const dsel=$('#stk-dest');dsel.onchange=()=>{$('#stk-destname').style.display=dsel.value==='__new'?'':'none';};if(!s.zones.length){dsel.value='__new';dsel.onchange();}
+  $('#stk-preok').onclick=()=>{const picks=[];$('#modal').querySelectorAll('[data-stksel]').forEach(cb=>{if(!cb.checked)return;const i=+cb.dataset.stksel;const q=Math.max(1,Math.min(lots[i].qty,+$('#modal').querySelector('[data-stksq="'+i+'"]').value||lots[i].qty));picks.push({l:lots[i],q});});
+    if(!picks.length){toast('Rien de coché');return;}
+    const doPre=destId=>{picks.forEach(({l,q})=>{if(q>=l.qty)l.zone=destId;else{l.qty-=q;s.lots.push({...l,id:l.id+'>'+destId,zone:destId,qty:q});}
+      s.moves.push({at:new Date().toISOString(),by:(me()||{}).name||state.userId,label:l.label,qty:q,from:l.zone===destId?null:l.zone,to:destId,pre:true});});
+      saveStock();};
+    if(dsel.value==='__new'){const nm=$('#stk-destname').value||('Zone '+(s.zones.length+1));closeModal();
+      startStockPose({name:nm,status:'prevu',lots:[],moveLots:destId=>{doPre(destId);renderPlan();}});}
+    else{doPre(dsel.value);closeModal();renderStock();renderPlan();toast('Réparti — pointage du camion à l\'arrivée');}};}
+/* ----- scinder / transférer du stock RÉEL (la trace du camion d'origine suit chaque lot) ----- */
 function openStockSplit(zoneId){const s=stockOf();const z=stockZoneById(zoneId);if(!z)return;const agg=zoneAgg(s,z.id).filter(a=>a.reste>0);
   if(!agg.length){toast('Rien à transférer dans cette zone');return;}
   const others=s.zones.filter(z2=>z2.id!==zoneId);
   openModal(`<h3 style="margin-top:0">Scinder / transférer — ${esc(z.name)}</h3>
-   <p class="hint" style="margin-top:0">Coche ce qui part (quantité ajustable), choisis la destination. Ex. : manchons et kits → base vie, les tubes restent.</p>
-   <table class="rc">${agg.map((a,i)=>`<tr><td><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-stksel="${i}" ${/sleeve|kit|dhec|wall|acc/.test(a.kind)?'checked':''}> ${esc(a.label)}</label></td><td class="dim">reste ${a.reste}</td><td><input class="f" type="number" value="${a.reste}" max="${a.reste}" min="1" data-stksq="${i}" style="width:70px;padding:4px 6px"></td></tr>`).join('')}</table>
+   <p class="hint" style="margin-top:0">Coche ce qui part (quantité ajustable), choisis la destination. Ex. : manchons et mousse → base vie, les tubes restent. Chaque pièce garde la trace de son camion.</p>
+   <table class="rc">${agg.map((a,i)=>`<tr><td><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-stksel="${i}" ${/sleeve|kit|dhec|wall|pu|acc/.test(a.kind)?'checked':''}> ${esc(a.label)}</label></td><td class="dim">reste ${a.reste}</td><td><input class="f" type="number" value="${a.reste}" max="${a.reste}" min="1" data-stksq="${i}" style="width:70px;padding:4px 6px"></td></tr>`).join('')}</table>
    <label class="f" style="margin-top:8px">Destination</label>
    <select class="f" id="stk-dest">${others.map(z2=>`<option value="${z2.id}">${esc(z2.name)}</option>`).join('')}<option value="__new">➕ Nouvelle zone (base vie, autre dépôt…) — à poser sur le plan</option></select>
    <input class="f" id="stk-destname" placeholder="Nom de la nouvelle zone (ex. Base vie)" style="margin-top:6px;${others.length?'display:none':''}">
@@ -1622,24 +1740,25 @@ function openStockSplit(zoneId){const s=stockOf();const z=stockZoneById(zoneId);
   const dsel=$('#stk-dest');dsel.onchange=()=>{$('#stk-destname').style.display=dsel.value==='__new'?'':'none';};if(!others.length)dsel.value='__new';
   $('#stk-splitok').onclick=()=>{const picks=[];$('#modal').querySelectorAll('[data-stksel]').forEach(cb=>{if(!cb.checked)return;const i=+cb.dataset.stksel;const q=Math.max(1,Math.min(agg[i].reste,+$('#modal').querySelector('[data-stksq="'+i+'"]').value||agg[i].reste));picks.push({a:agg[i],q});});
     if(!picks.length){toast('Rien de coché');return;}
-    const doMove=destId=>{picks.forEach(({a,q})=>{let left=q;s.lots.filter(l=>l.zone===zoneId&&l.key===a.key).forEach(l=>{if(left<=0)return;const take2=Math.min(l.qty,left);l.qty-=take2;left-=take2;
-        const ex=s.lots.find(l2=>l2.zone===destId&&l2.key===a.key);if(ex)ex.qty+=take2;else s.lots.push({id:l.id+'>'+destId,zone:destId,key:a.key,label:a.label,kind:a.kind,dn:a.dn,dn2:a.dn2,gaine:a.gaine,len:a.len,angle:a.angle,qty:take2});});
+    const doMove=destId=>{picks.forEach(({a,q})=>{let left=q;s.lots.filter(l=>l.zone===zoneId&&!l.pend&&l.key===a.key).forEach(l=>{if(left<=0)return;const take2=Math.min(l.qty,left);l.qty-=take2;left-=take2;
+        const ex=s.lots.find(l2=>l2.zone===destId&&l2.key===a.key&&l2.liv===l.liv&&!l2.pend);if(ex)ex.qty+=take2;else s.lots.push({id:l.id+'>'+destId,liv:l.liv,zone:destId,key:a.key,label:a.label,kind:a.kind,dn:a.dn,dn2:a.dn2,gaine:a.gaine,len:a.len,angle:a.angle,qty:take2});});
       s.moves.push({at:new Date().toISOString(),by:(me()||{}).name||state.userId,label:a.label,qty:q,from:zoneId,to:destId});});
       s.lots=s.lots.filter(l=>l.qty>0);saveStock();};
     if(dsel.value==='__new'){const nm=$('#stk-destname').value||'Base vie';closeModal();
       startStockPose({name:nm,status:'ok',lots:[],moveLots:destId=>{doMove(destId);renderPlan();}});}
     else{doMove(dsel.value);closeModal();renderStock();renderPlan();toast('Transféré vers '+((stockZoneById(dsel.value)||{}).name||''));}};}
-/* ----- compte-rendu de réception (1 clic, imprimable) ----- */
-function openStockCR(zoneId){const s=stockOf();const z=stockZoneById(zoneId);const liv=s.livs.find(v=>v.id===z.liv);if(!liv)return;
+/* ----- compte-rendu de réception (1 clic, imprimable) — par LIVRAISON ----- */
+function openStockCR(livId){const s=stockOf();const liv=s.livs.find(v=>v.id===livId);if(!liv)return;
+  const zs=[...new Set(s.lots.filter(l=>l.liv===livId).map(l=>(stockZoneById(l.zone)||{}).name||l.zone))];
   const rows=(liv.prevu||[]).map(p=>{const ec=(liv.ecarts||[]).find(e2=>e2.label===p.label);return `<tr${ec?' style="background:#fdecec"':''}><td>${esc(p.label)}</td><td style="text-align:right">${p.qty}</td><td style="text-align:right">${ec?ec.recu:p.qty}</td><td>${ec?'<b>'+(ec.recu-ec.prevu>0?'+':'')+(ec.recu-ec.prevu)+' — réserve chauffeur</b>':'conforme'}</td></tr>`;}).join('');
   const w=window.open('','_blank');w.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Réception ${esc(liv.label)}</title>
    <style>body{font-family:system-ui,sans-serif;margin:28px;color:#111}h1{font-size:19px;margin:0}h2{font-size:14px;margin:18px 0 6px}table{border-collapse:collapse;width:100%;font-size:12.5px}th,td{border:1px solid #ccc;padding:5px 8px;text-align:left}th{background:#f2f1ec}img{max-width:220px;max-height:160px;border-radius:8px;margin:4px}@media print{button{display:none}}</style></head><body>
    <button onclick="print()" style="float:right;padding:8px 14px">🖨 Imprimer / PDF</button>
    <h1>Compte-rendu de réception — ${esc(NET.name||'')}</h1>
-   <div style="color:#555;font-size:13px">${esc(liv.label)}${liv.bl?' · BL '+esc(liv.bl):''} · zone « ${esc(z.name)} » · ${z.at?new Date(z.at).toLocaleDateString('fr-FR'):''} · reçu par ${esc(z.by||liv.by||'')}</div>
+   <div style="color:#555;font-size:13px">${esc(liv.label)}${liv.bl?' · BL '+esc(liv.bl):''} · zone${zs.length>1?'s':''} ${zs.map(esc).join(', ')} · ${liv.recuAt?new Date(liv.recuAt).toLocaleDateString('fr-FR'):''} · reçu par ${esc(liv.by||'')}</div>
    <h2>Pointage</h2><table><tr><th>Référence</th><th>Prévu (BL)</th><th>Reçu</th><th>Écart</th></tr>${rows}</table>
    ${(liv.ecarts||[]).length?`<p style="color:#8a1f1f"><b>${liv.ecarts.length} écart(s)</b> — réserve portée au transporteur.</p>`:'<p style="color:#116611"><b>Réception conforme au bon de livraison.</b></p>'}
-   ${(z.photos||[]).length?'<h2>Photos</h2>'+z.photos.map(p=>`<img src="${p}">`).join(''):''}
+   ${(liv.photos||[]).length?'<h2>Photos</h2>'+liv.photos.map(p=>`<img src="${p}">`).join(''):''}
    <p style="margin-top:26px">Signature : ______________________</p></body></html>`);w.document.close();}
 
 /* ---------- liste ---------- */

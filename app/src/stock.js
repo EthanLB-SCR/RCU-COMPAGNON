@@ -7,7 +7,7 @@
 const OD2DN=[[26.9,20],[33.7,25],[42.4,32],[48.3,40],[60.3,50],[76.1,65],[88.9,80],[114.3,100],[139.7,125],[168.3,150],[219.1,200],[273,250],[323.9,300],[355.6,350],[406.4,400],[457,450],[508,500]];
 export function dnOfOd(od){od=+od;if(!isFinite(od))return null;let best=null,d=1e9;OD2DN.forEach(([o,dn])=>{const e=Math.abs(o-od);if(e<d){d=e;best=dn;}});return d<=Math.max(6,od*0.04)?best:null;}
 
-export const K_LABEL={pipe:'Barre',bend:'Coude',tee:'Té',reducer:'Réduction',sleeve:'Manchon',sleeveEnd:'Manchon fin de ligne',dhec:'Joint d\'extrémité (DHEC)',wall:'Passage de mur',kit:'Kit fin de ligne',acc:'Accessoire'};
+export const K_LABEL={pipe:'Barre',bend:'Coude',tee:'Té',reducer:'Réduction',sleeve:'Manchon',sleeveEnd:'Manchon fin de ligne',dhec:'Joint d\'extrémité (DHEC)',wall:'Passage de mur',kit:'Kit fin de ligne',puA:'Mousse PU — produit A',puB:'Mousse PU — produit B',puKit:'Pochette de mousse (kit A+B)',acc:'Accessoire'};
 // libellé court d'une ligne de stock (uniforme quel que soit le fournisseur)
 export function stockLabel(l){
   if(l.kind==='pipe')return `Barre ${l.len||12} m DN${l.dn}`;
@@ -19,6 +19,7 @@ export function stockLabel(l){
   if(l.kind==='dhec')return `DHEC Ø ${l.gaine||l.dn}`;
   if(l.kind==='wall')return `Passage de mur Ø ${l.gaine||l.dn}`;
   if(l.kind==='kit')return `Kit fin de ligne DN${l.dn}`;
+  if(l.kind==='puA'||l.kind==='puB'||l.kind==='puKit')return K_LABEL[l.kind]+(l.gaine?' gaine '+l.gaine:'');
   return l.label||'Divers';
 }
 // clé d'agrégation : même genre + même DN (ou gaine) = même case de stock
@@ -84,14 +85,17 @@ export function parseBL(text){
 // ---------- agrégats ----------
 // stock = {zones:[{id,name,...}],lots:[{id,zone,key,label,kind,dn,dn2,gaine,len,angle,qty}],takes:[{zone,key,qty,...}]}
 export function zoneAgg(stock,zoneId){const m=new Map();
-  (stock.lots||[]).filter(l=>l.zone===zoneId).forEach(l=>{const cur=m.get(l.key)||{key:l.key,label:l.label,kind:l.kind,dn:l.dn,dn2:l.dn2,gaine:l.gaine,len:l.len,angle:l.angle,qty:0,taken:0};cur.qty+=l.qty;m.set(l.key,cur);});
+  (stock.lots||[]).filter(l=>l.zone===zoneId).forEach(l=>{const cur=m.get(l.key)||{key:l.key,label:l.label,kind:l.kind,dn:l.dn,dn2:l.dn2,gaine:l.gaine,len:l.len,angle:l.angle,qty:0,pend:0,taken:0};
+    if(l.pend)cur.pend+=l.qty;else cur.qty+=l.qty;m.set(l.key,cur);}); // pend = camion PRÉVU : attendu, pas encore en stock (validation au pointage)
   (stock.takes||[]).filter(t=>t.zone===zoneId).forEach(t=>{ // le prélèvement porte la clé de RAPPROCHEMENT (matchKey) : on impute au lot correspondant
     let cur=m.get(t.key)||[...m.values()].find(v=>matchKey(v)===t.key||(t.key.startsWith('sleeve:')&&(v.kind==='sleeve'||v.kind==='sleeveEnd')&&matchKey(v).startsWith('sleeve:')&&(matchKey(v)===t.key||!v.dn)));
     if(cur)cur.taken+=t.qty||1;else m.set('take:'+t.key,{key:t.key,label:t.label||t.key,qty:0,taken:t.qty||1});});
   m.forEach(v=>{v.reste=v.qty-v.taken;});return [...m.values()];}
 export function globalAgg(stock){const m=new Map();
-  (stock.zones||[]).forEach(z=>zoneAgg(stock,z.id).forEach(a=>{const cur=m.get(a.key)||{...a,qty:0,taken:0,reste:0};cur.qty+=a.qty;cur.taken+=a.taken;cur.reste+=a.reste;m.set(a.key,cur);}));
+  (stock.zones||[]).forEach(z=>zoneAgg(stock,z.id).forEach(a=>{const cur=m.get(a.key)||{...a,qty:0,pend:0,taken:0,reste:0};cur.qty+=a.qty;cur.pend+=a.pend||0;cur.taken+=a.taken;cur.reste+=a.reste;m.set(a.key,cur);}));
   return [...m.values()];}
+// statut RÉEL d'une zone : du stock validé → ok (verte) ; seulement des lots attendus → prévue (hachurée) ; sinon son statut posé
+export function zoneStatusOf(stock,z){const lots=(stock.lots||[]).filter(l=>l.zone===z.id);if(lots.some(l=>!l.pend))return 'ok';if(lots.some(l=>l.pend))return 'prevu';return z.status||'ok';}
 // stock restant global sous forme {key:reste} — pour la projection « posable avec le stock » et le choix de zone à la soudure
 export function remainMap(stock){const m={};globalAgg(stock).forEach(a=>{m[a.key]=a.reste;});return m;}
 // clé de RAPPROCHEMENT réseau ↔ stock (sans la gaine : le réseau raisonne en DN, certains BL manchons en gaine)
