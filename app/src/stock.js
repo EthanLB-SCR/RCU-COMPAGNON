@@ -7,7 +7,10 @@
 const OD2DN=[[26.9,20],[33.7,25],[42.4,32],[48.3,40],[60.3,50],[76.1,65],[88.9,80],[114.3,100],[139.7,125],[168.3,150],[219.1,200],[273,250],[323.9,300],[355.6,350],[406.4,400],[457,450],[508,500]];
 export function dnOfOd(od){od=+od;if(!isFinite(od))return null;let best=null,d=1e9;OD2DN.forEach(([o,dn])=>{const e=Math.abs(o-od);if(e<d){d=e;best=dn;}});return d<=Math.max(6,od*0.04)?best:null;}
 
-export const K_LABEL={pipe:'Barre',bend:'Coude',tee:'Té',reducer:'Réduction',sleeve:'Manchon',sleeveEnd:'Manchon fin de ligne',dhec:'Joint d\'extrémité (DHEC)',wall:'Passage de mur',kit:'Kit fin de ligne',puA:'Mousse PU — produit A',puB:'Mousse PU — produit B',puKit:'Pochette de mousse (kit A+B)',acc:'Accessoire'};
+// « pu » = la mousse comptée en UN seul produit A+B (demande Ethan 25/08 : A et B vont toujours ensemble, 1 dose par manchon).
+// puA / puB / puKit restent lus (anciennes données, BL fournisseurs) mais retombent tous sur la même case de stock.
+export const K_LABEL={pipe:'Barre',bend:'Coude',tee:'Té',reducer:'Réduction',sleeve:'Manchon',sleeveEnd:'Manchon fin de ligne',dhec:'Joint d\'extrémité (DHEC)',wall:'Passage de mur',kit:'Kit fin de ligne',pu:'Mousse PU (A+B)',puA:'Mousse PU (A+B)',puB:'Mousse PU (A+B)',puKit:'Mousse PU (A+B)',acc:'Accessoire'};
+export const isPU=k=>k==='pu'||k==='puA'||k==='puB'||k==='puKit';
 // libellé court d'une ligne de stock (uniforme quel que soit le fournisseur)
 export function stockLabel(l){
   if(l.kind==='pipe')return `Barre ${l.len||12} m DN${l.dn}`;
@@ -19,7 +22,7 @@ export function stockLabel(l){
   if(l.kind==='dhec')return `DHEC Ø ${l.gaine||l.dn}`;
   if(l.kind==='wall')return `Passage de mur Ø ${l.gaine||l.dn}`;
   if(l.kind==='kit')return `Kit fin de ligne DN${l.dn}`;
-  if(l.kind==='puA'||l.kind==='puB'||l.kind==='puKit')return K_LABEL[l.kind]+(l.gaine?' gaine '+l.gaine:'');
+  if(isPU(l.kind))return 'Mousse PU (A+B)';
   return l.label||'Divers';
 }
 // clé d'agrégation : même genre + même DN (ou gaine) = même case de stock
@@ -105,5 +108,6 @@ export function matchKey(o){const std=a=>{a=Math.abs(+a||90);return [15,30,45,60
   if(o.kind==='tee')return 'tee:'+o.dn+':'+(o.dn2||'');
   if(o.kind==='reducer')return 'reducer:'+o.dn+':'+(o.dn2||'');
   if(o.kind==='sleeve'||o.kind==='sleeveEnd')return 'sleeve:'+(o.dn||'g'+(o.gaine||''));
+  if(isPU(o.kind))return 'pu'; // A, B et pochettes = une seule case « Mousse PU (A+B) »
   return o.kind+':'+(o.dn||o.gaine||'');}
 export function remainByMatch(stock){const m={};globalAgg(stock).forEach(a=>{const k=matchKey(a);m[k]=(m[k]||0)+(a.reste||0);});return m;}

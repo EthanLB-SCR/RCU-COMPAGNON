@@ -41,9 +41,12 @@ console.log('3) zone posée (verte, 16 pcs):',JSON.stringify(out));
 const c3=out.zones===1&&out.status==='ok'&&out.lots===2&&out.rect&&/16 pcs/.test(out.label);
 await page.click('#stkDone');await page.waitForTimeout(400);
 // 4) onglet Stock : carte zone + stock général + vue matière (paths verts = posable)
-out=await page.evaluate(()=>{const el=document.querySelector('#stock');return {tab:window.TRACE.state.tab,zone:/Camion 1/.test(el.textContent)&&/en stock/.test(el.textContent),barres:/Barre 12 m DN100/.test(el.textContent),general:/Stock général chantier/.test(el.textContent),mat:el.querySelectorAll('svg path').length>0,vert:el.querySelector('svg g[stroke="#0ca30c"]')&&el.querySelector('svg g[stroke="#0ca30c"]').children.length>0,ml:/posable avec le stock/.test(el.textContent)};});
-console.log('4) cartes + vue matière:',JSON.stringify(out));
-const c4=out.tab==='stock'&&out.zone&&out.barres&&out.general&&out.mat&&out.vert&&out.ml;
+out=await page.evaluate(()=>{const el=document.querySelector('#stock');
+  const bal=[...el.querySelectorAll('table tr')].find(r=>/Barre 12 m DN100/.test(r.textContent)&&r.children.length===7);
+  return {tab:window.TRACE.state.tab,zone:/Camion 1/.test(el.textContent)&&/en stock/.test(el.textContent),barres:/Barre 12 m DN100/.test(el.textContent),general:/Stock général chantier/.test(el.textContent),
+   recap:/Besoin \/ livré \/ reste à poser/.test(el.textContent),cols:bal?[...bal.children].map(c=>c.textContent.trim()):null,manque:/Il manque/.test(el.textContent),csv:!!el.querySelector('#stk-csvbal')};});
+console.log('4) cartes + récap besoin/livré/reste:',JSON.stringify(out));
+const c4=out.tab==='stock'&&out.zone&&out.barres&&out.general&&out.recap&&out.cols&&out.csv&&out.manque; // le réseau de test demande bien plus que 12 barres
 // 5) prélèvement : fiche d'une soudure → chips stock (Zone 1 pré-choisie) → valider soudée → take + décompte
 await page.evaluate(()=>{const T=window.TRACE;const L=Object.values(T.lines).find(l=>!l.parent);T.openJoint(L.id,'A',1);});
 await page.waitForTimeout(400);
@@ -130,7 +133,41 @@ await page.click('#sheet [data-act="save-soudee"]');await page.waitForTimeout(50
 out=await page.evaluate(()=>({err:/Prélèvement au stock/.test(document.querySelector('#sheet').textContent),takes:window.TRACE.net.stock.takes.length}));
 console.log('10) hors stock refusé → save bloqué:',JSON.stringify({dlgSeen,...out}));
 const c10=dlgSeen&&out.err&&out.takes===1; // toujours le seul take du début
-const ALL=c1&&c2&&c3&&c4&&c5a&&c5b&&c5c&&c6&&c7a&&c7b&&c7c&&c7d&&c8&&c9&&c10;
-console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3,c4,c5a,c5b,c5c,c6,c7a,c7b,c7c,c7d,c8,c9,c10}));
+
+// 11) récap : le solde suit le stock (besoin vs stock vs attendu) et se filtre par tronçon
+await page.evaluate(()=>window.TRACE.closeSheet());await page.waitForTimeout(300);
+await page.click('#tabbar [data-tab=stock]');await page.waitForTimeout(400);
+out=await page.evaluate(()=>{const el=document.querySelector('#stock');
+  const row=[...el.querySelectorAll('table tr')].find(r=>/Mousse PU \(A\+B\)/.test(r.textContent)&&r.children.length===7);
+  const sel=!!el.querySelector('#stk-matline');
+  return {mousse:row?[...row.children].map(c=>c.textContent.trim()):null,sel,unePU:(el.textContent.match(/Mousse PU \(A\+B\)/g)||[]).length};});
+console.log('11) récap : mousse regroupée A+B, besoin = nb de manchons:',JSON.stringify(out));
+const c11=out.sel&&out.mousse&&+out.mousse[1]>0&&out.mousse[0]==='Mousse PU (A+B)';
+// 12) mousse choisie AU MOUSSAGE (étape 4 du manchon), pas au manchon — on met de la mousse en stock dans Z1
+await page.evaluate(()=>{const s=window.TRACE.net.stock;s.lots.push({id:'PU1',liv:null,zone:'Z1',key:'pu',label:'Mousse PU (A+B)',kind:'pu',qty:24});});
+await page.evaluate(()=>{const T=window.TRACE;const L=Object.values(T.lines).find(l=>!l.parent);T.openJoint(L.id,'A',1);});await page.waitForTimeout(400);
+out=await page.evaluate(()=>{const sh=document.querySelector('#sheet');const st4=[...sh.querySelectorAll('.dstep')][3];
+  return {titre:/Moussage/.test(st4.textContent),pick:!!st4.querySelector('[data-stkneed="pu"]'),pasAuManchon:![...sh.querySelectorAll('.dstep')][2]||!sh.querySelectorAll('.dstep')[2].querySelector('[data-stkneed="pu"]')};});
+console.log('12) étape 4 = moussage avec choix du stock mousse:',JSON.stringify(out));
+const c12=out.titre&&out.pick;
+// valider l'étape 4 → 1 dose de mousse décomptée
+const puBefore=await page.evaluate(()=>window.TRACE.net.stock.takes.filter(t=>t.key==='pu').length);
+await page.evaluate(()=>{const st4=[...document.querySelectorAll('#sheet .dstep')][3];st4.open=true;});await page.waitForTimeout(200);
+await page.evaluate(()=>document.querySelector('#sheet [data-stepok="4"]').click());await page.waitForTimeout(600);
+out=await page.evaluate(()=>({pu:window.TRACE.net.stock.takes.filter(t=>t.key==='pu').length,zone:(window.TRACE.net.stock.takes.filter(t=>t.key==='pu').pop()||{}).zone}));
+console.log('12b) moussage validé → 1 mousse décomptée:',JSON.stringify(out));
+const c12b=out.pu===puBefore+1&&!!out.zone;
+// 13) suppression d'une livraison (le « Camion 1 » qu'on n'arrivait pas à supprimer)
+await page.evaluate(()=>window.TRACE.closeSheet());await page.waitForTimeout(300);
+await page.click('#tabbar [data-tab=stock]');await page.waitForTimeout(400);
+await page.evaluate(()=>{[...document.querySelectorAll('#stock details')].forEach(d=>d.open=true);});
+const nLiv=await page.evaluate(()=>window.TRACE.net.stock.livs.length);
+page.once('dialog',d=>d.accept());
+await page.click('#stock [data-stkdelliv]');await page.waitForTimeout(500);
+out=await page.evaluate(()=>{const s=window.TRACE.net.stock;return {livs:s.livs.length,orphan:s.takes.some(t=>t.liv&&!s.livs.find(v=>v.id===t.liv))};});
+console.log('13) livraison supprimée:',JSON.stringify({avant:nLiv,...out}));
+const c13=out.livs===nLiv-1&&!out.orphan;
+const ALL=c1&&c2&&c3&&c4&&c5a&&c5b&&c5c&&c6&&c7a&&c7b&&c7c&&c7d&&c8&&c9&&c10&&c11&&c12&&c12b&&c13;
+console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3,c4,c5a,c5b,c5c,c6,c7a,c7b,c7c,c7d,c8,c9,c10,c11,c12,c12b,c13}));
 console.log(logs.length?logs:'[]');
 await browser.close();process.exit(ALL?0:1);
