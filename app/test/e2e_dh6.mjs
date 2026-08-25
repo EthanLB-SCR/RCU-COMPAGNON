@@ -44,8 +44,30 @@ out=await page.evaluate(({l2})=>{const g=document.querySelector('#dhG');const wt
   return {surL2:wtl.filter(x=>x===l2).length,retour:false||wtl.filter(x=>x===l2).length,defaut:/défaut ≈ 70 m/.test(g.textContent)};},ids);
 console.log('4) trajet tronqué au défaut dans l\'antenne:',JSON.stringify(out));
 const c4=out.surL2>=1&&out.defaut;
-const ALL=c1&&c2&&c3&&c4;
-console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3,c4}));
+// 5) sur le PLAN : au té, le fil concerné (AXIOM : le cuivré) PLONGE dans la branche — plus les deux tout droit
+await page.click('#tabbar [data-tab=plan]');await page.waitForTimeout(400);
+await page.evaluate(()=>{const T=window.TRACE;T.centerOn(60,52,20);});await page.waitForTimeout(500); // les fils ne se dessinent qu'à partir de 15 px/m
+out=await page.evaluate(()=>{const dives=[...document.querySelectorAll('[data-wtee]')];
+  return {n:dives.length,cuivre:dives.every(p2=>p2.getAttribute('stroke')==='#e2843a')};});
+console.log('5) fil du té dessiné plongeant dans la branche:',JSON.stringify(out));
+const c5=out.n>=2&&out.cuivre; // aller + retour (par conduite visible), en cuivré (AXIOM)
+// 6) ROTATIONS PERSISTÉES : tourner un tube via l'étape 2, recharger la page → la rotation tient
+const sid=await page.evaluate(()=>window.TRACE.state.siteId);
+await page.evaluate(({l1})=>{const T=window.TRACE;T.openJoint(l1,'A',1);setTimeout(()=>document.querySelectorAll('#sheet details').forEach(d=>d.open=true),60);},ids);
+await page.waitForTimeout(500);
+await page.evaluate(()=>{[...document.querySelectorAll('#sheet .dstep')][1].querySelector('[data-rota="90"]').click();});
+await page.waitForTimeout(500);
+out=await page.evaluate(({l1})=>({rot:window.TRACE.lines[l1].cond.A.els[1].rot,saved:Object.keys(window.TRACE.net.elPos||{}).length}),ids);
+console.log('6a) tube tourné + position enregistrée sur le chantier:',JSON.stringify(out));
+const c6a=out.rot===90&&out.saved===1;
+await page.waitForTimeout(600); // laisse le kv/handoff s'écrire
+await page.reload();await page.waitForTimeout(900);
+await page.evaluate(id2=>window.TRACE.go(id2),sid);await page.waitForTimeout(1200);
+out=await page.evaluate(({l1})=>{const L2=window.TRACE.lines[l1];return {rot:L2&&L2.cond.A.els[1].rot};},ids);
+console.log('6b) après rechargement complet, le tube est toujours tourné:',JSON.stringify(out));
+const c6b=out.rot===90;
+const ALL=c1&&c2&&c3&&c4&&c5&&c6a&&c6b;
+console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3,c4,c5,c6a,c6b}));
 console.log(logs.length?logs:'[]');
 await browser.close();
 process.exit(ALL?0:1);

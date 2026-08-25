@@ -210,6 +210,15 @@ async function deleteCurrentSite(){const id=state.siteId;const net=SITES[id];if(
   try{const r=await sync.deleteSite(id,net.name);msg=r.ok?'supprimé sur le serveur':('serveur : '+(r.why||'refusé')+' — SQL à passer dans Supabase : delete from welds where site_id=\''+id+'\'; delete from line_state where site_id=\''+id+'\'; delete from events where site_id=\''+id+'\'; delete from sites where id=\''+id+'\';');}catch(e){msg='serveur injoignable';}
   delete SITES[id];delete siteStore[id];const o=[...siteSel.options].find(x=>x.value===id);if(o)o.remove();const next=Object.keys(SITES)[0];toast('Chantier supprimé — '+msg);
   if(next){siteSel.value=next;await switchSite(next);}else{location.reload();}}
+// positions des tubes (rotation / retourné) : portées par le chantier (NET.elPos), synchronisées comme dhData/stock, réappliquées à chaque reconstruction
+function elPosOf(){if(!NET||NET.id==='__vide')return null;if(!NET.elPos)NET.elPos={};return NET.elPos;}
+let elPosT=null;
+function saveElPos(){if(!NET||NET.id==='__vide')return;if(SITES[NET.id])SITES[NET.id].elPos=NET.elPos;
+  kv.get('trace:handoff:'+NET.id).then(x=>{if(x){x.elPos=NET.elPos;return kv.set('trace:handoff:'+NET.id,x);}}).catch(()=>{});
+  clearTimeout(elPosT);elPosT=setTimeout(async()=>{try{const {demo,...clean}=NET;const okk=await sync.saveSite(clean);if(okk){state.ownSiteWrite=Date.now();setCloudBadge('position des tubes enregistrée');}}catch(e){console.warn(e);}},1200);}
+function recordElPos(l,c,el){const m=elPosOf();if(!m||!l||!el)return;const k2=l.id+'|'+c+'|'+el.id;
+  if(el.rot||el.flip)m[k2]={rot:el.rot||0,flip:el.flip?1:0};else delete m[k2];saveElPos();}
+function applyElPos(){const m=NET&&NET.elPos;if(!m)return;Object.entries(m).forEach(([k2,v])=>{const [lid,c,eid]=k2.split('|');const l=state.lines[lid];const cd=l&&l.cond&&l.cond[c];if(!cd)return;const el=cd.els.find(x=>x.id===eid);if(el){el.rot=v.rot||0;el.flip=!!v.flip;}});}
 function setupSite(id){
   state.hydroPose=null;hydroCache=null;state.hydroMapView=null;state.osmHydrants=null;state.hydroCalStart=null;state.hydroCalMonth=null;state.hydroCalT=0;state.dhShowLoc=false;state.loc=null;state.dhLocPending=null;state.dh.at=null;state.dh.dir=null;state.dh.meas=null;state.dh.iso=null;state.dh.locVal='';const hb=$('#hydroBar');if(hb)hb.style.display='none';
   state.stockPose=null;state.stockSel=null;state.stockMatSel='';const sb2=$('#stockBar');if(sb2)sb2.style.display='none';
@@ -231,6 +240,7 @@ function setupSite(id){
   if(NET.demo){(NET.demo.lines||[]).forEach(d=>{const l=state.lines[d.id];if(l)seedStatuses(l,d);});
     const main=roots[0];if(main){const c=main.single||'A';const A=main.cond[c];const b=A.els.filter(e=>e.kind==='pipe')[9];if(b)b.rot=180;const jI=A.joints[Math.floor(A.joints.length*.25)];if(jI&&jI.status==='manchonnee'){jI.conn={E:'N',N:'E'};jI.wire='inversion';jI.note='Fils croisés constatés au test — à reprendre avant fermeture';}}}
   Object.values(state.lines).forEach(l=>{if(l.engine)resyncLine(l);});
+  applyElPos(); // les tubes tournés le restent — même après une resynchro ou sur un autre appareil
   { // numérotation des soudures : ne pas réutiliser un numéro déjà pris (lignes du traceur)
     let mx=0;Object.values(state.lines).forEach(l=>['A','R'].forEach(c=>{if(!l.cond[c])return;l.cond[c].joints.forEach(j=>{const n=+String(j.weldId).replace(/\D/g,'');if(n>mx)mx=n;});}));if(state.nextWeld<=mx)state.nextWeld=mx+1;}
   siteStore[id]={NET,lines:state.lines,sheets:state.sheets,nextWeld:state.nextWeld,sheetId:state.sheetId,firstLine:roots[0]?roots[0].id:null};
@@ -811,7 +821,26 @@ function renderPlan(){
       }
       if(e.kind==='tee'&&e.vert){const mid=elMid(e);const mx=mid.x+mid.ty*d,my=mid.y-mid.tx*d;const r=Math.max(w*.9,7/k);const up=e.vert==='up';const tri=up?`${mx},${my-r*.62} ${mx-r*.55},${my+r*.4} ${mx+r*.55},${my+r*.4}`:`${mx},${my+r*.62} ${mx-r*.55},${my-r*.4} ${mx+r*.55},${my-r*.4}`;net+=`<circle cx="${mx}" cy="${my}" r="${r}" fill="#fff" stroke="${col}" stroke-width="${Math.max(w*.18,1.5/k)}"/><polygon points="${tri}" fill="${up?'#0b0b0b':'#2a5fb4'}"/>`;if(showLabels&&S.pieces)net+=`<text x="${mx}" y="${my-r-3/k}" font-size="${Math.max(10/k,.3*ppm)}" text-anchor="middle" fill="#333" paint-order="stroke" stroke="#fff" stroke-width="${2/k}" font-family="system-ui,sans-serif" pointer-events="none">${up?'purge ▲':'vidange ▼'} DN${e.dnb||''}</text>`;} // té de purge / vidange : symbole rond + triangle
       if(e.kind==='tee'&&e.branch&&e.branch.length===2){const b0=e.branch[0],b1=e.branch[1];const wb=Math.max(minW/k,casingOf({dn:e.dnb||e.dn})*ppm*EX);if(e.saut)net+=`<line x1="${b0[0]}" y1="${b0[1]}" x2="${b1[0]}" y2="${b1[1]}" stroke="#f4f3ee" stroke-width="${wb*2}" stroke-linecap="butt"/>`;net+=`<line x1="${b0[0]}" y1="${b0[1]}" x2="${b1[0]}" y2="${b1[1]}" stroke="${far?col:'#161616'}" stroke-width="${wb}" stroke-linecap="butt"/>`;if(!far)net+=`<line x1="${b0[0]}" y1="${b0[1]}" x2="${b1[0]}" y2="${b1[1]}" stroke="${col}" stroke-width="${wb*.45}" stroke-linecap="butt" opacity=".9"/>`;} // branche du té (jusqu'à la sortie où repart l'antenne) ; té à saut : par-dessus la conduite voisine
-      if(showWires&&S.fils&&e.kind!=='valve'&&e.kind!=='endcap'&&!isSteel){['E','N'].forEach(wn=>{const a=clockPos(e,wn);const o=(-Math.sin(rad(a)))*casingOf(e)*EX*.37*ppm;const front=Math.cos(rad(a))>=0;net+=`<path d="${e.axis.map(pl=>pathD(offsetPoly(axisSub(pl,bare+.02,polyLen(pl)-bare-.02),d+o))).join(' ')}" stroke="${WIRE[wn].color}" stroke-width="${Math.max(1.4/k,.022*ppm)}" fill="none" ${front?'':'stroke-dasharray="'+(.25*ppm)+' '+(.15*ppm)+'"'} opacity="${front?.95:.55}" stroke-linejoin="round"/>`;});}
+      if(showWires&&S.fils&&e.kind!=='valve'&&e.kind!=='endcap'&&!isSteel){
+        const brT=(e.kind==='tee'&&Array.isArray(e.branch)&&e.branch.length===2)?e.branch:null;
+        const child=brT?((e.branchLine&&state.lines[e.branchLine])?e.branchLine:null):null;
+        const wbT=brT?(child?antennaMode(child,c,e).wire:wireOfTee(e)):null; // LE fil qui part dans la branche : réglage de la sortie de té s'il existe, sinon défaut fournisseur (té retourné : inversé)
+        ['E','N'].forEach(wn=>{const a=clockPos(e,wn);const o=(-Math.sin(rad(a)))*casingOf(e)*EX*.37*ppm;const front=Math.cos(rad(a))>=0;
+          const st3=`stroke="${WIRE[wn].color}" stroke-width="${Math.max(1.4/k,.022*ppm)}" fill="none" ${front?'':'stroke-dasharray="'+(.25*ppm)+' '+(.15*ppm)+'"'} opacity="${front?.95:.55}" stroke-linejoin="round"`;
+          if(brT&&wn===wbT){ // ce fil PLONGE dans le té (aller-retour le long de la branche), il ne traverse pas tout droit
+            const pl=e.axis[0];const Lax2=polyLen(pl);const b0={x:brT[0][0],y:brT[0][1]},b1={x:brT[1][0],y:brT[1][1]};
+            let mB=Lax2/2;{let bd=1e9,m2=0;for(let i2=1;i2<pl.length;i2++){const seg2=Math.hypot(pl[i2].x-pl[i2-1].x,pl[i2].y-pl[i2-1].y);const n2=Math.max(1,Math.ceil(seg2/.3));for(let t2=0;t2<=n2;t2++){const q2={x:pl[i2-1].x+(pl[i2].x-pl[i2-1].x)*t2/n2,y:pl[i2-1].y+(pl[i2].y-pl[i2-1].y)*t2/n2};const dd2=Math.hypot(q2.x-b0.x,q2.y-b0.y);if(dd2<bd){bd=dd2;mB=m2+seg2*t2/n2;}}m2+=seg2;}}
+            const gap2=Math.max(.12,casingOf({dn:e.dnb||e.dn})*EX*.55);const mm0=bare+.02,mm1=Lax2-bare-.02;
+            const A1=offsetPoly(axisSub(pl,mm0,Math.max(mm0+.01,mB-gap2)),d+o),A2=offsetPoly(axisSub(pl,Math.min(mm1-.01,mB+gap2),mm1),d+o);
+            const ux=b1.x-b0.x,uy=b1.y-b0.y;const uL=Math.hypot(ux,uy)||1;const nx2=-uy/uL,ny2=ux/uL;const s4=Math.max(1.2/k,.05*ppm);const tip=Math.min(.2,uL*.1);
+            const e1={x:b1.x-ux/uL*tip+nx2*s4,y:b1.y-uy/uL*tip+ny2*s4},e2={x:b1.x-ux/uL*tip-nx2*s4,y:b1.y-uy/uL*tip-ny2*s4};
+            if(A1.length>1)net+=`<path d="${pathD(A1)}" ${st3}/>`;
+            if(A2.length>1)net+=`<path d="${pathD(A2)}" ${st3}/>`;
+            const P1=A1.length?A1[A1.length-1]:null,P2=A2.length?A2[0]:null;
+            if(P1)net+=`<path data-wtee="1" d="M${P1.x} ${P1.y} L${e1.x} ${e1.y}" ${st3}/>`; // aller : le fil descend dans la branche
+            if(P2)net+=`<path data-wtee="1" d="M${e2.x} ${e2.y} L${P2.x} ${P2.y}" ${st3}/>`; // retour : il en revient et continue
+            return;}
+          net+=`<path d="${e.axis.map(pl=>pathD(offsetPoly(axisSub(pl,bare+.02,polyLen(pl)-bare-.02),d+o))).join(' ')}" ${st3}/>`;});}
       if(detail){const mid=elMid(e);const mx=mid.x+mid.ty*d,my=mid.y-mid.tx*d;const ang=Math.atan2(mid.ty,mid.tx)*180/Math.PI;
         if(e.kind==='valve')net+=`<g transform="translate(${mx} ${my}) rotate(${ang})"><rect x="${-w*.22}" y="${-w*.62}" width="${w*.44}" height="${w*1.24}" rx="${w*.06}" fill="#2b2e33"/><rect x="${-w*.05}" y="${-w*.62-w*.5}" width="${w*.1}" height="${w*.5}" fill="#2b2e33"/><rect x="${-w*.28}" y="${-w*.62-w*.6}" width="${w*.56}" height="${w*.12}" rx="${w*.04}" fill="#3d4147"/></g>`;
         else if(e.kind==='endcap'){const p=e.to;const nx=mid.ty,ny=-mid.tx;net+=`<line x1="${p.x+nx*d-nx*w*.6}" y1="${p.y+ny*d-ny*w*.6}" x2="${p.x+nx*d+nx*w*.6}" y2="${p.y+ny*d+ny*w*.6}" stroke="#2b2e33" stroke-width="${Math.max(2/k,.08*ppm)}" stroke-linecap="round"/>`;}
@@ -1240,10 +1269,10 @@ sheetEl.addEventListener('click',e=>{const b=e.target.closest('[data-act],[data-
     saveDhData();renderSheet();toast('État DH enregistré — valeurs attendues recalculées');return;}
   const lockedToast=ids=>toast('Position figée — déjà manchonnée en '+ids.join(' et '));
   if(b.dataset.sw){state.sw[b.dataset.sw]=!state.sw[b.dataset.sw];b.classList.toggle('on',!!state.sw[b.dataset.sw]);return;}
-  if(b.dataset.rot!==undefined){const lk=elLock(l,s.cond,s.i);if(lk)return lockedToast(lk);const el=l.cond[s.cond].els[s.i];const dg=+b.dataset.rot;const g=$('#dialw',sheetEl);if(g){g.style.transition='transform .35s';g.style.transformOrigin='45px 45px';g.style.transform=`rotate(${dg}deg)`;}setTimeout(()=>{el.rot=((el.rot+dg)%360+360)%360;renderSheet();renderPlan();},g?340:0);return;}
+  if(b.dataset.rot!==undefined){const lk=elLock(l,s.cond,s.i);if(lk)return lockedToast(lk);const el=l.cond[s.cond].els[s.i];const dg=+b.dataset.rot;const g=$('#dialw',sheetEl);if(g){g.style.transition='transform .35s';g.style.transformOrigin='45px 45px';g.style.transform=`rotate(${dg}deg)`;}setTimeout(()=>{el.rot=((el.rot+dg)%360+360)%360;recordElPos(l,s.cond,el);renderSheet();renderPlan();},g?340:0);return;}
   if(b.dataset.wire){const [side,w]=b.dataset.wire.split(':');snapshotForm();if(side==='a'){state.wsel=state.wsel===w?null:w;}else if(state.wsel){state.conn[state.wsel]=w;state.wsel=null;}else if(w==='X'){state.conn.E='X';state.conn.N='X';}renderSheet();return;}
-  if(b.dataset.rotb!==undefined||b.dataset.rota!==undefined){const j=l.cond[s.cond].joints[s.i];const off=b.dataset.rotb!==undefined?1:0;const el=l.cond[s.cond].els[j.idx+off];if(!el)return;const lk=elLock(l,s.cond,j.idx+off);if(lk)return lockedToast(lk);snapshotForm();el.rot=(((el.rot||0)+ +(off?b.dataset.rotb:b.dataset.rota))%360+360)%360;renderSheet();renderPlan();return;}
-  if(b.dataset.flipb!==undefined||b.dataset.flipa!==undefined){const j=l.cond[s.cond].joints[s.i];const off=b.dataset.flipb!==undefined?1:0;const el=l.cond[s.cond].els[j.idx+off];if(!el)return;const lk=elLock(l,s.cond,j.idx+off);if(lk)return lockedToast(lk);snapshotForm();el.flip=!el.flip;renderSheet();renderPlan();return;}
+  if(b.dataset.rotb!==undefined||b.dataset.rota!==undefined){const j=l.cond[s.cond].joints[s.i];const off=b.dataset.rotb!==undefined?1:0;const el=l.cond[s.cond].els[j.idx+off];if(!el)return;const lk=elLock(l,s.cond,j.idx+off);if(lk)return lockedToast(lk);snapshotForm();el.rot=(((el.rot||0)+ +(off?b.dataset.rotb:b.dataset.rota))%360+360)%360;recordElPos(l,s.cond,el);renderSheet();renderPlan();return;}
+  if(b.dataset.flipb!==undefined||b.dataset.flipa!==undefined){const j=l.cond[s.cond].joints[s.i];const off=b.dataset.flipb!==undefined?1:0;const el=l.cond[s.cond].els[j.idx+off];if(!el)return;const lk=elLock(l,s.cond,j.idx+off);if(lk)return lockedToast(lk);snapshotForm();el.flip=!el.flip;recordElPos(l,s.cond,el);renderSheet();renderPlan();return;}
   const a=b.dataset.act;e.preventDefault();
   if(a==='close')return closeSheet();
   if(a==='transfer'){startTransfer(s.line,s.cond,s.i);return;}
@@ -1256,9 +1285,9 @@ sheetEl.addEventListener('click',e=>{const b=e.target.closest('[data-act],[data-
   if(a==='back'){state.sheetMode='view';resetForm();renderSheet();return;}
   if(a.startsWith('form-')){state.sheetMode=a;state.wsel=null;resetForm();const j=l.cond[s.cond].joints[s.i];state.conn={...j.conn};state.sw={cont:false,iso:false,etanch:false,mousse:false};renderSheet();return;}
   if(a==='open-el-a'||a==='open-el-b'){openEl(s.line,s.cond,s.i+(a==='open-el-b'?1:0));return;}
-  if(a==='flip'){const lk=elLock(l,s.cond,s.i);if(lk)return lockedToast(lk);const el=l.cond[s.cond].els[s.i];el.flip=!el.flip;renderSheet();renderPlan();return;}
+  if(a==='flip'){const lk=elLock(l,s.cond,s.i);if(lk)return lockedToast(lk);const el=l.cond[s.cond].els[s.i];el.flip=!el.flip;recordElPos(l,s.cond,el);renderSheet();renderPlan();return;}
   if(b.dataset.saut){const lk=elLock(l,s.cond,s.i);if(lk)return lockedToast(lk);const el=l.cond[s.cond].els[s.i];el.sautDir=b.dataset.saut;renderSheet();renderPlan();return;}
-  if(a==='rot0'){const lk=elLock(l,s.cond,s.i);if(lk)return lockedToast(lk);const el=l.cond[s.cond].els[s.i];el.rot=0;el.flip=false;renderSheet();renderPlan();return;}
+  if(a==='rot0'){const lk=elLock(l,s.cond,s.i);if(lk)return lockedToast(lk);const el=l.cond[s.cond].els[s.i];el.rot=0;el.flip=false;recordElPos(l,s.cond,el);renderSheet();renderPlan();return;}
   if(a==='demo-photo'){snapshotForm();state.err='';const kind=state.sheetMode==='form-manchon'?'fils':state.sheetMode==='form-soudee'?'soudure':'manchon';const label=s.kind==='el'?l.cond[s.cond].els[s.i].id:l.cond[s.cond].joints[s.i].weldId;state.pendingPhotos.push(makePhoto(label+' · photo',kind));renderSheet();return;}
   if(a==='save-el'){const el=l.cond[s.cond].els[s.i];el.note=$('#f-note',sheetEl).value;el.photos.push(...state.pendingPhotos);toast(`${el.id} enregistrée (rotation ${el.rot}°${el.flip?', retournée':''})`);closeSheet();return;}
   const j=l.cond[s.cond].joints[s.i];const val=id=>$('#'+id,sheetEl)?.value;
