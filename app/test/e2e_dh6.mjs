@@ -27,11 +27,12 @@ console.log('1) localisé après l\'antenne (le fil a fait l\'aller-retour dedan
 const c1=out.ok&&out.line===ids.l1&&out.w==='N'&&out.total>160; // 110 + 2 × 30 = 170 m de fil nu
 // 2) sur le plan : trajet ROUGE d'un bloc — L1 avant le té, PLONGÉE dans L2 (aller + retour), L1 après — jonctions reliées
 await page.click('#loc-show');await page.waitForTimeout(700);
+await page.evaluate(()=>window.TRACE.centerOn(60,55,26));await page.waitForTimeout(500); // zoomé : fils dessinés → la surbrillance les suit, jonctions du té visibles
 out=await page.evaluate(({l2})=>{const g=document.querySelector('#dhG');const h=g.innerHTML;
   const wtl=[...g.querySelectorAll('path[data-wtl]')].map(p2=>p2.dataset.wtl);
   return {tab:window.TRACE.state.tab,rouge:/#e8102d/.test(h),surL2:wtl.filter(x=>x===l2).length,surL1:wtl.filter(x=>x!==l2).length,joints:g.querySelectorAll('path[data-wtc]').length,cote:/120 m ►/.test(g.textContent)};},ids);
 console.log('2) plongée visible dans l\'antenne + jonctions:',JSON.stringify(out));
-const c2=out.tab==='plan'&&out.rouge&&out.surL2>=2&&out.surL1>=2&&out.joints>=3&&out.cote; // aller + retour dans L2, L1 des deux côtés, ≥3 jonctions (entrée té, bout d'antenne, sortie té)
+const c2=out.tab==='plan'&&out.rouge&&out.surL2>=2&&out.surL1>=2&&out.joints>=2&&out.cote; // aller + retour dans L2, L1 des deux côtés, ≥2 jonctions visibles au té (le bout d'antenne est hors vue à ce zoom → il suit l'axe, pas de jonction à dessiner)
 // 3) défaut DANS l'antenne (70 m = 20 m après l'entrée) : le point est posé sur L2, trajet tronqué à l'aller
 await page.click('#tabbar [data-tab=bouclage]');await page.waitForTimeout(400);
 await page.evaluate(()=>{document.querySelector('#loc-d').value='70';document.querySelector('#loc-wire').value='N';});

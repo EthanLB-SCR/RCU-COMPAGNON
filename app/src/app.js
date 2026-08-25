@@ -826,6 +826,7 @@ function renderPlan(){
         const child=brT?((e.branchLine&&state.lines[e.branchLine])?e.branchLine:null):null;
         const wbT=brT?(child?antennaMode(child,c,e).wire:wireOfTee(e)):null; // LE fil qui part dans la branche : réglage de la sortie de té s'il existe, sinon défaut fournisseur (té retourné : inversé)
         ['E','N'].forEach(wn=>{const a=clockPos(e,wn);const o=(-Math.sin(rad(a)))*casingOf(e)*EX*.37*ppm;const front=Math.cos(rad(a))>=0;
+          (e._wo||(e._wo={})).k=k;e._wo[wn]=d+o; // position dessinée de CE fil, reprise par la surbrillance DH (le fil lui-même devient rouge)
           const st3=`stroke="${WIRE[wn].color}" stroke-width="${Math.max(1.4/k,.022*ppm)}" fill="none" ${front?'':'stroke-dasharray="'+(.25*ppm)+' '+(.15*ppm)+'"'} opacity="${front?.95:.55}" stroke-linejoin="round"`;
           if(brT&&wn===wbT){ // ce fil PLONGE dans le té (aller-retour le long de la branche), il ne traverse pas tout droit
             const pl=e.axis[0];const Lax2=polyLen(pl);const b0={x:brT[0][0],y:brT[0][1]},b1={x:brT[1][0],y:brT[1][1]};
@@ -1233,7 +1234,18 @@ sheetEl.addEventListener('click',e=>{const b=e.target.closest('[data-act],[data-
   if(b.dataset.stkpick!==undefined){sheetEl.querySelectorAll('[data-stkpick][data-stkneed="'+b.dataset.stkneed+'"]').forEach(x=>{x.removeAttribute('data-on');x.style.borderColor='';x.style.background='';});b.dataset.on='1';b.style.borderColor='#eb6834';b.style.background='#fff7f2';return;}
   const stp=b.dataset.stepok||b.dataset.stepundo;
   if(stp&&s.kind==='j'){e.preventDefault();const j2=l.cond[s.cond].joints[s.i];const n=+stp;j2.steps=j2.steps||{};
-    if(b.dataset.stepundo){if(!confirm('Annuler l\'étape '+n+' de '+j2.weldId+' (erreur de saisie) ?'))return;delete j2.steps[n];}
+    if(b.dataset.stepundo){ // annuler POUR DE VRAI (retour Ethan 25/08 : l'étape revenait toute seule — migrateSteps la recochait depuis le statut resté en place)
+      const later=[1,2,3,4].filter(m2=>m2>n&&j2.steps[m2]&&j2.steps[m2].done);
+      if(later.length){toast('Annule d\'abord l\'étape '+later[later.length-1]+' — on remonte dans l\'ordre');return;}
+      if(!confirm('Annuler l\'étape '+n+' de '+j2.weldId+' (erreur de saisie) ?'))return;
+      delete j2.steps[n];
+      const dropEv=t=>{const evs2=j2.events||[];for(let i2=evs2.length-1;i2>=0;i2--){if(evs2[i2].type===t){evs2.splice(i2,1);break;}}};
+      const s5=stockOf();const dropTake=pred=>{if(!s5)return;const n0=s5.takes.length;s5.takes=s5.takes.filter(t=>!(t.weldId===j2.weldId&&pred(t)));if(s5.takes.length!==n0)saveStock();};
+      if(n===1){j2.status='a_souder';dropEv('soudee');dropTake(t=>!/^pu(:|$)/.test(t.key));} // le statut RETOMBE (sinon la migration recoche l'étape) ; tube + manchon rendus au stock
+      if(n===2){j2.wire='a_raccorder';j2.conn={E:'E',N:'N'};j2.cont=false;j2.iso=false;j2.isoVal='';} // fils dé-déclarés, bouclage figé parti avec l'étape
+      if(n===3){j2.status='soudee';dropEv('manchonnee');}
+      if(n===4){dropTake(t=>/^pu(:|$)/.test(t.key));} // la mousse retourne au stock
+      try{sync.logEvent(state.siteId,j2.weldId,'annule_etape'+n,(me()||{}).name,{});}catch(e2){}}
     else{
       const ph=(j2.steps[n]&&j2.steps[n].photos)||[];
       if(n===1&&!ph.length){toast('Ajoute au moins une photo du cordon');return;}                     // même blocage que l'ancien « Déclarer soudée »
@@ -1588,34 +1600,41 @@ function showFrozenLoop(l,c,j){const f=j.steps&&j.steps[2]&&j.steps[2].dh;if(!f)
 // violet = boucle figée rejouée), bien décalée du côté du fil physique — le trait CHANGE de côté à une inversion, plonge dans
 // l'antenne au té (aller d'un côté, retour de l'autre) et chaque jonction (inversion, té, pont de fermeture) est reliée : zéro ambiguïté.
 function offsetPl(pts,delta){const out=[];for(let i=0;i<pts.length;i++){const a2=pts[Math.max(0,i-1)],b2=pts[Math.min(pts.length-1,i+1)];const dx=b2.x-a2.x,dy=b2.y-a2.y;const L2=Math.hypot(dx,dy)||1;out.push({x:pts[i].x-dy/L2*delta,y:pts[i].y+dx/L2*delta});}return out;}
-function wireTraceSVG(lineId,cond,legs,k,color,mode){const off=6/k;const col=color||'#e8102d';
+function wireTraceSVG(lineId,cond,legs,k,color,mode){const col=color||'#e8102d';
   const groups=[];
   legs.forEach((leg,li)=>{const wp=wirePath(lineId,cond,leg.wire);const lo=Math.min(leg.d0,leg.d1),hi=Math.max(leg.d0,leg.d1);
     let g=null;const gs=[];const push=()=>{if(g)gs.push(g);g=null;};
     wp.segs.forEach(sg=>{if(sg.kind==='cut'||sg.m1<=lo||sg.m0>=hi)return;
       const t0=(Math.max(lo,sg.m0)-sg.m0)/Math.max(.001,sg.m1-sg.m0),t1=(Math.min(hi,sg.m1)-sg.m0)/Math.max(.001,sg.m1-sg.m0);
       const p0=sg.phys0+(sg.phys1-sg.phys0)*t0,p1=sg.phys0+(sg.phys1-sg.phys0)*t1;const w=sg.w||leg.wire;
-      const side=(w==='E'?1:-1)*(sg.kind==='branchBack'?-1:1); // aller et retour d'antenne chacun de leur côté ; inversion = changement de côté
-      if(g&&g.line===sg.line&&g.w===w&&g.side===side)g.p1=p1;
-      else{push();g={line:sg.line,w,side,p0,p1,leg:li};}});
+      if(g&&g.line===sg.line&&g.w===w&&g.kind===sg.kind)g.p1=p1;
+      else{push();g={line:sg.line,w,kind:sg.kind,p0,p1,leg:li};}});
     push();
     if(leg.d1<leg.d0){gs.reverse();gs.forEach(g2=>{const t=g2.p0;g2.p0=g2.p1;g2.p1=t;});} // dans le SENS du parcours (amont : on remonte)
     groups.push(...gs);});
-  let s2='';const ends=[];
-  groups.forEach(g2=>{const L3=state.lines[g2.line];if(!L3)return;
-    let pts=[];condSubAxis(L3,cond,Math.min(g2.p0,g2.p1),Math.max(g2.p0,g2.p1)).forEach(pl=>{pts=pts.concat(pl);});
+  // rendu (retour Ethan 25/08 soir) : pas un trait À CÔTÉ — le fil DESSINÉ devient rouge : on repasse sur sa position exacte
+  // (offset _wo mémorisé par renderPlan : côté de conduite + heure de sortie du fil, ROTATION DU TUBE comprise).
+  const opp=w2=>w2==='E'?'N':'E';let s2='';const ends=[];
+  groups.forEach(g2=>{const L3=state.lines[g2.line];const cd=L3&&L3.cond&&L3.cond[cond];if(!cd)return;
+    const lo2=Math.min(g2.p0,g2.p1),hi2=Math.max(g2.p0,g2.p1);
+    const wn=g2.kind==='branchBack'?opp(g2.w):g2.w; // dans l'antenne : descend par un fil, REMONTE par l'autre — les deux traits deviennent rouges
+    const ppm=L3.ppm||1;const flw=Math.max(1.4/k,.022*ppm);let pts=[];
+    cd.els.forEach(e=>{if(e.m1<=lo2||e.m0>=hi2)return;const pl=e.axis&&e.axis[0];if(!pl||pl.length<2)return;
+      const Lax=polyLen(pl);const sp=(e.m1-e.m0)||1;
+      const sub=axisSub(pl,Lax*(Math.max(lo2,e.m0)-e.m0)/sp,Lax*(Math.min(hi2,e.m1)-e.m0)/sp);
+      if(sub.length<2)return;
+      const off=(e._wo&&Math.abs((e._wo.k||0)-k)<1e-9&&e._wo[wn]!==undefined)?e._wo[wn]:0; // fils non dessinés (dézoomé) : l'axe du tube
+      pts=pts.concat(offsetPoly(sub,off));});
     if(pts.length<2)return;
-    const rev=g2.p0>g2.p1;if(rev)pts=pts.slice().reverse();
-    const o=offsetPl(pts,off*g2.side*(rev?-1:1)); // polyligne retournée : le delta s'inverse pour rester du même côté MONDE
-    const d2=pathD(o);
-    s2+=`<path d="${d2}" stroke="#fff" stroke-width="${9/k}" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/><path d="${d2}" data-wtl="${esc(g2.line)}" stroke="${col}" stroke-width="${3.8/k}" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="${11/k} ${5/k}"><animate attributeName="stroke-dashoffset" values="${32/k};0" dur="1.1s" repeatCount="indefinite"/></path>`;
-    ends.push({a:o[0],b:o[o.length-1],leg:g2.leg});});
-  const joint=(A,B)=>{const d3=Math.hypot(B.x-A.x,B.y-A.y);if(d3<0.01||d3>25*off)return '';
-    return `<path d="M${A.x} ${A.y} L${B.x} ${B.y}" stroke="#fff" stroke-width="${9/k}" fill="none" stroke-linecap="round" opacity=".85"/><path d="M${A.x} ${A.y} L${B.x} ${B.y}" data-wtc="1" stroke="${col}" stroke-width="${3.8/k}" fill="none" stroke-linecap="round"/>`;};
-  for(let i=1;i<ends.length;i++){if(mode==='loop'&&ends[i].leg!==ends[i-1].leg)continue; // boucle : les 2 fils sont parallèles, pas bout à bout
-    s2+=joint(ends[i-1].b,ends[i].a);} // défaut : on relie TOUT (manchon d'inversion, entrée/sortie d'antenne, pont étamé→nu)
+    if(g2.p0>g2.p1)pts=pts.slice().reverse();
+    const d2=pathD(pts);
+    s2+=`<path d="${d2}" stroke="#0b0b0b" stroke-width="${flw*2.9}" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".5"/><path d="${d2}" data-wtl="${esc(g2.line)}" stroke="${col}" stroke-width="${flw*1.9}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+    ends.push({a:pts[0],b:pts[pts.length-1],leg:g2.leg,flw});});
+  const joint=(A,B,flw)=>{const d3=Math.hypot(B.x-A.x,B.y-A.y);if(d3<0.01||d3>6)return ''; // jonctions réelles : fils du même tube, té→antenne — jamais plus de quelques mètres
+    return `<path d="M${A.x} ${A.y} L${B.x} ${B.y}" stroke="#0b0b0b" stroke-width="${flw*2.9}" fill="none" stroke-linecap="round" opacity=".5"/><path d="M${A.x} ${A.y} L${B.x} ${B.y}" data-wtc="1" stroke="${col}" stroke-width="${flw*1.9}" fill="none" stroke-linecap="round"/>`;};
+  for(let i=1;i<ends.length;i++){if(mode==='loop'&&ends[i].leg!==ends[i-1].leg)continue;s2+=joint(ends[i-1].b,ends[i].a,ends[i].flw);} // inversion, entrée/sortie d'antenne, pont étamé→nu : reliés
   if(mode==='loop'){const L0=ends.filter(e=>e.leg===0),L1=ends.filter(e=>e.leg===1);
-    if(L0.length&&L1.length){s2+=joint(L0[0].a,L1[0].a);s2+=joint(L0[L0.length-1].b,L1[L1.length-1].b);}} // les 2 fils reliés aux 2 bouts : le testeur d'un côté, la fermeture ⟲ de l'autre
+    if(L0.length&&L1.length){s2+=joint(L0[0].a,L1[0].a,L0[0].flw);s2+=joint(L0[L0.length-1].b,L1[L1.length-1].b,L0[0].flw);}} // les 2 fils de la boucle reliés aux 2 bouts (testeur / fermeture ⟲)
   return s2;}
 // défaut DH sur le plan : le TRAJET du fil est surligné depuis le départ de la ligne racine, la distance cotée, la zone du défaut marquée (± incertitude) — « pas juste un point »
 function renderDhOverlay(){if(!dhG)return;const r=state.loc;if(!r||!state.dhShowLoc||!state.lines[r.line]){dhG.innerHTML='';return;}
@@ -1644,8 +1663,12 @@ function renderDhOverlay(){if(!dhG)return;const r=state.loc;if(!r||!state.dhShow
   const tolM=Math.max(3,(r.dFil||r.phys)*0.02); // incertitude ± 2 % (mini 3 m)
   condSubAxis(l,cnd,Math.max(0,r.phys-tolM),Math.min(l.length,r.phys+tolM)).forEach(pl=>{s+=`<path d="${pathD(pl)}" stroke="#d03b3b" stroke-width="${13/k}" fill="none" stroke-linecap="round" opacity=".25"/>`;});
   let p=condPos(l,cnd,r.phys);
-  if(wireS&&r.seg){const pa=condPos(l,cnd,Math.max(0,r.phys-1)),pb=condPos(l,cnd,r.phys+1);const dx=pb.x-pa.x,dy=pb.y-pa.y;const dl=Math.hypot(dx,dy)||1;
-    const d6=6/k*(((r.seg.w||'E')==='E'?1:-1)*(r.seg.kind==='branchBack'?-1:1));p={x:p.x-dy/dl*d6,y:p.y+dx/dl*d6};} // posé SUR le fil, du bon côté
+  if(wireS&&r.seg){const cd6=l.cond&&l.cond[cnd];const e6=cd6&&cd6.els[r.seg.elIdx];
+    const wn6=r.seg.kind==='branchBack'?((r.seg.w||'E')==='E'?'N':'E'):(r.seg.w||'E');
+    if(e6&&e6.axis&&e6.axis[0]){const pl6=e6.axis[0];const Lax6=polyLen(pl6);const sp6=(e6.m1-e6.m0)||1;const mr=Math.min(Math.max(r.phys-e6.m0,0),sp6);
+      const sub6=axisSub(pl6,Math.max(0,Lax6*(mr-.08)/sp6),Math.min(Lax6,Lax6*(mr+.08)/sp6));
+      const off6=(e6._wo&&Math.abs((e6._wo.k||0)-k)<1e-9&&e6._wo[wn6]!==undefined)?e6._wo[wn6]:0;
+      const o6=offsetPoly(sub6,off6);if(o6.length)p=o6[Math.floor(o6.length/2)];}} // posé SUR le fil dessiné (rotation du tube comprise)
   s+=`<circle cx="${p.x}" cy="${p.y}" r="${14/k}" fill="#d03b3b" opacity=".2"><animate attributeName="r" values="${10/k};${18/k};${10/k}" dur="1.6s" repeatCount="indefinite"/></circle><circle cx="${p.x}" cy="${p.y}" r="${7/k}" fill="#d03b3b" stroke="#fff" stroke-width="${2.4/k}"/><text x="${p.x}" y="${p.y+3.4/k}" font-size="${9/k}" font-weight="900" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">!</text>`;
   const lab=`défaut ≈ ${fmt(r.dFil||0)} m de fil · ${r.e?r.e.id:''} · ± ${fmt(tolM)} m`;const w2=lab.length*6+16;
   s+=`<g transform="translate(${p.x} ${p.y}) scale(${1/k})"><rect x="${-w2/2}" y="-38" width="${w2}" height="17" rx="8.5" fill="#d03b3b"/><text y="-25.5" font-size="10" font-weight="800" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">${esc(lab)}</text></g>`;

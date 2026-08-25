@@ -59,8 +59,29 @@ await open(5);await page.waitForTimeout(400);
 out=await page.evaluate(()=>({s1:!!document.querySelector('#sheet [data-stepok="1"]'),s3:!!document.querySelector('#sheet [data-stepok="3"]')}));
 console.log('7) rôle soudeur : étape 1 seulement:',JSON.stringify(out));
 const c7=out.s1&&!out.s3;
-const ALL=c1&&c2&&c3&&c4&&c5&&c6&&c7;
-console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3,c4,c5,c6,c7}));
+// 8) ANNULATION RÉELLE (retour Ethan 25/08 : « quand j'annule une étape elle ne s'annule pas vraiment ») :
+// annuler doit faire RETOMBER le statut, sinon migrateSteps recoche l'étape à la réouverture de la fiche.
+await page.selectOption('#roleSel','ethan');await page.waitForTimeout(300); // chef : seul à voir l'annulation
+page.on('dialog',d=>d.accept().catch(()=>{}));
+await open(1);await page.waitForTimeout(400);
+out=await page.evaluate(()=>{const b=document.querySelector('#sheet [data-stepundo="1"]');if(b)b.click();return {tried:!!b};}); // refusé AVANT tout confirm : la 3 est faite
+await page.waitForTimeout(400);
+out=await page.evaluate(({L})=>{const j=window.TRACE.lines[L].cond.A.joints[1];return {refus:!(j.steps&&j.steps[1])===false&&!!(j.steps[1]&&j.steps[1].done),status:j.status};},{L});
+console.log('8a) étape 1 non annulable tant que la 3 est faite (ordre imposé):',JSON.stringify(out));
+const c8a=out.refus&&out.status==='manchonnee';
+await page.evaluate(()=>{document.querySelectorAll('#sheet details').forEach(d=>d.open=true);document.querySelector('#sheet [data-stepundo="3"]').click();});
+await page.waitForTimeout(500);
+out=await page.evaluate(({L})=>{const j=window.TRACE.lines[L].cond.A.joints[1];
+  return {d3:!!(j.steps[3]&&j.steps[3].done),status:j.status,evM:(j.events||[]).some(e2=>e2.type==='manchonnee')};},{L});
+console.log('8b) étape 3 annulée → statut RETOMBE à soudée, événement retiré:',JSON.stringify(out));
+const c8b=!out.d3&&out.status==='soudee'&&!out.evM;
+// la fiche rouverte ne la recoche PAS (c'était le bug : migrateSteps la remettait depuis le statut)
+await page.evaluate(()=>window.TRACE.closeSheet());await open(1);await page.waitForTimeout(500);
+out=await page.evaluate(({L})=>{const j=window.TRACE.lines[L].cond.A.joints[1];return {d3:!!(j.steps[3]&&j.steps[3].done),btn3:!!document.querySelector('#sheet [data-stepok="3"]')};},{L});
+console.log('8c) fiche rouverte : l\'étape 3 reste À FAIRE:',JSON.stringify(out));
+const c8c=!out.d3&&out.btn3;
+const ALL=c1&&c2&&c3&&c4&&c5&&c6&&c7&&c8a&&c8b&&c8c;
+console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3,c4,c5,c6,c7,c8a,c8b,c8c}));
 console.log(logs.length?logs:'[]');
 await browser.close();
 process.exit(ALL?0:1);

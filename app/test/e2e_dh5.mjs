@@ -61,6 +61,7 @@ out=await page.evaluate(()=>{const r=window.TRACE.state.loc;return {ok:r&&r.ok,w
 console.log('C1) branché étamé au départ, 50 m : après l\'inversion (PK 48) on est sur le NU:',JSON.stringify(out));
 const c1=out.ok&&out.w==='N'&&out.legs===1&&out.d0===0&&out.d1===50;
 await page.click('#loc-show');await page.waitForTimeout(700);
+await page.evaluate(()=>window.TRACE.centerOn(48,50,30));await page.waitForTimeout(500); // zoomé : les fils sont dessinés, la surbrillance les suit et relie la bascule au manchon d'inversion
 out=await page.evaluate(()=>{const g=document.querySelector('#dhG');const h=g.innerHTML;
   return {tab:window.TRACE.state.tab,rouge:/#e8102d/.test(h),vieux:/#dfe4ea|#e2843a/.test(h),joints:g.querySelectorAll('path[data-wtc]').length,cote:/50 m ►/.test(g.textContent),lab:/défaut ≈ 50 m/.test(g.textContent)};});
 console.log('C2) tracé ROUGE d\'un bloc (bascule reliée à l\'inversion), cote et défaut:',JSON.stringify(out));
