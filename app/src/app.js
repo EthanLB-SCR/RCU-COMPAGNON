@@ -28,7 +28,7 @@ const WIRE_POS={LOGSTOR:{E:335,N:25,label:'LOGSTOR : fils au sommet, ± 3-20 cm 
 const wirePos=()=>WIRE_POS[(NET&&NET.supplier)||'DEFAULT']||WIRE_POS.DEFAULT;
 const USERS=[{id:'karim',name:'Karim B.',role:'soudeur',detail:'Soudeur · QS 141/111'},{id:'julien',name:'Julien R.',role:'manchonneur',detail:'Manchonneur'},{id:'ethan',name:'Ethan L.',role:'chef',detail:'Chef de chantier'},{id:'sophie',name:'Sophie M.',role:'bureau',detail:'Bureau'}];
 const ROLE_LABEL={soudeur:'Soudeur',manchonneur:'Manchonneur',chef:'Chef de chantier',bureau:'Bureau'};
-const PROCEDES=[['141+111','TIG 141 racine + électrode 111'],['141','TIG 141'],['111','Électrode 111'],['135','MAG 135']];
+const PROCEDES=[['tig','TIG'],['cellu','Cellulosique']]; // simplifié (Ethan 25/08) : sur le terrain c'est l'un ou l'autre
 const MANCHONS=[['thermo','Manchon thermorétractable'],['electro','Manchon électrosoudable']];
 const rad=a=>a*Math.PI/180;
 
@@ -954,25 +954,35 @@ const evColor=e=>e.type==='soudee'?STATUS.soudee.color:e.type==='manchonnee'?STA
 const uname=id=>({karim:'Karim B.',sofiane:'Sofiane K.',julien:'Julien R.',ethan:'Ethan L.',sophie:'Sophie M.'})[id]||id;
 const fmtDT=d=>`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 function jointView(l,c,j){const {els}=l.cond[c];const a=els[j.idx],b=els[j.idx+1];const r=role();const st=j.status;const acts=[];const evs=j.events.slice().reverse();
-  if(r==='soudeur'||r==='chef'){if(st==='a_souder'||st==='a_reprendre')acts.push(`<button class="btn primary block" data-act="form-soudee">${st==='a_reprendre'?'Déclarer la reprise soudée':'Déclarer soudée'} <span style="opacity:.7;font-weight:400">· photo + valider</span></button>`);else if(r==='soudeur')acts.push(`<p class="hint">Déjà soudée${evs.find(e=>e.type==='soudee')?' par '+uname(evs.find(e=>e.type==='soudee').by):''}.</p>`);}
-  if(r==='manchonneur'||r==='chef'){if(st==='soudee'||st==='controlee')acts.push(`<button class="btn primary block" data-act="form-manchon">Déclarer manchonnée <span style="opacity:.7;font-weight:400">· fils + tests + photo</span></button>`);else if(r==='manchonneur')acts.push(`<p class="hint">${st==='a_souder'||st==='a_reprendre'?'En attente de soudure — rien à faire ici pour toi.':'Déjà manchonnée.'}</p>`);}
-  if(r==='chef'&&st==='soudee')acts.push(`<button class="btn block" data-act="form-controle">Saisir le contrôle (visuel / radio)</button>`);
+  // MODÈLE UNIQUE : tout se déclare dans les 4 sous-étapes ci-dessous (Ethan 25/08 : « deux modèles s'opposent »).
+  // Les gros boutons ne sont plus des formulaires parallèles : ils DÉPLIENT l'étape concernée. Les statuts en découlent.
+  {const stp=j.steps||{};const dn=n=>!!(stp[n]&&stp[n].done);const nx=[1,2,3,4].find(n=>!dn(n))||0;
+   const LAB={1:'① Soudure',2:'② Fils raccordés',3:'③ Manchon posé',4:'④ Moussage + finition'};
+   if(nx&&r!=='bureau'){const mine=r==='soudeur'?(nx===1):r==='manchonneur'?(nx>1):true;
+     if(mine)acts.push(`<button class="btn primary block" data-gostep="${nx}">${st==='a_reprendre'&&nx===1?'Reprendre la soudure':'Faire l\'étape '+LAB[nx].slice(2)} <span style="opacity:.7;font-weight:400">· ${nx}/4</span></button>`);
+     else acts.push(`<p class="hint">${r==='soudeur'?'Soudure faite — la suite est au manchonneur.':'En attente de la soudure — rien à faire ici pour toi.'}</p>`);}
+   else if(nx===0)acts.push(`<p class="hint">Manchon complet (4/4)${evs.find(e=>e.type==='soudee')?' — soudée par '+uname(evs.find(e=>e.type==='soudee').by):''}.</p>`);}
+  if(r==='chef'&&(st==='soudee'||st==='manchonnee'))acts.push(`<button class="btn block" data-act="form-controle">Saisir le contrôle (visuel / radio)</button>`);
   if(r!=='bureau')acts.push(`<button class="btn block" data-act="form-probleme">Signaler un problème / ajouter une photo</button>`);
   acts.push(`<button class="btn block" data-act="dh-here">📏 DH : mesurer depuis ce manchon</button>`);
   {const dd3=dhDataOf();const hasTemp=dd3&&dd3.temps[j.weldId];
     acts.push(`<button class="btn block" data-act="dh-temp" style="${hasTemp?'border-color:#8a2be2;color:#8a2be2':''}">${hasTemp?'⟲ Bouclage temporaire posé ici ('+esc(dd3.temps[j.weldId].by||'')+') — retirer':'⟲ Bouclage temporaire des fils ici (test DH amont)'}</button>`);}
-  const hasData=j.status!=='a_souder'||(j.events&&j.events.length)||(j.photos&&j.photos.length)||(j.wire&&j.wire!=='a_raccorder');
+  const hasData=j.status!=='a_souder'||(j.events&&j.events.length)||(j.photos&&j.photos.length)||(j.wire&&j.wire!=='a_raccorder')||!!(j.steps&&Object.keys(j.steps).length);
   if(hasData||r==='chef'||r==='bureau')acts.push(`<button class="btn block" data-act="transfer">↪ Erreur de saisie : transférer vers une autre soudure <span class="hint">(statut, photos, fils, étapes déplacés)</span></button>`);
   if(hasData&&r==='chef')acts.push(`<button class="btn block" data-act="reset-weld" style="color:#d03b3b">⌫ Remettre à « À souder » (efface statut, photos, fils)</button>`);
   const teeUI=j.teeOut?(()=>{const t=j.tee||{};const dw=state.dh.antWire==='N'?'nu':'étamé';return `<div class="card" style="margin-top:8px;background:#f4f7fb"><b>Antenne au té</b> <span class="muted" style="font-size:12px">(sortie de té : comment l'antenne est prise dans la boucle DH)</span><div class="row" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap"><select class="f" id="teeMode"><option value="serie" ${(t.mode||'serie')==='serie'?'selected':''}>en série dans la boucle de la parente</option><option value="boucle" ${t.mode==='boucle'?'selected':''}>bouclée sur elle-même au té (boucle à part)</option><option value="none" ${t.mode==='none'?'selected':''}>pas encore raccordée au té</option></select><select class="f" id="teeWire"><option value="" ${!t.wire?'selected':''}>fil dans l'antenne : ${dw} (réglage chantier)</option><option value="E" ${t.wire==='E'?'selected':''}>étamé dans l'antenne</option><option value="N" ${t.wire==='N'?'selected':''}>nu dans l'antenne</option></select></div></div>`;})():'';
   const wiringRO=(j.wire==='raccorde'||j.wire==='inversion')?`<div class="card" style="padding:6px 8px 2px">${wiringSVG(a,b,j.conn||{E:'E',N:'N'},null,false)}</div>`:'';
   const wireLine=(teeUI)+wiringRO+(j.wire==='raccorde'?`<div class="okbox">Fils raccordés (étamé ↔ étamé, nu ↔ nu), continuité ${j.cont?'OK':'—'}, isolement ${j.iso?'OK'+(j.isoVal?' ('+esc(j.isoVal)+' MΩ)':''):'—'}.</div>`:j.wire==='inversion'?`<div class="err">Inversion des fils enregistrée : étamé amont → nu aval. Manchon à reprendre avant fermeture. ${esc(j.note)}</div>`:`<p class="hint">Fils d'alarme : à raccorder au manchonnage.</p>`);
   // ---- manchon en 4 sous-étapes (maquette validée 20/08) : chaque étape a son gars, sa date, ses photos ; l'étape 2 affiche la valeur attendue CALCULÉE ----
+  migrateSteps(j); // une soudure déclarée par l'ancien modèle coche ses sous-étapes : un seul et même objet
   const steps=j.steps||{};const sdone=n=>!!(steps[n]&&steps[n].done);const nDone=[1,2,3,4].filter(sdone).length;const curStep=[1,2,3,4].find(n=>!sdone(n))||0;
-  const canStep=r!=='bureau';
-  const sPhotos=n=>{const ph=(steps[n]&&steps[n].photos)||[];return `<div class="thumbs" style="margin:4px 0">${ph.map(p=>`<div class="thumb"><img src="${p}"></div>`).join('')}${canStep?`<label class="thumb" style="display:flex;align-items:center;justify-content:center;border:1.5px dashed #b8b4a8;cursor:pointer;color:#8f8b80">📷<input type="file" accept="image/*" capture="environment" data-stepph="${n}" style="display:none" multiple></label>`:''}</div>`;};
+  const canStep=r!=='bureau'&&(r==='soudeur'?1:r==='manchonneur'?2:0); // le soudeur ne valide que l'étape 1, le manchonneur les 2-3-4, le chef tout
+  const canN=n=>r==='chef'?true:r==='soudeur'?n===1:r==='manchonneur'?n>=2:false;
+  const sPhotos=n=>{const ph=(steps[n]&&steps[n].photos)||[];return `<div class="thumbs" style="margin:4px 0">${ph.map(p=>`<div class="thumb"><img src="${p}"></div>`).join('')}${canN(n)&&!sdone(n)?`<label class="thumb" style="display:flex;align-items:center;justify-content:center;border:1.5px dashed #b8b4a8;cursor:pointer;color:#8f8b80">📷<input type="file" accept="image/*" capture="environment" data-stepph="${n}" style="display:none" multiple></label>`:''}</div>`;};
   const sHead=(n,t)=>{const s2=steps[n];return `<summary><span class="num">${sdone(n)?'✓':n}</span><b>${n} · ${t}</b><span class="who">${s2&&s2.done?esc(s2.by||'')+' · '+(s2.at?new Date(s2.at).toLocaleDateString('fr-FR'):''):(n===curStep?'à faire':'—')}</span></summary>`;};
-  const sBtn=n=>canStep?(sdone(n)?`<button class="btn block" data-stepundo="${n}" style="color:#d03b3b;font-size:12px;padding:6px">Annuler cette étape (erreur de saisie)</button>`:`<button class="btn primary block" data-stepok="${n}" style="padding:8px">Valider l'étape ${n} — ${(me()||{}).name||''} · aujourd'hui</button>`):'';
+  const sBtn=n=>!canN(n)?'':(sdone(n)?(r==='chef'?`<button class="btn block" data-stepundo="${n}" style="color:#d03b3b;font-size:12px;padding:6px">Annuler cette étape (erreur de saisie)</button>`:'')
+    :(n>1&&!sdone(n-1))?`<p class="hint" style="margin:4px 0">L'étape ${n-1} doit être validée avant.</p>`
+    :`<button class="btn primary block" data-stepok="${n}" style="padding:8px">Valider l'étape ${n} — ${(me()||{}).name||''} · aujourd'hui</button>`);
   // « Attendu au testeur » : tant que l'étape 2 n'est pas validée il est VIVANT (recalculé) ; une fois validée il est FIGÉ
   // avec le bouclage de l'instant t — sans quoi la valeur mesurée ce jour-là devient incomparable plus tard (retour Ethan 25/08).
   const frz=steps[2]&&steps[2].dh;let att2='',cc2=[];
@@ -988,7 +998,11 @@ function jointView(l,c,j){const {els}=l.cond[c];const a=els[j.idx],b=els[j.idx+1
   const s2v=steps[2]||{},s3v=steps[3]||{};
   const wireRow2=w=>`<div class="conn"><div class="w"><i style="background:${WIRE[w].color};border:1px solid #999"></i>${a.id} ${WIRE[w].short} <span class="hint">(${clockText(clockPos(a,w))})</span></div><span>→</span><select data-conn="${w}"><option value="E" ${state.conn[w]==='E'?'selected':''}>${b.id} étamé</option><option value="N" ${state.conn[w]==='N'?'selected':''}>${b.id} nu</option><option value="X" ${state.conn[w]==='X'?'selected':''}>non raccordé</option></select></div>`;
   const stepsCard=`<h3>Manchon — 4 sous-étapes <span class="muted" style="font-weight:400">· ${nDone}/4${nDone===4?' ✓':''}</span></h3>
-   <details class="dstep ${sdone(1)?'done':curStep===1?'cur':''}" ${curStep===1?'open':''}>${sHead(1,'Soudure')}<div class="sb">${sPhotos(1)}<label class="tgl"><input type="checkbox" id="st1-vis" ${steps[1]&&steps[1].visuel?'checked':''} ${sdone(1)?'disabled':''}> Contrôle visuel fait par le soudeur</label>${sBtn(1)}</div></details>
+   <details class="dstep ${sdone(1)?'done':curStep===1?'cur':''}" ${curStep===1?'open':''}>${sHead(1,'Soudure')}<div class="sb">
+    ${sdone(1)?`<div class="dim" style="font-size:11.5px">Procédé : <b>${esc((PROCEDES.find(p=>p[0]===(steps[1]||{}).proc)||[])[1]||'—')}</b>${(steps[1]||{}).coulee?' · coulée '+esc(steps[1].coulee):''}</div>`
+      :`<div class="row" style="display:flex;gap:6px;flex-wrap:wrap;align-items:end"><div><label class="f">Procédé</label><select class="f" id="st1-proc" style="width:150px">${PROCEDES.map(p=>`<option value="${p[0]}" ${(steps[1]||{}).proc===p[0]?'selected':''}>${p[1]}</option>`).join('')}</select></div><div><label class="f">N° de coulée (option)</label><input class="f" id="st1-coulee" value="${esc((steps[1]||{}).coulee||'')}" style="width:120px"></div></div>
+       ${stockPickHTML(l,c,j,'piece')}`}
+    ${sPhotos(1)}<div class="hint" style="margin:0 0 4px">Photo du cordon obligatoire.</div><label class="tgl"><input type="checkbox" id="st1-vis" ${steps[1]&&steps[1].visuel?'checked':''} ${sdone(1)?'disabled':''}> Contrôle visuel fait par le soudeur</label>${sBtn(1)}</div></details>
    <details class="dstep ${sdone(2)?'done':curStep===2?'cur':''}" ${curStep===2?'open':''}>${sHead(2,'Fils raccordés')}<div class="sb">${att2}
     ${sdone(2)?`<div class="card" style="padding:6px 8px 2px">${wiringSVG(a,b,j.conn||{E:'E',N:'N'},null,false)}</div>`
       :`<div class="muted" style="font-size:11.5px;margin:4px 0">Relie les fils : touche un bout de fil du tube amont (à gauche) puis celui d'en face qu'il rejoint (ou « ∅ non raccordé »).${state.wsel?` <b>Fil ${state.wsel==='E'?'étamé':'nu'} amont choisi → touche le fil aval.</b>`:''}</div>
@@ -998,7 +1012,7 @@ function jointView(l,c,j){const {els}=l.cond[c];const a=els[j.idx],b=els[j.idx+1
     ${!sdone(2)&&cc2.length&&s2v.meas?(()=>{const bst=cc2.reduce((p,x)=>Math.abs(s2v.meas-x.R)<=Math.abs(s2v.meas-p.R)?x:p);const pct=Math.round(100*(s2v.meas-bst.R)/bst.R);const tol=+state.dh.tol||5;
       return `<div class="${Math.abs(pct)<=tol?'okbox':'warnbox'}" style="font-size:12px">${Math.abs(pct)<=tol?'✓ Cohérent avec la boucle '+bst.dir+' ('+fmt2(bst.R)+' Ω ± '+tol+' %)':'Écart '+(pct>0?'+':'')+pct+' % vs la boucle '+bst.dir+' ('+fmt2(bst.R)+' Ω attendus)'}</div>`;})():''}
     <label class="tgl"><input type="checkbox" id="st2-masse" ${s2v.masse?'checked':''} ${sdone(2)?'disabled':''}> Masse OK</label><label class="tgl"><input type="checkbox" id="st2-cont" ${s2v.cont?'checked':''} ${sdone(2)?'disabled':''}> Continuité OK</label>${sBtn(2)}</div></details>
-   <details class="dstep ${sdone(3)?'done':curStep===3?'cur':''}" ${curStep===3?'open':''}>${sHead(3,'Manchon posé')}<div class="sb"><div style="margin:2px 0"><label class="tgl" style="display:inline-flex;margin-right:10px"><input type="radio" name="st3-type" value="retracte" ${(s3v.type||'retracte')==='retracte'?'checked':''} ${sdone(3)?'disabled':''}> Rétracté</label><label class="tgl" style="display:inline-flex"><input type="radio" name="st3-type" value="electro" ${s3v.type==='electro'?'checked':''} ${sdone(3)?'disabled':''}> Électrosoudé</label></div>${sPhotos(3)}<label class="tgl"><input type="checkbox" id="st3-press" ${s3v.press?'checked':''} ${sdone(3)?'disabled':''}> Test de pression OK</label>${sBtn(3)}</div></details>
+   <details class="dstep ${sdone(3)?'done':curStep===3?'cur':''}" ${curStep===3?'open':''}>${sHead(3,'Manchon posé')}<div class="sb"><div style="margin:2px 0"><label class="tgl" style="display:inline-flex;margin-right:10px"><input type="radio" name="st3-type" value="retracte" ${(s3v.type||'retracte')==='retracte'?'checked':''} ${sdone(3)?'disabled':''}> Rétracté</label><label class="tgl" style="display:inline-flex"><input type="radio" name="st3-type" value="electro" ${s3v.type==='electro'?'checked':''} ${sdone(3)?'disabled':''}> Électrosoudé</label></div>${sdone(3)?'':stockPickHTML(l,c,j,'sleeve')}${sPhotos(3)}<div class="hint" style="margin:0 0 4px">Photo du manchon + du manomètre. Test de pression obligatoire.</div><label class="tgl"><input type="checkbox" id="st3-press" ${s3v.press?'checked':''} ${sdone(3)?'disabled':''}> Test de pression OK</label>${sBtn(3)}</div></details>
    <details class="dstep ${sdone(4)?'done':curStep===4?'cur':''}" ${curStep===4?'open':''}>${sHead(4,'Moussage + bouchons de finition')}<div class="sb">${sdone(4)?'':stockPickHTML(l,c,j,'pu')}${sPhotos(4)}${sBtn(4)}</div></details>
    <p class="hint" style="margin:4px 0 0">Les grands statuts du plan (soudée / contrôlée / manchonnée) ne changent pas : déclare-les comme d'habitude. Sur le plan, la pastille porte un anneau vert ¼ / ½ / ¾ selon l'avancement, plein à 4/4.</p>`;
   return head(j.weldId,badge(st))+`<div class="kv" style="margin-top:8px"><span>DN <b>${esc(a.dn||l.dn)}</b></span><span>${c==='A'?'Aller':'Retour'}</span><span>entre <b>${a.id}</b> et <b>${b.id}</b></span><span>PK <b>${fmt(a.m1)} m</b></span><span>${esc(l.name)}</span>${j.sleeveWith?`<span style="background:#fff3d6">même manchon que <b>${esc(j.sleeveWith)}</b> (manchette nue)</span>`:''}${a.devAfter?`<span>déviation ${fmt(Math.abs(a.devAfter))}°</span>`:''}</div>
@@ -1157,19 +1171,37 @@ function elView(l,c,i){const e=l.cond[c].els[i];const lock=elLock(l,c,i);const p
       <div style="display:flex;gap:5px;flex-wrap:wrap">${opt('non','Fils en attente')}${opt('coiffe','Bouclé DANS la coiffe')}${opt('sortie','Bouclé SORTIE de coiffe')}</div>
       ${st4?`<div class="okbox" style="margin-top:6px">${esc(DH_END_LABEL[st4.state]||st4.state)} — ${esc(st4.by||'')} · ${st4.at?esc(new Date(st4.at).toLocaleDateString('fr-FR')):''}</div>`:'<div class="hint" style="margin-top:5px">Aucun état déclaré : le calcul suppose que le fil traverse sans monter (signalé ⚠ dans l\'onglet DH).</div>'}</div>`;})()}
    ${photoBlock(e.photos)}<label class="f">Remarque</label><textarea class="f" id="f-note">${esc(e.note)}</textarea><div class="actions"><button class="btn primary block" data-act="save-el">Enregistrer</button><button class="btn block" data-act="close">Fermer</button></div>`;}
+// UN SEUL MODÈLE : une soudure déclarée avant (ancien formulaire) ou par un autre appareil coche ses sous-étapes,
+// pour qu'on ne se retrouve jamais avec « soudée » d'un côté et « étape 1 à faire » de l'autre (Ethan 25/08).
+function migrateSteps(j){const st=j.status;if(st==='a_souder')return;j.steps=j.steps||{};let chg=false;
+  const ev=t=>(j.events||[]).slice().reverse().find(e=>e.type===t);
+  if(!(j.steps[1]&&j.steps[1].done)){const e=ev('soudee');
+    j.steps[1]={done:true,by:e?uname(e.by):'(déclaré avant)',at:e?new Date(e.at).toISOString():new Date().toISOString(),photos:(e&&e.photos||[]).slice(),visuel:true,proc:e&&e.data&&e.data.procede||undefined,coulee:e&&e.data&&e.data.coulee||undefined,migr:true};chg=true;}
+  if(st==='manchonnee'){const e=ev('manchonnee');
+    if(!(j.steps[2]&&j.steps[2].done)){j.steps[2]={done:true,by:e?uname(e.by):'(déclaré avant)',at:e?new Date(e.at).toISOString():new Date().toISOString(),photos:[],cont:!!j.cont,iso:j.isoVal?parseFloat(String(j.isoVal).replace(',','.')):undefined,migr:true};chg=true;}
+    if(!(j.steps[3]&&j.steps[3].done)){j.steps[3]={done:true,by:e?uname(e.by):'(déclaré avant)',at:e?new Date(e.at).toISOString():new Date().toISOString(),photos:(e&&e.photos||[]).slice(),type:e&&e.data&&e.data.manchon==='electro'?'electro':'retracte',press:!!(e&&e.data&&e.data.etanch),migr:true};chg=true;}}
+  return chg;}
 // lecture des champs d'une sous-étape manchon depuis la fiche (avant validation ou re-rendu)
 function collectStep(j,n){const s=j.steps[n]=j.steps[n]||{photos:[]};s.photos=s.photos||[];const q=id=>$('#'+id,sheetEl);
-  if(n===1){const v=q('st1-vis');if(v)s.visuel=v.checked;}
+  if(n===1){const v=q('st1-vis');if(v)s.visuel=v.checked;const p=q('st1-proc');if(p)s.proc=p.value;const cu=q('st1-coulee');if(cu)s.coulee=cu.value||undefined;}
   if(n===2){const m2=q('st2-meas');if(m2&&m2.value!=='')s.meas=parseFloat(String(m2.value).replace(',','.'));const i2=q('st2-iso');if(i2&&i2.value!=='')s.iso=parseFloat(String(i2.value).replace(',','.'));const ma=q('st2-masse');if(ma)s.masse=ma.checked;const co=q('st2-cont');if(co)s.cont=co.checked;}
   if(n===3){const t=sheetEl.querySelector('input[name=st3-type]:checked');if(t)s.type=t.value;const p=q('st3-press');if(p)s.press=p.checked;}
   return s;}
-sheetEl.addEventListener('click',e=>{const b=e.target.closest('[data-act],[data-rot],[data-sw],[data-wire],[data-rotb],[data-flipb],[data-rota],[data-flipa],[data-saut],[data-dhend],[data-stepok],[data-stepundo],[data-stkpick],[data-dhfrz]');if(!b)return;const s=state.sel;if(!s)return;const l=state.lines[s.line];
+sheetEl.addEventListener('click',e=>{const b=e.target.closest('[data-act],[data-rot],[data-sw],[data-wire],[data-rotb],[data-flipb],[data-rota],[data-flipa],[data-saut],[data-dhend],[data-stepok],[data-stepundo],[data-stkpick],[data-dhfrz],[data-gostep]');if(!b)return;const s=state.sel;if(!s)return;const l=state.lines[s.line];
   if(b.dataset.dhfrz&&s.kind==='j'){e.preventDefault();showFrozenLoop(l,s.cond,l.cond[s.cond].joints[s.i]);return;}
+  if(b.dataset.gostep){e.preventDefault();const d=[...sheetEl.querySelectorAll('.dstep')][+b.dataset.gostep-1];if(d){d.open=true;d.scrollIntoView({block:'center',behavior:'smooth'});d.style.boxShadow='0 0 0 3px rgba(235,104,52,.35)';setTimeout(()=>{d.style.boxShadow='';},1200);}return;}
   if(b.dataset.stkpick!==undefined){sheetEl.querySelectorAll('[data-stkpick][data-stkneed="'+b.dataset.stkneed+'"]').forEach(x=>{x.removeAttribute('data-on');x.style.borderColor='';x.style.background='';});b.dataset.on='1';b.style.borderColor='#eb6834';b.style.background='#fff7f2';return;}
   const stp=b.dataset.stepok||b.dataset.stepundo;
   if(stp&&s.kind==='j'){e.preventDefault();const j2=l.cond[s.cond].joints[s.i];const n=+stp;j2.steps=j2.steps||{};
     if(b.dataset.stepundo){if(!confirm('Annuler l\'étape '+n+' de '+j2.weldId+' (erreur de saisie) ?'))return;delete j2.steps[n];}
-    else{if(n===4&&stockDoPick(l,s.cond,j2,'pu')===false){toast('Mousse : confirme la zone (ou choisis-en une autre)');return;} // le manchonneur choisit son stock de mousse AU MOUSSAGE
+    else{
+      const ph=(j2.steps[n]&&j2.steps[n].photos)||[];
+      if(n===1&&!ph.length){toast('Ajoute au moins une photo du cordon');return;}                     // même blocage que l'ancien « Déclarer soudée »
+      if(n===3){const pr=sheetEl.querySelector('#st3-press');if(!pr||!pr.checked){toast('Le test de pression doit être validé (ou signale un problème)');return;}
+        if(!ph.length){toast('Ajoute une photo du manchon');return;}}
+      if(n===1&&stockDoPick(l,s.cond,j2,'piece')===false){toast('Tube : confirme la zone de stockage');return;}
+      if(n===3&&stockDoPick(l,s.cond,j2,'sleeve')===false){toast('Manchon : confirme la zone de stockage');return;}
+      if(n===4&&stockDoPick(l,s.cond,j2,'pu')===false){toast('Mousse : confirme la zone (ou choisis-en une autre)');return;} // le manchonneur choisit son stock de mousse AU MOUSSAGE
       collectStep(j2,n);
       if(n===2){ // les fils déclarés au schéma deviennent ceux de la soudure, ET on FIGE le bouclage de l'instant t
         const inv2=state.conn.E!=='E'||state.conn.N!=='N';j2.conn={...state.conn};j2.wire=inv2?'inversion':'raccorde';
@@ -1183,7 +1215,13 @@ sheetEl.addEventListener('click',e=>{const b=e.target.closest('[data-act],[data-
             closureId:bst?(bst.kind==='temp'?bst.row.weldId:'bout'):null,closureLine:bst&&bst.kind==='temp'?bst.row.line:null,closureIdx:bst&&bst.kind==='temp'?bst.row.idx:null,
             expected:bst?bst.R:null,dE:bst?bst.dE:undefined,dN:bst?bst.dN:undefined,cond:s.cond,
             rkm:+state.dh.rkm||12.5,tol:+state.dh.tol||5,isoMin:+state.dh.isoMin||200,temps:Object.keys(dd4.temps||{})};}}
-      j2.steps[n].done=true;j2.steps[n].by=(me()||{}).name||state.userId;j2.steps[n].at=new Date().toISOString();}
+      j2.steps[n].done=true;j2.steps[n].by=(me()||{}).name||state.userId;j2.steps[n].at=new Date().toISOString();
+      // le STATUT du plan découle de l'étape : plus deux modèles en parallèle
+      const S2=j2.steps[n];
+      if(n===1){j2.status='soudee';j2.events=[...(j2.events||[]),{type:'soudee',by:state.userId,at:new Date(),pos:curPos(),data:{procede:S2.proc,coulee:S2.coulee,visuel:!!S2.visuel},photos:(S2.photos||[]).slice()}];}
+      if(n===3){const inv3=j2.wire==='inversion';j2.status='manchonnee';
+        j2.events=[...(j2.events||[]),{type:'manchonnee',by:state.userId,at:new Date(),pos:curPos(),data:{manchon:S2.type||'retracte',etanch:!!S2.press,fils:true,inv:inv3},photos:(S2.photos||[]).slice()}];}
+      try{sync.logEvent(state.siteId,j2.weldId,'etape'+n,(me()||{}).name,{});}catch(e2){}}
     pushWeld(j2);renderSheet();renderPlan();toast(b.dataset.stepundo?'Étape '+n+' annulée — '+j2.weldId:'Étape '+n+'/4 validée — '+j2.weldId);return;}
   if(b.dataset.dhend){const el2=l.cond[s.cond].els[s.i];const d5=dhDataOf();if(!d5)return;const k5=dhEndKey(l.id,el2);
     if(d5.ends[k5]&&d5.ends[k5].state===b.dataset.dhend)delete d5.ends[k5];else d5.ends[k5]={state:b.dataset.dhend,by:(me()||{}).name||state.userId,at:new Date().toISOString()};

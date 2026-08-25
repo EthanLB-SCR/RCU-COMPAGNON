@@ -47,18 +47,17 @@ out=await page.evaluate(()=>{const el=document.querySelector('#stock');
    recap:/Besoin \/ livré \/ reste à poser/.test(el.textContent),cols:bal?[...bal.children].map(c=>c.textContent.trim()):null,manque:/Il manque/.test(el.textContent),csv:!!el.querySelector('#stk-csvbal')};});
 console.log('4) cartes + récap besoin/livré/reste:',JSON.stringify(out));
 const c4=out.tab==='stock'&&out.zone&&out.barres&&out.general&&out.recap&&out.cols&&out.csv&&out.manque; // le réseau de test demande bien plus que 12 barres
-// 5) prélèvement : fiche d'une soudure → chips stock (Zone 1 pré-choisie) → valider soudée → take + décompte
-await page.evaluate(()=>{const T=window.TRACE;const L=Object.values(T.lines).find(l=>!l.parent);T.openJoint(L.id,'A',1);});
-await page.waitForTimeout(400);
-await page.click('#sheet [data-act="form-soudee"]');await page.waitForTimeout(400);
+// 5) prélèvement : ÉTAPE 1 du manchon (modèle unique) → chips stock (Zone 1 pré-choisie) → valider → take + décompte
+await page.evaluate(({PNG})=>{const T=window.TRACE;const L=Object.values(T.lines).find(l=>!l.parent);const j=L.cond.A.joints[1];j.steps={1:{photos:[PNG]}};T.openJoint(L.id,'A',1);},{PNG:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='});
+await page.waitForTimeout(500);
 out=await page.evaluate(()=>({chips:document.querySelectorAll('#sheet [data-stkpick]').length,pre:!!document.querySelector('#sheet [data-stkpick][data-on="1"]'),lab:/Barre DN100/.test(document.querySelector('#sheet').textContent)}));
-console.log('5a) chips stock dans « déclarer soudée »:',JSON.stringify(out));
+console.log('5a) chips stock dans l\'étape 1 (soudure):',JSON.stringify(out));
 const c5a=out.chips>=2&&out.pre&&out.lab;
-await page.evaluate(()=>{window.TRACE.state.pendingPhotos=['data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='];});
-await page.click('#sheet [data-act="save-soudee"]');await page.waitForTimeout(700);
+await page.evaluate(()=>document.querySelector('#sheet [data-stepok="1"]').click());await page.waitForTimeout(700);
 out=await page.evaluate(()=>{const s=window.TRACE.net.stock;const t=s.takes[0];return {takes:s.takes.length,zone:t&&t.zone,key:t&&t.key};});
 console.log('5b) prélèvement enregistré:',JSON.stringify(out));
 const c5b=out.takes===1&&out.zone==='Z1'&&out.key==='pipe:100';
+await page.evaluate(()=>window.TRACE.closeSheet());await page.waitForTimeout(250);
 await page.click('#tabbar [data-tab=stock]');await page.waitForTimeout(400);
 out=await page.evaluate(()=>{const tr=[...document.querySelectorAll('#stock table tr')].find(r=>/Barre 12 m DN100/.test(r.textContent));const td=tr?[...tr.children].map(c=>c.textContent.trim().split('\n')[0]):[];return {td:td.slice(0,4)};});
 console.log('5c) reste 12→11 affiché:',JSON.stringify(out));
@@ -124,14 +123,12 @@ console.log('9) tap zone → fiche (reste + provenance):',JSON.stringify(out));
 const c9=out.show&&out.reste&&out.prov;
 await page.evaluate(()=>document.querySelector('#modal [data-close]').click());await page.waitForTimeout(200);
 // 10) prélèvement : « hors stock » alors qu'une zone l'a → confirmation demandée ; refus → le save est bloqué
-await page.evaluate(()=>{const T=window.TRACE;const L=Object.values(T.lines).find(l=>!l.parent);T.openJoint(L.id,'A',3);});await page.waitForTimeout(400);
-await page.click('#sheet [data-act="form-soudee"]');await page.waitForTimeout(400);
+await page.evaluate(({PNG})=>{const T=window.TRACE;const L=Object.values(T.lines).find(l=>!l.parent);const j=L.cond.A.joints[3];j.steps={1:{photos:[PNG]}};T.openJoint(L.id,'A',3);},{PNG:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='});await page.waitForTimeout(500);
 await page.evaluate(()=>{const none=[...document.querySelectorAll('#sheet [data-stkpick]')].find(x=>x.dataset.stkpick==='none');none.click();});
-await page.evaluate(()=>{window.TRACE.state.pendingPhotos=['data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='];});
 let dlgSeen=false;page.once('dialog',d=>{dlgSeen=true;d.dismiss();});
-await page.click('#sheet [data-act="save-soudee"]');await page.waitForTimeout(500);
-out=await page.evaluate(()=>({err:/Prélèvement au stock/.test(document.querySelector('#sheet').textContent),takes:window.TRACE.net.stock.takes.length}));
-console.log('10) hors stock refusé → save bloqué:',JSON.stringify({dlgSeen,...out}));
+await page.evaluate(()=>document.querySelector('#sheet [data-stepok="1"]').click());await page.waitForTimeout(600);
+out=await page.evaluate(({L2})=>{const j=window.TRACE.lines[L2].cond.A.joints[3];return {err:!(j.steps[1]&&j.steps[1].done),takes:window.TRACE.net.stock.takes.length};},{L2:Object.keys(await page.evaluate(()=>({[Object.values(window.TRACE.lines).find(l=>!l.parent).id]:1})))[0]});
+console.log('10) hors stock refusé → étape bloquée:',JSON.stringify({dlgSeen,...out}));
 const c10=dlgSeen&&out.err&&out.takes===1; // toujours le seul take du début
 
 // 11) récap : le solde suit le stock (besoin vs stock vs attendu) et se filtre par tronçon
@@ -144,7 +141,9 @@ out=await page.evaluate(()=>{const el=document.querySelector('#stock');
 console.log('11) récap : mousse regroupée A+B, besoin = nb de manchons:',JSON.stringify(out));
 const c11=out.sel&&out.mousse&&+out.mousse[1]>0&&out.mousse[0]==='Mousse PU (A+B)';
 // 12) mousse choisie AU MOUSSAGE (étape 4 du manchon), pas au manchon — on met de la mousse en stock dans Z1
-await page.evaluate(()=>{const s=window.TRACE.net.stock;s.lots.push({id:'PU1',liv:null,zone:'Z1',key:'pu',label:'Mousse PU (A+B)',kind:'pu',qty:24});});
+await page.evaluate(()=>{const s=window.TRACE.net.stock;s.lots.push({id:'PU1',liv:null,zone:'Z1',key:'pu',label:'Mousse PU (A+B)',kind:'pu',qty:24});
+  const L=Object.values(window.TRACE.lines).find(l=>!l.parent);const j=L.cond.A.joints[1];const now=new Date().toISOString();
+  j.steps=j.steps||{};j.steps[2]={done:true,by:'t',at:now,photos:[]};j.steps[3]={done:true,by:'t',at:now,photos:[],type:'retracte',press:true};}); // étapes 1-3 faites : l'étape 4 (moussage) est la suivante
 await page.evaluate(()=>{const T=window.TRACE;const L=Object.values(T.lines).find(l=>!l.parent);T.openJoint(L.id,'A',1);});await page.waitForTimeout(400);
 out=await page.evaluate(()=>{const sh=document.querySelector('#sheet');const st4=[...sh.querySelectorAll('.dstep')][3];
   return {titre:/Moussage/.test(st4.textContent),pick:!!st4.querySelector('[data-stkneed="pu"]'),pasAuManchon:![...sh.querySelectorAll('.dstep')][2]||!sh.querySelectorAll('.dstep')[2].querySelector('[data-stkneed="pu"]')};});
