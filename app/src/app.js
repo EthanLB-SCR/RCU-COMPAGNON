@@ -6,7 +6,7 @@ import {parseDXF,parseDXFFile,analyze,buildSite,buildSiteJBTP,drawingOf,buildDra
 import {sync} from './sync.js';
 import {kv} from './kv.js';
 import {geoOfSite,planToLonLat,lonLatToPlan,tilesFor,ignTileURL,IGN_LAYERS,distLL,fmtDist,crsName,similarityFromPairs,geocode,CRS} from './geo.js';
-import {parseBL,stockLabel,stockKey,matchKey,zoneAgg,globalAgg,remainByMatch,zoneStatusOf,dnOfOd,K_LABEL as STK_LABEL} from './stock.js';
+import {parseBL,stockLabel,stockKey,matchKey,zoneAgg,globalAgg,remainByMatch,zoneStatusOf,dnOfOd,isPU,K_LABEL as STK_LABEL} from './stock.js';
 import {buildHydro,areaDN,needsFlow,HYDRO_DEFAULTS,PREST_LABEL,CAL_OPS} from './hydro.js';
 
 /* ============================================================
@@ -1031,13 +1031,15 @@ function jointView(l,c,j){const {els}=l.cond[c];const a=els[j.idx],b=els[j.idx+1
    <h3>Historique</h3>${evs.length?`<ul class="hist">${evs.map(e=>`<li><span class="dot" style="background:${evColor(e)}"></span><div style="flex:1"><div>${evText(e)}</div><div class="who">${uname(e.by)} · ${fmtDT(e.at)}${(()=>{const d=posGap(e,l,c,j);if(d===null)return e.pos?' · 📍 position enregistrée':'';const lim=Math.max(80,3*(e.pos.acc||0));return d>lim?` · <b style="color:#d03b3b">📍 déclarée à ${fmtDist(d)} de la soudure</b> (GPS ± ${e.pos.acc} m)`:` · 📍 sur place (± ${e.pos.acc} m)`;})()}</div>${e.photos.length?`<div class="thumbs">${e.photos.map(p=>`<div class="thumb"><img src="${p}"></div>`).join('')}</div>`:''}</div></li>`).join('')}</ul>`:'<p class="hint">Aucun événement : soudure à faire.</p>'}
    <p class="hint" style="margin-top:8px"><a href="#" data-act="open-el-a" style="color:#1c3d6b">Voir ${a.id}</a> · <a href="#" data-act="open-el-b" style="color:#1c3d6b">Voir ${b.id}</a> (orientation des fils, photos)</p>`;}
 // prélèvement au stock (maquette écran 5) : le stock le plus proche qui a la pièce est pré-choisi, un geste pour changer
+const gaineMM=dn=>{const g=casingOf({dn:+dn});return g?Math.round(g*1000):null;};
 function stockNeedOf(l,c,j,mode){if(mode==='piece')return stockPieceOf(l,c,j);
-  if(mode==='pu')return {kind:'pu',label:'Mousse PU (A+B)'}; // choisie par le manchonneur AU MOUSSAGE (étape 4), pas au manchon
-  const e=l.cond[c].els[j.idx];return {kind:'sleeve',dn:+((e&&e.dn)||l.dn),casing:e&&e.casing,label:'Manchon DN'+((e&&e.dn)||l.dn)};}
+  const e=l.cond[c].els[j.idx];const dn=+((e&&e.dn)||l.dn);const g=(e&&e.casing)||gaineMM(dn);
+  if(mode==='pu')return {kind:'pu',dn,label:'Mousse PU (A+B) DN'+dn}; // choisie par le manchonneur AU MOUSSAGE (étape 4) — par DN désormais
+  return {kind:'sleeve',dn,casing:e&&e.casing,label:'Manchon DN'+dn+(g?' · Ø'+g:'')};}
 function stockPickHTML(l,c,j,mode){const s=stockOf();if(!s||!s.zones.some(z=>z.status==='ok'))return '';
   const need=stockNeedOf(l,c,j,mode);if(!need)return '';
   if(mode==='sleeve'&&j.sleeveWith&&s.takes.some(t=>t.weldId===j.sleeveWith&&/^sleeve/.test(t.key)))return `<div class="hint">Manchon déjà compté avec ${esc(j.sleeveWith)} (manchette nue : un seul manchon pour les deux soudures).</div>`;
-  const isK=t=>mode==='pu'?t.key==='pu':mode==='sleeve'?/^sleeve/.test(t.key):(t.key!=='pu'&&!/^sleeve/.test(t.key)); // chaque mode ne regarde QUE son propre décompte
+  const isK=t=>mode==='pu'?/^pu(:|$)/.test(t.key):mode==='sleeve'?/^sleeve/.test(t.key):(!/^pu(:|$)/.test(t.key)&&!/^sleeve/.test(t.key)); // chaque mode ne regarde QUE son propre décompte
   const already=s.takes.find(t=>t.weldId===j.weldId&&isK(t));
   const WHAT=mode==='piece'?'Pièce':mode==='sleeve'?'Manchon':'Mousse';
   if(already)return `<div class="hint">${WHAT} déjà décomptée${already.zone?' — '+esc((stockZoneById(already.zone)||{}).name||''):''}.</div>`;
@@ -1623,7 +1625,8 @@ function stockPieceOf(l,c,j){const e=l.cond[c].els[j.idx];if(!e)return null;cons
 // zones qui ont ENCORE la pièce (ou le manchon) demandée, triées par distance au point (wx,wy)
 function stockZonesFor(need,wx,wy){const s=stockOf();if(!s)return [];const mk=matchKey(need);
   return s.zones.filter(z=>z.status==='ok').map(z=>{const agg=zoneAgg(s,z.id);
-    let reste=0;agg.forEach(a=>{if(matchKey(a)===mk)reste+=a.reste;else if((need.kind==='sleeve')&&(a.kind==='sleeve'||a.kind==='sleeveEnd')&&a.gaine&&need.casing&&Math.abs(a.gaine-need.casing)<=6)reste+=a.reste;});
+    let reste=0;agg.forEach(a=>{if(matchKey(a)===mk)reste+=a.reste;else if((need.kind==='sleeve')&&(a.kind==='sleeve'||a.kind==='sleeveEnd')&&a.gaine&&need.casing&&Math.abs(a.gaine-need.casing)<=6)reste+=a.reste;
+      else if(need.kind==='pu'&&isPU(a.kind)&&matchKey(a)==='pu:')reste+=a.reste;});
     return {z,reste,d:(isFinite(wx)&&isFinite(z.x))?Math.hypot(z.x-wx,z.y-wy):1e9};}).filter(o=>o.reste>0).sort((a,b)=>a.d-b.d);}
 function stockTakeKeyFor(need){const s=stockOf();return matchKey(need);}
 // enregistre un prélèvement (1 pièce) dans une zone — TRAÇABILITÉ CAMION : imputé au plus ancien camion encore en stock ici pour cette référence (FIFO)
@@ -1706,6 +1709,20 @@ function livBreakdown(s,zoneId){const per={};const keys=new Set(s.lots.filter(l2
       if(l2.pend){per[lv].pend+=l2.qty;return;}
       const eat=Math.min(consumed,l2.qty);consumed-=eat;per[lv].rest+=l2.qty-eat;});});
   return per;}
+// reste par LOT d'une zone (FIFO par référence, comme livBreakdown — mais lot par lot, pour la provenance détaillée)
+function zoneLotsDetail(s,zoneId){const out=[];const keys=new Set(s.lots.filter(l2=>l2.zone===zoneId).map(l2=>matchKey(l2)));
+  keys.forEach(key=>{const lots=s.lots.filter(l2=>l2.zone===zoneId&&matchKey(l2)===key);
+    let consumed=s.takes.filter(t=>t.zone===zoneId&&t.key===key).reduce((a,t)=>a+(t.qty||1),0);
+    lots.forEach(l2=>{if(l2.pend){out.push({lot:l2,rest:0,pend:l2.qty});return;}
+      const eat=Math.min(consumed,l2.qty);consumed-=eat;out.push({lot:l2,rest:l2.qty-eat,pend:0});});});
+  return out;}
+// parcours d'un lot à rebours : de sa zone actuelle jusqu'à la zone de DÉCHARGEMENT du camion, via les transferts enregistrés
+// (les moves récents portent key+livs ; les anciens sont rapprochés par libellé). Renvoie {start, moves[] chronologiques}.
+function lotTrail(s,lot){const zid0=lot.zone;let zid=zid0,before=Infinity;const used=new Set();const chain=[];
+  for(let g=0;g<12;g++){const mv=(s.moves||[]).filter(m=>!m.zoneMove&&!m.pre&&m.to===zid&&m.from&&!used.has(m)&&new Date(m.at).getTime()<before&&(m.key?m.key===matchKey(lot):m.label===lot.label)&&(!m.livs||!m.livs.length||!lot.liv||m.livs.includes(lot.liv)))
+      .sort((a,b)=>new Date(b.at)-new Date(a.at))[0];
+    if(!mv)break;used.add(mv);chain.unshift(mv);zid=mv.from;before=new Date(mv.at).getTime();}
+  return {start:zid,moves:chain};}
 function stockDropTakes(weldId){const s=stockOf();if(!s)return;const n0=s.takes.length;s.takes=s.takes.filter(t=>t.weldId!==weldId);if(s.takes.length!==n0)saveStock();}
 /* ----- pose / édition d'une zone sur le plan ----- */
 function startStockPose(opt){state.stockPose=opt||{};state.tab='plan';closeSheet();renderAll();updateStockBar('Touche le plan à l\'endroit du déchargement : la zone (13 × 3 m) se pose là, puis ajuste-la (glisser · poignées · ↻).');}
@@ -1738,14 +1755,14 @@ function stockNeeds(){const need={};const lab={};Object.values(state.lines).forE
     else if(e.kind==='tee')o={kind:'tee',dn:+e.dn||+l.dn,dn2:+e.dnb||undefined};
     else if(e.kind==='reducer')o={kind:'reducer',dn:+e.dn||+l.dn,dn2:+e.dn2||undefined};
     if(o){const k=matchKey(o);need[k]=(need[k]||0)+1;lab[k]=stockLabel({...o,len:12});}});
-  const seenSl=new Set();cd.joints.forEach(j=>{if(j.sleeveWith&&seenSl.has(j.weldId))return;if(j.sleeveWith)seenSl.add(j.sleeveWith);const e=cd.els[j.idx];const o={kind:'sleeve',dn:+((e&&e.dn)||l.dn)};const k=matchKey(o);need[k]=(need[k]||0)+1;lab[k]=stockLabel(o);
-    const kp='pu';need[kp]=(need[kp]||0)+1;lab[kp]='Mousse PU (A+B)';});});});return {need,lab};} // 1 dose de mousse par manchon
+  const seenSl=new Set();cd.joints.forEach(j=>{if(j.sleeveWith&&seenSl.has(j.weldId))return;if(j.sleeveWith)seenSl.add(j.sleeveWith);const e=cd.els[j.idx];const dn=+((e&&e.dn)||l.dn);const o={kind:'sleeve',dn,gaine:(e&&e.casing)||gaineMM(dn)||undefined};const k=matchKey(o);need[k]=(need[k]||0)+1;lab[k]=stockLabel(o);
+    const kp='pu:'+dn;need[kp]=(need[kp]||0)+1;lab[kp]='Mousse PU (A+B) DN'+dn;});});});return {need,lab};} // 1 dose de mousse par manchon, au DN du manchon
 // ce qui est DÉJÀ POSÉ (soudé ou plus) par référence : la moitié « demande » du récap besoin / livré / reste
 function stockPosed(rootId){const done={};const inSel=l=>{if(!rootId)return true;let L2=l;for(let g=0;g<8&&L2;g++){if(L2.id===rootId)return true;L2=L2.parent&&state.lines[L2.parent]?state.lines[L2.parent]:null;}return false;};
   Object.values(state.lines).filter(inSel).forEach(l=>{['A','R'].forEach(c=>{const cd=l.cond[c];if(!cd)return;
     cd.joints.forEach(j=>{if(j.status==='a_souder'||j.status==='a_reprendre')return;
       const pc=stockPieceOf(l,c,j);if(pc){const k=matchKey(pc);done[k]=(done[k]||0)+1;}
-      if(j.status==='manchonnee'){const e=cd.els[j.idx];const k2=matchKey({kind:'sleeve',dn:+((e&&e.dn)||l.dn)});done[k2]=(done[k2]||0)+1;done['pu']=(done['pu']||0)+1;}});});});
+      if(j.status==='manchonnee'){const e=cd.els[j.idx];const dn=+((e&&e.dn)||l.dn);const k2=matchKey({kind:'sleeve',dn});done[k2]=(done[k2]||0)+1;const kp='pu:'+dn;done[kp]=(done[kp]||0)+1;}});});});
   return done;}
 // besoin limité à un tronçon (ligne principale + antennes) — même logique de sélection
 function stockNeedsFor(rootId){if(!rootId)return stockNeeds();
@@ -1881,37 +1898,50 @@ function openStockZoneModal(zoneId){const s=stockOf();const z=stockZoneById(zone
   const pendLivs=[...new Set(s.lots.filter(l2=>l2.zone===z.id&&l2.pend).map(l2=>l2.liv))];
   openModal(`<h3 style="margin-top:0">${esc(z.name)} <span class="hyChip" style="border-color:${st4==='ok'?'#9fd49f':'#c9a227'};font-size:10.5px">${st4==='ok'?'en stock':'prévue'}</span></h3>
    ${agg.length?`<div style="overflow:auto;max-height:40vh"><table class="rc"><tr><th></th><th>livré</th><th>pris</th><th>reste</th></tr>${agg.map(a=>`<tr><td>${esc(a.label)}</td><td>${stkFmtQ(a.qty)}${a.pend?` <span class="dim" style="font-size:10px">(+${stkFmtQ(a.pend)} att.)</span>`:''}</td><td>${stkFmtQ(a.taken)}</td><td><b>${stkFmtQ(a.reste)}</b></td></tr>`).join('')}</table></div>`:'<p class="hint">Rien ici pour l\'instant.</p>'}
-   ${Object.keys(bd2).length?`<div class="dim" style="font-size:11px;margin-top:6px">Provenance : ${Object.entries(bd2).filter(([,o])=>o.rest>0||o.pend>0).map(([lv,o])=>esc(livName(lv))+' ('+(o.rest?stkFmtQ(o.rest)+' pcs':'')+(o.pend?' '+stkFmtQ(o.pend)+' att.':'')+')').join(' · ')}</div>`:''}
+   ${(()=>{const det=zoneLotsDetail(s,z.id).filter(d0=>d0.rest>0||d0.pend>0);if(!det.length)return '';
+     const dShort=x=>x?new Date(x).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}):'?';const zn=id2=>esc((stockZoneById(id2)||{}).name||id2||'?');
+     return `<div style="margin-top:8px"><b style="font-size:12px">Provenance — pièce par pièce</b> <span class="dim" style="font-size:10.5px">(camion d'origine, parcours, dates — touche le camion pour sa fiche)</span>
+      <div style="overflow:auto;max-height:34vh"><table class="rc" style="margin-top:4px">${det.map(d0=>{const l2=d0.lot;const lv=s.livs.find(x=>x.id===l2.liv);
+        const tr2=lotTrail(s,l2);const path=tr2.moves.length?zn(tr2.start)+' <span class="dim">(déchargé '+dShort(lv&&(lv.recuAt||lv.date))+')</span>'+tr2.moves.map(m2=>' → '+(m2.to===z.id?'<b>ici</b>':zn(m2.to))+' <span class="dim">le '+dShort(m2.at)+'</span>').join(''):(d0.pend?'<span class="dim">attendu ici (pré-réparti avant l\'arrivée)</span>':'<span class="dim">déchargé directement ici'+(lv&&(lv.recuAt||lv.date)?' le '+dShort(lv.recuAt||lv.date):'')+'</span>');
+        return `<tr><td>${esc(l2.label)}</td><td><b>${d0.rest?stkFmtQ(d0.rest):''}</b>${d0.pend?'<span class="dim" style="font-size:10px">'+stkFmtQ(d0.pend)+' att.</span>':''}</td><td><span class="hyChip" data-stklivz="${esc(l2.liv||'')}" style="cursor:pointer;font-size:10.5px">🚚 ${esc(lv?lv.label+(lv.bl?' · '+lv.bl:''):'camion inconnu')}</span><div class="dim" style="font-size:10.5px;margin-top:2px">${path}</div></td></tr>`;}).join('')}</table></div></div>`;})()}
    ${pendLivs.length?`<div class="warnbox" style="margin-top:6px">Camion${pendLivs.length>1?'s':''} attendu${pendLivs.length>1?'s':''} ici : ${pendLivs.map(lv=>esc(livName(lv))).join(', ')} — pointage à l\'arrivée (onglet Stock).</div>`:''}
    <div class="actions" style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
     ${stockCanEdit()?`<button class="btn" data-close style="flex:1">✥ Ajuster la zone (poignées)</button><button class="btn" id="stkzm-split" style="flex:1">⇄ Scinder</button>`:''}
     <button class="btn" id="stkzm-tab" style="flex:1">Onglet Stock</button><button class="btn block" data-close style="flex:1">Fermer</button></div>`);
   const sp=$('#stkzm-split');if(sp)sp.onclick=()=>{closeModal();openStockSplit(z.id);};
-  const tb=$('#stkzm-tab');if(tb)tb.onclick=()=>{closeModal();endStockPose();};}
+  const tb=$('#stkzm-tab');if(tb)tb.onclick=()=>{closeModal();endStockPose();};
+  $('#modal').querySelectorAll('[data-stklivz]').forEach(ch=>ch.onclick=()=>{const lv=s.livs.find(x=>x.id===ch.dataset.stklivz);if(lv){closeModal();openStockLivDetail(lv.id);}});}
 
 /* ----- nouvelle livraison ----- */
 function stockLivLinesHTML(lines){return `<table class="rc" id="stk-lines"><tr><th>Référence</th><th style="width:88px">Qté</th><th></th></tr>${lines.map((l,i)=>`<tr><td>${esc(l.label)}</td><td><input class="f" type="number" min="0" step="1" value="${l.qty}" data-stkq="${i}" style="width:74px;padding:4px 6px"></td><td><button data-stkx="${i}" style="border:0;background:none;cursor:pointer;color:#d03b3b">✕</button></td></tr>`).join('')}</table>`;}
 function openStockLiv(){const s=stockOf();if(!s){toast('Aucun chantier');return;}
-  const st2={src:'cat',lines:[],blInfo:'',date:isoD(new Date())};
+  const st2={src:'cat',lines:[],blInfo:'',date:isoD(new Date()),name:null,bl:'',prev:true,dest:'__new'};
   const DNS=[20,25,32,40,50,65,80,100,125,150,200,250,300,350,400];
   const KINDS=[['pipe','Barre 12 m'],['bend','Coude'],['tee','Té'],['reducer','Réduction'],['sleeve','Manchon'],['sleeveEnd','Manchon fin de ligne'],['kit','Kit fin de ligne'],['dhec','DHEC'],['wall','Passage de mur'],['pu','Mousse PU (A+B) — 1 par manchon'],['acc','Autre / accessoire']];
-  const NODN=k2=>k2==='pu'||k2==='acc';
-  const rd=()=>{openModal(`<h3 style="margin-top:0">Nouvelle livraison — camion</h3>
-   <div class="row" style="display:flex;gap:6px"><div style="flex:1"><label class="f">Nom</label><input class="f" id="stk-name" value="Camion ${s.livs.length+1}"></div><div style="flex:1"><label class="f">N° de BL (optionnel)</label><input class="f" id="stk-bl"></div></div>
+  const NODN=k2=>k2==='acc'; // la mousse est PAR DN désormais (retour Ethan)
+  const keep=()=>{const g=id=>document.getElementById(id);const n=g('stk-name');if(n)st2.name=n.value;const b=g('stk-bl');if(b)st2.bl=b.value;const d=g('stk-date');if(d&&d.value)st2.date=d.value;const pv=g('stk-prev');if(pv)st2.prev=pv.checked;const z3=g('stk-zone');if(z3)st2.dest=z3.value;}; // le modal se re-rend à chaque ajout : sans ça la date (et le nom) saisis retombaient sur les valeurs du jour — bug remonté par Ethan
+  const rd=()=>{keep();openModal(`<h3 style="margin-top:0">Nouvelle livraison — camion</h3>
+   <div class="row" style="display:flex;gap:6px"><div style="flex:1"><label class="f">Nom</label><input class="f" id="stk-name" value="${esc(st2.name==null?('Camion '+(s.livs.length+1)):st2.name)}"></div><div style="flex:1"><label class="f">N° de BL (optionnel)</label><input class="f" id="stk-bl" value="${esc(st2.bl||'')}"></div></div>
    <label class="f">Date de livraison ${st2.date?'':'(prévue)'}</label><input class="f" type="date" id="stk-date" value="${st2.date||isoD(new Date())}">
    <div class="seg" style="display:flex;border:1.5px solid var(--line);border-radius:10px;overflow:hidden;margin:8px 0">${[['cat','Catalogue'],['bl','BL (PDF)'],['nom','Depuis le calepinage']].map(([k,t])=>`<div data-stksrc="${k}" style="flex:1;text-align:center;padding:7px 4px;font-size:12px;font-weight:700;cursor:pointer;${st2.src===k?'background:var(--ink);color:#fff':''}">${t}</div>`).join('')}</div>
-   <div id="stk-srcbox">${st2.src==='cat'?`<div class="row" style="display:flex;gap:6px;flex-wrap:wrap;align-items:end"><div><label class="f">Pièce</label><select class="f" id="stk-kind">${KINDS.map(k=>`<option value="${k[0]}">${k[1]}</option>`).join('')}</select></div><div><label class="f">DN</label><select class="f" id="stk-dn">${DNS.map(d=>`<option ${d===100?'selected':''}>${d}</option>`).join('')}</select></div><div id="stk-dn2box" style="display:none"><label class="f">DN branche</label><select class="f" id="stk-dn2">${DNS.map(d=>`<option ${d===50?'selected':''}>${d}</option>`).join('')}</select></div><div id="stk-angbox" style="display:none"><label class="f">Angle</label><select class="f" id="stk-ang">${[90,75,60,45,30,15].map(a=>`<option>${a}</option>`).join('')}</select></div><div><label class="f">Qté</label><input class="f" id="stk-qty" type="number" value="12" style="width:70px"></div><button class="btn" id="stk-add">Ajouter</button></div>`
+   <div id="stk-srcbox">${st2.src==='cat'?`<div class="row" style="display:flex;gap:6px;flex-wrap:wrap;align-items:end"><div><label class="f">Pièce</label><select class="f" id="stk-kind">${KINDS.map(k=>`<option value="${k[0]}">${k[1]}</option>`).join('')}</select></div><div><label class="f">DN (acier)</label><select class="f" id="stk-dn">${DNS.map(d=>`<option ${d===100?'selected':''}>${d}</option>`).join('')}</select><div class="dim" id="stk-od" style="font-size:10.5px;margin-top:2px"></div></div><div id="stk-dn2box" style="display:none"><label class="f">DN branche</label><select class="f" id="stk-dn2">${DNS.map(d=>`<option ${d===50?'selected':''}>${d}</option>`).join('')}</select></div><div id="stk-angbox" style="display:none"><label class="f">Angle</label><select class="f" id="stk-ang">${[90,75,60,45,30,15].map(a=>`<option>${a}</option>`).join('')}</select></div><div><label class="f">Qté</label><input class="f" id="stk-qty" type="number" value="12" style="width:70px"></div><button class="btn" id="stk-add">Ajouter</button></div>`
     :st2.src==='bl'?`<label class="f">Bon de livraison (PDF — AXIOM, Renalia, LOGSTOR reconnus)</label><input class="f" type="file" id="stk-pdf" accept="application/pdf">${st2.blInfo?`<div class="hint" style="margin-top:4px">${st2.blInfo}</div>`:''}<p class="hint">Les lignes reconnues arrivent ci-dessous : vérifie chaque quantité — jamais d'import aveugle. Un BL scanné (photo) n'a pas de texte : saisis alors par le catalogue.</p>`
     :`<p class="hint" style="margin-top:0">Ce qui MANQUE encore au calepinage (besoin − déjà livré), pré-rempli — ajuste :</p><button class="btn ghost" id="stk-fill">Remplir avec le manquant</button>`}</div>
    <div style="margin-top:8px">${st2.lines.length?stockLivLinesHTML(st2.lines):'<div class="dim" style="font-size:12px">Aucune ligne pour l\'instant.</div>'}</div>
-   <label style="display:flex;gap:7px;align-items:center;font-size:12.5px;margin-top:8px"><input type="checkbox" id="stk-prev" checked> Déchargement <b>prévu</b> (camion pas encore arrivé — attendu jusqu'au pointage à l'arrivée ; pré-répartissable sur plusieurs zones)</label>
+   <label style="display:flex;gap:7px;align-items:center;font-size:12.5px;margin-top:8px"><input type="checkbox" id="stk-prev" ${st2.prev?'checked':''}> Déchargement <b>prévu</b> (camion pas encore arrivé — attendu jusqu'au pointage à l'arrivée ; pré-répartissable sur plusieurs zones)</label>
    <label class="f" style="margin-top:6px">Déchargé / à décharger dans</label>
-   <select class="f" id="stk-zone"><option value="__new">➕ Nouvelle zone — à poser sur le plan</option>${s.zones.map(z2=>`<option value="${z2.id}">${esc(z2.name)} (zone existante — un camion de plus dedans)</option>`).join('')}</select>
+   <select class="f" id="stk-zone"><option value="__new" ${st2.dest==='__new'?'selected':''}>➕ Nouvelle zone — à poser sur le plan</option>${s.zones.map(z2=>`<option value="${z2.id}" ${st2.dest===z2.id?'selected':''}>${esc(z2.name)} (zone existante — un camion de plus dedans)</option>`).join('')}</select>
    <div class="actions" style="margin-top:8px"><button class="btn primary block" id="stk-ok">Valider la livraison</button><button class="btn block" data-close>Annuler</button></div>`);
    $('#modal').querySelectorAll('[data-stksrc]').forEach(b=>b.onclick=()=>{st2.src=b.dataset.stksrc;rd();});
-   const kd=$('#stk-kind');if(kd){const upd=()=>{$('#stk-dn2box').style.display=(kd.value==='tee'||kd.value==='reducer')?'':'none';$('#stk-angbox').style.display=kd.value==='bend'?'':'none';$('#stk-dn').parentElement.style.display=NODN(kd.value)?'none':'';};kd.onchange=upd;upd();
-     $('#stk-add').onclick=()=>{const o={kind:kd.value,dn:NODN(kd.value)?undefined:+$('#stk-dn').value,qty:Math.max(1,+$('#stk-qty').value||1)};if(kd.value==='bend')o.angle=+$('#stk-ang').value;if(kd.value==='tee'||kd.value==='reducer')o.dn2=+$('#stk-dn2').value;if(kd.value==='pipe')o.len=12;o.label=stockLabel(o);o.key=stockKey(o);
-       const ex=st2.lines.find(l=>l.key===o.key);if(ex)ex.qty+=o.qty;else st2.lines.push(o);rd();};}
+   const kd=$('#stk-kind');if(kd){const upd=()=>{$('#stk-dn2box').style.display=(kd.value==='tee'||kd.value==='reducer')?'':'none';$('#stk-angbox').style.display=kd.value==='bend'?'':'none';$('#stk-dn').parentElement.style.display=NODN(kd.value)?'none':'';
+       const od=$('#stk-od');if(od){const g=/sleeve/.test(kd.value)?gaineMM(+$('#stk-dn').value):null;od.textContent=g?'Ø ext. gaine ≈ '+g+' mm':'';}};kd.onchange=upd;$('#stk-dn').onchange=upd;upd();
+     $('#stk-add').onclick=()=>{const o={kind:kd.value,dn:NODN(kd.value)?undefined:+$('#stk-dn').value,qty:Math.max(1,+$('#stk-qty').value||1)};if(kd.value==='bend')o.angle=+$('#stk-ang').value;if(kd.value==='tee'||kd.value==='reducer')o.dn2=+$('#stk-dn2').value;if(kd.value==='pipe')o.len=12;
+       if(/sleeve/.test(o.kind)&&!o.gaine){const g=gaineMM(o.dn);if(g)o.gaine=g;} // l'enveloppe extérieure sur le libellé : un manchon se pense en Ø gaine
+       o.label=stockLabel(o);o.key=stockKey(o);
+       const ex=st2.lines.find(l=>l.key===o.key);if(ex)ex.qty+=o.qty;else st2.lines.push(o);
+       if(o.kind==='sleeve'||o.kind==='sleeveEnd'){const pu={kind:'pu',dn:o.dn,qty:o.qty};pu.label=stockLabel(pu);pu.key=stockKey(pu); // un manchon = sa mousse : la dose du même DN suit toute seule (ajuste ou supprime la ligne si besoin)
+         const exp=st2.lines.find(l=>l.key===pu.key);if(exp)exp.qty+=pu.qty;else st2.lines.push(pu);toast('+ '+pu.qty+' × '+pu.label+' ajoutée(s) automatiquement (1 dose par manchon)');}
+       rd();};}
    const pf=$('#stk-pdf');if(pf)pf.onchange=async()=>{const f=pf.files[0];if(!f)return;st2.blInfo='Lecture du PDF…';rd();
      try{const lib=await loadPdfJs();const doc=await lib.getDocument({data:await f.arrayBuffer()}).promise;let txt='';
        for(let p=1;p<=doc.numPages;p++){const pg=await doc.getPage(p);const tc=await pg.getTextContent();const rows=new Map();
@@ -1981,7 +2011,7 @@ function openStockPreSplit(livId){const s=stockOf();const liv=s.livs.find(v=>v.i
   $('#stk-preok').onclick=()=>{const picks=[];$('#modal').querySelectorAll('[data-stksel]').forEach(cb=>{if(!cb.checked)return;const i=+cb.dataset.stksel;const q=Math.max(1,Math.min(lots[i].qty,+$('#modal').querySelector('[data-stksq="'+i+'"]').value||lots[i].qty));picks.push({l:lots[i],q});});
     if(!picks.length){toast('Rien de coché');return;}
     const doPre=destId=>{picks.forEach(({l,q})=>{if(q>=l.qty)l.zone=destId;else{l.qty-=q;s.lots.push({...l,id:l.id+'>'+destId,zone:destId,qty:q});}
-      s.moves.push({at:new Date().toISOString(),by:(me()||{}).name||state.userId,label:l.label,qty:q,from:l.zone===destId?null:l.zone,to:destId,pre:true});});
+      s.moves.push({at:new Date().toISOString(),by:(me()||{}).name||state.userId,label:l.label,key:matchKey(l),livs:l.liv?[l.liv]:[],qty:q,from:l.zone===destId?null:l.zone,to:destId,pre:true});});
       saveStock();};
     if(dsel.value==='__new'){const nm=$('#stk-destname').value||('Zone '+(s.zones.length+1));closeModal();
       startStockPose({name:nm,status:'prevu',lots:[],moveLots:destId=>{doPre(destId);renderPlan();}});}
@@ -2000,9 +2030,9 @@ function openStockSplit(zoneId){const s=stockOf();const z=stockZoneById(zoneId);
   const dsel=$('#stk-dest');dsel.onchange=()=>{$('#stk-destname').style.display=dsel.value==='__new'?'':'none';};if(!others.length)dsel.value='__new';
   $('#stk-splitok').onclick=()=>{const picks=[];$('#modal').querySelectorAll('[data-stksel]').forEach(cb=>{if(!cb.checked)return;const i=+cb.dataset.stksel;const q=Math.max(1,Math.min(agg[i].reste,+$('#modal').querySelector('[data-stksq="'+i+'"]').value||agg[i].reste));picks.push({a:agg[i],q});});
     if(!picks.length){toast('Rien de coché');return;}
-    const doMove=destId=>{picks.forEach(({a,q})=>{let left=q;s.lots.filter(l=>l.zone===zoneId&&!l.pend&&l.key===a.key).forEach(l=>{if(left<=0)return;const take2=Math.min(l.qty,left);l.qty-=take2;left-=take2;
+    const doMove=destId=>{picks.forEach(({a,q})=>{let left=q;const lvs=new Set();s.lots.filter(l=>l.zone===zoneId&&!l.pend&&l.key===a.key).forEach(l=>{if(left<=0)return;const take2=Math.min(l.qty,left);l.qty-=take2;left-=take2;if(l.liv)lvs.add(l.liv);
         const ex=s.lots.find(l2=>l2.zone===destId&&l2.key===a.key&&l2.liv===l.liv&&!l2.pend);if(ex)ex.qty+=take2;else s.lots.push({id:l.id+'>'+destId,liv:l.liv,zone:destId,key:a.key,label:a.label,kind:a.kind,dn:a.dn,dn2:a.dn2,gaine:a.gaine,len:a.len,angle:a.angle,qty:take2});});
-      s.moves.push({at:new Date().toISOString(),by:(me()||{}).name||state.userId,label:a.label,qty:q,from:zoneId,to:destId});});
+      s.moves.push({at:new Date().toISOString(),by:(me()||{}).name||state.userId,label:a.label,key:matchKey(a),livs:[...lvs],qty:q,from:zoneId,to:destId});});
       s.lots=s.lots.filter(l=>l.qty>0);saveStock();};
     if(dsel.value==='__new'){const nm=$('#stk-destname').value||'Base vie';closeModal();
       startStockPose({name:nm,status:'ok',lots:[],moveLots:destId=>{doMove(destId);renderPlan();}});}
@@ -2349,4 +2379,4 @@ $('#loginEmail').addEventListener('keydown',e=>{if(e.key==='Enter')$('#loginGo')
 $('#loginSkip').addEventListener('click',e=>{e.preventDefault();localStorage.setItem('trace:skipLogin','1');renderHome();showScreen('home');});
 document.addEventListener('click',e=>{if(e.target.id==='hbLogin'){e.preventDefault();showScreen('login');}});
 // poignée de débogage / tests (module ES : rien n'est global sinon)
-window.TRACE={state,USERS,role,renderAll,renderPlan,centerOn,closeSheet,allJoints,switchSite,openJoint,openEl,siteGeo,startCalage,calageTap,openSiteFromHome,renderHome,showScreen,geo:{planToLonLat,lonLatToPlan},hydro:{of:hydroOf,build:hydroBuild,pose:startHydroPose,tap:hydroTap,end:endHydroPose,save:saveHydro,nearest:nearestOnLines},geoRefresh(){if(NET)geoCache.delete(NET);},go:async id=>{const t=id||Object.keys(SITES).find(k=>k!=='__vide');if(t)return openSiteFromHome(t);},get lines(){return state.lines;},get net(){return NET;},get sites(){return SITES;}};
+window.TRACE={state,USERS,role,renderAll,renderPlan,centerOn,closeSheet,openStockZoneModal,allJoints,switchSite,openJoint,openEl,siteGeo,startCalage,calageTap,openSiteFromHome,renderHome,showScreen,geo:{planToLonLat,lonLatToPlan},hydro:{of:hydroOf,build:hydroBuild,pose:startHydroPose,tap:hydroTap,end:endHydroPose,save:saveHydro,nearest:nearestOnLines},geoRefresh(){if(NET)geoCache.delete(NET);},go:async id=>{const t=id||Object.keys(SITES).find(k=>k!=='__vide');if(t)return openSiteFromHome(t);},get lines(){return state.lines;},get net(){return NET;},get sites(){return SITES;}};

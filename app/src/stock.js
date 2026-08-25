@@ -17,12 +17,12 @@ export function stockLabel(l){
   if(l.kind==='bend')return `Coude ${l.angle||90}° DN${l.dn}`;
   if(l.kind==='tee')return `Té ${l.dn}${l.dn2?'/'+l.dn2:''}`;
   if(l.kind==='reducer')return `Réduction ${l.dn}${l.dn2?'/'+l.dn2:''}`;
-  if(l.kind==='sleeve')return l.dn?`Manchon DN${l.dn}`:`Manchon gaine ${l.gaine}`;
-  if(l.kind==='sleeveEnd')return l.dn?`Manchon fin de ligne DN${l.dn}`:`Manchon FDL gaine ${l.gaine}`;
+  if(l.kind==='sleeve')return l.dn?`Manchon DN${l.dn}${l.gaine?' · Ø'+l.gaine:''}`:`Manchon gaine Ø${l.gaine}`;
+  if(l.kind==='sleeveEnd')return l.dn?`Manchon fin de ligne DN${l.dn}${l.gaine?' · Ø'+l.gaine:''}`:`Manchon FDL gaine Ø${l.gaine}`;
   if(l.kind==='dhec')return `DHEC Ø ${l.gaine||l.dn}`;
   if(l.kind==='wall')return `Passage de mur Ø ${l.gaine||l.dn}`;
   if(l.kind==='kit')return `Kit fin de ligne DN${l.dn}`;
-  if(isPU(l.kind))return 'Mousse PU (A+B)';
+  if(isPU(l.kind))return 'Mousse PU (A+B)'+(l.dn?' DN'+l.dn:'');
   return l.label||'Divers';
 }
 // clé d'agrégation : même genre + même DN (ou gaine) = même case de stock
@@ -91,7 +91,7 @@ export function zoneAgg(stock,zoneId){const m=new Map();
   (stock.lots||[]).filter(l=>l.zone===zoneId).forEach(l=>{const cur=m.get(l.key)||{key:l.key,label:l.label,kind:l.kind,dn:l.dn,dn2:l.dn2,gaine:l.gaine,len:l.len,angle:l.angle,qty:0,pend:0,taken:0};
     if(l.pend)cur.pend+=l.qty;else cur.qty+=l.qty;m.set(l.key,cur);}); // pend = camion PRÉVU : attendu, pas encore en stock (validation au pointage)
   (stock.takes||[]).filter(t=>t.zone===zoneId).forEach(t=>{ // le prélèvement porte la clé de RAPPROCHEMENT (matchKey) : on impute au lot correspondant
-    let cur=m.get(t.key)||[...m.values()].find(v=>matchKey(v)===t.key||(t.key.startsWith('sleeve:')&&(v.kind==='sleeve'||v.kind==='sleeveEnd')&&matchKey(v).startsWith('sleeve:')&&(matchKey(v)===t.key||!v.dn)));
+    let cur=m.get(t.key)||[...m.values()].find(v=>matchKey(v)===t.key||(t.key.startsWith('sleeve:')&&(v.kind==='sleeve'||v.kind==='sleeveEnd')&&matchKey(v).startsWith('sleeve:')&&(matchKey(v)===t.key||!v.dn))||(/^pu(:|$)/.test(t.key)&&isPU(v.kind)&&(matchKey(v)==='pu:'||t.key==='pu')));
     if(cur)cur.taken+=t.qty||1;else m.set('take:'+t.key,{key:t.key,label:t.label||t.key,qty:0,taken:t.qty||1});});
   m.forEach(v=>{v.reste=v.qty-v.taken;});return [...m.values()];}
 export function globalAgg(stock){const m=new Map();
@@ -108,6 +108,6 @@ export function matchKey(o){const std=a=>{a=Math.abs(+a||90);return [15,30,45,60
   if(o.kind==='tee')return 'tee:'+o.dn+':'+(o.dn2||'');
   if(o.kind==='reducer')return 'reducer:'+o.dn+':'+(o.dn2||'');
   if(o.kind==='sleeve'||o.kind==='sleeveEnd')return 'sleeve:'+(o.dn||'g'+(o.gaine||''));
-  if(isPU(o.kind))return 'pu'; // A, B et pochettes = une seule case « Mousse PU (A+B) »
+  if(isPU(o.kind))return 'pu:'+(o.dn||''); // A, B et pochettes = une case par DN (retour Ethan : les mousses sont par DN) ; 'pu:' = ancien ajout sans DN
   return o.kind+':'+(o.dn||o.gaine||'');}
 export function remainByMatch(stock){const m={};globalAgg(stock).forEach(a=>{const k=matchKey(a);m[k]=(m[k]||0)+(a.reste||0);});return m;}

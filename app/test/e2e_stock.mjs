@@ -141,7 +141,7 @@ out=await page.evaluate(()=>{const el=document.querySelector('#stock');
   const sel=!!el.querySelector('#stk-matline');
   return {mousse:row?[...row.children].map(c=>c.textContent.trim()):null,sel,unePU:(el.textContent.match(/Mousse PU \(A\+B\)/g)||[]).length};});
 console.log('11) récap : mousse regroupée A+B, besoin = nb de manchons:',JSON.stringify(out));
-const c11=out.sel&&out.mousse&&+out.mousse[1]>0&&out.mousse[0]==='Mousse PU (A+B)';
+const c11=out.sel&&out.mousse&&+out.mousse[1]>0&&out.mousse[0]==='Mousse PU (A+B) DN100'; // v5 : la mousse est PAR DN
 // 12) mousse choisie AU MOUSSAGE (étape 4 du manchon), pas au manchon — on met de la mousse en stock dans Z1
 await page.evaluate(()=>{const s=window.TRACE.net.stock;s.lots.push({id:'PU1',liv:null,zone:'Z1',key:'pu',label:'Mousse PU (A+B)',kind:'pu',qty:24});
   const L=Object.values(window.TRACE.lines).find(l=>!l.parent);const j=L.cond.A.joints[1];const now=new Date().toISOString();
@@ -152,10 +152,10 @@ out=await page.evaluate(()=>{const sh=document.querySelector('#sheet');const st4
 console.log('12) étape 4 = moussage avec choix du stock mousse:',JSON.stringify(out));
 const c12=out.titre&&out.pick;
 // valider l'étape 4 → 1 dose de mousse décomptée
-const puBefore=await page.evaluate(()=>window.TRACE.net.stock.takes.filter(t=>t.key==='pu').length);
+const puBefore=await page.evaluate(()=>window.TRACE.net.stock.takes.filter(t=>/^pu(:|$)/.test(t.key)).length);
 await page.evaluate(()=>{const st4=[...document.querySelectorAll('#sheet .dstep')][3];st4.open=true;});await page.waitForTimeout(200);
 await page.evaluate(()=>document.querySelector('#sheet [data-stepok="4"]').click());await page.waitForTimeout(600);
-out=await page.evaluate(()=>({pu:window.TRACE.net.stock.takes.filter(t=>t.key==='pu').length,zone:(window.TRACE.net.stock.takes.filter(t=>t.key==='pu').pop()||{}).zone}));
+out=await page.evaluate(()=>({pu:window.TRACE.net.stock.takes.filter(t=>/^pu(:|$)/.test(t.key)).length,zone:(window.TRACE.net.stock.takes.filter(t=>/^pu(:|$)/.test(t.key)).pop()||{}).zone}));
 console.log('12b) moussage validé → 1 mousse décomptée:',JSON.stringify(out));
 const c12b=out.pu===puBefore+1&&!!out.zone;
 // 13) suppression d'une livraison (le « Camion 1 » qu'on n'arrivait pas à supprimer)
