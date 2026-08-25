@@ -48,9 +48,9 @@ console.log('B2) figé avec closureId=self:',JSON.stringify(out));
 const b2=out.id==='self'&&/boucle amont entière/.test(out.cl||'')&&out.exp===0.3&&out.frzbox;
 await page.evaluate(()=>document.querySelector('#sheet [data-dhfrz]').click());await page.waitForTimeout(700);
 out=await page.evaluate(()=>{const g=document.querySelector('#dhG');const h=g.innerHTML;
-  return {tab:window.TRACE.state.tab,ferm:/⟲/.test(g.textContent),att:/attendu/.test(g.textContent),fils:/#dfe4ea/.test(h)&&/#e2843a/.test(h)};});
-console.log('B3) rejeu sur le plan : les DEUX fils tracés (étamé + nu) depuis le départ:',JSON.stringify(out));
-const b3=out.tab==='plan'&&out.ferm&&out.att&&out.fils;
+  return {tab:window.TRACE.state.tab,ferm:/⟲/.test(g.textContent),att:/attendu/.test(g.textContent),violet:/#8a2be2/.test(h),deux:g.querySelectorAll('path[data-wtl]').length>=2};});
+console.log('B3) rejeu sur le plan : les DEUX fils tracés en violet depuis le départ:',JSON.stringify(out));
+const b3=out.tab==='plan'&&out.ferm&&out.att&&out.violet&&out.deux;
 // ── C) ⑤ une INVERSION sur le trajet : le tracé change de fil (les 2 couleurs), le défaut est localisé sur le bon fil
 await page.evaluate(({L})=>{const T=window.TRACE;const J=T.lines[L].cond.A.joints;
   J[2].wire='raccorde';J[2].conn={E:'E',N:'N'};J[3].wire='inversion';J[3].conn={E:'N',N:'E'};J[4].wire='raccorde';J[4].conn={E:'E',N:'N'};T.closeSheet();T.renderAll();},{L});
@@ -62,9 +62,9 @@ console.log('C1) branché étamé au départ, 50 m : après l\'inversion (PK 48)
 const c1=out.ok&&out.w==='N'&&out.legs===1&&out.d0===0&&out.d1===50;
 await page.click('#loc-show');await page.waitForTimeout(700);
 out=await page.evaluate(()=>{const g=document.querySelector('#dhG');const h=g.innerHTML;
-  return {tab:window.TRACE.state.tab,gris:/#dfe4ea/.test(h),cuivre:/#e2843a/.test(h),cote:/50 m ►/.test(g.textContent),lab:/défaut ≈ 50 m/.test(g.textContent)};});
-console.log('C2) tracé sur le plan : étamé PUIS nu (bascule à l\'inversion), cote et défaut:',JSON.stringify(out));
-const c2=out.tab==='plan'&&out.gris&&out.cuivre&&out.cote&&out.lab;
+  return {tab:window.TRACE.state.tab,rouge:/#e8102d/.test(h),vieux:/#dfe4ea|#e2843a/.test(h),joints:g.querySelectorAll('path[data-wtc]').length,cote:/50 m ►/.test(g.textContent),lab:/défaut ≈ 50 m/.test(g.textContent)};});
+console.log('C2) tracé ROUGE d\'un bloc (bascule reliée à l\'inversion), cote et défaut:',JSON.stringify(out));
+const c2=out.tab==='plan'&&out.rouge&&!out.vieux&&out.joints>=1&&out.cote&&out.lab;
 // ── D) ② avec un stock qui a des manchons : le pick « Manchon enfilé » est à l'étape 1 et le décompte part à la SOUDURE
 await page.evaluate(({L})=>{const T=window.TRACE;const st=T.net.stock||(T.net.stock={});
   st.zones=[{id:'Z1',name:'Base vie',x:60,y:62,w:8,h:5,status:'ok'}];st.livs=[{id:'LV1',label:'Camion 1',status:'recu',at:new Date().toISOString()}];

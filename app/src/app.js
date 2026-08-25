@@ -1555,21 +1555,39 @@ function showFrozenLoop(l,c,j){const f=j.steps&&j.steps[2]&&j.steps[2].dh;if(!f)
   state.dhShowLoc=true;state.tab='plan';renderAll();
   const L3=state.lines[to.line];const p=posAtChainage(L3,to.phys);centerOn(p.x,p.y,Math.max(state.view.k,8));
   toast('Bouclage du '+(f.at?new Date(f.at).toLocaleDateString('fr-FR'):'')+' — '+(f.closure||''));}
-// tracé d'un FIL sur le plan (retour Ethan 25/08 : « le visuel de localisation doit suivre le fil ») : on suit la conduite mesurée
-// mais décalé du côté du fil PHYSIQUE (étamé à gauche, nu à droite dans le sens des PK) — à une inversion, le trait change de côté ET de couleur.
+// tracé d'un FIL sur le plan (retours Ethan 25/08) : UNE seule couleur de surbrillance (rouge = trajet jusqu'au défaut,
+// violet = boucle figée rejouée), bien décalée du côté du fil physique — le trait CHANGE de côté à une inversion, plonge dans
+// l'antenne au té (aller d'un côté, retour de l'autre) et chaque jonction (inversion, té, pont de fermeture) est reliée : zéro ambiguïté.
 function offsetPl(pts,delta){const out=[];for(let i=0;i<pts.length;i++){const a2=pts[Math.max(0,i-1)],b2=pts[Math.min(pts.length-1,i+1)];const dx=b2.x-a2.x,dy=b2.y-a2.y;const L2=Math.hypot(dx,dy)||1;out.push({x:pts[i].x-dy/L2*delta,y:pts[i].y+dx/L2*delta});}return out;}
-function wireTraceSVG(lineId,cond,legs,k){let s='';const off=3.2/k;
-  legs.forEach(leg=>{const wp=wirePath(lineId,cond,leg.wire);const lo=Math.min(leg.d0,leg.d1),hi=Math.max(leg.d0,leg.d1);
-    let grp=null;const flush=()=>{if(!grp)return;const L3=state.lines[grp.line];if(L3)condSubAxis(L3,cond,grp.p0,grp.p1).forEach(pl=>{if(pl.length<2)return;const d2=pathD(offsetPl(pl,off*grp.side));
-      s+=`<path d="${d2}" stroke="#343a41" stroke-width="${5/k}" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/><path d="${d2}" stroke="${WIRE[grp.w].color}" stroke-width="${2.8/k}" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="${8/k} ${4/k}"><animate attributeName="stroke-dashoffset" values="${24/k};0" dur="1.1s" repeatCount="indefinite"/></path>`;});grp=null;};
+function wireTraceSVG(lineId,cond,legs,k,color,mode){const off=6/k;const col=color||'#e8102d';
+  const groups=[];
+  legs.forEach((leg,li)=>{const wp=wirePath(lineId,cond,leg.wire);const lo=Math.min(leg.d0,leg.d1),hi=Math.max(leg.d0,leg.d1);
+    let g=null;const gs=[];const push=()=>{if(g)gs.push(g);g=null;};
     wp.segs.forEach(sg=>{if(sg.kind==='cut'||sg.m1<=lo||sg.m0>=hi)return;
       const t0=(Math.max(lo,sg.m0)-sg.m0)/Math.max(.001,sg.m1-sg.m0),t1=(Math.min(hi,sg.m1)-sg.m0)/Math.max(.001,sg.m1-sg.m0);
       const p0=sg.phys0+(sg.phys1-sg.phys0)*t0,p1=sg.phys0+(sg.phys1-sg.phys0)*t1;const w=sg.w||leg.wire;
-      const side=(w==='E'?1:-1)*(sg.kind==='branchBack'?-1:1); // aller et retour d'antenne chacun de leur côté
-      if(grp&&grp.line===sg.line&&grp.w===w&&grp.side===side){grp.p0=Math.min(grp.p0,p0,p1);grp.p1=Math.max(grp.p1,p0,p1);}
-      else{flush();grp={line:sg.line,w,side,p0:Math.min(p0,p1),p1:Math.max(p0,p1)};}});
-    flush();});
-  return s;}
+      const side=(w==='E'?1:-1)*(sg.kind==='branchBack'?-1:1); // aller et retour d'antenne chacun de leur côté ; inversion = changement de côté
+      if(g&&g.line===sg.line&&g.w===w&&g.side===side)g.p1=p1;
+      else{push();g={line:sg.line,w,side,p0,p1,leg:li};}});
+    push();
+    if(leg.d1<leg.d0){gs.reverse();gs.forEach(g2=>{const t=g2.p0;g2.p0=g2.p1;g2.p1=t;});} // dans le SENS du parcours (amont : on remonte)
+    groups.push(...gs);});
+  let s2='';const ends=[];
+  groups.forEach(g2=>{const L3=state.lines[g2.line];if(!L3)return;
+    let pts=[];condSubAxis(L3,cond,Math.min(g2.p0,g2.p1),Math.max(g2.p0,g2.p1)).forEach(pl=>{pts=pts.concat(pl);});
+    if(pts.length<2)return;
+    const rev=g2.p0>g2.p1;if(rev)pts=pts.slice().reverse();
+    const o=offsetPl(pts,off*g2.side*(rev?-1:1)); // polyligne retournée : le delta s'inverse pour rester du même côté MONDE
+    const d2=pathD(o);
+    s2+=`<path d="${d2}" stroke="#fff" stroke-width="${9/k}" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/><path d="${d2}" data-wtl="${esc(g2.line)}" stroke="${col}" stroke-width="${3.8/k}" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="${11/k} ${5/k}"><animate attributeName="stroke-dashoffset" values="${32/k};0" dur="1.1s" repeatCount="indefinite"/></path>`;
+    ends.push({a:o[0],b:o[o.length-1],leg:g2.leg});});
+  const joint=(A,B)=>{const d3=Math.hypot(B.x-A.x,B.y-A.y);if(d3<0.01||d3>25*off)return '';
+    return `<path d="M${A.x} ${A.y} L${B.x} ${B.y}" stroke="#fff" stroke-width="${9/k}" fill="none" stroke-linecap="round" opacity=".85"/><path d="M${A.x} ${A.y} L${B.x} ${B.y}" data-wtc="1" stroke="${col}" stroke-width="${3.8/k}" fill="none" stroke-linecap="round"/>`;};
+  for(let i=1;i<ends.length;i++){if(mode==='loop'&&ends[i].leg!==ends[i-1].leg)continue; // boucle : les 2 fils sont parallèles, pas bout à bout
+    s2+=joint(ends[i-1].b,ends[i].a);} // défaut : on relie TOUT (manchon d'inversion, entrée/sortie d'antenne, pont étamé→nu)
+  if(mode==='loop'){const L0=ends.filter(e=>e.leg===0),L1=ends.filter(e=>e.leg===1);
+    if(L0.length&&L1.length){s2+=joint(L0[0].a,L1[0].a);s2+=joint(L0[L0.length-1].b,L1[L1.length-1].b);}} // les 2 fils reliés aux 2 bouts : le testeur d'un côté, la fermeture ⟲ de l'autre
+  return s2;}
 // défaut DH sur le plan : le TRAJET du fil est surligné depuis le départ de la ligne racine, la distance cotée, la zone du défaut marquée (± incertitude) — « pas juste un point »
 function renderDhOverlay(){if(!dhG)return;const r=state.loc;if(!r||!state.dhShowLoc||!state.lines[r.line]){dhG.innerHTML='';return;}
   const k=state.view.k;const l=state.lines[r.line];
@@ -1577,7 +1595,7 @@ function renderDhOverlay(){if(!dhG)return;const r=state.loc;if(!r||!state.dhShow
   // le trajet part du MANCHON DE BRANCHEMENT (r.from) quand il est connu — pas du départ de la ligne (retour Ethan 20/08)
   if(r.from&&r.from.line){const i0=segsP.findIndex(sg=>sg.l.id===r.from.line);if(i0>=0){segsP.splice(0,i0);segsP[0].m0=r.from.pk;}}
   const cnd=r.cond||'A';
-  const wireS=(r.legs&&r.legs.length&&r.wireLine&&state.lines[r.wireLine])?wireTraceSVG(r.wireLine,cnd,r.legs,k):'';
+  const wireS=(r.legs&&r.legs.length&&r.wireLine&&state.lines[r.wireLine])?wireTraceSVG(r.wireLine,cnd,r.legs,k,r.loop?'#8a2be2':'#e8102d',r.loop?'loop':'fault'):'';
   let s='';if(wireS)s+=wireS; // le tracé SUIT LE FIL (couleur du fil physique, côté qui bascule aux inversions)
   else segsP.forEach(sg=>{const a=Math.min(sg.m0||0,sg.m1),b=Math.max(sg.m0||0,sg.m1);condSubAxis(sg.l,cnd,a,b).forEach(pl=>{const d=pathD(pl);
     s+=`<path d="${d}" stroke="#fff" stroke-width="${8/k}" fill="none" stroke-linejoin="round" stroke-linecap="round" opacity=".75"/><path d="${d}" stroke="#b8560f" stroke-width="${4/k}" fill="none" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="${9/k} ${5/k}"><animate attributeName="stroke-dashoffset" values="${28/k};0" dur="1.2s" repeatCount="indefinite"/></path>`;});});
@@ -1598,7 +1616,7 @@ function renderDhOverlay(){if(!dhG)return;const r=state.loc;if(!r||!state.dhShow
   condSubAxis(l,cnd,Math.max(0,r.phys-tolM),Math.min(l.length,r.phys+tolM)).forEach(pl=>{s+=`<path d="${pathD(pl)}" stroke="#d03b3b" stroke-width="${13/k}" fill="none" stroke-linecap="round" opacity=".25"/>`;});
   let p=condPos(l,cnd,r.phys);
   if(wireS&&r.seg){const pa=condPos(l,cnd,Math.max(0,r.phys-1)),pb=condPos(l,cnd,r.phys+1);const dx=pb.x-pa.x,dy=pb.y-pa.y;const dl=Math.hypot(dx,dy)||1;
-    const d6=3.2/k*(((r.seg.w||'E')==='E'?1:-1)*(r.seg.kind==='branchBack'?-1:1));p={x:p.x-dy/dl*d6,y:p.y+dx/dl*d6};} // posé SUR le fil, du bon côté
+    const d6=6/k*(((r.seg.w||'E')==='E'?1:-1)*(r.seg.kind==='branchBack'?-1:1));p={x:p.x-dy/dl*d6,y:p.y+dx/dl*d6};} // posé SUR le fil, du bon côté
   s+=`<circle cx="${p.x}" cy="${p.y}" r="${14/k}" fill="#d03b3b" opacity=".2"><animate attributeName="r" values="${10/k};${18/k};${10/k}" dur="1.6s" repeatCount="indefinite"/></circle><circle cx="${p.x}" cy="${p.y}" r="${7/k}" fill="#d03b3b" stroke="#fff" stroke-width="${2.4/k}"/><text x="${p.x}" y="${p.y+3.4/k}" font-size="${9/k}" font-weight="900" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">!</text>`;
   const lab=`défaut ≈ ${fmt(r.dFil||0)} m de fil · ${r.e?r.e.id:''} · ± ${fmt(tolM)} m`;const w2=lab.length*6+16;
   s+=`<g transform="translate(${p.x} ${p.y}) scale(${1/k})"><rect x="${-w2/2}" y="-38" width="${w2}" height="17" rx="8.5" fill="#d03b3b"/><text y="-25.5" font-size="10" font-weight="800" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">${esc(lab)}</text></g>`;
