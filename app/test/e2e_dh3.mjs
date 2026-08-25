@@ -80,6 +80,10 @@ out=await page.evaluate(()=>{const sh=document.querySelector('#sheet');return {s
 console.log('4) fiche : 4 étapes + attendu (2 boucles):',JSON.stringify(out));
 const c4=out.steps===4&&out.attendu&&out.deuxVals===2&&out.btn1;
 // 5) valider l'étape 1 (avec contrôle visuel), puis l'étape 2 avec la mesure → done, anneau ½ sur la pastille
+// (modèle unique : la photo du cordon est obligatoire à l'étape 1 — on la seed comme sur le terrain)
+const PNG='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+await page.evaluate(({line,idx2,PNG})=>{const T=window.TRACE;const j=T.lines[line].cond.A.joints.find(x=>x.idx===idx2);j.steps=j.steps||{};j.steps[1]={...(j.steps[1]||{}),photos:[PNG]};const i=T.lines[line].cond.A.joints.findIndex(x=>x.idx===idx2);T.openJoint(line,'A',i);},{line:ids.line,idx2:ids.idx2,PNG});
+await page.waitForTimeout(400);
 await page.evaluate(()=>{document.querySelector('#st1-vis').checked=true;});
 await page.click('[data-stepok="1"]');await page.waitForTimeout(500);
 await page.evaluate(v=>{const m=document.querySelector('#st2-meas');m.value=String(v);document.querySelector('#st2-masse').checked=true;document.querySelector('#st2-cont').checked=true;},Rvals[0]);
