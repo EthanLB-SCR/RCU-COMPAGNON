@@ -63,6 +63,7 @@ out=await page.evaluate(()=>{const tr=[...document.querySelectorAll('#stock tabl
 console.log('5c) reste 12→11 affiché:',JSON.stringify(out));
 const c5c=out.td[1]==='12'&&out.td[2]==='1'&&/^11/.test(out.td[3]);
 // 6) scission : manchons… ici transférons 2 coudes vers une NOUVELLE zone (base vie) → pose au tap → 2 zones
+await page.evaluate(()=>{[...document.querySelectorAll('#stock details')].forEach(d=>d.open=true);}); // blocs repliés par défaut
 await page.click('[data-stksplit="Z1"]');await page.waitForTimeout(300);
 await page.evaluate(()=>{document.querySelectorAll('#modal [data-stksel]').forEach(cb=>cb.checked=false);const cbs=[...document.querySelectorAll('#modal [data-stksel]')];const i=cbs.findIndex(cb=>/Coude/.test(cb.closest('tr').textContent));cbs[i].checked=true;document.querySelector('#modal [data-stksq="'+cbs[i].dataset.stksel+'"]').value='2';document.querySelector('#stk-dest').value='__new';document.querySelector('#stk-dest').dispatchEvent(new Event('change'));document.querySelector('#stk-destname').value='Base vie';});
 await page.click('#stk-splitok');await page.waitForTimeout(300);
@@ -85,6 +86,7 @@ console.log('7b) camion attendu (lots pend, zone hachurée):',JSON.stringify(out
 const c7b=out.liv==='prevu'&&out.pend===11&&out.dash;
 await page.click('#stkDone');await page.waitForTimeout(400);
 // 7c) PRÉ-répartition avant l'arrivée : 5 barres DN200 vers une nouvelle zone « Dépôt manchons » — le camion reste à pointer
+await page.evaluate(()=>{[...document.querySelectorAll('#stock details')].forEach(d=>d.open=true);});
 await page.click('[data-stkpresplit]');await page.waitForTimeout(300);
 await page.evaluate(()=>{const cbs=[...document.querySelectorAll('#modal [data-stksel]')];const i=cbs.findIndex(cb=>/DN200/.test(cb.closest('tr').textContent)&&/Barre/.test(cb.closest('tr').textContent));cbs[i].checked=true;document.querySelector('#modal [data-stksq="'+cbs[i].dataset.stksel+'"]').value='5';const d=document.querySelector('#stk-dest');d.value='__new';d.dispatchEvent(new Event('change'));document.querySelector('#stk-destname').value='Dépôt manchons';});
 await page.click('#stk-preok');await page.waitForTimeout(300);
@@ -166,7 +168,40 @@ await page.click('#stock [data-stkdelliv]');await page.waitForTimeout(500);
 out=await page.evaluate(()=>{const s=window.TRACE.net.stock;return {livs:s.livs.length,orphan:s.takes.some(t=>t.liv&&!s.livs.find(v=>v.id===t.liv))};});
 console.log('13) livraison supprimée:',JSON.stringify({avant:nLiv,...out}));
 const c13=out.livs===nLiv-1&&!out.orphan;
-const ALL=c1&&c2&&c3&&c4&&c5a&&c5b&&c5c&&c6&&c7a&&c7b&&c7c&&c7d&&c8&&c9&&c10&&c11&&c12&&c12b&&c13;
-console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3,c4,c5a,c5b,c5c,c6,c7a,c7b,c7c,c7d,c8,c9,c10,c11,c12,c12b,c13}));
+
+// 14) carte d'ensemble des stockages : zones dessinées, tap → fiche zone
+out=await page.evaluate(()=>{const m=document.querySelector('#stkMap');return {map:!!m,zones:m?m.querySelectorAll('[data-stkmz]').length:0,open:!!document.querySelector('details[data-stkui="map"][open]')};});
+console.log('14) carte d\'ensemble (zones dessinées):',JSON.stringify(out));
+const c14=out.map&&out.zones>=2&&out.open;
+await page.evaluate(()=>{const r=document.querySelector('#stkMap [data-stkmz="Z1"] rect');const b=r.getBoundingClientRect();const o={bubbles:true,pointerId:81,clientX:b.x+b.width/2,clientY:b.y+b.height/2,isPrimary:true};const g=r.closest('[data-stkmz]');g.dispatchEvent(new PointerEvent('pointerdown',o));g.dispatchEvent(new PointerEvent('pointerup',o));});
+await page.waitForTimeout(400);
+out=await page.evaluate(()=>({show:document.querySelector('#modal').classList.contains('show'),fiche:/livré|Rien ici/.test(document.querySelector('#modal').textContent)}));
+console.log('14b) tap zone sur la carte → fiche:',JSON.stringify(out));
+const c14b=out.show&&out.fiche;
+await page.evaluate(()=>document.querySelector('#modal [data-close]').click());await page.waitForTimeout(200);
+// 15) fiche DÉTAILLÉE d'une livraison : contenu + restant zone par zone
+await page.evaluate(()=>document.querySelector('#stock td[data-stklivd]').click());await page.waitForTimeout(400);
+out=await page.evaluate(()=>{const m=document.querySelector('#modal');return {show:m.classList.contains('show'),contenu:/Contenu du camion/.test(m.textContent),parZone:/zone par zone|Plus rien en stock/.test(m.textContent)};});
+console.log('15) fiche livraison détaillée:',JSON.stringify(out));
+const c15=out.show&&out.contenu&&out.parZone;
+await page.evaluate(()=>document.querySelector('#modal [data-close]').click());await page.waitForTimeout(200);
+// 16) déplacer une zone sur le PLAN de façon significative → tracé dans les mouvements
+await page.evaluate(()=>{window.TRACE.closeSheet();const bd=document.querySelector('#backdrop');if(bd)bd.classList.remove('show');});
+await page.click('#tabbar [data-tab=plan]');await page.waitForTimeout(400);
+const nMov=await page.evaluate(()=>window.TRACE.net.stock.moves.length);
+await page.evaluate(()=>{const T=window.TRACE;T.state.stockSel=null;const z=T.net.stock.zones.find(z2=>z2.id==='Z1');T.state.view.k=5;T.centerOn(z.x,z.y,6);}); // centerOn gère l'offset réel du canvas ; 120 px ≈ 20 m au k=6
+await page.waitForTimeout(250);
+const bZ=await page.evaluate(()=>{const r=document.querySelector('#stockG [data-stkz="Z1"]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};});
+const hit=await page.evaluate(({x,y})=>{const el=document.elementFromPoint(x,y);return el?(el.tagName+'#'+(el.id||'')+'.'+(el.className.baseVal||el.className||'').toString().slice(0,40)+' stkz='+(el.getAttribute&&el.getAttribute('data-stkz')||'')):'null';},bZ);
+console.log('16-hit: point',JSON.stringify(bZ),'→',hit);
+await page.mouse.move(bZ.x,bZ.y);await page.mouse.down();
+for(let i=1;i<=12;i++)await page.mouse.move(bZ.x+i*10,bZ.y);
+await page.mouse.up();
+await page.waitForTimeout(400);
+out=await page.evaluate(()=>{const mv=window.TRACE.net.stock.moves;const last=mv[mv.length-1]||{};const z=window.TRACE.net.stock.zones.find(z2=>z2.id==='Z1');return {n:mv.length,zoneMove:!!last.zoneMove,dist:last.dist,zx:z.x,sel:window.TRACE.state.stockSel,modal:document.querySelector('#modal').classList.contains('show')};});
+console.log('16) déplacement de zone tracé:',JSON.stringify({avant:nMov,...out}));
+const c16=out.n===nMov+1&&out.zoneMove&&out.dist>5;
+const ALL=c1&&c2&&c3&&c4&&c5a&&c5b&&c5c&&c6&&c7a&&c7b&&c7c&&c7d&&c8&&c9&&c10&&c11&&c12&&c12b&&c13&&c14&&c14b&&c15&&c16;
+console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3,c4,c5a,c5b,c5c,c6,c7a,c7b,c7c,c7d,c8,c9,c10,c11,c12,c12b,c13,c14,c14b,c15,c16}));
 console.log(logs.length?logs:'[]');
 await browser.close();process.exit(ALL?0:1);

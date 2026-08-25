@@ -857,7 +857,9 @@ function renderPlan(){
   if(state.tracing&&state.tracePts.length){net+=`<path d="${pathD(state.tracePts)}" stroke="#1c3d6b" stroke-width="${3/k}" fill="none" stroke-dasharray="${6/k} ${4/k}"/>`+state.tracePts.map(p=>`<circle cx="${p.x}" cy="${p.y}" r="${5/k}" fill="#1c3d6b" stroke="#fff" stroke-width="${1.5/k}"/>`).join('');}
   netG.innerHTML=net+netJ;
   { // réseau hors écran (fausse manip au zoom / glisser) : bouton pour le retrouver
-    const bb=sheetBBox(sh);const off=(bb[2]<vx0+20||bb[0]>vx1-20||bb[3]<vy0+20||bb[1]>vy1-20);const ob=$('#offscreen');if(ob)ob.style.display=off&&sh.lines.length?'':'none';}
+    const bb=sheetBBox(sh);let off=(bb[2]<vx0+20||bb[0]>vx1-20||bb[3]<vy0+20||bb[1]>vy1-20);
+    if(off){const s4=stockOf();if(s4&&s4.zones.some(z=>z.x+z.w>vx0&&z.x-z.w<vx1&&z.y+z.h>vy0&&z.y-z.h<vy1))off=false;} // une zone de stockage à l'écran (base vie...) = on n'est PAS perdu : pas de bouton qui barre la route
+    const ob=$('#offscreen');if(ob)ob.style.display=off&&sh.lines.length?'':'none';}
   $('#legend').innerHTML=`<span><i class="bar" style="background:#c8382f"></i>aller</span><span><i class="bar" style="background:#2a5fb4"></i>retour</span>`+ORDER.map(s=>`<span><i style="${s==='a_souder'?`border-color:${STATUS[s].color};background:#fff`:`background:${STATUS[s].color};border-color:${STATUS[s].color}`}"></i>${STATUS[s].label}</span>`).join('')+`<span><i class="bar" style="background:#dfe4ea;border:1px solid #999"></i>étamé</span><span><i class="bar" style="background:#e2843a"></i>nu</span><span>${lod<3?'zoome : manchons puis détail':lod<12?'zoome pour le détail des pièces (bouts d\'acier, manchons, n°)':lod<30?'zoome encore pour les fils':'fils visibles'} · 👁 : choisir ce qui s\'affiche</span>`;
   $('#btnList').textContent=state.listMode?'Plan':'Liste';
   renderGps();renderHydroOverlay();renderDhOverlay();renderStockOverlay();
@@ -867,7 +869,7 @@ function renderPlan(){
 const ptrs=new Map();let gesture=null;
 canvas.addEventListener('pointerdown',e=>{if(e.target.closest('.zoomctl,.legend,.zoominfo,.disp,#offscreen,#transferBar,#calageBar,#hydroBar,#stockBar'))return;if($('#disp').classList.contains('show'))toggleDisp(false);try{canvas.setPointerCapture(e.pointerId);}catch(e2){}ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});const rect=canvas.getBoundingClientRect();
   const stkT=e.target.closest('[data-stkh],[data-stkz]'); // zone de stockage : glisser / poignées (chef/bureau)
-  if(ptrs.size===1&&stkT&&stockCanEdit()&&!state.stockPose){const zid=stkT.dataset.stkzid||stkT.dataset.stkz;gesture={type:'stk',h:stkT.dataset.stkh||'move',zid,lx:e.clientX,ly:e.clientY,rect,moved:false};return;}
+  if(ptrs.size===1&&stkT&&stockCanEdit()&&!state.stockPose){const zid=stkT.dataset.stkzid||stkT.dataset.stkz;const z0=stockZoneById(zid);gesture={type:'stk',h:stkT.dataset.stkh||'move',zid,lx:e.clientX,ly:e.clientY,rect,moved:false,x0:z0?z0.x:0,y0:z0?z0.y:0};return;}
   if(ptrs.size===1){const tg=e.target.closest('[data-j],[data-el]');gesture={type:'pan',sx:e.clientX,sy:e.clientY,tx:state.view.tx,ty:state.view.ty,moved:false,target:tg,lx:e.clientX-rect.left,ly:e.clientY-rect.top,t0:Date.now()};
     if(state.tool&&tg){const l=state.lines[tg.dataset.line];const c=tg.dataset.cond;const eng=l&&engOf(l,c);const cels=l&&l.cond[c]?l.cond[c].els:null;if(eng&&cels&&state.toolLine===l.id&&state.toolCond===c){if(tg.dataset.el!==undefined){const el=cels[+tg.dataset.el];const r=el&&eng.roleOf(el.uid);if(r&&r.role==='block')gesture={type:'tdrag',line:l.id,cond:c,lx:e.clientX,ly:e.clientY,moved:false,target:tg};}
       else if(tg.dataset.j!==undefined){const el=cels[+tg.dataset.j];if(el)gesture={type:'jdrag',line:l.id,cond:c,uid:el.uid,sx:e.clientX,sy:e.clientY,lx:e.clientX,ly:e.clientY,moved:false,target:tg};}}}}
@@ -886,7 +888,11 @@ canvas.addEventListener('pointermove',e=>{if(!ptrs.has(e.pointerId))return;ptrs.
   else if(gesture.type==='pinch'&&ptrs.size===2){const [a,b]=[...ptrs.values()];const dd=Math.hypot(a.x-b.x,a.y-b.y);const nk=Math.min(60,Math.max(.05,gesture.k0*dd/gesture.d0));const rr=nk/gesture.k0;state.view.k=nk;state.view.tx=gesture.mx-(gesture.mx-gesture.tx0)*rr;state.view.ty=gesture.my-(gesture.my-gesture.ty0)*rr;applyView();}});
 let lastTap=0;
 function endPtr(e){if(!ptrs.has(e.pointerId))return;ptrs.delete(e.pointerId);
-  if(gesture&&gesture.type==='stk'){if(gesture.moved)saveStock();else{const was=state.stockSel===gesture.zid;state.stockSel=gesture.zid;const z=stockZoneById(gesture.zid);
+  if(gesture&&gesture.type==='stk'){if(gesture.moved){
+      const z=stockZoneById(gesture.zid);const s=stockOf();
+      if(z&&s&&gesture.h==='move'){const dist=Math.hypot(z.x-gesture.x0,z.y-gesture.y0);
+        if(dist>=5)s.moves.push({at:new Date().toISOString(),by:(me()||{}).name||state.userId,zoneMove:z.id,label:z.name,dist:+dist.toFixed(1),from:[+gesture.x0.toFixed(1),+gesture.y0.toFixed(1)],to:[+z.x.toFixed(1),+z.y.toFixed(1)]});} // déplacement significatif : tracé comme un mouvement (Ethan 25/08)
+      saveStock();}else{const was=state.stockSel===gesture.zid;state.stockSel=gesture.zid;const z=stockZoneById(gesture.zid);
       if(z){updateStockBar('Zone « '+z.name+' » — glisser pour déplacer, poignées pour étirer, ↻ pour tourner, Terminer pour sortir.');if(!was)openStockZoneModal(z.id);} // tap = fiche de la zone (reste, provenance, attendu) ; re-tap = juste l'édition
       renderStockOverlay();}
     gesture=null;if(ptrs.size===0)scheduleRender();return;}
@@ -1594,6 +1600,71 @@ function stockTake(zoneId,need,weldId,lineId,cond2,qty){const s=stockOf();if(!s)
     let acc=0;for(const l2 of lots){acc+=l2.qty;if(consumed<acc){liv=l2.liv||null;break;}}}
   const take={at:new Date().toISOString(),by:(me()||{}).name||state.userId,weldId,line:lineId,cond:cond2,zone:zoneId,key,label:need.label||stockLabel(need),qty:qty||1,liv};
   s.takes.push(take);saveStock();return take;}
+// détail par CAMION et par RÉFÉRENCE dans une zone (même FIFO) — pour la fiche de livraison
+function livBreakdown2(s,zoneId){const per={};const keys=new Set(s.lots.filter(l2=>l2.zone===zoneId).map(l2=>matchKey(l2)));
+  keys.forEach(key=>{const lots=s.lots.filter(l2=>l2.zone===zoneId&&matchKey(l2)===key);
+    let consumed=s.takes.filter(t=>t.zone===zoneId&&t.key===key).reduce((a,t)=>a+(t.qty||1),0);
+    lots.forEach(l2=>{const lv=l2.liv||'—';per[lv]=per[lv]||{};const cur=per[lv][key]=per[lv][key]||{label:l2.label,rest:0,pend:0};
+      if(l2.pend){cur.pend+=l2.qty;return;}
+      const eat=Math.min(consumed,l2.qty);consumed-=eat;cur.rest+=l2.qty-eat;});});
+  return per;}
+// fiche DÉTAILLÉE d'une livraison : lignes du BL, reçu/écarts, restant par zone et par référence, dates et reports (Ethan 25/08 : « XX pcs ne suffit pas »)
+function openStockLivDetail(livId){const s=stockOf();const liv=s.livs.find(v=>v.id===livId);if(!liv)return;
+  const dFR=d=>d?new Date(d+'T12:00:00').toLocaleDateString('fr-FR'):'—';
+  const rows=(liv.prevu||[]).map(p=>{const ec=(liv.ecarts||[]).find(e2=>e2.label===p.label);
+    return `<tr${ec?' style="background:#fdecec"':''}><td>${esc(p.label)}</td><td>${p.qty}</td><td>${liv.status==='prevu'?'<span class="dim">attendu</span>':(ec?'<b>'+ec.recu+'</b>':p.qty)}</td>${liv.status!=='prevu'?`<td>${ec?'<b style="color:#8a1f1f">'+(ec.recu-ec.prevu>0?'+':'')+(ec.recu-ec.prevu)+'</b>':'✓'}</td>`:'<td></td>'}</tr>`;}).join('');
+  const zones=[...new Set(s.lots.filter(l2=>l2.liv===livId).map(l2=>l2.zone))];
+  const perZone=zones.map(zid=>{const bd=livBreakdown2(s,zid)[livId];if(!bd)return '';
+    const items=Object.values(bd).filter(o=>o.rest>0||o.pend>0);if(!items.length)return '';
+    return `<div style="margin-top:4px"><b style="font-size:12px">${esc((stockZoneById(zid)||{}).name||zid)}</b><table class="rc" style="margin-top:2px">${items.map(o=>`<tr><td>${esc(o.label)}</td><td>${o.rest?'<b>'+stkFmtQ(o.rest)+'</b> restantes':''}${o.pend?' <span class="dim">'+stkFmtQ(o.pend)+' attendues</span>':''}</td></tr>`).join('')}</table></div>`;}).join('');
+  openModal(`<h3 style="margin-top:0">${esc(liv.label)}${liv.bl?' <span class="dim" style="font-size:12px">· BL '+esc(liv.bl)+'</span>':''}</h3>
+   <div class="kv" style="font-size:12px"><span>${liv.status==='prevu'?'attendu le <b>'+esc(dFR(liv.date))+'</b>':'reçu le <b>'+esc(liv.recuAt?new Date(liv.recuAt).toLocaleDateString('fr-FR'):dFR(liv.date))+'</b>'}</span><span>par ${esc(liv.by||'')}</span>${(liv.ecarts||[]).length?`<span style="background:#fdecec"><b style="color:#d03b3b">${liv.ecarts.length} écart(s)</b></span>`:''}</div>
+   ${(liv.dateHist||[]).length?`<div class="warnbox" style="font-size:11.5px;margin:4px 0">Reports : ${liv.dateHist.map(h=>esc(dFR(h.from))+' → <b>'+esc(dFR(h.to))+'</b>'+(h.why?' ('+esc(h.why)+')':'')).join(' · ')}</div>`:''}
+   <label class="f" style="margin-top:6px">Contenu du camion</label>
+   <div style="overflow:auto;max-height:32vh"><table class="rc"><tr><th>Référence</th><th>BL</th><th>reçu</th><th></th></tr>${rows}</table></div>
+   ${perZone?`<label class="f" style="margin-top:8px">Ce qu'il en reste, zone par zone</label>${perZone}`:'<p class="hint">Plus rien en stock de ce camion (tout posé ou transféré).</p>'}
+   <div class="actions" style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">${liv.status==='prevu'&&stockCanEdit()?`<button class="btn primary" id="stklv-un" style="flex:1">📦 Camion arrivé — pointer</button>`:''}${liv.status!=='prevu'?`<button class="btn" id="stklv-cr" style="flex:1">📄 Compte-rendu</button>`:''}<button class="btn block" data-close style="flex:1">Fermer</button></div>`);
+  const un=$('#stklv-un');if(un)un.onclick=()=>{closeModal();openStockUnload(livId);};
+  const cr=$('#stklv-cr');if(cr)cr.onclick=()=>{closeModal();openStockCR(livId);};}
+// carte d'ensemble des stockages : pan/zoom continu, ortho grisée si géoréférencé, zones tapables (même moteur que la vue hydro)
+function stockZonesSVG(k){const s=stockOf();if(!s)return '';let out='';
+  s.zones.forEach(z=>{const agg=zoneAgg(s,z.id);const reste=agg.reduce((t,a)=>t+Math.max(0,a.reste),0);const pend=agg.reduce((t,a)=>t+(a.pend||0),0);const st4=zoneStatusOf(s,z);
+    const col=st4==='ok'?'#0ca30c':'#c9a227';const fill=st4==='ok'?'rgba(12,163,12,.20)':'rgba(201,162,39,.16)';
+    out+=`<g transform="translate(${z.x} ${z.y}) rotate(${z.rot||0})" data-stkmz="${z.id}" style="cursor:pointer"><rect x="${-z.w/2}" y="${-z.h/2}" width="${z.w}" height="${z.h}" rx="${Math.min(1,z.h/6)}" fill="${fill}" stroke="${col}" stroke-width="${2.2/k}" ${st4==='ok'?'':`stroke-dasharray="${6/k} ${4/k}"`}/></g>`;
+    const lab=`${z.name} · ${st4==='ok'?stkFmtQ(reste)+' pcs':stkFmtQ(pend)+' att.'}`;const wl=lab.length*6.2+14;
+    out+=`<g transform="translate(${z.x} ${z.y-z.h/2}) scale(${1/k})" style="pointer-events:none"><rect x="${-wl/2}" y="-24" width="${wl}" height="17" rx="8.5" fill="${col}" opacity=".92"/><text y="-11.5" font-size="10.5" font-weight="800" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">${esc(lab)}</text></g>`;});
+  return out;}
+function initStockMap(){const box=$('#stkMap');if(!box)return;const sh=sheet();const ppm=sh.ppm||1;const geoH=siteGeo();
+  let axes='';Object.values(state.lines).forEach(l=>{const cd=l.cond&&(l.cond.A||l.cond.R);((cd&&cd.els)||[]).forEach(e=>{const pl=e.axis&&e.axis[0];if(pl&&pl.length>1)axes+=`<path d="${pathD(pl)}" stroke="${geoH?'#8b8577':'#b9b5a8'}" stroke-width="${Math.max(.25*ppm,2)}" fill="none" stroke-linejoin="round" stroke-linecap="round" opacity=".85"/>`;});});
+  box.innerHTML=`<svg style="position:absolute;inset:0;width:100%;height:100%"><defs><filter id="stkGrayV">${HY_GRAY}</filter></defs><g id="stkWorld"><g id="stkBgT">${geoH?'':hydroBgSVG(sh)}</g><g>${axes}</g><g id="stkOv"></g></g></svg><div class="hmCtl hyCtl"><button data-a="+" title="Zoomer">+</button><button data-a="-" title="Dézoomer">−</button><button data-a="fit" title="Tout le réseau">⌖</button></div><div class="hmLegend">zoome (molette / pincer / double-tap) — touche une zone pour sa fiche</div>${geoH?'<div class="hmCredit">© IGN — Géoplateforme</div>':''}`;
+  const world=box.querySelector('#stkWorld'),ov=box.querySelector('#stkOv'),bgT=box.querySelector('#stkBgT');
+  const V=state.stockMapView&&isFinite(state.stockMapView.k)?state.stockMapView:(state.stockMapView={k:0,tx:0,ty:0});
+  const updTiles=()=>{if(!geoH)return;const w=box.clientWidth||360,hh=box.clientHeight||340;
+    const b2=[(-V.tx)/V.k,(-V.ty)/V.k,(w-V.tx)/V.k,(hh-V.ty)/V.k];const T=tilesFor(geoH,b2,V.k*ppm,19,90);if(!T){bgT.innerHTML='';bgT.dataset.key='';return;}
+    const xs=T.tiles.map(t=>t.x),ys=T.tiles.map(t=>t.y);const mx=Math.min(...xs),my=Math.min(...ys);
+    const ox=mx*256,oy=my*256;const [a,b,c,d,e,f]=T.matrix;const mat=`matrix(${[a,b,c,d,e+a*ox+c*oy,f+b*ox+d*oy].map(x=>(+x).toPrecision(10)).join(' ')})`;
+    const key=`o:${T.z}:${mx}-${Math.max(...xs)}:${my}-${Math.max(...ys)}`;
+    if(bgT.dataset.key!==key){bgT.dataset.key=key;bgT.innerHTML=`<g transform="${mat}" filter="url(#stkGrayV)">${T.tiles.map(t=>`<image href="${ignTileURL('ortho',T.z,t.x,t.y)}" x="${(t.x-mx)*256}" y="${(t.y-my)*256}" width="256.5" height="256.5"/>`).join('')}</g>`;}
+    else{[...bgT.children].forEach(c2=>c2.setAttribute('transform',mat));}};
+  let raf3=null;const apply=()=>{world.setAttribute('transform',`translate(${V.tx} ${V.ty}) scale(${V.k})`);if(raf3)return;raf3=requestAnimationFrame(()=>{raf3=null;ov.innerHTML=stockZonesSVG(V.k);updTiles();});};
+  const fit=()=>{const s=stockOf();let bb=sheetBBox(sh);
+    if(s&&s.zones.length){let x0=1e12,y0=1e12,x1=-1e12,y1=-1e12;s.zones.forEach(z=>{x0=Math.min(x0,z.x-z.w);y0=Math.min(y0,z.y-z.h);x1=Math.max(x1,z.x+z.w);y1=Math.max(y1,z.y+z.h);});
+      bb=[Math.min(bb[0],x0),Math.min(bb[1],y0),Math.max(bb[2],x1),Math.max(bb[3],y1)];} // les zones comptent dans le cadrage (base vie souvent hors emprise réseau)
+    const cw=box.clientWidth||360,ch=box.clientHeight||340;const m=Math.max(20,(bb[2]-bb[0])*.06);const x0=bb[0]-m,y0=bb[1]-m,x1=bb[2]+m,y1=bb[3]+m;
+    V.k=Math.min(cw/(x1-x0),ch/(y1-y0))*.97;V.tx=(cw-(x1-x0)*V.k)/2-x0*V.k;V.ty=(ch-(y1-y0)*V.k)/2-y0*V.k;apply();};
+  const zoomAt=(f,mx,my)=>{const nk=Math.min(60/ppm,Math.max(0.02/ppm,V.k*f));const r=nk/V.k;V.tx=mx-(mx-V.tx)*r;V.ty=my-(my-V.ty)*r;V.k=nk;apply();};
+  box.addEventListener('wheel',e=>{e.preventDefault();const r=box.getBoundingClientRect();zoomAt(Math.exp(-e.deltaY*.0015),e.clientX-r.left,e.clientY-r.top);},{passive:false});
+  box.addEventListener('dblclick',e=>{if(e.target.closest('.hyCtl'))return;const r=box.getBoundingClientRect();zoomAt(2,e.clientX-r.left,e.clientY-r.top);});
+  box.querySelector('.hyCtl').addEventListener('click',e=>{const a=e.target.dataset.a;if(!a)return;e.stopPropagation();if(a==='fit'){fit();return;}zoomAt(a==='+'?1.6:1/1.6,box.clientWidth/2,box.clientHeight/2);});
+  const ptrs3=new Map();let last3=null,pd3=null,down3=null;
+  box.addEventListener('pointerdown',e=>{if(e.target.closest('.hyCtl'))return;try{box.setPointerCapture(e.pointerId);}catch(e2){}ptrs3.set(e.pointerId,{x:e.clientX,y:e.clientY});if(ptrs3.size===1){last3={x:e.clientX,y:e.clientY};down3={x:e.clientX,y:e.clientY,tgt:e.target.closest('[data-stkmz]')};}});
+  box.addEventListener('pointermove',e=>{if(!ptrs3.has(e.pointerId))return;ptrs3.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(ptrs3.size===1&&last3){V.tx+=e.clientX-last3.x;V.ty+=e.clientY-last3.y;last3={x:e.clientX,y:e.clientY};apply();}
+    else if(ptrs3.size===2){const [a,b]=[...ptrs3.values()];const d=Math.hypot(a.x-b.x,a.y-b.y);const r=box.getBoundingClientRect();if(pd3)zoomAt(d/pd3,(a.x+b.x)/2-r.left,(a.y+b.y)/2-r.top);pd3=d;}});
+  const up3=e=>{if(ptrs3.has(e.pointerId)&&down3&&down3.tgt&&Math.hypot(e.clientX-down3.x,e.clientY-down3.y)<7)openStockZoneModal(down3.tgt.dataset.stkmz); // tap zone → fiche
+    ptrs3.delete(e.pointerId);if(ptrs3.size<2)pd3=null;if(!ptrs3.size){last3=null;down3=null;}};
+  box.addEventListener('pointerup',up3);box.addEventListener('pointercancel',up3);
+  if(!V.k)fit();else apply();}
 // reste par CAMION dans une zone (FIFO par référence) — « d'où viennent les pièces encore posées là »
 function livBreakdown(s,zoneId){const per={};const keys=new Set(s.lots.filter(l2=>l2.zone===zoneId).map(l2=>matchKey(l2)));
   keys.forEach(key=>{const lots=s.lots.filter(l2=>l2.zone===zoneId&&matchKey(l2)===key);
@@ -1658,12 +1729,13 @@ function stockBalanceHTML(rootId,mains2){const s=stockOf();if(!s)return '';
    .filter(r=>r.be||r.st||r.at).sort((a,b)=>(a.ec-b.ec)||String(a.label).localeCompare(String(b.label)));
   const manque=rows.filter(r=>r.ec<0),trop=rows.filter(r=>r.ec>0&&r.be>0);
   const line=r=>`<tr${r.ec<0?' style="background:#fdecec"':r.ec>0&&r.be>0?' style="background:#fff8e6"':''}><td>${esc(r.label)}</td><td>${r.be||'—'}</td><td>${r.po||'—'}</td><td><b>${r.rp||0}</b></td><td>${r.st||'—'}</td><td>${r.at?'<span class="dim">'+r.at+'</span>':'—'}</td><td><b style="color:${r.ec<0?'#d03b3b':r.ec>0&&r.be>0?'#8a6d1f':'#0ca30c'}">${r.ec>0?'+':''}${r.ec}</b></td></tr>`;
-  return `<div class="card"><h3 style="margin-top:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">Besoin / livré / reste à poser
-    <select class="f" id="stk-matline" style="font-size:12px;padding:4px 8px;margin-left:auto"><option value="">Tout le réseau</option>${mains2.map(l2=>`<option value="${l2.id}" ${rootId===l2.id?'selected':''}>${esc(l2.name)} + antennes</option>`).join('')}</select></h3>
+  const UI2=state.stockUI||(state.stockUI={});
+  return `<details class="card" data-stkui="bal" ${(UI2.bal===undefined?false:UI2.bal)?'open':''}><summary style="cursor:pointer;font-size:13.5px"><b>Besoin / livré / reste à poser</b> <span class="dim" style="font-size:12px">${manque.length?'⚠ il manque '+manque.length+' référence'+(manque.length>1?'s':''):'✓ couvert'}${trop.length?' · surplus sur '+trop.length:''}</span></summary>
+   <div class="row" style="display:flex;margin:6px 0"><select class="f" id="stk-matline" style="font-size:12px;padding:4px 8px;margin-left:auto"><option value="">Tout le réseau</option>${mains2.map(l2=>`<option value="${l2.id}" ${rootId===l2.id?'selected':''}>${esc(l2.name)} + antennes</option>`).join('')}</select></div>
    ${manque.length?`<div class="err" style="margin:0 0 6px">⚠ <b>Il manque</b> : ${manque.slice(0,5).map(r=>esc(r.label)+' ('+(-r.ec)+')').join(' · ')}${manque.length>5?' …':''}</div>`:'<div class="okbox" style="margin:0 0 6px">✓ Le stock (+ attendu) couvre tout ce qu\'il reste à poser.</div>'}
    ${trop.length?`<div class="warnbox" style="margin:0 0 6px">Surplus prévisible : ${trop.slice(0,5).map(r=>esc(r.label)+' (+'+r.ec+')').join(' · ')}${trop.length>5?' …':''}</div>`:''}
    <div style="overflow:auto"><table class="rc" style="margin:0"><tr><th>Référence</th><th title="tout ce que le calepinage demande">besoin</th><th title="déjà soudé / manchonné">posé</th><th title="besoin − posé">reste à poser</th><th title="en stock, toutes zones">stock</th><th title="camions annoncés, pas encore pointés">attendu</th><th title="(stock + attendu) − reste à poser">solde</th></tr>${rows.map(line).join('')}</table></div>
-   <div class="row" style="display:flex;gap:6px;margin-top:6px"><button class="btn sm" id="stk-csvbal" style="flex:1">⬇ CSV besoin / livré / reste</button></div></div>`;}
+   <div class="row" style="display:flex;gap:6px;margin-top:6px"><button class="btn sm" id="stk-csvbal" style="flex:1">⬇ CSV besoin / livré / reste</button></div></details>`;}
 // (ancienne vue « matière » — gardée pour référence, plus affichée)
 function stockMatSVG(rootId){const s=stockOf();if(!s)return '';const rem=remainByMatch(s);let nb=null;
   // zoom par tronçon : la ligne principale choisie + toutes ses antennes (chaîne des parents) — la vue globale ne dit rien sur un chantier de 30 camions
@@ -1689,6 +1761,7 @@ function stockMatSVG(rootId){const s=stockOf();if(!s)return '';const rem=remainB
 function renderStock(){const el=$('#stock');const s=stockOf();
   if(!s){el.innerHTML='<h2 class="vt">Stock — pièces pré-isolées</h2><div class="card muted">Aucun chantier.</div>';return;}
   const canE=stockCanEdit();
+  const UI=state.stockUI||(state.stockUI={});const UIo=(k,def)=>((UI[k]===undefined?def:UI[k])?'open':''); // chaque bloc se replie d'une flèche et l'appli s'en souvient (Ethan 25/08 : « ça prend de la place »)
   const livName=id=>{const v=s.livs.find(x=>x.id===id);return v?v.label+(v.bl?' · '+v.bl:''):'—';};
   const dFR=d=>d?new Date(d+'T12:00:00').toLocaleDateString('fr-FR'):'';
   const dRel=d=>{if(!d)return '';const j=Math.round((new Date(d+'T12:00:00')-new Date(isoD(new Date())+'T12:00:00'))/86400000);return j===0?"aujourd'hui":j===1?'demain':j>1?'dans '+j+' j':j===-1?'hier':'il y a '+(-j)+' j (en retard)';};
@@ -1697,7 +1770,7 @@ function renderStock(){const el=$('#stock');const s=stockOf();
   const livRow=v=>{const zs=[...new Set(s.lots.filter(l2=>l2.liv===v.id).map(l2=>l2.zone))].map(zid=>(stockZoneById(zid)||{}).name||zid);
     const rest=s.zones.reduce((t,z)=>{const b=livBreakdown(s,z.id)[v.id];return t+(b?b.rest:0);},0);
     const pend=s.lots.filter(l2=>l2.liv===v.id&&l2.pend).reduce((t,l2)=>t+l2.qty,0);
-    return `<tr><td><b>${esc(v.label)}</b>${v.bl?`<br><span class="dim" style="font-size:10.5px">BL ${esc(v.bl)}</span>`:''}</td>
+    return `<tr><td data-stklivd="${v.id}" style="cursor:pointer" title="voir le détail : contenu, reçu, restant par zone"><b style="color:#1c3d6b">${esc(v.label)}</b>${v.bl?`<br><span class="dim" style="font-size:10.5px">BL ${esc(v.bl)}</span>`:''}</td>
      <td style="white-space:nowrap">${esc(dFR(v.date)||new Date(v.at).toLocaleDateString('fr-FR'))}${(v.dateHist||[]).length?` <span class="hyChip" style="border-color:#c9a227;font-size:9.5px;padding:0 5px" title="${esc((v.dateHist||[]).map(h=>dFR(h.from)+' → '+dFR(h.to)+' ('+(h.by||'')+(h.why?' : '+h.why:'')+')').join(' · '))}">décalé ×${v.dateHist.length}</span>`:''}${v.status==='prevu'&&v.date?`<br><span class="dim" style="font-size:10px">${esc(dRel(v.date))}</span>`:''}${canE&&v.status==='prevu'?` <button class="btn sm" data-stkdate="${v.id}" title="décaler la livraison (l'historique est gardé)" style="padding:1px 6px">📅</button>`:''}</td>
      <td>${v.status==='prevu'?'<span class="hyChip" style="border-color:#c9a227;font-size:10px;padding:1px 7px">attendu</span>':'<span class="hyChip" style="border-color:#9fd49f;font-size:10px;padding:1px 7px">déchargé</span>'}${(v.ecarts||[]).length?` <span class="hyChip" style="border-color:#e8a0a0;color:#8a1f1f;font-size:10px;padding:1px 7px">⚠ ${v.ecarts.length}</span>`:''}</td>
      <td style="font-size:11px">${zs.map(esc).join('<br>')||'—'}</td>
@@ -1708,8 +1781,8 @@ function renderStock(){const el=$('#stock');const s=stockOf();
     const reste=agg.reduce((t,a)=>t+Math.max(0,a.reste),0);const pend=agg.reduce((t,a)=>t+(a.pend||0),0);const st4=zoneStatusOf(s,z);
     const rows=agg.map(a=>{const pc=a.qty?Math.max(0,Math.min(100,Math.round(100*a.reste/a.qty))):0;
       return `<tr><td>${esc(a.label)}</td><td>${stkFmtQ(a.qty)}${a.pend?` <span class="dim" style="font-size:10px">(+${stkFmtQ(a.pend)} att.)</span>`:''}</td><td>${stkFmtQ(a.taken)}</td><td><b>${stkFmtQ(a.reste)}</b><div class="stbar"><i class="${pc<25?'low':''}" style="width:${pc}%"></i></div></td></tr>`;}).join('');
-    const bd2=livBreakdown(s,z.id);const prov=Object.entries(bd2).filter(([,o])=>o.rest>0||o.pend>0).map(([lv,o])=>`<span class="hyChip" style="font-size:10.5px" title="reste issu de ce camion (transferts suivis)">${esc(livName(lv))} : ${o.rest?stkFmtQ(o.rest)+' pcs':''}${o.pend?' '+stkFmtQ(o.pend)+' att.':''}</span>`).join(' ');
-    return `<details class="card" style="border-left:4px solid ${st4==='ok'?'#0ca30c':'#c9a227'}" ${s.zones.length<=2?'open':''}>
+    const bd2=livBreakdown(s,z.id);const prov=Object.entries(bd2).filter(([,o])=>o.rest>0||o.pend>0).map(([lv,o])=>`<span class="hyChip" ${lv!=='—'?`data-stklivd="${lv}" style="font-size:10.5px;cursor:pointer"`:'style="font-size:10.5px"'} title="touche pour le détail de ce camion (références, zones, restant)">${esc(livName(lv))} : ${o.rest?stkFmtQ(o.rest)+' pcs':''}${o.pend?' '+stkFmtQ(o.pend)+' att.':''}</span>`).join(' ');
+    return `<details class="card" data-stkui="z:${z.id}" style="border-left:4px solid ${st4==='ok'?'#0ca30c':'#c9a227'}" ${UIo('z:'+z.id,false)}>
      <summary style="cursor:pointer;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13.5px"><b>${esc(z.name)}</b>
       <span class="hyChip" style="border-color:${st4==='ok'?'#9fd49f':'#c9a227'};font-size:10.5px">${st4==='ok'?'en stock':'prévue'}</span>
       <span class="dim" style="font-size:12px">reste <b>${stkFmtQ(reste)}</b> pcs${pend?' · '+stkFmtQ(pend)+' attendues':''}</span></summary>
@@ -1732,13 +1805,18 @@ function renderStock(){const el=$('#stock');const s=stockOf();
    ${canE?`<div class="row" style="display:flex;gap:6px;margin-bottom:8px"><button class="btn primary" id="stk-new" style="flex:1">＋ Nouvelle livraison (camion)</button></div>`:''}
    ${canE&&nPrevu?`<div class="warnbox" style="margin-bottom:8px"><b>${nPrevu} camion${nPrevu>1?'s':''} annoncé${nPrevu>1?'s':''}</b> — à son arrivée, « 📦 Camion arrivé » ouvre le contrôle des quantités (photo + réel vs BL), et la marchandise entre en stock.
     <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${s.livs.filter(v=>v.status==='prevu').sort((a,b)=>String(a.date||'').localeCompare(String(b.date||''))).map(v=>`<button class="btn sm primary" data-stkunload="${v.id}">📦 ${esc(v.label)}${v.date?' ('+esc(dFR(v.date))+')':''} est arrivé — pointer</button>`).join('')}</div></div>`:''}
-   ${s.livs.length?`<details class="card" ${s.livs.length<=4?'open':''}><summary style="cursor:pointer;font-size:13.5px"><b>Livraisons / BL</b> <span class="dim" style="font-size:12px">(${s.livs.length} — chaque pièce garde son camion d\'origine, même transférée)</span></summary>
+   <details class="card" data-stkui="map" ${UIo('map',true)}><summary style="cursor:pointer;font-size:13.5px"><b>Plan d'ensemble des stockages</b> <span class="dim" style="font-size:12px">${s.zones.length?s.zones.length+' zone'+(s.zones.length>1?'s':'')+' — zoome, touche une zone':'aucune zone posée'}</span></summary>
+    <div id="stkMap" style="position:relative;height:340px;border-radius:10px;overflow:hidden;background:#eceae2;margin-top:6px;touch-action:none"></div></details>
+   ${s.livs.length?`<details class="card" data-stkui="livs" ${UIo('livs',false)}><summary style="cursor:pointer;font-size:13.5px"><b>Livraisons / BL</b> <span class="dim" style="font-size:12px">(${s.livs.length} — chaque pièce garde son camion d\'origine, même transférée)</span></summary>
     <div style="overflow:auto"><table class="rc" style="margin-top:6px"><tr><th>Camion / BL</th><th>Date</th><th>Statut</th><th>Zones</th><th>Reste</th><th></th></tr>${s.livs.slice().reverse().map(livRow).join('')}</table></div></details>`:''}
    ${s.zones.length?s.zones.map(zoneCard).join(''):'<div class="card muted">Aucune zone de stockage : crée une livraison, la zone se pose sur le plan.</div>'}
-   ${G.length?`<details class="card" open><summary style="cursor:pointer;font-size:13.5px"><b>Stock général chantier</b> <span class="dim" style="font-size:12px">(toutes zones)</span></summary><div style="overflow:auto"><table class="rc" style="margin-top:6px"><tr><th></th><th>livré</th><th>pris</th><th>reste</th></tr>${gRows}</table></div>
+   ${G.length?`<details class="card" data-stkui="gen" ${UIo('gen',false)}><summary style="cursor:pointer;font-size:13.5px"><b>Stock général chantier</b> <span class="dim" style="font-size:12px">${stkFmtQ(G.reduce((t,a)=>t+Math.max(0,a.reste),0))} pcs restantes, toutes zones</span></summary><div style="overflow:auto"><table class="rc" style="margin-top:6px"><tr><th></th><th>livré</th><th>pris</th><th>reste</th></tr>${gRows}</table></div>
     <div class="row" style="display:flex;gap:6px;margin-top:6px"><button class="btn sm" id="stk-csvg" style="flex:1">⬇ CSV stock général</button></div></details>`:''}
    ${stockBalanceHTML(matSel,mains2)}
-   ${(s.moves||[]).length?`<details class="card"><summary style="cursor:pointer;font-size:13px;color:var(--ink2)">Mouvements (${s.moves.length})</summary><table class="rc" style="margin-top:6px">${s.moves.slice(-12).reverse().map(m2=>`<tr><td>${esc(new Date(m2.at).toLocaleDateString('fr-FR'))}</td><td>${stkFmtQ(m2.qty)} × ${esc(m2.label||'')}${m2.pre?' <span class="dim" style="font-size:10px">(répartition avant arrivée)</span>':''}</td><td>${esc((stockZoneById(m2.from)||{}).name||m2.from||'—')} → ${esc((stockZoneById(m2.to)||{}).name||m2.to)}</td><td class="dim">${esc(m2.by||'')}</td></tr>`).join('')}</table></details>`:''}`;
+   ${(s.moves||[]).length?`<details class="card" data-stkui="mov" ${UIo('mov')}><summary style="cursor:pointer;font-size:13px;color:var(--ink2)">Mouvements et déplacements (${s.moves.length})</summary><table class="rc" style="margin-top:6px">${s.moves.slice(-15).reverse().map(m2=>m2.zoneMove?`<tr><td>${esc(new Date(m2.at).toLocaleDateString('fr-FR'))}</td><td colspan="2">📍 Zone « ${esc(m2.label||'')} » déplacée de <b>${fmt(m2.dist)} m</b> sur le plan</td><td class="dim">${esc(m2.by||'')}</td></tr>`:`<tr><td>${esc(new Date(m2.at).toLocaleDateString('fr-FR'))}</td><td>${stkFmtQ(m2.qty)} × ${esc(m2.label||'')}${m2.pre?' <span class="dim" style="font-size:10px">(répartition avant arrivée)</span>':''}</td><td>${esc((stockZoneById(m2.from)||{}).name||m2.from||'—')} → ${esc((stockZoneById(m2.to)||{}).name||m2.to)}</td><td class="dim">${esc(m2.by||'')}</td></tr>`).join('')}</table></details>`:''}`;
+  el.querySelectorAll('details[data-stkui]').forEach(d=>d.addEventListener('toggle',()=>{state.stockUI[d.dataset.stkui]=d.open;if(d.dataset.stkui==='map'&&d.open)initStockMap();}));
+  if(el.querySelector('details[data-stkui="map"][open]'))initStockMap();
+  el.querySelectorAll('[data-stklivd]').forEach(b=>b.addEventListener('click',()=>openStockLivDetail(b.dataset.stklivd)));
   const q0=$('#stk-new');if(q0)q0.onclick=()=>openStockLiv();
   const qg=$('#stk-csvg');if(qg)qg.onclick=()=>{const rows=[['Référence','Livré','Pris','Reste']];globalAgg(s).forEach(a=>rows.push([a.label,a.qty,a.taken,a.reste]));dlCSVFile((NET.name||'chantier')+' - stock général.csv',rows);};
   const ml2=$('#stk-matline');if(ml2)ml2.onchange=()=>{state.stockMatSel=ml2.value;renderStock();};
