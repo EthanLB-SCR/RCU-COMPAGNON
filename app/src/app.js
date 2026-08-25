@@ -177,7 +177,7 @@ function wipeWeld(j){j.status='a_souder';j.events=[];j.photos=[];j.wire='a_racco
 const weldHasData=j=>j.status!=='a_souder'||(j.events&&j.events.length)||(j.photos&&j.photos.length)||(j.wire&&j.wire!=='a_raccorder');
 async function pushWeld(j){try{await sync.ensureSite({id:state.siteId,name:NET.name,supplier:NET.supplier,serie:NET.serie});const okk=await sync.saveWeld(state.siteId,{...j});if(okk)setCloudBadge('enregistré '+new Date().toLocaleTimeString('fr-FR'));}catch(e){console.warn(e);}}
 // transfert : les données d'avancement passent sur la soudure cible ; si la cible en a déjà, on ÉCHANGE (rien ne se perd)
-const TFIELDS=['status','events','photos','wire','conn','cont','iso','isoVal','note'];
+const TFIELDS=['status','events','photos','wire','conn','cont','iso','isoVal','note','steps']; // 'steps' : les 4 sous-étapes du manchon suivent le transfert (photos, gars, dates, bouclage figé)
 function startTransfer(lineId,c,i){const j=state.lines[lineId].cond[c].joints[i];state.transfer={line:lineId,cond:c,i,weldId:j.weldId};closeSheet();$('#transferBar').style.display='flex';$('#tfFrom').textContent=j.weldId;$('#tfNum').value='';renderPlan();toast('Touche la soudure qui doit recevoir les données');}
 function endTransfer(){state.transfer=null;$('#transferBar').style.display='none';renderPlan();}
 async function doTransferTo(lineId,c,i){const T0=state.transfer;if(!T0)return;const F=state.lines[T0.line].cond[T0.cond].joints[T0.i];const T=state.lines[lineId].cond[c].joints[i];
@@ -962,7 +962,7 @@ function jointView(l,c,j){const {els}=l.cond[c];const a=els[j.idx],b=els[j.idx+1
   {const dd3=dhDataOf();const hasTemp=dd3&&dd3.temps[j.weldId];
     acts.push(`<button class="btn block" data-act="dh-temp" style="${hasTemp?'border-color:#8a2be2;color:#8a2be2':''}">${hasTemp?'⟲ Bouclage temporaire posé ici ('+esc(dd3.temps[j.weldId].by||'')+') — retirer':'⟲ Bouclage temporaire des fils ici (test DH amont)'}</button>`);}
   const hasData=j.status!=='a_souder'||(j.events&&j.events.length)||(j.photos&&j.photos.length)||(j.wire&&j.wire!=='a_raccorder');
-  if(hasData)acts.push(`<button class="btn block" data-act="transfer">↪ Transférer vers une autre soudure <span class="hint">(erreur de saisie : statut, photos, fils déplacés)</span></button>`);
+  if(hasData||r==='chef'||r==='bureau')acts.push(`<button class="btn block" data-act="transfer">↪ Erreur de saisie : transférer vers une autre soudure <span class="hint">(statut, photos, fils, étapes déplacés)</span></button>`);
   if(hasData&&r==='chef')acts.push(`<button class="btn block" data-act="reset-weld" style="color:#d03b3b">⌫ Remettre à « À souder » (efface statut, photos, fils)</button>`);
   const teeUI=j.teeOut?(()=>{const t=j.tee||{};const dw=state.dh.antWire==='N'?'nu':'étamé';return `<div class="card" style="margin-top:8px;background:#f4f7fb"><b>Antenne au té</b> <span class="muted" style="font-size:12px">(sortie de té : comment l'antenne est prise dans la boucle DH)</span><div class="row" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap"><select class="f" id="teeMode"><option value="serie" ${(t.mode||'serie')==='serie'?'selected':''}>en série dans la boucle de la parente</option><option value="boucle" ${t.mode==='boucle'?'selected':''}>bouclée sur elle-même au té (boucle à part)</option><option value="none" ${t.mode==='none'?'selected':''}>pas encore raccordée au té</option></select><select class="f" id="teeWire"><option value="" ${!t.wire?'selected':''}>fil dans l'antenne : ${dw} (réglage chantier)</option><option value="E" ${t.wire==='E'?'selected':''}>étamé dans l'antenne</option><option value="N" ${t.wire==='N'?'selected':''}>nu dans l'antenne</option></select></div></div>`;})():'';
   const wiringRO=(j.wire==='raccorde'||j.wire==='inversion')?`<div class="card" style="padding:6px 8px 2px">${wiringSVG(a,b,j.conn||{E:'E',N:'N'},null,false)}</div>`:'';
@@ -973,12 +973,31 @@ function jointView(l,c,j){const {els}=l.cond[c];const a=els[j.idx],b=els[j.idx+1
   const sPhotos=n=>{const ph=(steps[n]&&steps[n].photos)||[];return `<div class="thumbs" style="margin:4px 0">${ph.map(p=>`<div class="thumb"><img src="${p}"></div>`).join('')}${canStep?`<label class="thumb" style="display:flex;align-items:center;justify-content:center;border:1.5px dashed #b8b4a8;cursor:pointer;color:#8f8b80">📷<input type="file" accept="image/*" capture="environment" data-stepph="${n}" style="display:none" multiple></label>`:''}</div>`;};
   const sHead=(n,t)=>{const s2=steps[n];return `<summary><span class="num">${sdone(n)?'✓':n}</span><b>${n} · ${t}</b><span class="who">${s2&&s2.done?esc(s2.by||'')+' · '+(s2.at?new Date(s2.at).toLocaleDateString('fr-FR'):''):(n===curStep?'à faire':'—')}</span></summary>`;};
   const sBtn=n=>canStep?(sdone(n)?`<button class="btn block" data-stepundo="${n}" style="color:#d03b3b;font-size:12px;padding:6px">Annuler cette étape (erreur de saisie)</button>`:`<button class="btn primary block" data-stepok="${n}" style="padding:8px">Valider l'étape ${n} — ${(me()||{}).name||''} · aujourd'hui</button>`):'';
-  let att2='';{const dj=dhOfJoint(l.id,c,j.idx);if(dj){const AP2=dhAtPoint(dj.D,dj.row);const cc=[AP2.up.closed&&AP2.up.R!==null?{dir:'amont',...AP2.up}:null,AP2.down.closed&&AP2.down.R!==null?{dir:'aval',...AP2.down}:null].filter(Boolean);
-    att2=cc.length?`<div class="okbox" style="margin:4px 0;font-size:12.5px">Attendu au testeur ici : ${cc.map(x=>`<b>${fmt2(x.R)} Ω</b> (${x.dir} — ${dhDirLab(x)})`).join(' · ')}</div>`:`<p class="hint" style="margin:4px 0">Pas de boucle fermée depuis ce manchon : pose un pont ⟲ (ou déclare un bout bouclé) pour avoir une valeur attendue au testeur.</p>`;}}
+  // « Attendu au testeur » : tant que l'étape 2 n'est pas validée il est VIVANT (recalculé) ; une fois validée il est FIGÉ
+  // avec le bouclage de l'instant t — sans quoi la valeur mesurée ce jour-là devient incomparable plus tard (retour Ethan 25/08).
+  const frz=steps[2]&&steps[2].dh;let att2='',cc2=[];
+  {const dj=dhOfJoint(l.id,c,j.idx);if(dj){const AP2=dhAtPoint(dj.D,dj.row);cc2=[AP2.up.closed&&AP2.up.R!==null?{dir:'amont',...AP2.up}:null,AP2.down.closed&&AP2.down.R!==null?{dir:'aval',...AP2.down}:null].filter(Boolean);}}
+  if(frz){const okL=frz.meas&&frz.expected?Math.abs(Math.round(100*(frz.meas-frz.expected)/frz.expected))<=(frz.tol||5):null;
+    att2=`<div class="${okL===false?'warnbox':'okbox'}" style="margin:4px 0;font-size:12.5px;cursor:pointer" data-dhfrz="1" title="afficher ce bouclage sur le plan">
+     <b>Bouclage au moment du raccordement</b> <span class="dim">(${esc(frz.at?new Date(frz.at).toLocaleDateString('fr-FR'):'')})</span><br>
+     boucle ${esc(frz.dir||'')} fermée par <b>${esc(frz.closure||'—')}</b> · attendu <b>${frz.expected?fmt2(frz.expected)+' Ω':'—'}</b>${frz.dE!==undefined?` <span class="dim">(étamé ${fmt(frz.dE)} + nu ${fmt(frz.dN)} m · ${esc(frz.rkm)} Ω/km)</span>`:''}<br>
+     mesuré <b>${frz.meas?fmt2(frz.meas)+' Ω':'—'}</b>${okL===true?' <span style="color:#0ca30c">✓ dans la tolérance ± '+(frz.tol||5)+' %</span>':okL===false?' <b style="color:#d03b3b">⚠ hors tolérance</b>':''}${frz.iso!=null?` · isolement <b>${fmt2(frz.iso)} MΩ</b>${frz.iso>=(frz.isoMin||200)?' ✓':' <b style="color:#d03b3b">⚠</b>'}`:''}
+     ${(frz.temps||[]).length?`<br><span class="dim">ponts ⟲ posés ce jour-là : ${frz.temps.map(esc).join(', ')}</span>`:''}
+     <br><span style="color:#1c3d6b;font-weight:700;font-size:11.5px">👁 Voir ce bouclage sur le plan</span></div>`;}
+  else att2=cc2.length?`<div class="okbox" style="margin:4px 0;font-size:12.5px">Attendu au testeur ici : ${cc2.map(x=>`<b>${fmt2(x.R)} Ω</b> (${x.dir} — ${dhDirLab(x)})`).join(' · ')}<br><span class="dim">Cette valeur sera FIGÉE avec l'état du bouclage quand tu valideras l'étape.</span></div>`:`<p class="hint" style="margin:4px 0">Pas de boucle fermée depuis ce manchon : pose un pont ⟲ (ou déclare un bout bouclé) pour avoir une valeur attendue au testeur.</p>`;
   const s2v=steps[2]||{},s3v=steps[3]||{};
+  const wireRow2=w=>`<div class="conn"><div class="w"><i style="background:${WIRE[w].color};border:1px solid #999"></i>${a.id} ${WIRE[w].short} <span class="hint">(${clockText(clockPos(a,w))})</span></div><span>→</span><select data-conn="${w}"><option value="E" ${state.conn[w]==='E'?'selected':''}>${b.id} étamé</option><option value="N" ${state.conn[w]==='N'?'selected':''}>${b.id} nu</option><option value="X" ${state.conn[w]==='X'?'selected':''}>non raccordé</option></select></div>`;
   const stepsCard=`<h3>Manchon — 4 sous-étapes <span class="muted" style="font-weight:400">· ${nDone}/4${nDone===4?' ✓':''}</span></h3>
    <details class="dstep ${sdone(1)?'done':curStep===1?'cur':''}" ${curStep===1?'open':''}>${sHead(1,'Soudure')}<div class="sb">${sPhotos(1)}<label class="tgl"><input type="checkbox" id="st1-vis" ${steps[1]&&steps[1].visuel?'checked':''} ${sdone(1)?'disabled':''}> Contrôle visuel fait par le soudeur</label>${sBtn(1)}</div></details>
-   <details class="dstep ${sdone(2)?'done':curStep===2?'cur':''}" ${curStep===2?'open':''}>${sHead(2,'Fils raccordés')}<div class="sb">${att2}${sPhotos(2)}<div class="row" style="display:flex;gap:6px;align-items:end;flex-wrap:wrap"><div><label class="f">Mesuré au testeur (Ω)</label><input class="f" id="st2-meas" type="number" step="0.01" inputmode="decimal" value="${s2v.meas??''}" ${sdone(2)?'disabled':''} style="width:110px"></div></div><label class="tgl"><input type="checkbox" id="st2-masse" ${s2v.masse?'checked':''} ${sdone(2)?'disabled':''}> Masse OK</label><label class="tgl"><input type="checkbox" id="st2-cont" ${s2v.cont?'checked':''} ${sdone(2)?'disabled':''}> Continuité OK</label>${sBtn(2)}</div></details>
+   <details class="dstep ${sdone(2)?'done':curStep===2?'cur':''}" ${curStep===2?'open':''}>${sHead(2,'Fils raccordés')}<div class="sb">${att2}
+    ${sdone(2)?`<div class="card" style="padding:6px 8px 2px">${wiringSVG(a,b,j.conn||{E:'E',N:'N'},null,false)}</div>`
+      :`<div class="muted" style="font-size:11.5px;margin:4px 0">Relie les fils : touche un bout de fil du tube amont (à gauche) puis celui d'en face qu'il rejoint (ou « ∅ non raccordé »).${state.wsel?` <b>Fil ${state.wsel==='E'?'étamé':'nu'} amont choisi → touche le fil aval.</b>`:''}</div>
+       <div class="card" style="padding:6px 8px 2px">${wiringSVG(a,b,state.conn,state.wsel,true)}</div>${wireRow2('E')}${wireRow2('N')}
+       ${(state.conn.E!=='E'||state.conn.N!=='N')?'<div class="err" style="font-size:12px">Inversion : l\'étamé amont part sur le nu aval — enregistre si c\'est ce qui a été fait.</div>':'<div class="okbox" style="font-size:12px">Raccordement droit : étamé ↔ étamé, nu ↔ nu.</div>'}`}
+    ${sPhotos(2)}<div class="row" style="display:flex;gap:6px;align-items:end;flex-wrap:wrap"><div><label class="f">Boucle mesurée (Ω)</label><input class="f" id="st2-meas" type="number" step="0.01" inputmode="decimal" value="${s2v.meas??''}" ${sdone(2)?'disabled':''} style="width:104px"></div><div><label class="f">Isolement (MΩ)</label><input class="f" id="st2-iso" type="number" step="0.01" inputmode="decimal" value="${s2v.iso??''}" ${sdone(2)?'disabled':''} style="width:104px"></div></div>
+    ${!sdone(2)&&cc2.length&&s2v.meas?(()=>{const bst=cc2.reduce((p,x)=>Math.abs(s2v.meas-x.R)<=Math.abs(s2v.meas-p.R)?x:p);const pct=Math.round(100*(s2v.meas-bst.R)/bst.R);const tol=+state.dh.tol||5;
+      return `<div class="${Math.abs(pct)<=tol?'okbox':'warnbox'}" style="font-size:12px">${Math.abs(pct)<=tol?'✓ Cohérent avec la boucle '+bst.dir+' ('+fmt2(bst.R)+' Ω ± '+tol+' %)':'Écart '+(pct>0?'+':'')+pct+' % vs la boucle '+bst.dir+' ('+fmt2(bst.R)+' Ω attendus)'}</div>`;})():''}
+    <label class="tgl"><input type="checkbox" id="st2-masse" ${s2v.masse?'checked':''} ${sdone(2)?'disabled':''}> Masse OK</label><label class="tgl"><input type="checkbox" id="st2-cont" ${s2v.cont?'checked':''} ${sdone(2)?'disabled':''}> Continuité OK</label>${sBtn(2)}</div></details>
    <details class="dstep ${sdone(3)?'done':curStep===3?'cur':''}" ${curStep===3?'open':''}>${sHead(3,'Manchon posé')}<div class="sb"><div style="margin:2px 0"><label class="tgl" style="display:inline-flex;margin-right:10px"><input type="radio" name="st3-type" value="retracte" ${(s3v.type||'retracte')==='retracte'?'checked':''} ${sdone(3)?'disabled':''}> Rétracté</label><label class="tgl" style="display:inline-flex"><input type="radio" name="st3-type" value="electro" ${s3v.type==='electro'?'checked':''} ${sdone(3)?'disabled':''}> Électrosoudé</label></div>${sPhotos(3)}<label class="tgl"><input type="checkbox" id="st3-press" ${s3v.press?'checked':''} ${sdone(3)?'disabled':''}> Test de pression OK</label>${sBtn(3)}</div></details>
    <details class="dstep ${sdone(4)?'done':curStep===4?'cur':''}" ${curStep===4?'open':''}>${sHead(4,'Moussage + bouchons de finition')}<div class="sb">${sdone(4)?'':stockPickHTML(l,c,j,'pu')}${sPhotos(4)}${sBtn(4)}</div></details>
    <p class="hint" style="margin:4px 0 0">Les grands statuts du plan (soudée / contrôlée / manchonnée) ne changent pas : déclare-les comme d'habitude. Sur le plan, la pastille porte un anneau vert ¼ / ½ / ¾ selon l'avancement, plein à 4/4.</p>`;
@@ -1141,16 +1160,30 @@ function elView(l,c,i){const e=l.cond[c].els[i];const lock=elLock(l,c,i);const p
 // lecture des champs d'une sous-étape manchon depuis la fiche (avant validation ou re-rendu)
 function collectStep(j,n){const s=j.steps[n]=j.steps[n]||{photos:[]};s.photos=s.photos||[];const q=id=>$('#'+id,sheetEl);
   if(n===1){const v=q('st1-vis');if(v)s.visuel=v.checked;}
-  if(n===2){const m2=q('st2-meas');if(m2&&m2.value!=='')s.meas=parseFloat(String(m2.value).replace(',','.'));const ma=q('st2-masse');if(ma)s.masse=ma.checked;const co=q('st2-cont');if(co)s.cont=co.checked;}
+  if(n===2){const m2=q('st2-meas');if(m2&&m2.value!=='')s.meas=parseFloat(String(m2.value).replace(',','.'));const i2=q('st2-iso');if(i2&&i2.value!=='')s.iso=parseFloat(String(i2.value).replace(',','.'));const ma=q('st2-masse');if(ma)s.masse=ma.checked;const co=q('st2-cont');if(co)s.cont=co.checked;}
   if(n===3){const t=sheetEl.querySelector('input[name=st3-type]:checked');if(t)s.type=t.value;const p=q('st3-press');if(p)s.press=p.checked;}
   return s;}
-sheetEl.addEventListener('click',e=>{const b=e.target.closest('[data-act],[data-rot],[data-sw],[data-wire],[data-rotb],[data-flipb],[data-rota],[data-flipa],[data-saut],[data-dhend],[data-stepok],[data-stepundo],[data-stkpick]');if(!b)return;const s=state.sel;if(!s)return;const l=state.lines[s.line];
+sheetEl.addEventListener('click',e=>{const b=e.target.closest('[data-act],[data-rot],[data-sw],[data-wire],[data-rotb],[data-flipb],[data-rota],[data-flipa],[data-saut],[data-dhend],[data-stepok],[data-stepundo],[data-stkpick],[data-dhfrz]');if(!b)return;const s=state.sel;if(!s)return;const l=state.lines[s.line];
+  if(b.dataset.dhfrz&&s.kind==='j'){e.preventDefault();showFrozenLoop(l,s.cond,l.cond[s.cond].joints[s.i]);return;}
   if(b.dataset.stkpick!==undefined){sheetEl.querySelectorAll('[data-stkpick][data-stkneed="'+b.dataset.stkneed+'"]').forEach(x=>{x.removeAttribute('data-on');x.style.borderColor='';x.style.background='';});b.dataset.on='1';b.style.borderColor='#eb6834';b.style.background='#fff7f2';return;}
   const stp=b.dataset.stepok||b.dataset.stepundo;
   if(stp&&s.kind==='j'){e.preventDefault();const j2=l.cond[s.cond].joints[s.i];const n=+stp;j2.steps=j2.steps||{};
     if(b.dataset.stepundo){if(!confirm('Annuler l\'étape '+n+' de '+j2.weldId+' (erreur de saisie) ?'))return;delete j2.steps[n];}
     else{if(n===4&&stockDoPick(l,s.cond,j2,'pu')===false){toast('Mousse : confirme la zone (ou choisis-en une autre)');return;} // le manchonneur choisit son stock de mousse AU MOUSSAGE
-      collectStep(j2,n);j2.steps[n].done=true;j2.steps[n].by=(me()||{}).name||state.userId;j2.steps[n].at=new Date().toISOString();}
+      collectStep(j2,n);
+      if(n===2){ // les fils déclarés au schéma deviennent ceux de la soudure, ET on FIGE le bouclage de l'instant t
+        const inv2=state.conn.E!=='E'||state.conn.N!=='N';j2.conn={...state.conn};j2.wire=inv2?'inversion':'raccorde';
+        j2.cont=!!j2.steps[2].cont;j2.iso=j2.steps[2].iso!=null?j2.steps[2].iso>=(+state.dh.isoMin||200):j2.iso;if(j2.steps[2].iso!=null)j2.isoVal=String(j2.steps[2].iso);
+        const dj2=dhOfJoint(l.id,s.cond,j2.idx);
+        if(dj2){const AP3=dhAtPoint(dj2.D,dj2.row);const cc3=[AP3.up.closed&&AP3.up.R!==null?{dir:'amont',...AP3.up}:null,AP3.down.closed&&AP3.down.R!==null?{dir:'aval',...AP3.down}:null].filter(Boolean);
+          const mv=j2.steps[2].meas;const bst=cc3.length?(mv?cc3.reduce((p,x)=>Math.abs(mv-x.R)<=Math.abs(mv-p.R)?x:p):cc3[0]):null;
+          const dd4=dhDataOf()||{temps:{}};
+          j2.steps[2].dh={at:new Date().toISOString(),meas:mv||null,iso:j2.steps[2].iso!=null?j2.steps[2].iso:null,
+            dir:bst?bst.dir:null,closure:bst?(bst.kind==='temp'?'pont ⟲ '+bst.row.weldId:'bout bouclé ('+(bst.state==='coiffe'?'dans la coiffe':'sortie de coiffe')+')'):null,
+            closureId:bst?(bst.kind==='temp'?bst.row.weldId:'bout'):null,closureLine:bst&&bst.kind==='temp'?bst.row.line:null,closureIdx:bst&&bst.kind==='temp'?bst.row.idx:null,
+            expected:bst?bst.R:null,dE:bst?bst.dE:undefined,dN:bst?bst.dN:undefined,cond:s.cond,
+            rkm:+state.dh.rkm||12.5,tol:+state.dh.tol||5,isoMin:+state.dh.isoMin||200,temps:Object.keys(dd4.temps||{})};}}
+      j2.steps[n].done=true;j2.steps[n].by=(me()||{}).name||state.userId;j2.steps[n].at=new Date().toISOString();}
     pushWeld(j2);renderSheet();renderPlan();toast(b.dataset.stepundo?'Étape '+n+' annulée — '+j2.weldId:'Étape '+n+'/4 validée — '+j2.weldId);return;}
   if(b.dataset.dhend){const el2=l.cond[s.cond].els[s.i];const d5=dhDataOf();if(!d5)return;const k5=dhEndKey(l.id,el2);
     if(d5.ends[k5]&&d5.ends[k5].state===b.dataset.dhend)delete d5.ends[k5];else d5.ends[k5]={state:b.dataset.dhend,by:(me()||{}).name||state.userId,at:new Date().toISOString()};
@@ -1446,6 +1479,22 @@ function condSubAxis(l,c,a,b){const cd=l&&l.cond&&l.cond[c];if(!cd||!cd.els.leng
     if(e.m0>=lo&&e.m1<=hi){(e.axis&&e.axis.length?e.axis:[[e.from,e.to]]).forEach(pl=>pl.forEach(p=>pts.push(Array.isArray(p)?{x:p[0],y:p[1]}:p)));}
     else{const m0=Math.max(lo,e.m0),m1=Math.min(hi,e.m1);const n=Math.max(2,Math.ceil((m1-m0)/1.5));for(let i=0;i<=n;i++)pts.push(condPos(l,c,m0+(m1-m0)*i/n));}});
   return pts.length>1?[pts]:[];}
+// rejoue sur le plan LE BOUCLAGE FIGÉ au moment du raccordement d'un manchon : trajet du manchon jusqu'à la fermeture
+// de l'époque (pont ⟲ ou bout bouclé), avec la valeur attendue d'alors — « la valeur ne veut dire quelque chose qu'avec son bouclage » (Ethan)
+function showFrozenLoop(l,c,j){const f=j.steps&&j.steps[2]&&j.steps[2].dh;if(!f){toast('Pas de bouclage enregistré ici');return;}
+  const cnd=f.cond||c;const els=l.cond[cnd]&&l.cond[cnd].els;if(!els){toast('Conduite introuvable');return;}
+  const from={line:l.id,idx:j.idx,pk:els[j.idx]?els[j.idx].m1:0,weldId:j.weldId};
+  let to=null;
+  if(f.closureLine&&state.lines[f.closureLine]){const L2=state.lines[f.closureLine];const e2=L2.cond[cnd]&&L2.cond[cnd].els[f.closureIdx];
+    if(e2)to={line:L2.id,phys:e2.m1};}
+  if(!to&&f.closureId==='bout'){const last=els[els.length-1];to={line:l.id,phys:last?last.m1:0};}
+  if(!to){ // le pont a pu être retiré depuis : on le retrouve par son n° de soudure
+    for(const L2 of Object.values(state.lines)){const cd=L2.cond[cnd];if(!cd)continue;const jj=cd.joints.find(x=>x.weldId===f.closureId);if(jj){to={line:L2.id,phys:cd.els[jj.idx]?cd.els[jj.idx].m1:0};break;}}}
+  if(!to){toast('Fermeture « '+(f.closure||'?')+' » introuvable sur le plan');return;}
+  state.loc={line:to.line,cond:cnd,phys:to.phys,from,dFil:(f.dE||0)+(f.dN||0),loop:{weldId:j.weldId,closure:f.closure,expected:f.expected,meas:f.meas,at:f.at,temps:f.temps||[]},e:{id:f.closureId||''}};
+  state.dhShowLoc=true;state.tab='plan';renderAll();
+  const L3=state.lines[to.line];const p=posAtChainage(L3,to.phys);centerOn(p.x,p.y,Math.max(state.view.k,8));
+  toast('Bouclage du '+(f.at?new Date(f.at).toLocaleDateString('fr-FR'):'')+' — '+(f.closure||''));}
 // défaut DH sur le plan : le TRAJET du fil est surligné depuis le départ de la ligne racine, la distance cotée, la zone du défaut marquée (± incertitude) — « pas juste un point »
 function renderDhOverlay(){if(!dhG)return;const r=state.loc;if(!r||!state.dhShowLoc||!state.lines[r.line]){dhG.innerHTML='';return;}
   const k=state.view.k;const l=state.lines[r.line];
@@ -1460,6 +1509,14 @@ function renderDhOverlay(){if(!dhG)return;const r=state.loc;if(!r||!state.dhShow
     s+=`<circle cx="${q0.x}" cy="${q0.y}" r="${9/k}" fill="#1c6fd6" stroke="#fff" stroke-width="${2.4/k}"/><text x="${q0.x}" y="${q0.y+3.4/k}" font-size="${9/k}" font-weight="900" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">M</text>`;
     const lm=`MESURE : ${r.from.weldId}`;const wm=lm.length*6.2+16;
     s+=`<g transform="translate(${q0.x} ${q0.y}) scale(${1/k})"><rect x="${-wm/2}" y="13" width="${wm}" height="16" rx="8" fill="#1c6fd6"/><text y="24.5" font-size="9.5" font-weight="700" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">${esc(lm)}</text></g>`;}
+  if(r.loop){ // rejeu d'un bouclage figé : pas de défaut, on marque la FERMETURE et on rappelle la valeur attendue d'alors
+    const q1=condPos(l,cnd,r.phys);
+    s+=`<circle cx="${q1.x}" cy="${q1.y}" r="${9/k}" fill="#8a2be2" stroke="#fff" stroke-width="${2.4/k}"/><text x="${q1.x}" y="${q1.y+3.4/k}" font-size="${10/k}" font-weight="900" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">⟲</text>`;
+    const lab2=`${r.loop.closure||'fermeture'} · attendu ${r.loop.expected?fmt2(r.loop.expected)+' Ω':'—'}${r.loop.meas?' · mesuré '+fmt2(r.loop.meas)+' Ω':''}`;const w4=lab2.length*6+18;
+    s+=`<g transform="translate(${q1.x} ${q1.y}) scale(${1/k})"><rect x="${-w4/2}" y="-38" width="${w4}" height="17" rx="8.5" fill="#8a2be2"/><text y="-25.5" font-size="10" font-weight="800" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">${esc(lab2)}</text></g>`;
+    if(segsP.length){const sg1=segsP[0];const mm1=(Math.min(sg1.m0||0,sg1.m1)+Math.max(sg1.m0||0,sg1.m1))/2;const q2=condPos(sg1.l,cnd,mm1);const cl1=`boucle du ${r.loop.at?new Date(r.loop.at).toLocaleDateString('fr-FR'):''}`;const w5=cl1.length*6.5+14;
+      s+=`<g transform="translate(${q2.x} ${q2.y}) scale(${1/k})"><rect x="${-w5/2}" y="-9" width="${w5}" height="17" rx="8.5" fill="#0b0b0b" opacity=".85"/><text y="3.8" font-size="10" font-weight="800" text-anchor="middle" fill="#e9d5ff" font-family="system-ui,sans-serif">${esc(cl1)}</text></g>`;}
+    dhG.innerHTML=`<g style="pointer-events:none">${s}</g>`;return;}
   const tolM=Math.max(3,(r.dFil||r.phys)*0.02); // incertitude ± 2 % (mini 3 m)
   condSubAxis(l,cnd,Math.max(0,r.phys-tolM),Math.min(l.length,r.phys+tolM)).forEach(pl=>{s+=`<path d="${pathD(pl)}" stroke="#d03b3b" stroke-width="${13/k}" fill="none" stroke-linecap="round" opacity=".25"/>`;});
   const p=condPos(l,cnd,r.phys);
