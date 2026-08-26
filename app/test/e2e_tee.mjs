@@ -47,8 +47,24 @@ out=await page.evaluate(()=>{const dv=[...document.querySelectorAll('[data-wtee]
     swap:e&&e._wo&&e._wo.E!==undefined&&e._wo.N!==undefined&&Math.sign(e._wo.E-e._wo.N)!==0&&(e._wo.E<e._wo.N)};});
 console.log('5) LOGSTOR : l\'étamé est côté branche et plonge:',JSON.stringify(out));
 const c5=out.wtee>=4&&out.etame;
-const ALL=c1&&c2&&c3&&c4&&c5;
-console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3,c4,c5}));
+// ── 6) té à saut vers le bas / retourné : le MÊME fil part dans la branche (Ethan 26/08 — seule la position change de côté)
+await page.evaluate(()=>{const T=window.TRACE;const L1=Object.values(T.lines).find(l=>!l.parent);const e=L1.cond.A.els.find(x=>x.kind==='tee');e.sautDir='bas';e.saut=true;T.renderAll();});
+await page.waitForTimeout(400);
+out=await page.evaluate(()=>({etame:[...document.querySelectorAll('[data-wtee]')].every(p2=>p2.getAttribute('stroke')==='#dfe4ea')}));
+console.log('6) saut vers le bas : toujours le même fil (étamé chez LOGSTOR):',JSON.stringify(out));
+const c6=out.etame;
+// ── 7) tube tourné à 180° (fils de l'autre côté) : le raccord reste DANS le corps du té (fini les fils qui dépassent du calo)
+await page.evaluate(()=>{const T=window.TRACE;const L1=Object.values(T.lines).find(l=>!l.parent);const e=L1.cond.A.els.find(x=>x.kind==='tee');e.rot=180;T.renderAll();});
+await page.waitForTimeout(400);
+out=await page.evaluate(()=>{const T=window.TRACE;const L1=Object.values(T.lines).find(l=>!l.parent);const e=L1.cond.A.els.find(x=>x.kind==='tee');
+  const b0={x:e.branch[0][0],y:e.branch[0][1]},b1={x:e.branch[1][0],y:e.branch[1][1]};const uL=Math.hypot(b1.x-b0.x,b1.y-b0.y)||1;const ux=(b1.x-b0.x)/uL,uy=(b1.y-b0.y)/uL;
+  const tUs=[...document.querySelectorAll('[data-wtee]')].map(p2=>{const m=p2.getAttribute('d').match(/M[^L]+L\s*([\d.eE+-]+)[ ,]([\d.eE+-]+)/);if(!m)return null;
+    return ((+m[1]-b0.x)*ux+(+m[2]-b0.y)*uy)/uL;}).filter(v=>v!==null);
+  return {n:tUs.length,mn:Math.min(...tUs).toFixed(3),inside:tUs.every(t=>t>0&&t<=0.56)};});
+console.log('7) tourné 180° : raccords clampés dans le corps:',JSON.stringify(out));
+const c7=out.n>=4&&out.inside;
+const ALL=c1&&c2&&c3&&c4&&c5&&c6&&c7;
+console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3,c4,c5,c6,c7}));
 console.log(logs.length?logs:'[]');
 await browser.close();
 process.exit(ALL?0:1);
