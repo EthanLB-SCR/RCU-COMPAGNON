@@ -846,8 +846,15 @@ function renderPlan(){if(typeof linkTraceurBranches==='function')linkTraceurBran
       if(showWires&&S.fils&&e.kind!=='valve'&&e.kind!=='endcap'&&!isSteel){
         const brT=(e.kind==='tee'&&Array.isArray(e.branch)&&e.branch.length===2)?e.branch:null;
         const child=brT?((e.branchLine&&state.lines[e.branchLine])?e.branchLine:null):null;
-        const wbT=brT?(child?antennaMode(child,c,e).wire:wireOfTee(e)):null; // LE fil qui part dans la branche : réglage de la sortie de té s'il existe, sinon défaut fournisseur (té retourné : inversé)
-        ['E','N'].forEach(wn=>{const a=clockPos(e,wn);const o=(-Math.sin(rad(a)))*casingOf(e)*EX*.37*ppm;const front=Math.cos(rad(a))>=0;
+        const wbT=brT?(child?antennaMode(child,c,e).wire:wireOfTee(e)):null; // LE fil qui part dans la branche : règle fournisseur, non réglable (Renalia/AXIOM = cuivré, LOGSTOR = étamé)
+        // côté de la branche par rapport à l'axe dessiné (convention d'offsetPoly : normale = (ty,-tx)) — la pièce té impose ses sorties :
+        // le fil qui plonge sort CÔTÉ ANTENNE, l'autre en face, quel que soit le sens de pose du tube (Ethan 26/08)
+        let sB=0;if(brT){const pl0=e.axis&&e.axis[0];if(pl0&&pl0.length>1){let bi=1,bd=1e9;
+          for(let i2=1;i2<pl0.length;i2++){const a3=pl0[i2-1],b3=pl0[i2];const vx=b3.x-a3.x,vy=b3.y-a3.y;const L3=vx*vx+vy*vy||1;let t3=((brT[0][0]-a3.x)*vx+(brT[0][1]-a3.y)*vy)/L3;t3=Math.max(0,Math.min(1,t3));const dd=Math.hypot(a3.x+vx*t3-brT[0][0],a3.y+vy*t3-brT[0][1]);if(dd<bd){bd=dd;bi=i2;}}
+          const a3=pl0[bi-1],b3=pl0[bi];const vx=b3.x-a3.x,vy=b3.y-a3.y;const L3=Math.hypot(vx,vy)||1;
+          sB=Math.sign((brT[1][0]-brT[0][0])*(vy/L3)-(brT[1][1]-brT[0][1])*(vx/L3))||1;}}
+        ['E','N'].forEach(wn=>{const a=clockPos(e,wn);let o=(-Math.sin(rad(a)))*casingOf(e)*EX*.37*ppm;let front=Math.cos(rad(a))>=0;
+          if(brT&&sB){o=(wn===wbT?sB:-sB)*casingOf(e)*EX*.37*ppm;front=true;} // sorties imposées par la pièce : plongeur côté antenne, l'autre à l'opposé
           (e._wo||(e._wo={})).k=k;e._wo[wn]=d+o;e._wo['f'+wn]=front; // position + devant/derrière de CE fil, repris par la surbrillance DH (le fil lui-même devient rouge, pointillé s'il passe derrière)
           const st3=`stroke="${WIRE[wn].color}" stroke-width="${Math.max(1.4/k,.022*ppm)}" fill="none" ${front?'':'stroke-dasharray="'+(.25*ppm)+' '+(.15*ppm)+'"'} opacity="${front?.95:.55}" stroke-linejoin="round"`;
           if(brT&&wn===wbT){ // ce fil PLONGE dans le té, il ne traverse pas tout droit (maquette validée 25/08)
