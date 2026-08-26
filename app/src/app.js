@@ -832,15 +832,21 @@ function renderPlan(){if(typeof linkTraceurBranches==='function')linkTraceurBran
         else{ // T PLEIN à congés (maquette validée) : la branche sort du corps en une seule pièce, à l'angle réel —
           // et son BOUT se finit comme un tube : bague jaune + acier nu avant la soudure de sortie (capture Ethan 25/08 nuit)
           const vx=b1[0]-b0[0],vy=b1[1]-b0[1];const vL=Math.hypot(vx,vy)||1;const ux2=vx/vL,uy2=vy/vL;const nx3=-uy2,ny3=ux2;
+          const tSeg=(()=>{const pl0=e.axis&&e.axis[0];if(!pl0||pl0.length<2)return null;let bi=1,bd=1e9;
+            for(let i2=1;i2<pl0.length;i2++){const a3=pl0[i2-1],b3=pl0[i2];const wx=b3.x-a3.x,wy=b3.y-a3.y;const L3=wx*wx+wy*wy||1;let t3=((b0[0]-a3.x)*wx+(b0[1]-a3.y)*wy)/L3;t3=Math.max(0,Math.min(1,t3));const dd=Math.hypot(a3.x+wx*t3-b0[0],a3.y+wy*t3-b0[1]);if(dd<bd){bd=dd;bi=i2;}}
+            const a3=pl0[bi-1],b3=pl0[bi];const L3=Math.hypot(b3.x-a3.x,b3.y-a3.y)||1;return {tx:(b3.x-a3.x)/L3,ty:(b3.y-a3.y)/L3};})();
+          const perpT=!tSeg||Math.abs(ux2*tSeg.tx+uy2*tSeg.ty)<0.57; // branche trop couchée sur le fût (< ~55°) : le T plein à congés et l'about partent en vrille — on dessine simple (Ethan 26/08 : « toujours des merdes sur mes tés »)
           const P=(xx,yy)=>({x:b0[0]+nx3*xx+ux2*yy,y:b0[1]+ny3*xx+uy2*yy}); // repère local : x le long de la normale, y le long de la branche
           const child6=(e.branchLine&&state.lines[e.branchLine])?e.branchLine:null;
           const outJ=child6&&state.lines[child6].cond[c]&&state.lines[child6].cond[c].joints[0];
-          const showAb=kpm>=12&&vL>0.5&&!(outJ&&outJ.status==='manchonnee'); // manchonnée : le manchon couvre l'about, comme sur les tubes
+          const showAb=kpm>=12&&vL>0.5&&perpT&&vL>(0.09+0.15+0.25)&&!(outJ&&outJ.status==='manchonnee'); // manchonnée : le manchon couvre l'about, comme sur les tubes
           const bag=.09,ac2=.15;const yEnd=vL-(showAb?bag+ac2:0);
-          const rC=Math.min(wb*.45,w*.35);const yJ=w*.42,yIn=-w*.28;
+          if(perpT){const rC=Math.min(wb*.45,w*.35);const yJ=w*.42,yIn=-w*.28;
           const c1=P(-wb/2-rC,yJ),c2=P(-wb/2,yJ),c3=P(-wb/2,yJ+rC),c4=P(-wb/2,yEnd),c5=P(wb/2,yEnd),c6=P(wb/2,yJ+rC),c7=P(wb/2,yJ),c8=P(wb/2+rC,yJ),c9=P(wb/2+rC,yIn),c10=P(-wb/2-rC,yIn);
           net+=`<path data-teep="1" d="M ${c1.x} ${c1.y} Q ${c2.x} ${c2.y} ${c3.x} ${c3.y} L ${c4.x} ${c4.y} L ${c5.x} ${c5.y} L ${c6.x} ${c6.y} Q ${c7.x} ${c7.y} ${c8.x} ${c8.y} L ${c9.x} ${c9.y} L ${c10.x} ${c10.y} Z" fill="#101114"/>`;
-          net+=`<path d="M ${c1.x} ${c1.y} Q ${c2.x} ${c2.y} ${c3.x} ${c3.y} L ${c4.x} ${c4.y} L ${c5.x} ${c5.y} L ${c6.x} ${c6.y} Q ${c7.x} ${c7.y} ${c8.x} ${c8.y}" fill="none" stroke="#2c2c2c" stroke-width="${Math.max(1/k,.015*ppm)}"/>`;
+          net+=`<path d="M ${c1.x} ${c1.y} Q ${c2.x} ${c2.y} ${c3.x} ${c3.y} L ${c4.x} ${c4.y} L ${c5.x} ${c5.y} L ${c6.x} ${c6.y} Q ${c7.x} ${c7.y} ${c8.x} ${c8.y}" fill="none" stroke="#2c2c2c" stroke-width="${Math.max(1/k,.015*ppm)}"/>`;}
+          else{const p1=P(-wb/2,Math.min(w*.2,yEnd)),p2=P(wb/2,Math.min(w*.2,yEnd)),p3=P(wb/2,yEnd),p4=P(-wb/2,yEnd);
+          net+=`<polygon data-teep="1" points="${p1.x},${p1.y} ${p2.x},${p2.y} ${p3.x},${p3.y} ${p4.x},${p4.y}" fill="#101114" stroke="#2c2c2c" stroke-width="${Math.max(1/k,.015*ppm)}"/>`;}
           if(showAb){const R6=(y0,y1,wd,fill)=>{const p1=P(-wd/2,y0),p2=P(wd/2,y0),p3=P(wd/2,y1),p4=P(-wd/2,y1);return `<polygon data-teeab="1" points="${p1.x},${p1.y} ${p2.x},${p2.y} ${p3.x},${p3.y} ${p4.x},${p4.y}" fill="${fill}"/>`;};
             net+=R6(yEnd+bag,vL,wb*.62,'#aeb4bb');net+=R6(yEnd,yEnd+bag,wb,'#e3cd63');}}}
       if(showWires&&S.fils&&e.kind!=='valve'&&e.kind!=='endcap'&&!isSteel){
@@ -869,8 +875,9 @@ function renderPlan(){if(typeof linkTraceurBranches==='function')linkTraceurBran
               const B={x:b0.x+nx2*sg*s4+uxn*tU,y:b0.y+ny2*sg*s4+uyn*tU};
               const C={x:b0.x+nx2*sg*s4+uxn*(uL-tip),y:b0.y+ny2*sg*s4+uyn*(uL-tip)};return {B,C};};
             const g1=mk6(P1,side1),g2=mk6(P2,side2);
-            if(P1&&g1)net+=`<path data-wtee="1" d="M${P1.x} ${P1.y} L${g1.B.x} ${g1.B.y} L${g1.C.x} ${g1.C.y}" ${st3}/>`; // aller : le long d'UN bord de la branche
-            if(P2&&g2)net+=`<path data-wtee="1" d="M${P2.x} ${P2.y} L${g2.B.x} ${g2.B.y} L${g2.C.x} ${g2.C.y}" ${st3}/>`; // retour : le long de l'AUTRE bord
+            const stC=`stroke="${WIRE[wn].color}" stroke-width="${Math.max(1/k,.015*ppm)}" fill="none" stroke-dasharray="${.1*ppm} ${.09*ppm}" opacity=".5" stroke-linejoin="round"`; // le raccord traverse la MOUSSE dans le corps : discret, jamais une grosse diagonale (Ethan 26/08)
+            if(P1&&g1)net+=`<path data-wteec="1" d="M${P1.x} ${P1.y} L${g1.B.x} ${g1.B.y}" ${stC}/><path data-wtee="1" d="M${g1.B.x} ${g1.B.y} L${g1.C.x} ${g1.C.y}" ${st3}/>`; // aller : le long d'UN bord de la branche
+            if(P2&&g2)net+=`<path data-wteec="1" d="M${P2.x} ${P2.y} L${g2.B.x} ${g2.B.y}" ${stC}/><path data-wtee="1" d="M${g2.B.x} ${g2.B.y} L${g2.C.x} ${g2.C.y}" ${st3}/>`; // retour : le long de l'AUTRE bord
             if(mode3==='boucle'&&g1&&g2){const eb={x:b1.x-uxn*Math.max(tip*.2,abL2),y:b1.y-uyn*Math.max(tip*.2,abL2)}; // BOUCLÉ AU MANCHON de sortie : le U se ferme au ras du jaune
               net+=`<path data-wteeu="tee" d="M${g1.C.x} ${g1.C.y} Q ${eb.x} ${eb.y} ${g2.C.x} ${g2.C.y}" ${st3}/>`;}
             return;}
@@ -1272,7 +1279,7 @@ const rotCtlHTML=(e2,suf,side,lock)=>e2&&(e2.kind==='teeout'||(e2.kind==='tee'&&
 function amontAvalSVG(l,c,j,big){try{const e=l.cond[c].els[j.idx];if(!e)return '';const m=e.m1;
   const pm=posAtChainage(l,m);if(!pm||!isFinite(pm.x))return '';const pp=posAtChainage(l,Math.max(0,m-.8));
   const len=(()=>{const es=l.cond[c].els;return l.length||((es[es.length-1]||{}).m1||m);})();
-  const R=big?46:19,RY=big?30:10.5;const x0=pm.x-R,y0=pm.y-RY,vw=2*R,vh=2*RY;
+  const R=big?46:19,RY=big?34:9.5;const x0=pm.x-R,y0=pm.y-RY,vw=2*R,vh=2*RY;
   const tx=pm.x-pp.x,ty=pm.y-pp.y;const tL=Math.hypot(tx,ty)||1;const ux9=tx/tL,uy9=ty/tL;
   // fond : la photo aérienne du plan (mêmes tuiles IGN), très légèrement voilée pour que les traits restent lisibles
   let tiles='';try{const geo9=siteGeo();if(geo9){const T=tilesFor(geo9,[x0,y0,x0+vw,y0+vh],big?12:14,19,big?60:24);
@@ -1288,9 +1295,11 @@ function amontAvalSVG(l,c,j,big){try{const e=l.cond[c].els[j.idx];if(!e)return '
       const st9=(STATUS[jj9[i9].status]||{}).color||'#898781';
       js9+=`<circle cx="${p9.x}" cy="${p9.y}" r=".62" fill="#fff" stroke="${st9}" stroke-width=".3"/><text x="${p9.x}" y="${p9.y-1.15}" font-size="1.45" text-anchor="middle" fill="#2c2b28" stroke="#fff" stroke-width=".5" paint-order="stroke" font-family="system-ui,sans-serif">${esc(String(jj9[i9].weldId).replace('S-',''))}</text>`;}}
   // AMONT / AVAL posés SUR le tracé (ils suivent la courbe de la ligne), flèche du sens au droit du manchon
-  const pA=posAtChainage(l,Math.max(0,m-R*.68)),pB=posAtChainage(l,Math.min(len,m+R*.68));const fsL=big?3.6:2.0;
+  const fsL=big?3.6:2.0;const clampL=p=>p?{x:Math.max(x0+fsL*2.4,Math.min(x1-fsL*2.4,p.x)),y:Math.max(y0+fsL*1.7,Math.min(y1-fsL*.7,p.y))}:null; // AMONT et AVAL TOUJOURS visibles tous les deux, même tronçon plein nord (Ethan 26/08)
+  const x1=x0+vw,y1=y0+vh;
+  const pA=clampL(posAtChainage(l,Math.max(0,m-R*.68))),pB=clampL(posAtChainage(l,Math.min(len,m+R*.68)));
   const lab=(p,t,col,fs2)=>`<text x="${p.x}" y="${p.y-1.7}" font-size="${fs2||fsL}" font-weight="800" text-anchor="middle" fill="${col}" stroke="#fff" stroke-width="${(fs2||fsL)*.3}" paint-order="stroke" font-family="system-ui,sans-serif">${t}</text>`;
-  const svg9=`<svg viewBox="${x0} ${y0} ${vw} ${vh}" preserveAspectRatio="xMidYMid slice" style="width:100%;height:${big?'56vh':'138px'};display:block;background:#e6e4dc;border-radius:${big?'10px':'8px'}"><defs><marker id="amvArr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.2" markerHeight="4.2" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#eb6834"/></marker></defs>
+  const svg9=`<svg viewBox="${x0} ${y0} ${vw} ${vh}" preserveAspectRatio="xMidYMid meet" style="width:100%;aspect-ratio:${(vw/vh).toFixed(3)};max-height:${big?'58vh':'185px'};margin:0 auto;display:block;background:#e6e4dc;border-radius:${big?'10px':'8px'}"><defs><marker id="amvArr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.2" markerHeight="4.2" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#eb6834"/></marker></defs>
    ${tiles}${net9}${js9}
    <path d="M ${(pm.x-ux9*(big?4:2.1)).toFixed(2)} ${(pm.y-uy9*(big?4:2.1)).toFixed(2)} L ${(pm.x+ux9*(big?4:2.1)).toFixed(2)} ${(pm.y+uy9*(big?4:2.1)).toFixed(2)}" stroke="#eb6834" stroke-width="${big?.55:.3}" fill="none" marker-end="url(#amvArr)"/>
    <circle cx="${pm.x}" cy="${pm.y}" r="${big?1.4:.8}" fill="#eb6834" stroke="#fff" stroke-width="${big?.5:.3}"/>
