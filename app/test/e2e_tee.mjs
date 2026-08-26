@@ -114,11 +114,23 @@ out=await page.evaluate(()=>{const T=window.TRACE;const L1=Object.values(T.lines
   const j=L1.cond.A.joints[it-1];j.steps={1:{done:true,by:'karim',at:new Date().toISOString(),photos:[],visuel:true}};j.status='soudee';T.openJoint(L1.id,'A',it-1);return {it};});
 await page.waitForTimeout(500);
 out=await page.evaluate(()=>{const el=document.querySelector('#sheet');const t=el.textContent;
-  return {imp:/IMPOSÉES par la pièce té/.test(t),lat:/9 h/.test(t)&&/3 h/.test(t),amv:/Orienté comme le PLAN/.test(t)&&/AMONT/.test(el.innerHTML)&&/AVAL/.test(el.innerHTML)};});
-console.log('13) fût contre té : positions imposées (9 h/3 h) + mini-vue AMONT/AVAL:',JSON.stringify(out));
-const c13=out.imp&&out.lat&&out.amv;
-const ALL=c1&&c2&&c3&&c4&&c5&&c6&&c7&&c8&&c9&&c10&&c11&&c12&&c13;
-console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13}));
+  return {imp:/pas de rotation libre/.test(t),h10:/10 h/.test(t)&&/2 h/.test(t),btn:!!el.querySelector('[data-teedownj]'),amv:/Orienté comme le PLAN/.test(t)&&/AMONT/.test(el.innerHTML)&&/AVAL/.test(el.innerHTML)};});
+console.log('13) fût contre té : 10 h/2 h (règle Ethan), bouton ⤓ retourner, mini-vue AMONT/AVAL:',JSON.stringify(out));
+const c13=out.imp&&out.h10&&out.btn&&out.amv;
+// ── 14) cas S-2505 d'Ethan : fils bouclés ENTRE EUX à la SORTIE DE TÉ → l'antenne est ISOLÉE (bouclée à sa tête),
+//        le fil de la parente TRAVERSE (pas de coupure), plus AUCUNE fausse fermeture « 0,73 Ω » avec un null
+out=await page.evaluate(()=>{const T=window.TRACE;const L1=Object.values(T.lines).find(l=>!l.parent);const L2=Object.values(T.lines).find(l=>l.parent);
+  const jOut=L2.cond.A.joints[0];jOut.loopA=true;jOut.loopB=true;jOut.conn={E:'X',N:'X'};jOut.wire='raccorde';
+  const D=T.dhLoop(L1.id,'A');const hasAnt=D.rows.some(r=>r.antenna);
+  const it=L1.cond.A.els.findIndex(x=>x.kind==='tee');
+  const rowUp=D.rows.find(r=>r.line===L1.id&&r.idx<it);const AP=rowUp?T.dhAtPoint(D,rowUp):null;
+  const bad=AP&&((AP.down.closed&&AP.down.R===null)||(AP.down.closed&&AP.down.row&&AP.down.row.weldId===jOut.weldId));
+  const wp=T.wirePath(L1.id,'A','N');const cutAtTee=wp.segs.some(s2=>s2.kind==='cut'&&s2.line===L2.id);
+  return {mode:(()=>{const am=T.dhLoop(L1.id,'A');return !hasAnt;})(),noFake:!bad,noCut:!cutAtTee,antBoucle:true};});
+console.log('14) sortie de té bouclée : antenne isolée, parente qui traverse, pas de fausse valeur:',JSON.stringify(out));
+const c14=out.mode&&out.noFake&&out.noCut;
+const ALL=c1&&c2&&c3&&c4&&c5&&c6&&c7&&c8&&c9&&c10&&c11&&c12&&c13&&c14;
+console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14}));
 console.log(logs.length?logs:'[]');
 await browser.close();
 process.exit(ALL?0:1);
