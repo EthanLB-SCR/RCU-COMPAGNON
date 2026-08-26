@@ -63,8 +63,18 @@ out=await page.evaluate(()=>{const T=window.TRACE;const L1=Object.values(T.lines
   return {n:tUs.length,mn:Math.min(...tUs).toFixed(3),inside:tUs.every(t=>t>0&&t<=0.56)};});
 console.log('7) tourné 180° : raccords clampés dans le corps:',JSON.stringify(out));
 const c7=out.n>=4&&out.inside;
-const ALL=c1&&c2&&c3&&c4&&c5&&c6&&c7;
-console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3,c4,c5,c6,c7}));
+// ── 8) VERROU (Ethan 26/08 : « c'est le rouge/cuivré qui va dans l'antenne, point ») : Renalia = rails CUIVRÉS,
+//      même avec un ancien réglage forcé (j.tee.wire='E' stocké, ou vieux localStorage antWire:'E') — tout est ignoré
+await page.evaluate(()=>{try{localStorage.setItem('trace:dh',JSON.stringify({rkm:12.5,isoMin:200,antWire:'E',tol:5,piqL:2}));}catch(e){}});
+await mkSite('RENALIA','Tee Renalia');
+await page.evaluate(()=>{const T=window.TRACE;const L2=Object.values(T.lines).find(l=>l.parent);L2.cond.A.joints[0].tee={mode:'serie',wire:'E'};T.renderAll();});
+await page.waitForTimeout(400);
+out=await page.evaluate(()=>{const dv=[...document.querySelectorAll('[data-wtee]')];
+  return {wtee:dv.length,cuivre:dv.every(p2=>p2.getAttribute('stroke')==='#e2843a'),noSel:!document.getElementById('dh-antwire')&&!document.getElementById('teeWire')};});
+console.log('8) VERROU Renalia : cuivré malgré les anciens réglages forcés, sélecteurs disparus:',JSON.stringify(out));
+const c8=out.wtee>=4&&out.cuivre&&out.noSel;
+const ALL=c1&&c2&&c3&&c4&&c5&&c6&&c7&&c8;
+console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3,c4,c5,c6,c7,c8}));
 console.log(logs.length?logs:'[]');
 await browser.close();
 process.exit(ALL?0:1);
