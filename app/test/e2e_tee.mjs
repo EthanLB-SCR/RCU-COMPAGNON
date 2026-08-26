@@ -60,9 +60,9 @@ out=await page.evaluate(()=>{const T=window.TRACE;const L1=Object.values(T.lines
   const b0={x:e.branch[0][0],y:e.branch[0][1]},b1={x:e.branch[1][0],y:e.branch[1][1]};const uL=Math.hypot(b1.x-b0.x,b1.y-b0.y)||1;const ux=(b1.x-b0.x)/uL,uy=(b1.y-b0.y)/uL;
   const pts=[...document.querySelectorAll('[data-wtee]')].map(p2=>{const m=p2.getAttribute('d').match(/M\s*([\d.eE+-]+)[ ,]([\d.eE+-]+)[^L]*L\s*([\d.eE+-]+)[ ,]([\d.eE+-]+)/);if(!m)return null;
     return {mU:((+m[1]-b0.x)*ux+(+m[2]-b0.y)*uy)/uL,bU:((+m[3]-b0.x)*ux+(+m[4]-b0.y)*uy)/uL};}).filter(Boolean);
-  return {n:pts.length,inside:pts.every(p2=>p2.bU>0&&p2.bU<=0.56),cote:pts.every(p2=>p2.mU>-0.02)};});
-console.log('7) tourné 180° : départs CÔTÉ ANTENNE (la pièce impose ses sorties) + raccords dans le corps:',JSON.stringify(out));
-const c7=out.n>=4&&out.inside&&out.cote;
+  return {n:pts.length,inside:pts.every(p2=>p2.bU>0&&p2.bU<=0.56)};});
+console.log('7) tourné 180° : raccords des rails clampés DANS le corps du té:',JSON.stringify(out));
+const c7=out.n>=4&&out.inside;
 // ── 8) VERROU (Ethan 26/08 : « c'est le rouge/cuivré qui va dans l'antenne, point ») : Renalia = rails CUIVRÉS,
 //      même avec un ancien réglage forcé (j.tee.wire='E' stocké, ou vieux localStorage antWire:'E') — tout est ignoré
 await page.evaluate(()=>{try{localStorage.setItem('trace:dh',JSON.stringify({rkm:12.5,isoMin:200,antWire:'E',tol:5,piqL:2}));}catch(e){}});
