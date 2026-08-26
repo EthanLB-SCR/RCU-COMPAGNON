@@ -108,8 +108,17 @@ out=await page.evaluate(()=>{const T=window.TRACE;const L1=Object.values(T.lines
   return {cut:!!cut,at:cut&&+cut.m0.toFixed(1),refuse:loc&&loc.ok===false&&loc.beyondCut===true,weld:loc&&loc.cutWeld};});
 console.log('12) défaut : ne se propage pas au-delà de fils non raccordés:',JSON.stringify(out));
 const c12=out.cut&&out.refuse&&/^S-/.test(out.weld||'');
-const ALL=c1&&c2&&c3&&c4&&c5&&c6&&c7&&c8&&c9&&c10&&c11&&c12;
-console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12}));
+// ── 13) manchon de FÛT contre le té : la coupe montre le côté té à ses positions IMPOSÉES (9 h / 3 h, plongeur côté antenne),
+//        rotation du té désactivée dans la fiche, et la mini-vue AMONT/AVAL orientée plan est là
+out=await page.evaluate(()=>{const T=window.TRACE;const L1=Object.values(T.lines).find(l=>!l.parent);const it=L1.cond.A.els.findIndex(x=>x.kind==='tee');
+  const j=L1.cond.A.joints[it-1];j.steps={1:{done:true,by:'karim',at:new Date().toISOString(),photos:[],visuel:true}};j.status='soudee';T.openJoint(L1.id,'A',it-1);return {it};});
+await page.waitForTimeout(500);
+out=await page.evaluate(()=>{const el=document.querySelector('#sheet');const t=el.textContent;
+  return {imp:/IMPOSÉES par la pièce té/.test(t),lat:/9 h/.test(t)&&/3 h/.test(t),amv:/Orienté comme le PLAN/.test(t)&&/AMONT/.test(el.innerHTML)&&/AVAL/.test(el.innerHTML)};});
+console.log('13) fût contre té : positions imposées (9 h/3 h) + mini-vue AMONT/AVAL:',JSON.stringify(out));
+const c13=out.imp&&out.lat&&out.amv;
+const ALL=c1&&c2&&c3&&c4&&c5&&c6&&c7&&c8&&c9&&c10&&c11&&c12&&c13;
+console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13}));
 console.log(logs.length?logs:'[]');
 await browser.close();
 process.exit(ALL?0:1);
