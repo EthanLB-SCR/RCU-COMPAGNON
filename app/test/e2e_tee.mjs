@@ -18,9 +18,10 @@ async function mkSite(sup,name){
 // ── 1) AXIOM, mode série (défaut) : T plein dessiné, le CUIVRÉ plonge (4 brins : 2 conduites × aller/retour), pas de U
 await mkSite('AXIOM','Tee test');
 let out=await page.evaluate(()=>{const dv=[...document.querySelectorAll('[data-wtee]')];
-  return {teep:document.querySelectorAll('[data-teep]').length,wtee:dv.length,cuivre:dv.every(p2=>p2.getAttribute('stroke')==='#e2843a'),u:document.querySelectorAll('[data-wteeu]').length};});
-console.log('1) T plein + cuivré qui plonge, série par défaut:',JSON.stringify(out));
-const c1=out.teep>=2&&out.wtee>=4&&out.cuivre&&out.u===0;
+  return {teep:document.querySelectorAll('[data-teep]').length,wtee:dv.length,cuivre:dv.every(p2=>p2.getAttribute('stroke')==='#e2843a'),u:document.querySelectorAll('[data-wteeu]').length,
+    rails:dv.every(p2=>/^M[^L]+L[^L]+L[^L]+$/.test(p2.getAttribute('d').trim())),ab:document.querySelectorAll('[data-teeab]').length};});
+console.log('1) T plein + cuivré en RAILS parallèles (pas de croisement) + about acier/bague au bout:',JSON.stringify(out));
+const c1=out.teep>=2&&out.wtee>=4&&out.cuivre&&out.u===0&&out.rails&&out.ab>=4; // raccord court + montée le long du bord (3 points), bague + acier avant la soudure de sortie
 // ── 2) sortie de té réglée BOUCLÉE → deux ponts AU MANCHON de sortie : côté té ET côté antenne
 await page.evaluate(()=>{const T=window.TRACE;const L2=Object.values(T.lines).find(l=>l.parent);L2.cond.A.joints[0].tee={mode:'boucle'};T.renderAll();});
 await page.waitForTimeout(400);

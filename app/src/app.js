@@ -829,13 +829,20 @@ function renderPlan(){if(typeof linkTraceurBranches==='function')linkTraceurBran
       if(e.kind==='tee'&&e.branch&&e.branch.length===2){const b0=e.branch[0],b1=e.branch[1];const wb=Math.max(minW/k,casingOf({dn:e.dnb||e.dn})*ppm*EX);
         if(e.saut)net+=`<line x1="${b0[0]}" y1="${b0[1]}" x2="${b1[0]}" y2="${b1[1]}" stroke="#f4f3ee" stroke-width="${wb*1.7}" stroke-linecap="butt"/>`; // té à saut : halo clair par-dessus la conduite voisine
         if(far)net+=`<line x1="${b0[0]}" y1="${b0[1]}" x2="${b1[0]}" y2="${b1[1]}" stroke="${col}" stroke-width="${wb}" stroke-linecap="butt"/>`;
-        else{ // T PLEIN à congés (maquette validée) : la branche sort du corps en une seule pièce, à l'angle réel
+        else{ // T PLEIN à congés (maquette validée) : la branche sort du corps en une seule pièce, à l'angle réel —
+          // et son BOUT se finit comme un tube : bague jaune + acier nu avant la soudure de sortie (capture Ethan 25/08 nuit)
           const vx=b1[0]-b0[0],vy=b1[1]-b0[1];const vL=Math.hypot(vx,vy)||1;const ux2=vx/vL,uy2=vy/vL;const nx3=-uy2,ny3=ux2;
           const P=(xx,yy)=>({x:b0[0]+nx3*xx+ux2*yy,y:b0[1]+ny3*xx+uy2*yy}); // repère local : x le long de la normale, y le long de la branche
-          const rC=Math.min(wb*.45,w*.35);const yJ=w*.42,yIn=-w*.28,yEnd=vL;
+          const child6=(e.branchLine&&state.lines[e.branchLine])?e.branchLine:null;
+          const outJ=child6&&state.lines[child6].cond[c]&&state.lines[child6].cond[c].joints[0];
+          const showAb=kpm>=12&&vL>0.5&&!(outJ&&outJ.status==='manchonnee'); // manchonnée : le manchon couvre l'about, comme sur les tubes
+          const bag=.09,ac2=.15;const yEnd=vL-(showAb?bag+ac2:0);
+          const rC=Math.min(wb*.45,w*.35);const yJ=w*.42,yIn=-w*.28;
           const c1=P(-wb/2-rC,yJ),c2=P(-wb/2,yJ),c3=P(-wb/2,yJ+rC),c4=P(-wb/2,yEnd),c5=P(wb/2,yEnd),c6=P(wb/2,yJ+rC),c7=P(wb/2,yJ),c8=P(wb/2+rC,yJ),c9=P(wb/2+rC,yIn),c10=P(-wb/2-rC,yIn);
           net+=`<path data-teep="1" d="M ${c1.x} ${c1.y} Q ${c2.x} ${c2.y} ${c3.x} ${c3.y} L ${c4.x} ${c4.y} L ${c5.x} ${c5.y} L ${c6.x} ${c6.y} Q ${c7.x} ${c7.y} ${c8.x} ${c8.y} L ${c9.x} ${c9.y} L ${c10.x} ${c10.y} Z" fill="#101114"/>`;
-          net+=`<path d="M ${c1.x} ${c1.y} Q ${c2.x} ${c2.y} ${c3.x} ${c3.y} L ${c4.x} ${c4.y} L ${c5.x} ${c5.y} L ${c6.x} ${c6.y} Q ${c7.x} ${c7.y} ${c8.x} ${c8.y}" fill="none" stroke="#2c2c2c" stroke-width="${Math.max(1/k,.015*ppm)}"/>`;}}
+          net+=`<path d="M ${c1.x} ${c1.y} Q ${c2.x} ${c2.y} ${c3.x} ${c3.y} L ${c4.x} ${c4.y} L ${c5.x} ${c5.y} L ${c6.x} ${c6.y} Q ${c7.x} ${c7.y} ${c8.x} ${c8.y}" fill="none" stroke="#2c2c2c" stroke-width="${Math.max(1/k,.015*ppm)}"/>`;
+          if(showAb){const R6=(y0,y1,wd,fill)=>{const p1=P(-wd/2,y0),p2=P(wd/2,y0),p3=P(wd/2,y1),p4=P(-wd/2,y1);return `<polygon data-teeab="1" points="${p1.x},${p1.y} ${p2.x},${p2.y} ${p3.x},${p3.y} ${p4.x},${p4.y}" fill="${fill}"/>`;};
+            net+=R6(yEnd+bag,vL,wb*.62,'#aeb4bb');net+=R6(yEnd,yEnd+bag,wb,'#e3cd63');}}}
       if(showWires&&S.fils&&e.kind!=='valve'&&e.kind!=='endcap'&&!isSteel){
         const brT=(e.kind==='tee'&&Array.isArray(e.branch)&&e.branch.length===2)?e.branch:null;
         const child=brT?((e.branchLine&&state.lines[e.branchLine])?e.branchLine:null):null;
@@ -849,16 +856,21 @@ function renderPlan(){if(typeof linkTraceurBranches==='function')linkTraceurBran
             const gap2=Math.max(.12,casingOf({dn:e.dnb||e.dn})*EX*.55);const mm0=bare+.02,mm1=Lax2-bare-.02;
             const A1=offsetPoly(axisSub(pl,mm0,Math.max(mm0+.01,mB-gap2)),d+o),A2=offsetPoly(axisSub(pl,Math.min(mm1-.01,mB+gap2),mm1),d+o);
             const mode3=child?antennaMode(child,c,e).mode:'serie';
-            const ux=b1.x-b0.x,uy=b1.y-b0.y;const uL=Math.hypot(ux,uy)||1;const nx2=-uy/uL,ny2=ux/uL;const s4=Math.max(1.2/k,.05*ppm);
+            const ux=b1.x-b0.x,uy=b1.y-b0.y;const uL=Math.hypot(ux,uy)||1;const uxn=ux/uL,uyn=uy/uL;const nx2=-uyn,ny2=uxn;const s4=Math.max(1.2/k,.05*ppm);
             const tip=mode3==='none'?Math.min(uL*.45,uL-.2):Math.min(.12,uL*.06); // non raccordé : les brins s'arrêtent à mi-branche, en attente
-            const e1={x:b1.x-ux/uL*tip+nx2*s4,y:b1.y-uy/uL*tip+ny2*s4},e2={x:b1.x-ux/uL*tip-nx2*s4,y:b1.y-uy/uL*tip-ny2*s4};
             if(A1.length>1)net+=`<path d="${pathD(A1)}" ${st3}/>`;
             if(A2.length>1)net+=`<path d="${pathD(A2)}" ${st3}/>`;
             const P1=A1.length?A1[A1.length-1]:null,P2=A2.length?A2[0]:null;
-            if(P1)net+=`<path data-wtee="1" d="M${P1.x} ${P1.y} L${e1.x} ${e1.y}" ${st3}/>`; // aller : le fil descend dans la branche
-            if(P2)net+=`<path data-wtee="1" d="M${e2.x} ${e2.y} L${P2.x} ${P2.y}" ${st3}/>`; // retour
-            if(mode3==='boucle'){const eb={x:b1.x-ux/uL*(tip*.2),y:b1.y-uy/uL*(tip*.2)}; // BOUCLÉ AU MANCHON de sortie : le U se ferme là, pas dans la pièce
-              net+=`<path data-wteeu="tee" d="M${e1.x} ${e1.y} Q ${eb.x} ${eb.y} ${e2.x} ${e2.y}" ${st3}/>`;}
+            // schéma Renalia (Ethan 25/08 nuit) : raccord COURT perpendiculaire à la branche, puis les brins montent PARALLÈLES le long de ses bords — zéro diagonale, zéro croisement
+            const side1=P1?(Math.sign((P1.x-b0.x)*nx2+(P1.y-b0.y)*ny2)||1):1;const side2=-side1;
+            const mk6=(A,sg)=>{if(!A)return null;const tU=(A.x-b0.x)*uxn+(A.y-b0.y)*uyn;
+              const B={x:b0.x+nx2*sg*s4+uxn*tU,y:b0.y+ny2*sg*s4+uyn*tU};
+              const C={x:b0.x+nx2*sg*s4+uxn*(uL-tip),y:b0.y+ny2*sg*s4+uyn*(uL-tip)};return {B,C};};
+            const g1=mk6(P1,side1),g2=mk6(P2,side2);
+            if(P1&&g1)net+=`<path data-wtee="1" d="M${P1.x} ${P1.y} L${g1.B.x} ${g1.B.y} L${g1.C.x} ${g1.C.y}" ${st3}/>`; // aller : le long d'UN bord de la branche
+            if(P2&&g2)net+=`<path data-wtee="1" d="M${P2.x} ${P2.y} L${g2.B.x} ${g2.B.y} L${g2.C.x} ${g2.C.y}" ${st3}/>`; // retour : le long de l'AUTRE bord
+            if(mode3==='boucle'&&g1&&g2){const eb={x:b1.x-uxn*(tip*.2),y:b1.y-uyn*(tip*.2)}; // BOUCLÉ AU MANCHON de sortie : le U se ferme là
+              net+=`<path data-wteeu="tee" d="M${g1.C.x} ${g1.C.y} Q ${eb.x} ${eb.y} ${g2.C.x} ${g2.C.y}" ${st3}/>`;}
             return;}
           net+=`<path d="${e.axis.map(pl=>pathD(offsetPoly(axisSub(pl,bare+.02,polyLen(pl)-bare-.02),d+o))).join(' ')}" ${st3}/>`;});
         if(i===0&&line.parent&&state.lines[line.parent]&&antennaMode(line.id,c).mode==='boucle'){ // antenne isolée : SES fils aussi pontés au manchon de sortie (de part et d'autre — le manchonneur)
