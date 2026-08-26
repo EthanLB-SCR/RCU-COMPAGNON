@@ -1,0 +1,197 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Maquette — té plein (validation finale)</title>
+<style>
+  :root{--ink:#0b0b0b;--line:#d9d6cf;--or:#eb6834}
+  *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#f4f2ec;color:#1c1c1a}
+  header{padding:14px 18px 10px;background:#fff;border-bottom:1px solid var(--line)}
+  h1{margin:0;font-size:17px}h1 small{font-weight:400;color:#6b6961;font-size:12.5px;display:block;margin-top:3px}
+  .wrap{max-width:1180px;margin:0 auto;padding:12px 14px 60px}
+  .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
+  .tg{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;background:#fff;border:1.5px solid var(--line);border-radius:11px;padding:8px 12px;cursor:pointer;user-select:none}
+  .tg input{accent-color:var(--or)}
+  .seg{display:flex;border:1.5px solid var(--line);border-radius:11px;overflow:hidden;background:#fff}
+  .seg div{padding:8px 13px;font-size:12.5px;font-weight:800;cursor:pointer}
+  .seg div.on{background:var(--ink);color:#fff}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px;margin:10px 0;overflow:hidden}
+  .card h3{margin:2px 4px 8px;font-size:13.5px}.card h3 small{color:#6b6961;font-weight:400}
+  .scene{background:#8e9296;border-radius:10px;overflow:auto}
+  svg{display:block}
+  .note{font-size:12.5px;color:#494842;line-height:1.6;background:#fbf7ec;border:1px solid #e7dcb8;border-radius:11px;padding:9px 12px;margin:10px 0}
+  .q{font-size:13.5px;background:#0b0b0b;color:#fff;border-radius:11px;padding:11px 14px;line-height:1.6}
+  .leg{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:#3c3b36;margin:8px 4px}
+  .leg span{display:inline-flex;align-items:center;gap:6px}.leg i{width:16px;height:8px;border-radius:3px;display:inline-block}
+</style></head><body>
+<header><h1>Té plein, congés arrondis — corrigé sur tes 3 retours
+<small>① la soudure fait « tube normal » : bague jaune · acier · soudure · acier · bague jaune, aligné ; ② au té, les fils sont soit BOUCLÉS (antenne isolée) soit CONNECTÉS à l'antenne — ça se choisit à la soudure de sortie de té ; ③ LOGSTOR = blanc et orange INVERSÉS de position (aucun croisement), le blanc fait le chemin du orange.</small></h1></header>
+<div class="wrap">
+
+<div class="bar">
+  <span class="seg" id="sg-four"><div class="on" data-f="ax">AXIOM / Renalia — cuivré côté branche</div><div data-f="lg">LOGSTOR — étamé côté branche (positions inversées)</div></span>
+  <span class="seg" id="sg-tee"><div class="on" data-t="serie">fils CONNECTÉS à l'antenne (série)</div><div data-t="boucle">fils BOUCLÉS au té (antenne isolée)</div></span>
+  <label class="tg"><input type="checkbox" id="o-saut" checked> té à saut</label>
+  <label class="tg"><input type="checkbox" id="o-lab" checked> étiquettes</label>
+</div>
+
+<div class="card"><h3>Vue chantier <small>· aller + retour, l'antenne part du té de chaque conduite</small></h3>
+  <div class="scene"><svg id="sc" viewBox="0 0 1150 660" width="1150" height="660"></svg></div>
+  <div class="leg">
+    <span><i style="background:#e8ecef;border:1px solid #999"></i> fil étamé</span>
+    <span><i style="background:#e2843a"></i> fil cuivré / nu</span>
+    <span><i style="background:#e3cd63"></i> bague jaune (bout de gaine)</span>
+    <span><i style="background:linear-gradient(#cfd4d9,#9aa1a8)"></i> acier nu</span>
+    <span><i style="background:#5c3b23"></i> cordon de soudure</span>
+  </div>
+</div>
+
+<div class="card"><h3>Gros plan <small>· la séquence de soudure et le choix des fils au té</small></h3>
+  <div class="scene"><svg id="zm" viewBox="0 0 1150 470" width="1150" height="470"></svg></div>
+</div>
+
+<div class="note" id="expl"></div>
+<div class="q"><b>À valider :</b> si cette version te va (soudures, bouclé/connecté, positions LOGSTOR), je l'intègre au plan : le té suit l'angle RÉEL de la branche sur ton tracé, le choix bouclé/connecté est lu depuis la fiche « sortie de té » (déjà en place : série / bouclée / non raccordée), et je range les étiquettes qui se chevauchent autour du té.</div>
+
+<script>
+const V={four:'ax',tee:'serie',saut:true,lab:true};
+const COL={peEdge:'#2c2c2c',et:'#e8ecef',cu:'#e2843a',bague:'#e3cd63',joint:'#5c3b23',aller:'#c8382f',retour:'#2a5fb4'};
+const $=s=>document.querySelector(s);
+const wTop=()=>V.four==='lg'?COL.cu:COL.et;   // LOGSTOR : positions inversées — le blanc prend la place du orange
+const wBot=()=>V.four==='lg'?COL.et:COL.cu;   // le fil CÔTÉ BRANCHE plonge : cuivré (AXIOM/Renalia) ou étamé (LOGSTOR)
+function defs(){return `<defs>
+ <linearGradient id="ac" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfd4d9"/><stop offset="1" stop-color="#9aa1a8"/></linearGradient>
+ <linearGradient id="acv" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#cfd4d9"/><stop offset="1" stop-color="#9aa1a8"/></linearGradient>
+ <linearGradient id="pe" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#23252a"/><stop offset=".18" stop-color="#101114"/><stop offset=".85" stop-color="#101114"/><stop offset="1" stop-color="#000"/></linearGradient>
+ <linearGradient id="pev" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#23252a"/><stop offset=".18" stop-color="#101114"/><stop offset=".85" stop-color="#101114"/><stop offset="1" stop-color="#000"/></linearGradient>
+</defs>`;}
+// gaine seule (sans fils) — les fils sont dessinés à part pour rester continus par-dessus les soudures
+function gaineH(x0,x1,y,w,mark){let s=`<rect x="${x0}" y="${y-w/2}" width="${x1-x0}" height="${w}" rx="${w*.06}" fill="url(#pe)" stroke="${COL.peEdge}"/>`;
+  s+=`<rect x="${x0}" y="${y-w/2+w*.1}" width="${x1-x0}" height="${w*.06}" fill="#fff" opacity=".13"/>`;
+  if(mark)s+=`<rect x="${x0+(x1-x0)/2-32}" y="${y-w*.16}" width="64" height="${w*.32}" fill="${mark}" opacity=".95"/>`;
+  return s;}
+function gaineV(x,y0,y1,w){return `<rect x="${x-w/2}" y="${y0}" width="${w}" height="${y1-y0}" rx="${w*.06}" fill="url(#pev)" stroke="${COL.peEdge}"/>`;}
+// ① LA SOUDURE « tube normal » : bague jaune · acier · CORDON · acier · bague jaune — un seul motif, aligné, symétrique
+const JW=4,AW=15,BW=8; const WELD=JW/2+AW+BW; // demi-largeur totale
+function weldH(x,y,w,st){let s='';
+  s+=`<rect x="${x-JW/2-AW}" y="${y-w*.30}" width="${AW}" height="${w*.60}" fill="url(#ac)"/>`;
+  s+=`<rect x="${x+JW/2}" y="${y-w*.30}" width="${AW}" height="${w*.60}" fill="url(#ac)"/>`;
+  s+=`<rect x="${x-JW/2}" y="${y-w*.33}" width="${JW}" height="${w*.66}" rx="1.5" fill="${COL.joint}"/>`;
+  s+=`<rect x="${x-JW/2-AW-BW}" y="${y-w/2}" width="${BW}" height="${w}" rx="2" fill="${COL.bague}"/>`;
+  s+=`<rect x="${x+JW/2+AW}" y="${y-w/2}" width="${BW}" height="${w}" rx="2" fill="${COL.bague}"/>`;
+  if(st)s+=`<circle cx="${x}" cy="${y-w/2-13}" r="8.5" fill="${st==='soudee'?'#e2843a':st==='ok'?'#0ca30c':'#fff'}" stroke="#333" stroke-width="2"/>`;
+  return s;}
+function weldV(x,y,w,st){let s='';
+  s+=`<rect x="${x-w*.30}" y="${y-JW/2-AW}" width="${w*.60}" height="${AW}" fill="url(#acv)"/>`;
+  s+=`<rect x="${x-w*.30}" y="${y+JW/2}" width="${w*.60}" height="${AW}" fill="url(#acv)"/>`;
+  s+=`<rect x="${x-w*.33}" y="${y-JW/2}" width="${w*.66}" height="${JW}" rx="1.5" fill="${COL.joint}"/>`;
+  s+=`<rect x="${x-w/2}" y="${y-JW/2-AW-BW}" width="${w}" height="${BW}" rx="2" fill="${COL.bague}"/>`;
+  s+=`<rect x="${x-w/2}" y="${y+JW/2+AW}" width="${w}" height="${BW}" rx="2" fill="${COL.bague}"/>`;
+  if(st)s+=`<circle cx="${x+w/2+13}" cy="${y}" r="8.5" fill="${st==='soudee'?'#e2843a':st==='ok'?'#0ca30c':'#fff'}" stroke="#333" stroke-width="2"/>`;
+  return s;}
+// fils horizontaux continus (par-dessus gaines ET soudures — ils sortent de la mousse et traversent la zone à manchonner)
+function filsH(x0,x1,y,w){return `<line x1="${x0}" y1="${y-w*.30}" x2="${x1}" y2="${y-w*.30}" stroke="${wTop()}" stroke-width="3.5"/>`;}
+function filBotH(x0,x1,y,w){return `<line x1="${x0}" y1="${y+w*.30}" x2="${x1}" y2="${y+w*.30}" stroke="${wBot()}" stroke-width="3.5"/>`;}
+// LE TÉ variante A : silhouette en T, congés — corps aux bagues près, branche vers le bas
+function teeA(x,y,L,W,Wb,Lb){const r=Math.min(14,Wb*.42);const yb1=y+W/2+Lb;
+  const d=`M ${x-L/2} ${y-W/2} H ${x+L/2} V ${y+W/2} H ${x+Wb/2+r} Q ${x+Wb/2} ${y+W/2} ${x+Wb/2} ${y+W/2+r} V ${yb1} H ${x-Wb/2} V ${y+W/2+r} Q ${x-Wb/2} ${y+W/2} ${x-Wb/2-r} ${y+W/2} H ${x-L/2} Z`;
+  return `<path d="${d}" fill="url(#pe)" stroke="${COL.peEdge}" stroke-width="1.2"/><rect x="${x-L/2}" y="${y-W/2+W*.1}" width="${L}" height="${W*.06}" fill="#fff" opacity=".13"/>`;}
+// ② les fils du té : le fil du bas plonge dans la branche — BOUCLÉ (U fermé, antenne isolée) ou CONNECTÉ (il traverse la
+// soudure de sortie et rejoint les fils de l'antenne). Ça se déclare à la soudure de sortie de té (fiche existante).
+function teeAWires(x,y,L,W,Wb,Lb,yJoinEnd){const yT=y-W*.30,yB=y+W*.30;const o=Wb*.26;let s='';
+  s+=`<line x1="${x-L/2}" y1="${yT}" x2="${x+L/2}" y2="${yT}" stroke="${wTop()}" stroke-width="3.5"/>`; // celui du haut traverse
+  const yEndB=y+W/2+Lb;
+  const down=(xx,yTo)=>`<path d="M ${xx<x?x-L/2:x+L/2} ${yB} H ${xx+(xx<x?-8:8)} Q ${xx} ${yB} ${xx} ${yB+10} V ${yTo}" fill="none" stroke="${wBot()}" stroke-width="3.5" stroke-linejoin="round"/>`;
+  if(V.tee==='boucle'){const yU=yEndB-3; // bouclé AU MANCHON de sortie : les brins descendent TOUTE la branche, le manchonneur les ponte là
+    s+=down(x-o,yU)+down(x+o,yU);
+    s+=`<path d="M ${x-o} ${yU} Q ${x} ${yU+9} ${x+o} ${yU}" fill="none" stroke="${wBot()}" stroke-width="3.5"/>`;
+  }else{
+    s+=down(x-o,yEndB)+down(x+o,yEndB);
+    s+=`<path d="M ${x-o} ${yEndB} V ${yJoinEnd}" fill="none" stroke="${wBot()}" stroke-width="3.5"/>`; // les brins TRAVERSENT la soudure de sortie
+    s+=`<path d="M ${x+o} ${yEndB} V ${yJoinEnd}" fill="none" stroke="${wBot()}" stroke-width="3.5"/>`; // et se raccordent aux fils de l'antenne
+  }
+  return s;}
+// fils verticaux d'une antenne (positions gauche/droite = mêmes couleurs que top/bot)
+function filsV(x,y0,y1,w){return `<line x1="${x-w*.30}" y1="${y0}" x2="${x-w*.30}" y2="${y1}" stroke="${wTop()}" stroke-width="3"/><line x1="${x+w*.30}" y1="${y0}" x2="${x+w*.30}" y2="${y1}" stroke="${wBot()}" stroke-width="3"/>`;}
+function label(x,y,t,small){return V.lab?`<g font-family="system-ui"><rect x="${x-t.length*3.6-8}" y="${y-11}" width="${t.length*7.2+16}" height="20" rx="10" fill="#fff" opacity=".93"/><text x="${x}" y="${y+4}" text-anchor="middle" font-size="${small?10:11.5}" font-weight="700" fill="#1c1c1a">${t}</text></g>`:'';}
+
+function draw(){
+  document.querySelectorAll('#sg-four div').forEach(d=>d.classList.toggle('on',d.dataset.f===V.four));
+  document.querySelectorAll('#sg-tee div').forEach(d=>d.classList.toggle('on',d.dataset.t===V.tee));
+  const W=52,Wb=42,yA=140,yR=300,xT=520,Lte=150,Lb=46;
+  const serie=V.tee==='serie';
+  let s=defs();
+  // ── ALLER : [tube] SOUDURE [té] SOUDURE [tube], et un manchon courant plus loin — la séquence « tube normal »
+  const wl=xT-Lte/2-WELD, wr=xT+Lte/2+WELD; // centres des 2 soudures du té
+  // géométrie : la gaine du tube s'arrête au bord gauche de la soudure (x-WELD), celle du té commence au bord droit (x+WELD)
+  const seq=(x)=>({g0:x-WELD,g1:x+WELD});
+  const sA1=seq(wl),sA2=seq(wr),sM=seq(180); // sM : manchon courant sur le tube gauche
+  s+=gaineH(20,sM.g0,yA,W,null)+gaineH(sM.g1,sA1.g0,yA,W,COL.aller)+gaineH(sA2.g1,1130,yA,W,COL.aller);
+  s+=teeA(xT,yA,Lte,W,Wb,Lb);
+  // branche + antenne de l'aller : SOUDURE de sortie de té (S-2523) puis tube antenne qui traverse le retour
+  const ybr=yA+W/2+Lb; const wOut=ybr+WELD; const yEnd=640;
+  if(V.saut)s+=`<rect x="${xT-Wb/2-7}" y="${yR-W/2-8}" width="${Wb+14}" height="${W+16}" fill="#f4f3ee" rx="6"/>`;
+  s+=gaineV(xT,wOut+WELD,yEnd-46,Wb);
+  if(!V.saut)s+=`<rect x="${xT-Wb/2}" y="${yR-W/2}" width="${Wb}" height="${W}" fill="#000" opacity=".35"/>`;
+  // fils de l'antenne de l'aller (continus, par-dessus le croisement) — bouclés sur eux-mêmes sous le manchon si antenne isolée
+  s+=filsV(xT,wOut+WELD-AW-2,yEnd-52,Wb);
+  if(V.tee==='boucle')s+=`<path d="M ${xT-Wb*.30} ${wOut+WELD-AW+2} Q ${xT} ${wOut+WELD-AW-8} ${xT+Wb*.30} ${wOut+WELD-AW+2}" fill="none" stroke="#c78a3f" stroke-width="3"/>`;
+  // ── RETOUR : même séquence, té décalé
+  const xT2=xT+300;const wl2=xT2-Lte/2-WELD,wr2=xT2+Lte/2+WELD;const sB1=seq(wl2),sB2=seq(wr2),sM2=seq(xT2+290);
+  s+=gaineH(20,sB1.g0,yR,W,COL.retour)+gaineH(sB2.g1,sM2.g0,yR,W,null)+gaineH(sM2.g1,1130,yR,W,COL.retour);
+  s+=teeA(xT2,yR,Lte,W,Wb,Lb);
+  const ybr2=yR+W/2+Lb;const wOut2=ybr2+WELD;
+  s+=gaineV(xT2,wOut2+WELD,yEnd-46,Wb);
+  s+=filsV(xT2,wOut2+WELD-AW-2,yEnd-52,Wb);
+  if(V.tee==='boucle')s+=`<path d="M ${xT2-Wb*.30} ${wOut2+WELD-AW+2} Q ${xT2} ${wOut2+WELD-AW-8} ${xT2+Wb*.30} ${wOut2+WELD-AW+2}" fill="none" stroke="#c78a3f" stroke-width="3"/>`;
+  // ── SOUDURES (la gaine dessous, les fils repasseront dessus : sur le terrain ils courent sur l'acier avant manchonnage)
+  s+=weldH(sM.g0+WELD,yA,W,'ok')+weldH(wl,yA,W,'soudee')+weldH(wr,yA,W,'ok');
+  s+=weldH(wl2,yR,W,'soudee')+weldH(wr2,yR,W,'')+weldH(sM2.g0+WELD,yR,W,'ok');
+  s+=weldV(xT,wOut,Wb,'soudee')+weldV(xT2,wOut2,Wb,'soudee');
+  // fils par-dessus tout : le haut traverse, le bas s'arrête au té (il y plonge)
+  s+=filsH(20,1130,yA,W);s+=filsH(20,1130,yR,W);
+  s+=filBotH(20,xT-Lte/2,yA,W)+filBotH(xT+Lte/2,1130,yA,W)+filBotH(20,xT2-Lte/2,yR,W)+filBotH(xT2+Lte/2,1130,yR,W);
+  s+=teeAWires(xT,yA,Lte,W,Wb,Lb,wOut+WELD+8);
+  s+=teeAWires(xT2,yR,Lte,W,Wb,Lb,wOut2+WELD+8);
+  if(serie){s+=`<line x1="${xT-Wb*.26}" y1="${ybr}" x2="${xT-Wb*.30}" y2="${wOut+WELD+22}" stroke="${wBot()}" stroke-width="3"/><line x1="${xT+Wb*.26}" y1="${ybr}" x2="${xT+Wb*.30}" y2="${wOut+WELD+22}" stroke="${wTop()}" stroke-width="3"/>`;
+    s+=`<line x1="${xT2-Wb*.26}" y1="${ybr2}" x2="${xT2-Wb*.30}" y2="${wOut2+WELD+22}" stroke="${wBot()}" stroke-width="3"/><line x1="${xT2+Wb*.26}" y1="${ybr2}" x2="${xT2+Wb*.30}" y2="${wOut2+WELD+22}" stroke="${wTop()}" stroke-width="3"/>`;}
+  if(V.lab){
+    s+=label(xT,yA-W-20,'T1 · té 100/80');
+    s+=label(xT-192,wOut,'S-2523 · sortie de té — bouclé ou connecté : ça se choisit ICI',1);
+    s+=label(sM.g0+WELD,yA+W*1.35,'bague · acier · soudure · acier · bague',1);
+    s+=label(xT2,yR-W-20,'T1′ · té (retour)');
+    s+=label(xT,V.tee==='boucle'?yA+W/2+Lb-58:yEnd-84,V.tee==='boucle'?'fils BOUCLÉS : antenne isolée de la boucle':'fils CONNECTÉS aux fils de l’antenne (série)',1);}
+  $('#sc').innerHTML=s;
+
+  // ── gros plan : une soudure + le té avec le choix des fils
+  const Wz=96,Wbz=76,yz=120,xz=480,Lz=300,Lbz=110;
+  const wlz=xz-Lz/2-WELD,wrz=xz+Lz/2+WELD;const zb=yz+Wz/2+Lbz;const zOut=zb+WELD;
+  let z=defs();
+  z+=gaineH(10,wlz-WELD,yz,Wz,null)+gaineH(wrz+WELD,1140,yz,Wz,null);
+  z+=teeA(xz,yz,Lz,Wz,Wbz,Lbz);
+  z+=gaineV(xz,zOut+WELD,460,Wbz);
+  z+=filsV(xz,zOut+WELD-AW-2,455,Wbz);
+  z+=weldH(wlz,yz,Wz,'soudee')+weldH(wrz,yz,Wz,'ok')+weldV(xz,zOut,Wbz,'soudee');
+  z+=filsH(10,1140,yz,Wz)+filBotH(10,xz-Lz/2,yz,Wz)+filBotH(xz+Lz/2,1140,yz,Wz);
+  z+=teeAWires(xz,yz,Lz,Wz,Wbz,Lbz,zOut+WELD+16);
+  if(V.tee==='boucle')z+=`<path d="M ${xz-Wbz*.30} ${zOut+WELD-AW+2} Q ${xz} ${zOut+WELD-AW-9} ${xz+Wbz*.30} ${zOut+WELD-AW+2}" fill="none" stroke="#c78a3f" stroke-width="3.4"/>`;
+  if(V.tee==='serie'){z+=`<line x1="${xz-Wbz*.26}" y1="${zb}" x2="${xz-Wbz*.30}" y2="${zOut+WELD+30}" stroke="${wBot()}" stroke-width="3.4"/><line x1="${xz+Wbz*.26}" y1="${zb}" x2="${xz+Wbz*.30}" y2="${zOut+WELD+30}" stroke="${wTop()}" stroke-width="3.4"/>`;}
+  const an=(x1,y1,x2,y2,t)=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#fff" stroke-width="1.6"/><circle cx="${x2}" cy="${y2}" r="3" fill="#fff"/>`+label(x1,y1-2,t,1);
+  z+=an(170,320,wlz,yz+Wz*.42,'bague · acier · SOUDURE · acier · bague');
+  z+=an(950,60,wrz+WELD+40,yz-Wz*.30,(V.four==='lg'?'le cuivré':'l’étamé')+' traverse tout droit');
+  if(V.tee==='boucle')z+=an(880,300,xz+Wbz*.26,zb-4,'bouclés AU MANCHON de sortie, de part et d\'autre (manchonneur) — antenne hors boucle');
+  else z+=an(880,330,xz+Wbz*.30,zOut+WELD+24,'raccordés à la soudure de sortie : l’antenne entre dans la boucle');
+  z+=an(170,60,xz-110,yz+Wz*.30,(V.four==='lg'?'l’étamé':'le cuivré')+' est CÔTÉ BRANCHE : c’est lui qui plonge');
+  $('#zm').innerHTML=z;
+
+  $('#expl').innerHTML=(V.four==='lg'
+    ?'<b>LOGSTOR :</b> blanc et orange sont inversés de POSITION sur le tube (aucun croisement) — l’étamé se retrouve côté branche et fait exactement le chemin du cuivré chez AXIOM/Renalia.'
+    :'<b>AXIOM / Renalia :</b> le cuivré est côté branche, c’est lui qui plonge ; l’étamé traverse.')
+   +' — '+(V.tee==='serie'
+    ?'<b>Fils connectés :</b> les deux brins traversent la soudure de sortie de té et se raccordent aux fils de l’antenne : elle est EN SÉRIE dans la boucle.'
+    :'<b>Fils bouclés :</b> c’est AU MANCHON de sortie que le manchonneur ponte, de part et d’autre : les brins du té sur eux-mêmes, les fils de l’antenne sur eux-mêmes — l’antenne est ISOLÉE (mesurable à part). Réglage : fiche « sortie de té » (série / bouclée / non raccordée).');
+}
+document.querySelectorAll('#sg-four div').forEach(d=>d.onclick=()=>{V.four=d.dataset.f;draw();});
+document.querySelectorAll('#sg-tee div').forEach(d=>d.onclick=()=>{V.tee=d.dataset.t;draw();});
+$('#o-saut').onchange=e=>{V.saut=e.target.checked;draw();};
+$('#o-lab').onchange=e=>{V.lab=e.target.checked;draw();};
+draw();
+</script>
+</body></html>

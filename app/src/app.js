@@ -7,6 +7,7 @@ import {sync} from './sync.js';
 import {kv} from './kv.js';
 import {geoOfSite,planToLonLat,lonLatToPlan,tilesFor,ignTileURL,IGN_LAYERS,distLL,fmtDist,crsName,similarityFromPairs,geocode,CRS} from './geo.js';
 import {parseBL,stockLabel,stockKey,matchKey,zoneAgg,globalAgg,remainByMatch,zoneStatusOf,dnOfOd,isPU,K_LABEL as STK_LABEL} from './stock.js';
+import {NEXTF,nOn,initNext,nextHomeHTML,nextBindHome,nextRenderTab,nextTsRecapHTML,nextBindRecap,nextDoeHTML,nextBindDoe,nextAdminAddBL,HM_ET} from './next.js';
 import {buildHydro,areaDN,needsFlow,HYDRO_DEFAULTS,PREST_LABEL,CAL_OPS} from './hydro.js';
 
 /* ============================================================
@@ -24,7 +25,7 @@ const STATUS={a_souder:{label:'À souder',color:'#898781',glyph:''},soudee:{labe
 const ORDER=['a_souder','soudee','controlee','manchonnee','a_reprendre'];
 const WIRE={E:{label:'fil étamé (alarme)',short:'étamé',color:'#dfe4ea',clock:300},N:{label:'fil nu (retour)',short:'nu',color:'#e2843a',clock:60}};
 // position des fils selon le fournisseur (base fournisseurs) : Nordic classique 10 h / 2 h ; LOGSTOR au sommet (± 3-20 cm de 12 h)
-const WIRE_POS={LOGSTOR:{E:335,N:25,label:'LOGSTOR : fils au sommet, ± 3-20 cm de 12 h (étamé côté gauche)'},RENALIA:{E:300,N:60,label:'Nordic (ZPU / Renalia) : étamé 10 h, nu 2 h'},AXIOM:{E:300,N:60,label:'Nordic (Axiom PI) : étamé 10 h, nu 2 h'},INPAL:{E:300,N:60,label:'Nordic (Inpal cuivre) : étamé 10 h, nu 2 h'},DEFAULT:{E:300,N:60,label:'Nordic : étamé 10 h, nu 2 h'}};
+const WIRE_POS={LOGSTOR:{E:25,N:335,label:'LOGSTOR : fils au sommet, ± 3-20 cm de 12 h — étamé et nu inversés vs Nordic (l\'étamé côté piquage)'},RENALIA:{E:300,N:60,label:'Nordic (ZPU / Renalia) : étamé 10 h, nu 2 h'},AXIOM:{E:300,N:60,label:'Nordic (Axiom PI) : étamé 10 h, nu 2 h'},INPAL:{E:300,N:60,label:'Nordic (Inpal cuivre) : étamé 10 h, nu 2 h'},DEFAULT:{E:300,N:60,label:'Nordic : étamé 10 h, nu 2 h'}};
 const wirePos=()=>WIRE_POS[(NET&&NET.supplier)||'DEFAULT']||WIRE_POS.DEFAULT;
 const USERS=[{id:'karim',name:'Karim B.',role:'soudeur',detail:'Soudeur · QS 141/111'},{id:'julien',name:'Julien R.',role:'manchonneur',detail:'Manchonneur'},{id:'ethan',name:'Ethan L.',role:'chef',detail:'Chef de chantier'},{id:'sophie',name:'Sophie M.',role:'bureau',detail:'Bureau'}];
 const ROLE_LABEL={soudeur:'Soudeur',manchonneur:'Manchonneur',chef:'Chef de chantier',bureau:'Bureau'};
@@ -152,7 +153,7 @@ const siteStore={};
 function hiddenMap(){let m={};try{m=JSON.parse(localStorage.getItem('trace:hiddenAt')||'{}')||{};}catch(e){}try{const old=JSON.parse(localStorage.getItem('trace:hiddenSites')||'[]');old.forEach(id=>{if(!(id in m))m[id]=Date.now();});}catch(e){}return m;}
 function isHidden(net){const m=hiddenMap();if(!(net.id in m))return false;const saved=net.traceur&&net.traceur.savedAt?Date.parse(net.traceur.savedAt):0;if(saved&&saved>m[net.id]){delete m[net.id];localStorage.setItem('trace:hiddenAt',JSON.stringify(m));const old=JSON.parse(localStorage.getItem('trace:hiddenSites')||'[]').filter(x=>x!==net.id);localStorage.setItem('trace:hiddenSites',JSON.stringify(old));return false;}return true;}
 // ligne issue du traceur : deux chaînes de pièces déjà posées (une par conduite, à l'entraxe réel), soudures numérotées par le traceur — pas de moteur de recalage, la retouche se fait dans le traceur
-function setupTraceurLine(L,sh){const line={id:L.id,sheetId:sh.id,name:L.name||L.id,parent:L.parent||null,parentM:L.parentM,parentElIdx:null,ppm:1,single:null,traceur:true,start:L.parent?'Sortie de té (ligne '+L.parent+')':'Départ',end:L.endType||'kit',pts:(L.axis||[]).map(p=>({x:p[0],y:p[1]})),dn:L.dn,axisHalf:(L.e||0.35)/2,engine:null,engines:null,cond:{}};
+function setupTraceurLine(L,sh){const line={id:L.id,sheetId:sh.id,name:L.name||L.id,parent:L.parent||null,parentM:L.parentM,parentElIdx:null,ppm:1,single:null,traceur:true,hm:L.hm||undefined,start:L.parent?'Sortie de té (ligne '+L.parent+')':'Départ',end:L.endType||'kit',pts:(L.axis||[]).map(p=>({x:p[0],y:p[1]})),dn:L.dn,axisHalf:(L.e||0.35)/2,engine:null,engines:null,cond:{}};
   const mk=(e)=>{const axis=(e.axis||[]).map(pl=>pl.map(p=>({x:p[0],y:p[1]})));if(!axis.length||!axis[0].length)axis.push([{x:e.from[0],y:e.from[1]},{x:e.to[0],y:e.to[1]}]);if(axis[0].length<2)axis[0].push({...axis[0][0]});const o={id:e.id,kind:e.kind,kindLabel:e.kindLabel||KLABEL[e.kind]||e.kind,dn:e.dn,dn2:e.dn2,casing:e.casing,len:e.len||0,angle:e.angle,plane:e.plane,axis,from:axis[0][0],to:axis[0][axis[0].length-1],cut:!!e.cut,std:!!e.std,manchette:!!e.manchette,nue:!!e.nue,ref:e.ref,sub:e.sub,vert:e.vert,dnb:e.dnb,teeType:e.teeType,saut:!!e.saut,under:!!e.under,photo:e.photo,branch:e.branch,err:e.err,m0:e.m0,m1:e.m1,ownAxis:true,rot:0,flip:false,photos:[],note:''};elBBox(o);return o;};
   ['A','R'].forEach(c=>{const cd=L.cond[c];if(!cd)return;const els=cd.els.map(mk);els.forEach(e=>{e.cond=c;});const joints=(cd.welds||[]).map((w,k)=>({idx:w.idx!==undefined?w.idx:k,weldId:w.weldId,cond:c,status:'a_souder',events:[],conn:{E:'E',N:'N'},wire:'a_raccorder',cont:false,iso:false,isoVal:'',photos:[],note:'',line:L.id,m:w.m,dn:w.dn,fc:!!w.fc,dev:w.dev||0,teeOut:!!w.teeOut,bypass:!!w.bypass,sleeveWith:w.sleeveWith||null})).filter(j=>j.idx>=0&&j.idx<els.length).sort((a,b)=>a.idx-b.idx);line.cond[c]={els,joints};});
   line.els=(line.cond.A||line.cond.R).els;line.length=line.els.length?line.els[line.els.length-1].m1:0;state.lines[L.id]=line;sh.lines.push(L.id);}
@@ -219,6 +220,10 @@ function saveElPos(){if(!NET||NET.id==='__vide')return;if(SITES[NET.id])SITES[NE
 function recordElPos(l,c,el){const m=elPosOf();if(!m||!l||!el)return;const k2=l.id+'|'+c+'|'+el.id;
   if(el.rot||el.flip)m[k2]={rot:el.rot||0,flip:el.flip?1:0};else delete m[k2];saveElPos();}
 function applyElPos(){const m=NET&&NET.elPos;if(!m)return;Object.entries(m).forEach(([k2,v])=>{const [lid,c,eid]=k2.split('|');const l=state.lines[lid];const cd=l&&l.cond&&l.cond[c];if(!cd)return;const el=cd.els.find(x=>x.id===eid);if(el){el.rot=v.rot||0;el.flip=!!v.flip;}});}
+let netPartT={};
+function saveNetPart(key){if(!NET||NET.id==='__vide')return;if(SITES[NET.id])SITES[NET.id][key]=NET[key];
+  kv.get('trace:handoff:'+NET.id).then(x=>{if(x){x[key]=NET[key];return kv.set('trace:handoff:'+NET.id,x);}}).catch(()=>{});
+  clearTimeout(netPartT[key]);netPartT[key]=setTimeout(async()=>{try{const {demo,...clean}=NET;const okk=await sync.saveSite(clean);if(okk){state.ownSiteWrite=Date.now();setCloudBadge('enregistré '+new Date().toLocaleTimeString('fr-FR'));}}catch(e){console.warn(e);}},1200);}
 function setupSite(id){
   state.hydroPose=null;hydroCache=null;state.hydroMapView=null;state.osmHydrants=null;state.hydroCalStart=null;state.hydroCalMonth=null;state.hydroCalT=0;state.dhShowLoc=false;state.loc=null;state.dhLocPending=null;state.dh.at=null;state.dh.dir=null;state.dh.meas=null;state.dh.iso=null;state.dh.locVal='';const hb=$('#hydroBar');if(hb)hb.style.display='none';
   state.stockPose=null;state.stockSel=null;state.stockMatSel='';const sb2=$('#stockBar');if(sb2)sb2.style.display='none';
@@ -227,7 +232,7 @@ function setupSite(id){
   const sh={id:'s_'+id,name:NET.name,type:NET.sheetType||'blank',w:NET.w,h:NET.h,ppm:1,lines:[],ann:NET.ann||[],drawing:NET.drawing||null,plain:NET.source==='traceur',image:NET.image||null};state.sheets[sh.id]=sh;state.sheetId=sh.id;
   const KL={pipe:'barre',bend:'coude',steelbend:'changement de direction au manchon (SXB)',tee:'té',valve:'vanne',endcap:'bouchon',reducer:'réduction'};
   NET.lines.forEach(L=>{if(L.traceur&&L.cond){setupTraceurLine(L,sh);return;}
-    if(L.pts&&!L.els){const line={id:L.id,sheetId:sh.id,name:L.name||L.id,parent:L.parent||null,parentElIdx:null,ppm:1,single:L.cond||null,start:L.parent?'Té (ligne '+L.parent+')':'Départ',end:'Extrémité',pts:L.pts.map(p=>({x:p[0],y:p[1]})),specials:(L.specials||[]).map(sp=>({...sp})),dnNum:L.dnNum||100,dnSegs:L.dnSegs||null};genLine(line);line.els.forEach(e=>{e.kindLabel=KLABEL[e.kind]||e.kind;e.casing=L.casing||undefined;});state.lines[L.id]=line;sh.lines.push(L.id);return;}
+    if(L.pts&&!L.els){const line={id:L.id,sheetId:sh.id,name:L.name||L.id,parent:L.parent||null,parentElIdx:null,ppm:1,single:L.cond||null,hm:L.hm||undefined,start:L.parent?'Té (ligne '+L.parent+')':'Départ',end:'Extrémité',pts:L.pts.map(p=>({x:p[0],y:p[1]})),specials:(L.specials||[]).map(sp=>({...sp})),dnNum:L.dnNum||100,dnSegs:L.dnSegs||null};genLine(line);line.els.forEach(e=>{e.kindLabel=KLABEL[e.kind]||e.kind;e.casing=L.casing||undefined;});state.lines[L.id]=line;sh.lines.push(L.id);return;}
     const line={id:L.id,sheetId:sh.id,name:L.name||((L.parent?'Antenne ':'Ligne principale ')+L.id),parent:L.parent,parentElIdx:L.parentElIdx,ppm:1,single:L.cond||null,start:L.parent?'Té (ligne '+L.parent+')':'Départ',end:'Extrémité (bouchon / SST)',
       els:L.els.map(e=>({id:e.id,kind:e.kind,kindLabel:KL[e.kind]||e.kind,dn:e.dn,casing:e.casing,len:e.len,angle:e.angle,gap:e.gap,axis:e.axis.map(pl=>pl.map(p=>({x:p[0],y:p[1]}))),from:{x:e.from[0],y:e.from[1]},to:{x:e.to[0],y:e.to[1]},cut:e.kind==='pipe'&&e.len<11.9}))};
     line.els.forEach(e=>{e.axis.forEach((pl,k)=>{const d0=Math.hypot(pl[0].x-e.from.x,pl[0].y-e.from.y),d1=Math.hypot(pl[pl.length-1].x-e.from.x,pl[pl.length-1].y-e.from.y);if(k===0&&d1<d0)pl.reverse();});if(!e.axis.length)e.axis=[[e.from,e.to]];});
@@ -747,7 +752,8 @@ const clockPos=(e,w)=>{let a=wirePos()[w];if(e.flip)a=(360-a)%360;return (a+(e.r
 const clockText=a=>(Math.round(((a%360)+360)%360/30)||12)+' h';
 // pièce figée : dès qu'un manchon est fermé à l'un de ses bouts, son orientation n'est plus modifiable (renvoie les n° de soudure qui la figent, ou null)
 const elLock=(l,c,i)=>{const cd=l.cond[c];if(!cd||!cd.els[i])return null;const m=[];const lj=cd.joints[i-1],rj=cd.joints[i];if(lj&&lj.status==='manchonnee')m.push(lj.weldId);if(rj&&rj.status==='manchonnee')m.push(rj.weldId);return m.length?m:null;};
-function renderPlan(){
+function renderPlan(){if(typeof linkTraceurBranches==='function')linkTraceurBranches(); // e.branchLine posé : le dessin du té sait quelle antenne s'y raccorde (mode série / bouclée)
+  
   if(state.calage&&state.calage.mode==='map'){renderCalageMap();return;}
   netG.style.display='';mkG.style.display='';
   const sh=sheet();const k=state.view.k;const ppm=sh.ppm;const kpm=k*ppm;bgG.style.display=state.show.fond?'':'none';
@@ -820,33 +826,51 @@ function renderPlan(){
         if(e.kind==='pipe'&&e.cut&&Lax>1){const p=axisSub(e.axis[0],Lax*.5-.05,Lax*.5+.05);const q=offsetPoly(p,d);net+=`<path d="${pathD(q)}" stroke="#ffffff" stroke-width="${w*.5}" fill="none" opacity=".35" stroke-dasharray="${w*.12} ${w*.12}"/>`;}
       }
       if(e.kind==='tee'&&e.vert){const mid=elMid(e);const mx=mid.x+mid.ty*d,my=mid.y-mid.tx*d;const r=Math.max(w*.9,7/k);const up=e.vert==='up';const tri=up?`${mx},${my-r*.62} ${mx-r*.55},${my+r*.4} ${mx+r*.55},${my+r*.4}`:`${mx},${my+r*.62} ${mx-r*.55},${my-r*.4} ${mx+r*.55},${my-r*.4}`;net+=`<circle cx="${mx}" cy="${my}" r="${r}" fill="#fff" stroke="${col}" stroke-width="${Math.max(w*.18,1.5/k)}"/><polygon points="${tri}" fill="${up?'#0b0b0b':'#2a5fb4'}"/>`;if(showLabels&&S.pieces)net+=`<text x="${mx}" y="${my-r-3/k}" font-size="${Math.max(10/k,.3*ppm)}" text-anchor="middle" fill="#333" paint-order="stroke" stroke="#fff" stroke-width="${2/k}" font-family="system-ui,sans-serif" pointer-events="none">${up?'purge ▲':'vidange ▼'} DN${e.dnb||''}</text>`;} // té de purge / vidange : symbole rond + triangle
-      if(e.kind==='tee'&&e.branch&&e.branch.length===2){const b0=e.branch[0],b1=e.branch[1];const wb=Math.max(minW/k,casingOf({dn:e.dnb||e.dn})*ppm*EX);if(e.saut)net+=`<line x1="${b0[0]}" y1="${b0[1]}" x2="${b1[0]}" y2="${b1[1]}" stroke="#f4f3ee" stroke-width="${wb*2}" stroke-linecap="butt"/>`;net+=`<line x1="${b0[0]}" y1="${b0[1]}" x2="${b1[0]}" y2="${b1[1]}" stroke="${far?col:'#161616'}" stroke-width="${wb}" stroke-linecap="butt"/>`;if(!far)net+=`<line x1="${b0[0]}" y1="${b0[1]}" x2="${b1[0]}" y2="${b1[1]}" stroke="${col}" stroke-width="${wb*.45}" stroke-linecap="butt" opacity=".9"/>`;} // branche du té (jusqu'à la sortie où repart l'antenne) ; té à saut : par-dessus la conduite voisine
+      if(e.kind==='tee'&&e.branch&&e.branch.length===2){const b0=e.branch[0],b1=e.branch[1];const wb=Math.max(minW/k,casingOf({dn:e.dnb||e.dn})*ppm*EX);
+        if(e.saut)net+=`<line x1="${b0[0]}" y1="${b0[1]}" x2="${b1[0]}" y2="${b1[1]}" stroke="#f4f3ee" stroke-width="${wb*1.7}" stroke-linecap="butt"/>`; // té à saut : halo clair par-dessus la conduite voisine
+        if(far)net+=`<line x1="${b0[0]}" y1="${b0[1]}" x2="${b1[0]}" y2="${b1[1]}" stroke="${col}" stroke-width="${wb}" stroke-linecap="butt"/>`;
+        else{ // T PLEIN à congés (maquette validée) : la branche sort du corps en une seule pièce, à l'angle réel
+          const vx=b1[0]-b0[0],vy=b1[1]-b0[1];const vL=Math.hypot(vx,vy)||1;const ux2=vx/vL,uy2=vy/vL;const nx3=-uy2,ny3=ux2;
+          const P=(xx,yy)=>({x:b0[0]+nx3*xx+ux2*yy,y:b0[1]+ny3*xx+uy2*yy}); // repère local : x le long de la normale, y le long de la branche
+          const rC=Math.min(wb*.45,w*.35);const yJ=w*.42,yIn=-w*.28,yEnd=vL;
+          const c1=P(-wb/2-rC,yJ),c2=P(-wb/2,yJ),c3=P(-wb/2,yJ+rC),c4=P(-wb/2,yEnd),c5=P(wb/2,yEnd),c6=P(wb/2,yJ+rC),c7=P(wb/2,yJ),c8=P(wb/2+rC,yJ),c9=P(wb/2+rC,yIn),c10=P(-wb/2-rC,yIn);
+          net+=`<path data-teep="1" d="M ${c1.x} ${c1.y} Q ${c2.x} ${c2.y} ${c3.x} ${c3.y} L ${c4.x} ${c4.y} L ${c5.x} ${c5.y} L ${c6.x} ${c6.y} Q ${c7.x} ${c7.y} ${c8.x} ${c8.y} L ${c9.x} ${c9.y} L ${c10.x} ${c10.y} Z" fill="#101114"/>`;
+          net+=`<path d="M ${c1.x} ${c1.y} Q ${c2.x} ${c2.y} ${c3.x} ${c3.y} L ${c4.x} ${c4.y} L ${c5.x} ${c5.y} L ${c6.x} ${c6.y} Q ${c7.x} ${c7.y} ${c8.x} ${c8.y}" fill="none" stroke="#2c2c2c" stroke-width="${Math.max(1/k,.015*ppm)}"/>`;}}
       if(showWires&&S.fils&&e.kind!=='valve'&&e.kind!=='endcap'&&!isSteel){
         const brT=(e.kind==='tee'&&Array.isArray(e.branch)&&e.branch.length===2)?e.branch:null;
         const child=brT?((e.branchLine&&state.lines[e.branchLine])?e.branchLine:null):null;
         const wbT=brT?(child?antennaMode(child,c,e).wire:wireOfTee(e)):null; // LE fil qui part dans la branche : réglage de la sortie de té s'il existe, sinon défaut fournisseur (té retourné : inversé)
         ['E','N'].forEach(wn=>{const a=clockPos(e,wn);const o=(-Math.sin(rad(a)))*casingOf(e)*EX*.37*ppm;const front=Math.cos(rad(a))>=0;
-          (e._wo||(e._wo={})).k=k;e._wo[wn]=d+o; // position dessinée de CE fil, reprise par la surbrillance DH (le fil lui-même devient rouge)
+          (e._wo||(e._wo={})).k=k;e._wo[wn]=d+o;e._wo['f'+wn]=front; // position + devant/derrière de CE fil, repris par la surbrillance DH (le fil lui-même devient rouge, pointillé s'il passe derrière)
           const st3=`stroke="${WIRE[wn].color}" stroke-width="${Math.max(1.4/k,.022*ppm)}" fill="none" ${front?'':'stroke-dasharray="'+(.25*ppm)+' '+(.15*ppm)+'"'} opacity="${front?.95:.55}" stroke-linejoin="round"`;
-          if(brT&&wn===wbT){ // ce fil PLONGE dans le té (aller-retour le long de la branche), il ne traverse pas tout droit
+          if(brT&&wn===wbT){ // ce fil PLONGE dans le té, il ne traverse pas tout droit (maquette validée 25/08)
             const pl=e.axis[0];const Lax2=polyLen(pl);const b0={x:brT[0][0],y:brT[0][1]},b1={x:brT[1][0],y:brT[1][1]};
             let mB=Lax2/2;{let bd=1e9,m2=0;for(let i2=1;i2<pl.length;i2++){const seg2=Math.hypot(pl[i2].x-pl[i2-1].x,pl[i2].y-pl[i2-1].y);const n2=Math.max(1,Math.ceil(seg2/.3));for(let t2=0;t2<=n2;t2++){const q2={x:pl[i2-1].x+(pl[i2].x-pl[i2-1].x)*t2/n2,y:pl[i2-1].y+(pl[i2].y-pl[i2-1].y)*t2/n2};const dd2=Math.hypot(q2.x-b0.x,q2.y-b0.y);if(dd2<bd){bd=dd2;mB=m2+seg2*t2/n2;}}m2+=seg2;}}
             const gap2=Math.max(.12,casingOf({dn:e.dnb||e.dn})*EX*.55);const mm0=bare+.02,mm1=Lax2-bare-.02;
             const A1=offsetPoly(axisSub(pl,mm0,Math.max(mm0+.01,mB-gap2)),d+o),A2=offsetPoly(axisSub(pl,Math.min(mm1-.01,mB+gap2),mm1),d+o);
-            const ux=b1.x-b0.x,uy=b1.y-b0.y;const uL=Math.hypot(ux,uy)||1;const nx2=-uy/uL,ny2=ux/uL;const s4=Math.max(1.2/k,.05*ppm);const tip=Math.min(.2,uL*.1);
+            const mode3=child?antennaMode(child,c,e).mode:'serie';
+            const ux=b1.x-b0.x,uy=b1.y-b0.y;const uL=Math.hypot(ux,uy)||1;const nx2=-uy/uL,ny2=ux/uL;const s4=Math.max(1.2/k,.05*ppm);
+            const tip=mode3==='none'?Math.min(uL*.45,uL-.2):Math.min(.12,uL*.06); // non raccordé : les brins s'arrêtent à mi-branche, en attente
             const e1={x:b1.x-ux/uL*tip+nx2*s4,y:b1.y-uy/uL*tip+ny2*s4},e2={x:b1.x-ux/uL*tip-nx2*s4,y:b1.y-uy/uL*tip-ny2*s4};
             if(A1.length>1)net+=`<path d="${pathD(A1)}" ${st3}/>`;
             if(A2.length>1)net+=`<path d="${pathD(A2)}" ${st3}/>`;
             const P1=A1.length?A1[A1.length-1]:null,P2=A2.length?A2[0]:null;
             if(P1)net+=`<path data-wtee="1" d="M${P1.x} ${P1.y} L${e1.x} ${e1.y}" ${st3}/>`; // aller : le fil descend dans la branche
-            if(P2)net+=`<path data-wtee="1" d="M${e2.x} ${e2.y} L${P2.x} ${P2.y}" ${st3}/>`; // retour : il en revient et continue
+            if(P2)net+=`<path data-wtee="1" d="M${e2.x} ${e2.y} L${P2.x} ${P2.y}" ${st3}/>`; // retour
+            if(mode3==='boucle'){const eb={x:b1.x-ux/uL*(tip*.2),y:b1.y-uy/uL*(tip*.2)}; // BOUCLÉ AU MANCHON de sortie : le U se ferme là, pas dans la pièce
+              net+=`<path data-wteeu="tee" d="M${e1.x} ${e1.y} Q ${eb.x} ${eb.y} ${e2.x} ${e2.y}" ${st3}/>`;}
             return;}
-          net+=`<path d="${e.axis.map(pl=>pathD(offsetPoly(axisSub(pl,bare+.02,polyLen(pl)-bare-.02),d+o))).join(' ')}" ${st3}/>`;});}
+          net+=`<path d="${e.axis.map(pl=>pathD(offsetPoly(axisSub(pl,bare+.02,polyLen(pl)-bare-.02),d+o))).join(' ')}" ${st3}/>`;});
+        if(i===0&&line.parent&&state.lines[line.parent]&&antennaMode(line.id,c).mode==='boucle'){ // antenne isolée : SES fils aussi pontés au manchon de sortie (de part et d'autre — le manchonneur)
+          const pl0=e.axis[0];if(pl0&&pl0.length>1){const heads=['E','N'].map(wn2=>{const a2=clockPos(e,wn2);const o2=(-Math.sin(rad(a2)))*casingOf(e)*EX*.37*ppm;const sb=offsetPoly(axisSub(pl0,bare+.02,Math.min(polyLen(pl0),bare+.4)),d+o2);return sb[0];}).filter(Boolean);
+          if(heads.length===2){const tx3=pl0[1].x-pl0[0].x,ty3=pl0[1].y-pl0[0].y;const tL3=Math.hypot(tx3,ty3)||1;
+            const mx3=(heads[0].x+heads[1].x)/2-tx3/tL3*Math.max(1.6/k,.08*ppm),my3=(heads[0].y+heads[1].y)/2-ty3/tL3*Math.max(1.6/k,.08*ppm);
+            net+=`<path data-wteeu="ant" d="M${heads[0].x} ${heads[0].y} Q ${mx3} ${my3} ${heads[1].x} ${heads[1].y}" stroke="#c78a3f" stroke-width="${Math.max(1.4/k,.022*ppm)}" fill="none" stroke-linejoin="round"/>`;}}}}
       if(detail){const mid=elMid(e);const mx=mid.x+mid.ty*d,my=mid.y-mid.tx*d;const ang=Math.atan2(mid.ty,mid.tx)*180/Math.PI;
         if(e.kind==='valve')net+=`<g transform="translate(${mx} ${my}) rotate(${ang})"><rect x="${-w*.22}" y="${-w*.62}" width="${w*.44}" height="${w*1.24}" rx="${w*.06}" fill="#2b2e33"/><rect x="${-w*.05}" y="${-w*.62-w*.5}" width="${w*.1}" height="${w*.5}" fill="#2b2e33"/><rect x="${-w*.28}" y="${-w*.62-w*.6}" width="${w*.56}" height="${w*.12}" rx="${w*.04}" fill="#3d4147"/></g>`;
         else if(e.kind==='endcap'){const p=e.to;const nx=mid.ty,ny=-mid.tx;net+=`<line x1="${p.x+nx*d-nx*w*.6}" y1="${p.y+ny*d-ny*w*.6}" x2="${p.x+nx*d+nx*w*.6}" y2="${p.y+ny*d+ny*w*.6}" stroke="#2b2e33" stroke-width="${Math.max(2/k,.08*ppm)}" stroke-linecap="round"/>`;}
         else if(e.kind==='reducer')net+=`<text x="${mx}" y="${my+w*.2}" font-size="${w*.6}" font-weight="700" fill="#fff" text-anchor="middle" font-family="system-ui,sans-serif" pointer-events="none" opacity=".8">R</text>`;}
-      if(showElLabels&&(S.pieces||S.cotes)&&(c==='A'||line.single)){const mid=elMid(e);const lp={x:mid.x+mid.ty*d*2.6,y:mid.y-mid.tx*d*2.6};const fs=Math.max(10/k,.3*ppm);
+      if(showElLabels&&(S.pieces||S.cotes)&&(c==='A'||line.single)){const mid=elMid(e);const lp=e.kind==='teeout'?{x:mid.x+mid.tx*(w*1.6)+mid.ty*d*1.4,y:mid.y+mid.ty*(w*1.6)-mid.tx*d*1.4}:{x:mid.x+mid.ty*d*2.6,y:mid.y-mid.tx*d*2.6};const fs=Math.max(10/k,Math.min(.3*ppm,17/k));
         // cases 👁 : nom de la pièce (P7, C5, T2 · té…) et/ou cote (longueur, angle) — les deux, l'un ou l'autre
         const isPB=e.kind==='pipe'||e.kind==='bend'||e.kind==='steelbend';const name=S.pieces?(isPB?e.id:`${e.id} · ${e.kindLabel||e.kind}`)+((e.rot||e.flip)?' ↻'+e.rot+'°':''):'';const cote=S.cotes?(e.kind==='pipe'?`${fmt(e.len)} m`:(e.kind==='bend'||e.kind==='steelbend')&&e.angle?`${e.angle}°`:''):'';const lab=[name,cote].filter(Boolean).join(' · ');
         if(lab)net+=`<text x="${lp.x}" y="${lp.y}" font-size="${fs}" fill="#333" text-anchor="middle" font-family="system-ui,sans-serif" paint-order="stroke" stroke="#fff" stroke-width="${fs*.25}" pointer-events="none">${esc(lab)}</text>`;}
@@ -892,7 +916,7 @@ function renderPlan(){
     const ob=$('#offscreen');if(ob)ob.style.display=off&&sh.lines.length?'':'none';}
   $('#legend').innerHTML=`<span><i class="bar" style="background:#c8382f"></i>aller</span><span><i class="bar" style="background:#2a5fb4"></i>retour</span>`+ORDER.map(s=>`<span><i style="${s==='a_souder'?`border-color:${STATUS[s].color};background:#fff`:`background:${STATUS[s].color};border-color:${STATUS[s].color}`}"></i>${STATUS[s].label}</span>`).join('')+`<span><i class="bar" style="background:#dfe4ea;border:1px solid #999"></i>étamé</span><span><i class="bar" style="background:#e2843a"></i>nu</span><span>${lod<3?'zoome : manchons puis détail':lod<12?'zoome pour le détail des pièces (bouts d\'acier, manchons, n°)':lod<30?'zoome encore pour les fils':'fils visibles'} · 👁 : choisir ce qui s\'affiche</span>`;
   $('#btnList').textContent=state.listMode?'Plan':'Liste';
-  renderGps();renderHydroOverlay();renderDhOverlay();renderStockOverlay();
+  renderGps();renderHydroOverlay();renderDhOverlay();renderStockOverlay();renderTsOverlay();
 }
 
 /* ---------- pan / zoom / tap ---------- */
@@ -1064,8 +1088,21 @@ function jointView(l,c,j){const {els}=l.cond[c];const a=els[j.idx],b=els[j.idx+1
 const gaineMM=dn=>{const g=casingOf({dn:+dn});return g?Math.round(g*1000):null;};
 function stockNeedOf(l,c,j,mode){if(mode==='piece')return stockPieceOf(l,c,j);
   const e=l.cond[c].els[j.idx];const dn=+((e&&e.dn)||l.dn);const g=(e&&e.casing)||gaineMM(dn);
-  if(mode==='pu')return {kind:'pu',dn,label:'Mousse PU (A+B) DN'+dn}; // choisie par le manchonneur AU MOUSSAGE (étape 4) — par DN désormais
+  if(mode==='pu')return {kind:'pu',dn,label:'Mousse PU (A+B) DN'+dn+(g?' · Ø'+g:'')}; // choisie par le manchonneur AU MOUSSAGE (étape 4) — par DN, Ø gaine affiché
   return {kind:'sleeve',dn,casing:e&&e.casing,label:'Manchon DN'+dn+(g?' · Ø'+g:'')};}
+// mini-carte du choix de zone (retour Ethan 25/08 soir : « sélectionner au doigt sur la carte, que les gars ne se trompent pas ») :
+// zones vertes = ont la pièce (touchables), grises = ne l'ont pas, orange = pré-choisie ; le point rouge = LA soudure.
+function stockPickMapSVG(zs,p,mode){const s=stockOf();if(!s)return '';const zsAll=s.zones.filter(z=>z.status==='ok');if(!zsAll.length)return '';
+  let x0=p.x,y0=p.y,x1=p.x,y1=p.y;zsAll.forEach(z=>{x0=Math.min(x0,z.x-z.w/2);y0=Math.min(y0,z.y-z.h/2);x1=Math.max(x1,z.x+z.w/2);y1=Math.max(y1,z.y+z.h/2);});
+  const pad=Math.max(8,(x1-x0)*.14,(y1-y0)*.14);x0-=pad;y0-=pad;x1+=pad;y1+=pad;const vw=x1-x0,vh=y1-y0;
+  let out='';
+  Object.values(state.lines).forEach(l2=>{const pts=(l2.pts||[]);if(pts.length>1)out+=`<path d="M ${pts.map(q=>q.x+' '+q.y).join(' L ')}" stroke="#b9b6ad" stroke-width="1.4" vector-effect="non-scaling-stroke" fill="none"/>`;});
+  const okIds=new Set(zs.map(o2=>o2.z.id));const pre=zs.length?zs[0].z.id:null;
+  zsAll.forEach(z=>{const has=okIds.has(z.id);const on=z.id===pre;
+    out+=`<g transform="translate(${z.x} ${z.y}) rotate(${z.rot||0})"><rect x="${-z.w/2}" y="${-z.h/2}" width="${z.w}" height="${z.h}" rx="1" fill="${has?'#0ca30c':'#8f8b80'}" fill-opacity="${on?'0.5':'0.22'}" stroke="${on?'#eb6834':'#8f8b80'}" stroke-width="${on?2.5:1.2}" vector-effect="non-scaling-stroke" ${has?`data-stkpick="${z.id}" data-stkneed="${mode}" ${on?'data-on="1"':''} style="cursor:pointer"`:''}/></g>`;
+    out+=`<text x="${z.x}" y="${z.y-z.h/2-vw*.012}" font-size="${Math.max(2.2,vw*.032)}" text-anchor="middle" font-weight="700" fill="#3c3b36" style="pointer-events:none" font-family="system-ui,sans-serif">${esc(z.name)}${has?'':' — n\'en a pas'}</text>`;});
+  out+=`<circle cx="${p.x}" cy="${p.y}" r="${Math.max(1.4,vw*.014)}" fill="#d03b3b" stroke="#fff" stroke-width="1.6" vector-effect="non-scaling-stroke"/><text x="${p.x}" y="${p.y-Math.max(2.6,vw*.026)}" font-size="${Math.max(2.2,vw*.03)}" text-anchor="middle" font-weight="800" fill="#d03b3b" style="pointer-events:none" font-family="system-ui,sans-serif">la soudure</text>`;
+  return `<svg viewBox="${x0} ${y0} ${vw} ${vh}" preserveAspectRatio="xMidYMid meet" style="width:100%;max-height:180px;background:#edece6;border:1px solid var(--line);border-radius:9px;display:block;margin:4px 0 6px">${out}</svg>`;}
 function stockPickHTML(l,c,j,mode){const s=stockOf();if(!s||!s.zones.some(z=>z.status==='ok'))return '';
   const need=stockNeedOf(l,c,j,mode);if(!need)return '';
   if(mode==='sleeve'&&j.sleeveWith&&s.takes.some(t=>t.weldId===j.sleeveWith&&/^sleeve/.test(t.key)))return `<div class="hint">Manchon déjà compté avec ${esc(j.sleeveWith)} (manchette nue : un seul manchon pour les deux soudures).</div>`;
@@ -1076,7 +1113,7 @@ function stockPickHTML(l,c,j,mode){const s=stockOf();if(!s||!s.zones.some(z=>z.s
   const p=posAtChainage(l,l.cond[c].els[j.idx].m1);const zs=stockZonesFor(need,p.x,p.y);
   if(!zs.length)return mode==='pu'?`<div class="hint">Aucune mousse en stock : ajoute-la à une livraison (catalogue → « Mousse PU (A+B) ») pour la suivre.</div>`:'';
   return `<h3>${mode==='piece'?'Pièce prise dans quel stockage ?':mode==='sleeve'?'Manchon enfilé sur le tube — pris dans quel stockage ?':'Mousse prise dans quel stockage ?'} <span class="muted" style="font-weight:400;font-size:11.5px">${esc(need.label)} — décompte en direct</span></h3>
-   <div class="card" style="padding:8px">${zs.map((o,i)=>`<span class="hyChip" data-stkpick="${o.z.id}" data-stkneed="${mode}" style="cursor:pointer;margin:2px;${i===0?'border-color:#eb6834;background:#fff7f2':''}" ${i===0?'data-on="1"':''}>${esc(o.z.name)} <span class="dim" style="font-size:10px">${o.d<9e8?'à '+fmt(o.d)+' m · ':''}reste ${o.reste}</span></span>`).join('')}<span class="hyChip" data-stkpick="none" data-stkneed="${mode}" style="cursor:pointer;margin:2px">hors stock / ailleurs</span></div>`;}
+   <div class="card" style="padding:8px">${stockPickMapSVG(zs,p,mode)}<div class="hint" style="margin:0 0 4px">Touche la zone sur la carte, ou une pastille :</div>${zs.map((o,i)=>`<span class="hyChip" data-stkpick="${o.z.id}" data-stkneed="${mode}" style="cursor:pointer;margin:2px;${i===0?'border-color:#eb6834;background:#fff7f2':''}" ${i===0?'data-on="1"':''}>${esc(o.z.name)} <span class="dim" style="font-size:10px">${o.d<9e8?'à '+fmt(o.d)+' m · ':''}reste ${o.reste}</span></span>`).join('')}<span class="hyChip" data-stkpick="none" data-stkneed="${mode}" style="cursor:pointer;margin:2px">hors stock / ailleurs</span></div>`;}
 // applique le choix de stockage ; renvoie FALSE si l'utilisateur ne confirme pas (le formulaire s'arrête pour qu'il re-choisisse)
 function stockDoPick(l,c,j,mode){const s=stockOf();const pick=sheetEl.querySelector('[data-stkpick][data-on="1"][data-stkneed="'+mode+'"]');if(!pick||!s)return true;
   const need=stockNeedOf(l,c,j,mode);if(!need)return true;
@@ -1231,7 +1268,12 @@ function collectStep(j,n){const s=j.steps[n]=j.steps[n]||{photos:[]};s.photos=s.
 sheetEl.addEventListener('click',e=>{const b=e.target.closest('[data-act],[data-rot],[data-sw],[data-wire],[data-rotb],[data-flipb],[data-rota],[data-flipa],[data-saut],[data-dhend],[data-stepok],[data-stepundo],[data-stkpick],[data-dhfrz],[data-gostep]');if(!b)return;const s=state.sel;if(!s)return;const l=state.lines[s.line];
   if(b.dataset.dhfrz&&s.kind==='j'){e.preventDefault();showFrozenLoop(l,s.cond,l.cond[s.cond].joints[s.i]);return;}
   if(b.dataset.gostep){e.preventDefault();const d=[...sheetEl.querySelectorAll('.dstep')][+b.dataset.gostep-1];if(d){d.open=true;d.scrollIntoView({block:'center',behavior:'smooth'});d.style.boxShadow='0 0 0 3px rgba(235,104,52,.35)';setTimeout(()=>{d.style.boxShadow='';},1200);}return;}
-  if(b.dataset.stkpick!==undefined){sheetEl.querySelectorAll('[data-stkpick][data-stkneed="'+b.dataset.stkneed+'"]').forEach(x=>{x.removeAttribute('data-on');x.style.borderColor='';x.style.background='';});b.dataset.on='1';b.style.borderColor='#eb6834';b.style.background='#fff7f2';return;}
+  if(b.dataset.stkpick!==undefined){const md6=b.dataset.stkneed,val6=b.dataset.stkpick;
+    sheetEl.querySelectorAll('[data-stkpick][data-stkneed="'+md6+'"]').forEach(x=>{const on=x.dataset.stkpick===val6;
+      if(on)x.dataset.on='1';else x.removeAttribute('data-on');
+      if(x instanceof SVGElement){x.setAttribute('stroke',on?'#eb6834':'#8f8b80');x.setAttribute('stroke-width',on?'2.5':'1.2');x.setAttribute('fill-opacity',on?'0.5':'0.22');}
+      else{x.style.borderColor=on?'#eb6834':'';x.style.background=on?'#fff7f2':'';}});
+    return;}
   const stp=b.dataset.stepok||b.dataset.stepundo;
   if(stp&&s.kind==='j'){e.preventDefault();const j2=l.cond[s.cond].joints[s.i];const n=+stp;j2.steps=j2.steps||{};
     if(b.dataset.stepundo){ // annuler POUR DE VRAI (retour Ethan 25/08 : l'étape revenait toute seule — migrateSteps la recochait depuis le statut resté en place)
@@ -1618,18 +1660,26 @@ function wireTraceSVG(lineId,cond,legs,k,color,mode){const col=color||'#e8102d';
   groups.forEach(g2=>{const L3=state.lines[g2.line];const cd=L3&&L3.cond&&L3.cond[cond];if(!cd)return;
     const lo2=Math.min(g2.p0,g2.p1),hi2=Math.max(g2.p0,g2.p1);
     const wn=g2.kind==='branchBack'?opp(g2.w):g2.w; // dans l'antenne : descend par un fil, REMONTE par l'autre — les deux traits deviennent rouges
-    const ppm=L3.ppm||1;const flw=Math.max(1.4/k,.022*ppm);let pts=[];
+    const ppm=L3.ppm||1;const flw=Math.max(1.4/k,.022*ppm);let first=null,last=null;
+    const glow=col==='#8a2be2'?'#c58cf0':'#ff5f5f';
     cd.els.forEach(e=>{if(e.m1<=lo2||e.m0>=hi2)return;const pl=e.axis&&e.axis[0];if(!pl||pl.length<2)return;
       const Lax=polyLen(pl);const sp=(e.m1-e.m0)||1;
       const sub=axisSub(pl,Lax*(Math.max(lo2,e.m0)-e.m0)/sp,Lax*(Math.min(hi2,e.m1)-e.m0)/sp);
       if(sub.length<2)return;
-      const off=(e._wo&&Math.abs((e._wo.k||0)-k)<1e-9&&e._wo[wn]!==undefined)?e._wo[wn]:0; // fils non dessinés (dézoomé) : l'axe du tube
-      pts=pts.concat(offsetPoly(sub,off));});
-    if(pts.length<2)return;
-    if(g2.p0>g2.p1)pts=pts.slice().reverse();
-    const d2=pathD(pts);
-    s2+=`<path d="${d2}" stroke="#0b0b0b" stroke-width="${flw*2.9}" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".5"/><path d="${d2}" data-wtl="${esc(g2.line)}" stroke="${col}" stroke-width="${flw*1.9}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
-    ends.push({a:pts[0],b:pts[pts.length-1],leg:g2.leg,flw});});
+      const fresh=e._wo&&Math.abs((e._wo.k||0)-k)<1e-9;
+      const off=(fresh&&e._wo[wn]!==undefined)?e._wo[wn]:0; // fils non dessinés (dézoomé) : l'axe du tube
+      const front=(fresh&&e._wo['f'+wn]!==undefined)?e._wo['f'+wn]:true;
+      const o2=offsetPoly(sub,off);if(o2.length<2)return;
+      if(!first)first=o2[0];last=o2[o2.length-1];
+      const d2=pathD(o2);
+      s2+=`<path d="${d2}" stroke="#0b0b0b" stroke-width="${flw*2.9}" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="${front?.5:.35}"/>`;
+      if(front){ // fil devant : rouge plein + filet lumineux animé (l'ancienne animation, mais posée SUR le fil)
+        s2+=`<path d="${d2}" data-wtl="${esc(g2.line)}" stroke="${col}" stroke-width="${flw*1.9}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+        s2+=`<path d="${d2}" stroke="${glow}" stroke-width="${flw*.85}" fill="none" stroke-linecap="round" stroke-dasharray="${9/k} ${15/k}" opacity=".95"><animate attributeName="stroke-dashoffset" values="${48/k};0" dur="1.3s" repeatCount="indefinite"/></path>`;}
+      else{ // fil qui passe DERRIÈRE : la surbrillance reprend le pointillé du fil original, animée
+        s2+=`<path d="${d2}" data-wtl="${esc(g2.line)}" stroke="${col}" stroke-width="${flw*1.9}" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="${.25*ppm} ${.15*ppm}" opacity=".85"><animate attributeName="stroke-dashoffset" values="${.8*ppm};0" dur="1.6s" repeatCount="indefinite"/></path>`;}});
+    if(!first)return;
+    ends.push(g2.p0>g2.p1?{a:last,b:first,leg:g2.leg,flw}:{a:first,b:last,leg:g2.leg,flw});});
   const joint=(A,B,flw)=>{const d3=Math.hypot(B.x-A.x,B.y-A.y);if(d3<0.01||d3>6)return ''; // jonctions réelles : fils du même tube, té→antenne — jamais plus de quelques mètres
     return `<path d="M${A.x} ${A.y} L${B.x} ${B.y}" stroke="#0b0b0b" stroke-width="${flw*2.9}" fill="none" stroke-linecap="round" opacity=".5"/><path d="M${A.x} ${A.y} L${B.x} ${B.y}" data-wtc="1" stroke="${col}" stroke-width="${flw*1.9}" fill="none" stroke-linecap="round"/>`;};
   for(let i=1;i<ends.length;i++){if(mode==='loop'&&ends[i].leg!==ends[i-1].leg)continue;s2+=joint(ends[i-1].b,ends[i].a,ends[i].flw);} // inversion, entrée/sortie d'antenne, pont étamé→nu : reliés
@@ -1637,6 +1687,14 @@ function wireTraceSVG(lineId,cond,legs,k,color,mode){const col=color||'#e8102d';
     if(L0.length&&L1.length){s2+=joint(L0[0].a,L1[0].a,L0[0].flw);s2+=joint(L0[L0.length-1].b,L1[L1.length-1].b,L0[0].flw);}} // les 2 fils de la boucle reliés aux 2 bouts (testeur / fermeture ⟲)
   return s2;}
 // défaut DH sur le plan : le TRAJET du fil est surligné depuis le départ de la ligne racine, la distance cotée, la zone du défaut marquée (± incertitude) — « pas juste un point »
+function renderTsOverlay(){const g=document.getElementById('tsG');if(!g)return;if(!nOn('ts')){g.innerHTML='';return;}
+  const k=state.view.k;let s='';const COLS={propose:'#c9a227',commande:'#eb6834',forfait:'#8a2be2'};
+  Object.values(state.lines).forEach(l=>{const hm=l.hm;if(!hm||!hm.etat||hm.etat==='marche')return;const col=COLS[hm.etat]||'#c9a227';const pts=l.pts||[];if(pts.length<2)return;
+    const d0='M '+pts.map(p2=>p2.x+' '+p2.y).join(' L ');
+    s+=`<path d="${d0}" stroke="${col}" stroke-width="${11/k}" fill="none" opacity=".25" stroke-linecap="round"/><path d="${d0}" stroke="${col}" stroke-width="${2.4/k}" fill="none" stroke-dasharray="${10/k} ${6/k}"/>`;
+    const mid=pts[Math.floor(pts.length/2)];const lab=(hm.ts||'TS')+' · '+(HM_ET[hm.etat]||hm.etat);const wl=lab.length*6.4+16;
+    s+=`<g transform="translate(${mid.x} ${mid.y}) scale(${1/k})"><rect x="${-wl/2}" y="-30" width="${wl}" height="17" rx="8.5" fill="${col}"/><text y="-17.5" font-size="10" font-weight="800" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">${esc(lab)}</text></g>`;});
+  g.innerHTML=s?`<g style="pointer-events:none">${s}</g>`:'';}
 function renderDhOverlay(){if(!dhG)return;const r=state.loc;if(!r||!state.dhShowLoc||!state.lines[r.line]){dhG.innerHTML='';return;}
   const k=state.view.k;const l=state.lines[r.line];
   const segsP=[];{let L2=l,m=r.phys;while(L2){segsP.unshift({l:L2,m0:0,m1:m});const pm=+L2.parentM||0;L2=L2.parent&&state.lines[L2.parent]?state.lines[L2.parent]:null;m=pm;}}
@@ -1826,7 +1884,7 @@ function stockNeeds(){const need={};const lab={};Object.values(state.lines).forE
     else if(e.kind==='reducer')o={kind:'reducer',dn:+e.dn||+l.dn,dn2:+e.dn2||undefined};
     if(o){const k=matchKey(o);need[k]=(need[k]||0)+1;lab[k]=stockLabel({...o,len:12});}});
   const seenSl=new Set();cd.joints.forEach(j=>{if(j.sleeveWith&&seenSl.has(j.weldId))return;if(j.sleeveWith)seenSl.add(j.sleeveWith);const e=cd.els[j.idx];const dn=+((e&&e.dn)||l.dn);const o={kind:'sleeve',dn,gaine:(e&&e.casing)||gaineMM(dn)||undefined};const k=matchKey(o);need[k]=(need[k]||0)+1;lab[k]=stockLabel(o);
-    const kp='pu:'+dn;need[kp]=(need[kp]||0)+1;lab[kp]='Mousse PU (A+B) DN'+dn;});});});return {need,lab};} // 1 dose de mousse par manchon, au DN du manchon
+    const kp='pu:'+dn;need[kp]=(need[kp]||0)+1;lab[kp]='Mousse PU (A+B) DN'+dn+(o.gaine?' · Ø'+o.gaine:'');});});});return {need,lab};} // 1 dose de mousse par manchon, au DN du manchon
 // ce qui est DÉJÀ POSÉ (soudé ou plus) par référence : la moitié « demande » du récap besoin / livré / reste
 function stockPosed(rootId){const done={};const inSel=l=>{if(!rootId)return true;let L2=l;for(let g=0;g<8&&L2;g++){if(L2.id===rootId)return true;L2=L2.parent&&state.lines[L2.parent]?state.lines[L2.parent]:null;}return false;};
   Object.values(state.lines).filter(inSel).forEach(l=>{['A','R'].forEach(c=>{const cd=l.cond[c];if(!cd)return;
@@ -1989,13 +2047,13 @@ function openStockLiv(){const s=stockOf();if(!s){toast('Aucun chantier');return;
   const DNS=[20,25,32,40,50,65,80,100,125,150,200,250,300,350,400];
   const KINDS=[['pipe','Barre 12 m'],['bend','Coude'],['tee','Té'],['reducer','Réduction'],['sleeve','Manchon'],['sleeveEnd','Manchon fin de ligne'],['kit','Kit fin de ligne'],['dhec','DHEC'],['wall','Passage de mur'],['pu','Mousse PU (A+B) — 1 par manchon'],['acc','Autre / accessoire']];
   const NODN=k2=>k2==='acc'; // la mousse est PAR DN désormais (retour Ethan)
-  const keep=()=>{const g=id=>document.getElementById(id);const n=g('stk-name');if(n)st2.name=n.value;const b=g('stk-bl');if(b)st2.bl=b.value;const d=g('stk-date');if(d&&d.value)st2.date=d.value;const pv=g('stk-prev');if(pv)st2.prev=pv.checked;const z3=g('stk-zone');if(z3)st2.dest=z3.value;}; // le modal se re-rend à chaque ajout : sans ça la date (et le nom) saisis retombaient sur les valeurs du jour — bug remonté par Ethan
+  const keep=()=>{const g=id=>document.getElementById(id);const n=g('stk-name');if(n)st2.name=n.value;const b=g('stk-bl');if(b)st2.bl=b.value;const d=g('stk-date');if(d&&d.value)st2.date=d.value;const pv=g('stk-prev');if(pv)st2.prev=pv.checked;const z3=g('stk-zone');if(z3)st2.dest=z3.value;const am=g('stk-adm');if(am)st2.adm=am.checked;}; // le modal se re-rend à chaque ajout : sans ça la date (et le nom) saisis retombaient sur les valeurs du jour — bug remonté par Ethan
   const rd=()=>{keep();openModal(`<h3 style="margin-top:0">Nouvelle livraison — camion</h3>
    <div class="row" style="display:flex;gap:6px"><div style="flex:1"><label class="f">Nom</label><input class="f" id="stk-name" value="${esc(st2.name==null?('Camion '+(s.livs.length+1)):st2.name)}"></div><div style="flex:1"><label class="f">N° de BL (optionnel)</label><input class="f" id="stk-bl" value="${esc(st2.bl||'')}"></div></div>
    <label class="f">Date de livraison ${st2.date?'':'(prévue)'}</label><input class="f" type="date" id="stk-date" value="${st2.date||isoD(new Date())}">
    <div class="seg" style="display:flex;border:1.5px solid var(--line);border-radius:10px;overflow:hidden;margin:8px 0">${[['cat','Catalogue'],['bl','BL (PDF)'],['nom','Depuis le calepinage']].map(([k,t])=>`<div data-stksrc="${k}" style="flex:1;text-align:center;padding:7px 4px;font-size:12px;font-weight:700;cursor:pointer;${st2.src===k?'background:var(--ink);color:#fff':''}">${t}</div>`).join('')}</div>
    <div id="stk-srcbox">${st2.src==='cat'?`<div class="row" style="display:flex;gap:6px;flex-wrap:wrap;align-items:end"><div><label class="f">Pièce</label><select class="f" id="stk-kind">${KINDS.map(k=>`<option value="${k[0]}">${k[1]}</option>`).join('')}</select></div><div><label class="f">DN (acier)</label><select class="f" id="stk-dn">${DNS.map(d=>`<option ${d===100?'selected':''}>${d}</option>`).join('')}</select><div class="dim" id="stk-od" style="font-size:10.5px;margin-top:2px"></div></div><div id="stk-dn2box" style="display:none"><label class="f">DN branche</label><select class="f" id="stk-dn2">${DNS.map(d=>`<option ${d===50?'selected':''}>${d}</option>`).join('')}</select></div><div id="stk-angbox" style="display:none"><label class="f">Angle</label><select class="f" id="stk-ang">${[90,75,60,45,30,15].map(a=>`<option>${a}</option>`).join('')}</select></div><div><label class="f">Qté</label><input class="f" id="stk-qty" type="number" value="12" style="width:70px"></div><button class="btn" id="stk-add">Ajouter</button></div>`
-    :st2.src==='bl'?`<label class="f">Bon de livraison (PDF — AXIOM, Renalia, LOGSTOR reconnus)</label><input class="f" type="file" id="stk-pdf" accept="application/pdf">${st2.blInfo?`<div class="hint" style="margin-top:4px">${st2.blInfo}</div>`:''}<p class="hint">Les lignes reconnues arrivent ci-dessous : vérifie chaque quantité — jamais d'import aveugle. Un BL scanné (photo) n'a pas de texte : saisis alors par le catalogue.</p>`
+    :st2.src==='bl'?`<label class="f">Bon de livraison (PDF — AXIOM, Renalia, LOGSTOR reconnus)</label><input class="f" type="file" id="stk-pdf" accept="application/pdf">${st2.blInfo?`<div class="hint" style="margin-top:4px">${st2.blInfo}</div>`:''}${nOn('admin')&&st2.blFile?`<label style="display:flex;gap:6px;align-items:center;font-size:12px;margin-top:4px"><input type="checkbox" id="stk-adm" ${st2.adm===false?'':'checked'}> Classer ce PDF au dossier administratif (Bons de livraison)</label>`:''}<p class="hint">Les lignes reconnues arrivent ci-dessous : vérifie chaque quantité — jamais d'import aveugle. Un BL scanné (photo) n'a pas de texte : saisis alors par le catalogue.</p>`
     :`<p class="hint" style="margin-top:0">Ce qui MANQUE encore au calepinage (besoin − déjà livré), pré-rempli — ajuste :</p><button class="btn ghost" id="stk-fill">Remplir avec le manquant</button>`}</div>
    <div style="margin-top:8px">${st2.lines.length?stockLivLinesHTML(st2.lines):'<div class="dim" style="font-size:12px">Aucune ligne pour l\'instant.</div>'}</div>
    <label style="display:flex;gap:7px;align-items:center;font-size:12.5px;margin-top:8px"><input type="checkbox" id="stk-prev" ${st2.prev?'checked':''}> Déchargement <b>prévu</b> (camion pas encore arrivé — attendu jusqu'au pointage à l'arrivée ; pré-répartissable sur plusieurs zones)</label>
@@ -2006,10 +2064,10 @@ function openStockLiv(){const s=stockOf();if(!s){toast('Aucun chantier');return;
    const kd=$('#stk-kind');if(kd){const upd=()=>{$('#stk-dn2box').style.display=(kd.value==='tee'||kd.value==='reducer')?'':'none';$('#stk-angbox').style.display=kd.value==='bend'?'':'none';$('#stk-dn').parentElement.style.display=NODN(kd.value)?'none':'';
        const od=$('#stk-od');if(od){const g=/sleeve/.test(kd.value)?gaineMM(+$('#stk-dn').value):null;od.textContent=g?'Ø ext. gaine ≈ '+g+' mm':'';}};kd.onchange=upd;$('#stk-dn').onchange=upd;upd();
      $('#stk-add').onclick=()=>{const o={kind:kd.value,dn:NODN(kd.value)?undefined:+$('#stk-dn').value,qty:Math.max(1,+$('#stk-qty').value||1)};if(kd.value==='bend')o.angle=+$('#stk-ang').value;if(kd.value==='tee'||kd.value==='reducer')o.dn2=+$('#stk-dn2').value;if(kd.value==='pipe')o.len=12;
-       if(/sleeve/.test(o.kind)&&!o.gaine){const g=gaineMM(o.dn);if(g)o.gaine=g;} // l'enveloppe extérieure sur le libellé : un manchon se pense en Ø gaine
+       if((/sleeve/.test(o.kind)||o.kind==='pu')&&!o.gaine){const g=gaineMM(o.dn);if(g)o.gaine=g;} // l'enveloppe extérieure sur le libellé : manchon ET mousse se pensent en Ø gaine
        o.label=stockLabel(o);o.key=stockKey(o);
        const ex=st2.lines.find(l=>l.key===o.key);if(ex)ex.qty+=o.qty;else st2.lines.push(o);
-       if(o.kind==='sleeve'||o.kind==='sleeveEnd'){const pu={kind:'pu',dn:o.dn,qty:o.qty};pu.label=stockLabel(pu);pu.key=stockKey(pu); // un manchon = sa mousse : la dose du même DN suit toute seule (ajuste ou supprime la ligne si besoin)
+       if(o.kind==='sleeve'||o.kind==='sleeveEnd'){const pu={kind:'pu',dn:o.dn,gaine:o.gaine,qty:o.qty};pu.label=stockLabel(pu);pu.key=stockKey(pu); // un manchon = sa mousse : la dose du même DN suit toute seule (ajuste ou supprime la ligne si besoin)
          const exp=st2.lines.find(l=>l.key===pu.key);if(exp)exp.qty+=pu.qty;else st2.lines.push(pu);toast('+ '+pu.qty+' × '+pu.label+' ajoutée(s) automatiquement (1 dose par manchon)');}
        rd();};}
    const pf=$('#stk-pdf');if(pf)pf.onchange=async()=>{const f=pf.files[0];if(!f)return;st2.blInfo='Lecture du PDF…';rd();
@@ -2020,7 +2078,7 @@ function openStockLiv(){const s=stockOf();if(!s){toast('Aucun chantier');return;
        const R=parseBL(txt);
        if(R.empty||!R.lines.length){const smp=txt.split('\n').map(x=>x.trim()).filter(Boolean).slice(0,8).join('<br>').slice(0,600);
          st2.blInfo='<b style="color:#8a1f1f">Aucune ligne reconnue'+(R.empty?' (PDF scanné, sans texte — une photo de BL ne se lit pas)':'')+'</b> — saisis par le catalogue.'+(smp?'<details style="margin-top:4px"><summary style="cursor:pointer">Ce que je lis dans ce PDF (envoie-moi ce BL pour que je l\'apprenne)</summary><div class="dim" style="font-size:10.5px;line-height:1.5">'+smp+'</div></details>':'');}
-       else{R.lines.forEach(l=>{l.key=stockKey(l);l.label=stockLabel(l).replace('Divers',l.label||'Divers');const ex=st2.lines.find(x=>x.key===l.key);if(ex)ex.qty+=l.qty;else st2.lines.push(l);});
+       else{st2.blFile=f;R.lines.forEach(l=>{l.key=stockKey(l);l.label=stockLabel(l).replace('Divers',l.label||'Divers');const ex=st2.lines.find(x=>x.key===l.key);if(ex)ex.qty+=l.qty;else st2.lines.push(l);});
          st2.blInfo='BL <b>'+esc(R.fmt.toUpperCase())+'</b> lu : '+R.lines.length+' lignes reconnues'+(R.others&&R.others.length?' · '+R.others.length+' ignorée(s)':'')+' — vérifie les quantités.';
          if(!$('#stk-bl').value&&/BL\s*[\dA-Z]/.test(f.name))$('#stk-bl').value=f.name.replace(/\.pdf$/i,'');}
        rd();}catch(err){console.warn(err);st2.blInfo='<b style="color:#8a1f1f">PDF illisible ici</b> ('+esc(err.message||err)+') — saisis par le catalogue.';rd();}};
@@ -2031,7 +2089,8 @@ function openStockLiv(){const s=stockOf();if(!s){toast('Aucun chantier');return;
    $('#stk-ok').onclick=()=>{st2.lines=st2.lines.filter(l=>l.qty>0);if(!st2.lines.length){toast('Aucune ligne');return;}
      const prev2=$('#stk-prev').checked;
      const liv={id:'L'+Date.now().toString(36),label:$('#stk-name').value||'Camion',bl:$('#stk-bl').value||'',at:new Date().toISOString(),date:$('#stk-date').value||isoD(new Date()),dateHist:[],by:(me()||{}).name||state.userId,status:prev2?'prevu':'ok',prevu:st2.lines.map(l=>({label:l.label,qty:l.qty}))};
-     s.livs.push(liv);const lots=st2.lines.map((l,i)=>({id:liv.id+':'+i,liv:liv.id,zone:null,pend:prev2,key:l.key||stockKey(l),label:l.label,kind:l.kind,dn:l.dn,dn2:l.dn2,gaine:l.gaine,len:l.len,angle:l.angle,qty:l.qty}));
+     s.livs.push(liv);if(st2.blFile&&st2.adm!==false)try{nextAdminAddBL(st2.blFile,liv);}catch(e9){}
+     const lots=st2.lines.map((l,i)=>({id:liv.id+':'+i,liv:liv.id,zone:null,pend:prev2,key:l.key||stockKey(l),label:l.label,kind:l.kind,dn:l.dn,dn2:l.dn2,gaine:l.gaine,len:l.len,angle:l.angle,qty:l.qty}));
      const dest=$('#stk-zone').value;
      if(dest!=='__new'){lots.forEach(l2=>{l2.zone=dest;s.lots.push(l2);});saveStock();closeModal();renderStock();renderPlan();toast(prev2?'Camion attendu — pointage à l\'arrivée (registre des livraisons)':'Livraison ajoutée à « '+((stockZoneById(dest)||{}).name||'')+' »');}
      else{closeModal();startStockPose({liv:liv.id,name:liv.label,status:prev2?'prevu':'ok',lots});}};};
@@ -2213,12 +2272,13 @@ function renderRecap(){const el=$('#recap');if(!el)return;if(!NET||!Object.keys(
   <h3>Manchons à poser</h3><div style="overflow:auto"><table class="rc"><tr><th>DN</th><th>Soudures</th><th>Manchons</th><th>Posés</th><th>Restants</th></tr>${dns.map(dn=>{const ws=D.welds.filter(w=>w.dn===dn);const pairs=ws.filter(w=>w.j.sleeveWith).length/2;const nm=ws.length-Math.floor(pairs);const done=ws.filter(w=>w.j.status==='manchonnee').length-Math.floor(ws.filter(w=>w.j.status==='manchonnee'&&w.j.sleeveWith).length/2);return `<tr><td>DN${dn}</td><td>${ws.length}</td><td><b>${nm}</b></td><td>${done}</td><td>${nm-done}</td></tr>`;}).join('')}</table></div><div class="muted" style="font-size:11.5px;margin-top:-6px">Deux soudures d'une manchette nue partagent un manchon.</div>
   <div class="row" style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" id="csvWelds">⤓ CSV soudures</button><button class="btn sm" id="csvPieces">⤓ CSV pièces</button></div>`;
   el.innerHTML=h;
+  el.insertAdjacentHTML('beforeend',nextTsRecapHTML()+nextDoeHTML());nextBindRecap(el);nextBindDoe(el);
   const dl=(name,rows)=>{const csv='﻿'+rows.map(r=>r.map(v=>{const s=String(v??'');return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(';')).join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);};
   const slug=String(NET.name||'chantier').replace(/[^\w.-]+/g,'_');
   $('#csvWelds').onclick=()=>{const rows=[['N°','Ligne','Conduite','DN','PK (m)','Statut','Fausse coupe (°)','Sortie de té','Même manchon que','Fils','Dernier événement','Par','Le','Photos','Note']];
     D.welds.forEach(({j,l,c,dn,pk})=>{const ev=(j.events||[]).slice(-1)[0];rows.push([j.weldId,l.name,c==='A'?'aller':'retour',dn,fmt(pk),(STATUS[j.status]||{}).label||j.status,j.fc?fmt(Math.abs(j.dev)):'',j.teeOut?'oui':'',j.sleeveWith||'',j.wire==='inversion'?'inversion':j.wire==='raccorde'?'raccordés':'',ev?ev.type:'',ev?ev.by:'',ev&&ev.at?new Date(ev.at).toLocaleString('fr-FR'):'',(j.photos||[]).length+(j.events||[]).reduce((s,e)=>s+((e.photos||[]).length),0),j.note||'']);});dl(slug+'_soudures.csv',rows);};
   $('#csvPieces').onclick=()=>{const rows=[['Pièce','DN','Quantité','Aller','Retour','ml','Référence catalogue']];D.pieces.forEach(g=>rows.push([g.lab,g.dn||'',g.n,g.nA,g.nR,g.ml?fmt(g.ml):'',g.ref||'']));dl(slug+'_pieces.csv',rows);};}
-function renderAll(){if(state.tab==='catalogue')renderCatalogue();if(state.tab==='recap')renderRecap();if(state.tab==='hydro'){hydroCache=null;renderHydro();}if(state.tab==='stock')renderStock();$$('#tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.tab===state.tab));$$('.view').forEach(v=>v.classList.toggle('active',v.id==='view-'+state.tab));renderPlan();if(state.tab==='bouclage')renderBouclage();renderListe();}
+function renderAll(){nextRenderTab(state.tab);if(state.tab==='catalogue')renderCatalogue();if(state.tab==='recap')renderRecap();if(state.tab==='hydro'){hydroCache=null;renderHydro();}if(state.tab==='stock')renderStock();$$('#tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.tab===state.tab));$$('.view').forEach(v=>v.classList.toggle('active',v.id==='view-'+state.tab));renderPlan();if(state.tab==='bouclage')renderBouclage();renderListe();}
 $('#tabbar').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;state.tab=b.dataset.tab;closeSheet();renderAll();});
 const roleSel=$('#roleSel');function syncRoleSel(){roleSel.innerHTML='';if(state.profile){const o=document.createElement('option');o.value='__me';o.textContent=`${state.profile.name||state.profile.email} — ${ROLE_LABEL[state.profile.role]||state.profile.role}`;roleSel.appendChild(o);}USERS.forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=`${u.name} — ${ROLE_LABEL[u.role]}`;roleSel.appendChild(o);});roleSel.value=state.userId;}
 USERS.forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=`${u.name} — ${ROLE_LABEL[u.role]}`;roleSel.appendChild(o);});
@@ -2333,6 +2393,7 @@ function renderHome(){if(!$('#homeView'))return;
   const metas=homeMetas();$('#homeCount').textContent=metas.length?`${metas.length} chantier${metas.length>1?'s':''} · choisis pour ouvrir`:'aucun chantier pour l\'instant';
   $('#htMap').classList.toggle('on',state.homeTab==='map');$('#htList').classList.toggle('on',state.homeTab!=='map');
   $('#homeBody').innerHTML=state.homeTab==='map'?homeMapHTML(metas):homeListHTML(metas);
+  {let nxc=$('#homeNext');if(!nxc){nxc=document.createElement('div');nxc.id='homeNext';nxc.style.cssText='padding:2px 14px 6px';const hb2=$('#homeBody');hb2.parentElement.insertBefore(nxc,hb2);}nxc.innerHTML=nextHomeHTML((pr&&pr.role)||'chef');nextBindHome();}
   if(state.homeTab==='map')initHomeMap(metas);
   const rs=$('#homeResume');const last=localStorage.getItem('trace:lastSite');const lm=metas.find(m=>m.id===last);
   if(lm){const st=statOf(lm.id);rs.style.display='';rs.innerHTML=`<div style="font-size:19px">↩</div><div style="flex:1"><div style="font-size:12.5px;font-weight:700">Reprendre : ${esc(lm.name)}</div><div style="font-size:10.5px;color:var(--ink2)">${st?st.pct+' % soudé · ':''}${esc(agoTxt(lm.updatedAt))}</div></div><div style="color:#eb6834;font-weight:800">›</div>`;rs.onclick=()=>openSiteFromHome(lm.id);}
@@ -2449,4 +2510,5 @@ $('#loginEmail').addEventListener('keydown',e=>{if(e.key==='Enter')$('#loginGo')
 $('#loginSkip').addEventListener('click',e=>{e.preventDefault();localStorage.setItem('trace:skipLogin','1');renderHome();showScreen('home');});
 document.addEventListener('click',e=>{if(e.target.id==='hbLogin'){e.preventDefault();showScreen('login');}});
 // poignée de débogage / tests (module ES : rien n'est global sinon)
+initNext({state,net:()=>NET,sync,esc,fmt,uname,toast,openModal,closeModal,role:()=>role(),userName:()=>(me()||{}).name||state.userId,users:()=>USERS,renderAll,saveNet:saveNetPart});
 window.TRACE={state,USERS,role,renderAll,renderPlan,centerOn,closeSheet,openStockZoneModal,allJoints,switchSite,openJoint,openEl,siteGeo,startCalage,calageTap,openSiteFromHome,renderHome,showScreen,geo:{planToLonLat,lonLatToPlan},hydro:{of:hydroOf,build:hydroBuild,pose:startHydroPose,tap:hydroTap,end:endHydroPose,save:saveHydro,nearest:nearestOnLines},geoRefresh(){if(NET)geoCache.delete(NET);},go:async id=>{const t=id||Object.keys(SITES).find(k=>k!=='__vide');if(t)return openSiteFromHome(t);},get lines(){return state.lines;},get net(){return NET;},get sites(){return SITES;}};

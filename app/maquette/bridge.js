@@ -14,7 +14,7 @@ export function siteFromTraceur({id,name,supplier,serie,lines,built,rules,bg,pre
         welds.push({idx,weldId:idFor(l.id,c,w.m),m:r3(w.m),x:r3(w.x),y:r3(w.y),dev:+(w.dev||0).toFixed(2),fc:!!w.fc,dn:w.dn,teeOut:!!w.teeOut,bypass:!!w.bypass,between:w.between,sleeve:w.sleeve||undefined});});
       welds.forEach(w=>{if(!w.sleeve)return;const o=welds.find(x=>x!==w&&x.sleeve===w.sleeve);if(o)w.sleeveWith=o.weldId;}); // deux soudures dans le même manchon
       cond[c]={els,welds,length:r3(cd.length),notes:cd.notes.map(n=>({kind:n.kind,txt:n.txt,m:r3(n.m||0)}))};});
-    outLines.push({id:l.id,name:l.name,parent:l.parent?l.parent.line:null,parentM:l.parent?r3(l.parent.m):null,dn:l.dn,bar:l.bar||barDefault,inv:!!l.inv,traceur:true,cond,axis:l.pts.map(q=>[r3(q[0]),r3(q[1])]),e:r3(B.e),endType:l.endType||'kit',startType:l.parent?null:(l.startType||'sousstation')});});
+    outLines.push({id:l.id,name:l.name,parent:l.parent?l.parent.line:null,parentM:l.parent?r3(l.parent.m):null,dn:l.dn,bar:l.bar||barDefault,inv:!!l.inv,traceur:true,cond,axis:l.pts.map(q=>[r3(q[0]),r3(q[1])]),e:r3(B.e),endType:l.endType||'kit',startType:l.parent?null:(l.startType||'sousstation'),hm:l.hm||undefined});});
   prevW.forEach(w=>{if(!used.has(w.weldId)&&w.status&&w.status!=='a_souder')lost.push(w);});
   // emprise des lignes ; le fond DXF embarqué dans le chantier est réduit à ce qui entoure le réseau (± 150 m, 200 000 points) — le traceur garde le fond entier localement
   let lx0=1e9,ly0=1e9,lx1=-1e9,ly1=-1e9;outLines.forEach(L=>L.axis.forEach(p=>{lx0=Math.min(lx0,p[0]);ly0=Math.min(ly0,p[1]);lx1=Math.max(lx1,p[0]);ly1=Math.max(ly1,p[1]);}));
@@ -30,6 +30,8 @@ export function siteFromTraceur({id,name,supplier,serie,lines,built,rules,bg,pre
   if(prev&&prev.dhData)site.dhData=prev.dhData;
   if(prev&&prev.stock)site.stock=prev.stock; // stockage pré-isolé (zones, livraisons, prélèvements) : conservé aussi
   if(prev&&prev.elPos)site.elPos=prev.elPos; // rotations / retournements des tubes : conservés d'une version du tracé à l'autre // DH : états d'extrémités, bouclages temporaires, mesures — conservés d'une version du tracé à l'autre
+  if(prev&&prev.admin)site.admin=prev.admin; // dossier administratif (métadonnées des documents) : conservé
+  if(prev&&prev.qse)site.qse=prev.qse; // QSE (formulaires, émargements) : conservé
   return {site,lost,nW};
 }
 // soudures d'un chantier existant (pour l'appariement) : [{line,cond,m,weldId,status}]

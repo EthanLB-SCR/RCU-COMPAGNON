@@ -141,7 +141,7 @@ out=await page.evaluate(()=>{const el=document.querySelector('#stock');
   const sel=!!el.querySelector('#stk-matline');
   return {mousse:row?[...row.children].map(c=>c.textContent.trim()):null,sel,unePU:(el.textContent.match(/Mousse PU \(A\+B\)/g)||[]).length};});
 console.log('11) récap : mousse regroupée A+B, besoin = nb de manchons:',JSON.stringify(out));
-const c11=out.sel&&out.mousse&&+out.mousse[1]>0&&out.mousse[0]==='Mousse PU (A+B) DN100'; // v5 : la mousse est PAR DN
+const c11=out.sel&&out.mousse&&+out.mousse[1]>0&&/^Mousse PU \(A\+B\) DN100/.test(out.mousse[0]); // v5 : la mousse est PAR DN (+ Ø gaine depuis v6)
 // 12) mousse choisie AU MOUSSAGE (étape 4 du manchon), pas au manchon — on met de la mousse en stock dans Z1
 await page.evaluate(()=>{const s=window.TRACE.net.stock;s.lots.push({id:'PU1',liv:null,zone:'Z1',key:'pu',label:'Mousse PU (A+B)',kind:'pu',qty:24});
   const L=Object.values(window.TRACE.lines).find(l=>!l.parent);const j=L.cond.A.joints[1];const now=new Date().toISOString();

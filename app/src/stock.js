@@ -22,7 +22,7 @@ export function stockLabel(l){
   if(l.kind==='dhec')return `DHEC Ø ${l.gaine||l.dn}`;
   if(l.kind==='wall')return `Passage de mur Ø ${l.gaine||l.dn}`;
   if(l.kind==='kit')return `Kit fin de ligne DN${l.dn}`;
-  if(isPU(l.kind))return 'Mousse PU (A+B)'+(l.dn?' DN'+l.dn:'');
+  if(isPU(l.kind))return 'Mousse PU (A+B)'+(l.dn?' DN'+l.dn:'')+(l.gaine?' · Ø'+l.gaine:'');
   return l.label||'Divers';
 }
 // clé d'agrégation : même genre + même DN (ou gaine) = même case de stock

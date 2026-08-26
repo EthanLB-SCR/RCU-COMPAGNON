@@ -26,7 +26,7 @@ await page.click('#stk-add');await page.waitForTimeout(300); // re-render du mod
 out=await page.evaluate(()=>{const rows=[...document.querySelectorAll('#stk-lines tr')].slice(1).map(r=>r.cells[0].textContent.trim()+' ×'+r.querySelector('input').value);
   return {rows,date:document.querySelector('#stk-date').value};});
 console.log('1b) manchon + mousse auto, date conservée:',JSON.stringify(out));
-const c1b=out.rows.length===2&&/Manchon DN100 · Ø\d+ ×4/.test(out.rows[0])&&/Mousse PU \(A\+B\) DN100 ×4/.test(out.rows[1])&&out.date==='2026-08-28';
+const c1b=out.rows.length===2&&/Manchon DN100 · Ø\d+ ×4/.test(out.rows[0])&&/Mousse PU \(A\+B\) DN100 · Ø\d+ ×4/.test(out.rows[1])&&out.date==='2026-08-28';
 // une barre en plus (deuxième re-render), déchargement direct (pas prévu), zone à poser
 await page.selectOption('#stk-kind','pipe');await page.evaluate(()=>{document.querySelector('#stk-qty').value='2';});
 await page.click('#stk-add');await page.waitForTimeout(250);
@@ -36,7 +36,7 @@ await page.mouse.click(300,400);await page.waitForTimeout(400);
 await page.click('#stkDone');await page.waitForTimeout(400);
 out=await page.evaluate(()=>{const s=window.TRACE.net.stock;const lv=s.livs[0];return {date:lv.date,status:lv.status,lots:s.lots.map(l=>l.key).sort()};});
 console.log('1c) livraison validée — la date du 28/08 a tenu:',JSON.stringify(out));
-const c1c=out.date==='2026-08-28'&&out.status==='ok'&&out.lots.join(',')==='pipe:100:::12:,pu:100::::,sleeve:100::200::';
+const c1c=out.date==='2026-08-28'&&out.status==='ok'&&out.lots.join(',')==='pipe:100:::12:,pu:100::200::,sleeve:100::200::';
 // ── 2) scission : 2 manchons + 2 mousses → « Base vie » ; les moves portent clé + camions
 await page.evaluate(()=>{[...document.querySelectorAll('#stock details')].forEach(d=>d.open=true);});
 await page.click('[data-stksplit]');await page.waitForTimeout(300);
