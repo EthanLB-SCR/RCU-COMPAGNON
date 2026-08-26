@@ -73,8 +73,43 @@ out=await page.evaluate(()=>{const dv=[...document.querySelectorAll('[data-wtee]
   return {wtee:dv.length,cuivre:dv.every(p2=>p2.getAttribute('stroke')==='#e2843a'),noSel:!document.getElementById('dh-antwire')&&!document.getElementById('teeWire')};});
 console.log('8) VERROU Renalia : cuivré malgré les anciens réglages forcés, sélecteurs disparus:',JSON.stringify(out));
 const c8=out.wtee>=4&&out.cuivre&&out.noSel;
-const ALL=c1&&c2&&c3&&c4&&c5&&c6&&c7&&c8;
-console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3,c4,c5,c6,c7,c8}));
+// ── 9) les fils s'arrêtent AU TRAIT JAUNE de la branche (bague 0,09 + acier 0,15 → fin des rails ≤ uL−0,23)
+out=await page.evaluate(()=>{const T=window.TRACE;const L1=Object.values(T.lines).find(l=>!l.parent);const e=L1.cond.A.els.find(x=>x.kind==='tee');
+  const b0={x:e.branch[0][0],y:e.branch[0][1]},b1={x:e.branch[1][0],y:e.branch[1][1]};const uL=Math.hypot(b1.x-b0.x,b1.y-b0.y)||1;const ux=(b1.x-b0.x)/uL,uy=(b1.y-b0.y)/uL;
+  const ends=[...document.querySelectorAll('[data-wtee]')].map(p2=>{const nums=p2.getAttribute('d').match(/[\d.eE+-]+[ ,][\d.eE+-]+/g);if(!nums)return null;const [x,y]=nums[nums.length-1].split(/[ ,]/).map(Number);
+    return (x-b0.x)*ux+(y-b0.y)*uy;}).filter(v=>v!==null);
+  return {n:ends.length,uL:+uL.toFixed(2),mx:+Math.max(...ends).toFixed(3),ok:ends.every(v=>v<=uL-.23)};});
+console.log('9) rails arrêtés au trait jaune (jamais sur bague/acier):',JSON.stringify(out));
+const c9=out.n>=4&&out.ok;
+// ── 10) pose du té : « retourné — fils EN DESSOUS » depuis la fiche du té → pointillé, persisté dans elPos
+out=await page.evaluate(()=>{const T=window.TRACE;const L1=Object.values(T.lines).find(l=>!l.parent);const i=L1.cond.A.els.findIndex(x=>x.kind==='tee');T.openEl(L1.id,'A',i);
+  return {btn:!!document.querySelector('#sheet [data-teedown="1"]')};});
+await page.waitForTimeout(300);
+out.btn2=await page.evaluate(()=>{const b=document.querySelector('#sheet [data-teedown="1"]');if(!b)return false;b.click();return true;});
+await page.waitForTimeout(400);
+const out10=await page.evaluate(()=>{const T=window.TRACE;const L1=Object.values(T.lines).find(l=>!l.parent);const e=L1.cond.A.els.find(x=>x.kind==='tee');
+  const dv=[...document.querySelectorAll('[data-wtee]')];
+  const ep=T.net.elPos&&T.net.elPos[L1.id+'|A|'+e.id];
+  return {down:e.teeDown===true,dash:dv.filter(p2=>!!p2.getAttribute('stroke-dasharray')).length>=2,td:!!(ep&&ep.td)};});
+console.log('10) té retourné : fils en dessous (pointillé) + persisté:',JSON.stringify({...out,...out10}));
+const c10=out.btn&&out.btn2&&out10.down&&out10.dash&&out10.td;
+// ── 11) fiche du manchon de SORTIE DE TÉ : côté té = les DEUX BRINS du même fil (pas étamé/nu face à face), pas d'inversion possible
+out=await page.evaluate(()=>{const T=window.TRACE;const L2=Object.values(T.lines).find(l=>l.parent);const j=L2.cond.A.joints[0];
+  j.steps={1:{done:true,by:'karim',at:new Date().toISOString(),photos:[],visuel:true}};j.status='soudee';T.openJoint(L2.id,'A',0);return true;});
+await page.waitForTimeout(500);
+out=await page.evaluate(()=>{const t=document.querySelector('#sheet').textContent;const h=document.querySelector('#sheet').innerHTML;
+  return {brinA:/brin AMONT/.test(t),brinB:/brin AVAL/.test(t),noInv:!/Inversion :/.test(t),ok:/pas d'inversion possible/.test(t),cuivres:(h.match(/wpcu/g)||[]).length>=2};});
+console.log('11) sortie de té : deux brins du fil du té, pas d\'inversion:',JSON.stringify(out));
+const c11=out.brinA&&out.brinB&&out.noInv&&out.ok;
+// ── 12) fils NON SERTIS = circuit ouvert : le parcours porte des coupures « open » et la localisation refuse d'aller au-delà
+out=await page.evaluate(()=>{const T=window.TRACE;const L1=Object.values(T.lines).find(l=>!l.parent);
+  const wp=T.wirePath(L1.id,'A','E');const cut=wp.segs.find(s2=>s2.kind==='cut'&&s2.open);
+  const loc=T.locate(L1.id,'A','E',Math.min(wp.total-1,60),0);
+  return {cut:!!cut,at:cut&&+cut.m0.toFixed(1),refuse:loc&&loc.ok===false&&loc.beyondCut===true,weld:loc&&loc.cutWeld};});
+console.log('12) défaut : ne se propage pas au-delà de fils non raccordés:',JSON.stringify(out));
+const c12=out.cut&&out.refuse&&/^S-/.test(out.weld||'');
+const ALL=c1&&c2&&c3&&c4&&c5&&c6&&c7&&c8&&c9&&c10&&c11&&c12;
+console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12}));
 console.log(logs.length?logs:'[]');
 await browser.close();
 process.exit(ALL?0:1);

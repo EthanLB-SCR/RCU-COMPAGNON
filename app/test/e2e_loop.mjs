@@ -93,8 +93,17 @@ out=await page.evaluate(()=>{const svg=document.querySelector('#sheet .card svg'
   return {svg:true,n:txts.length,overlap,hits:svg.querySelectorAll('[data-stkhit]').length,halo:txts.length&&!!svg.querySelector('text[paint-order="stroke"]')};});
 console.log('8) carte : étiquettes empilées sans chevauchement + cibles:',JSON.stringify(out));
 const c8=out.svg&&out.n>=3&&!out.overlap&&out.hits>=3&&out.halo;
-const ALL=c1&&c2&&c3&&c4a&&c4b&&c5&&c6&&c7a&&c7b&&c8;
-console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3,c4a,c4b,c5,c7a,c7b,c8}));
+// ── 9) la question « pris dans quel stockage ? » ne disparaît PLUS quand aucune zone n'a la pièce (Ethan 26/08)
+await page.evaluate(()=>{const T=window.TRACE;const s=T.net.stock;s.lots.forEach(l=>{l.qty=0;});
+  const L=Object.values(T.lines)[0];T.openJoint(L.id,'A',3);});
+await page.waitForTimeout(600);
+out=await page.evaluate(()=>{const el=document.querySelector('#sheet');const t=el.textContent;
+  const none=el.querySelector('[data-stkpick="none"][data-on="1"]');
+  return {q:/Pièce prise dans quel stockage/.test(t),warn:/aucun stockage n'a/i.test(t),napas:/n'en a pas/.test(t),horsSel:!!none};});
+console.log('9) plus de disparition : question posée même sans stock correspondant:',JSON.stringify(out));
+const c9=out.q&&out.warn&&out.napas&&out.horsSel;
+const ALL=c1&&c2&&c3&&c4a&&c4b&&c5&&c6&&c7a&&c7b&&c8&&c9;
+console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3,c4a,c4b,c5,c7a,c7b,c8,c9}));
 console.log(logs.length?logs:'[]');
 await browser.close();
 process.exit(ALL?0:1);

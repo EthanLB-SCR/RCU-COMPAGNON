@@ -218,8 +218,8 @@ function saveElPos(){if(!NET||NET.id==='__vide')return;if(SITES[NET.id])SITES[NE
   kv.get('trace:handoff:'+NET.id).then(x=>{if(x){x.elPos=NET.elPos;return kv.set('trace:handoff:'+NET.id,x);}}).catch(()=>{});
   clearTimeout(elPosT);elPosT=setTimeout(async()=>{try{const {demo,...clean}=NET;const okk=await sync.saveSite(clean);if(okk){state.ownSiteWrite=Date.now();setCloudBadge('position des tubes enregistrée');}}catch(e){console.warn(e);}},1200);}
 function recordElPos(l,c,el){const m=elPosOf();if(!m||!l||!el)return;const k2=l.id+'|'+c+'|'+el.id;
-  if(el.rot||el.flip)m[k2]={rot:el.rot||0,flip:el.flip?1:0};else delete m[k2];saveElPos();}
-function applyElPos(){const m=NET&&NET.elPos;if(!m)return;Object.entries(m).forEach(([k2,v])=>{const [lid,c,eid]=k2.split('|');const l=state.lines[lid];const cd=l&&l.cond&&l.cond[c];if(!cd)return;const el=cd.els.find(x=>x.id===eid);if(el){el.rot=v.rot||0;el.flip=!!v.flip;}});}
+  if(el.rot||el.flip||el.teeDown)m[k2]={rot:el.rot||0,flip:el.flip?1:0,td:el.teeDown?1:0};else delete m[k2];saveElPos();}
+function applyElPos(){const m=NET&&NET.elPos;if(!m)return;Object.entries(m).forEach(([k2,v])=>{const [lid,c,eid]=k2.split('|');const l=state.lines[lid];const cd=l&&l.cond&&l.cond[c];if(!cd)return;const el=cd.els.find(x=>x.id===eid);if(el){el.rot=v.rot||0;el.flip=!!v.flip;el.teeDown=!!v.td;}});}
 let netPartT={};
 function saveNetPart(key){if(!NET||NET.id==='__vide')return;if(SITES[NET.id])SITES[NET.id][key]=NET[key];
   kv.get('trace:handoff:'+NET.id).then(x=>{if(x){x[key]=NET[key];return kv.set('trace:handoff:'+NET.id,x);}}).catch(()=>{});
@@ -793,7 +793,7 @@ function renderPlan(){if(typeof linkTraceurBranches==='function')linkTraceurBran
       const w=casingW(e);const d=(line.single?0:e.ownAxis?Math.max(0,(far?minSep/(k*ppm):(w*k+2)/(2*k*ppm))-(line.axisHalf||.2))*side:Math.max(offM(e),far?0:(w*k+2)/(2*k*ppm))*side)*ppm;const stJ=joints[i]||joints[i-1];const st=stJ?stJ.status:'a_souder';
       const selE=state.sel&&state.sel.kind==='el'&&state.sel.line===id&&state.sel.cond===c&&state.sel.i===i;
       const paths=e.axis.map(pl=>pathD(offsetPoly(pl,d)));const dd=paths.join(' ');
-      const detail=kpm>=12; const Lax=e.len; const nueEl=!!e.nue||(e.manchette&&Lax<=0.35); const bare=(detail&&e.kind!=='valve'&&e.kind!=='endcap'&&Lax>0.6)?.15:0; // bouts d'acier nus (15 cm) au zoom près ; manchette nue : tout en acier
+      const detail=kpm>=12; const Lax=e.len; const nueEl=!!e.nue||(e.manchette&&Lax<=0.35); const bare=(detail&&e.kind!=='valve'&&e.kind!=='endcap'&&Lax>0.36)?.15:0; // bouts d'acier nus (15 cm) au zoom près ; manchette nue : tout en acier
       const steelW=w*.5, foamT=Math.max(.05,casingOf(e)*EX*.07)*ppm;
       const cap='butt';
       if(state.tool&&e.piece&&(e.piece.role&&e.piece.role!=='fixed'||e.piece.orangeNo)){const col=e.piece.role==='block'?'#2a78d6':(e.piece.role==='man'||e.piece.role==='jm'||e.piece.orangeNo)?'#f28c28':e.piece.role==='new'?'#3aa655':null;if(col)net+=`<path d="${dd}" stroke="${col}" stroke-width="${w*2.3+4/k}" fill="none" opacity=".5" stroke-linecap="round" stroke-linejoin="round"/>`;}
@@ -854,7 +854,7 @@ function renderPlan(){if(typeof linkTraceurBranches==='function')linkTraceurBran
           const a3=pl0[bi-1],b3=pl0[bi];const vx=b3.x-a3.x,vy=b3.y-a3.y;const L3=Math.hypot(vx,vy)||1;
           sB=Math.sign((brT[1][0]-brT[0][0])*(vy/L3)-(brT[1][1]-brT[0][1])*(vx/L3))||1;}}
         ['E','N'].forEach(wn=>{const a=clockPos(e,wn);let o=(-Math.sin(rad(a)))*casingOf(e)*EX*.37*ppm;let front=Math.cos(rad(a))>=0;
-          if(brT&&sB){o=(wn===wbT?sB:-sB)*casingOf(e)*EX*.37*ppm;front=true;} // sorties imposées par la pièce : plongeur côté antenne, l'autre à l'opposé
+          if(brT&&sB){o=(wn===wbT?sB:-sB)*casingOf(e)*EX*.37*ppm;front=!e.teeDown;} // sorties imposées par la pièce : plongeur côté antenne, l'autre à l'opposé ; té retourné = fils EN DESSOUS (pointillé)
           (e._wo||(e._wo={})).k=k;e._wo[wn]=d+o;e._wo['f'+wn]=front; // position + devant/derrière de CE fil, repris par la surbrillance DH (le fil lui-même devient rouge, pointillé s'il passe derrière)
           const st3=`stroke="${WIRE[wn].color}" stroke-width="${Math.max(1.4/k,.022*ppm)}" fill="none" ${front?'':'stroke-dasharray="'+(.25*ppm)+' '+(.15*ppm)+'"'} opacity="${front?.95:.55}" stroke-linejoin="round"`;
           if(brT&&wn===wbT){ // ce fil PLONGE dans le té, il ne traverse pas tout droit (maquette validée 25/08)
@@ -864,7 +864,9 @@ function renderPlan(){if(typeof linkTraceurBranches==='function')linkTraceurBran
             const A1=offsetPoly(axisSub(pl,mm0,Math.max(mm0+.01,mB-gap2)),d+o),A2=offsetPoly(axisSub(pl,Math.min(mm1-.01,mB+gap2),mm1),d+o);
             const mode3=child?antennaMode(child,c,e).mode:'serie';
             const ux=b1.x-b0.x,uy=b1.y-b0.y;const uL=Math.hypot(ux,uy)||1;const uxn=ux/uL,uyn=uy/uL;const nx2=-uyn,ny2=uxn;const s4=Math.max(1.2/k,.05*ppm);
-            const tip=mode3==='none'?Math.min(uL*.45,uL-.2):Math.min(.12,uL*.06); // non raccordé : les brins s'arrêtent à mi-branche, en attente
+            const outJ2=child&&state.lines[child].cond[c]&&state.lines[child].cond[c].joints[0];
+            const abL2=(kpm>=12&&uL>0.5&&!(outJ2&&outJ2.status==='manchonnee'))?.24:0; // bague (0,09) + acier (0,15) dessinés au bout de la branche
+            const tip=mode3==='none'?Math.min(uL*.45,uL-.2):Math.max(abL2+.02,Math.min(.12,uL*.06)); // les fils s'arrêtent AU TRAIT JAUNE de la mousse, jamais sur la bague ou l'acier (Ethan 26/08)
             if(A1.length>1)net+=`<path d="${pathD(A1)}" ${st3}/>`;
             if(A2.length>1)net+=`<path d="${pathD(A2)}" ${st3}/>`;
             const P1=A1.length?A1[A1.length-1]:null,P2=A2.length?A2[0]:null;
@@ -876,7 +878,7 @@ function renderPlan(){if(typeof linkTraceurBranches==='function')linkTraceurBran
             const g1=mk6(P1,side1),g2=mk6(P2,side2);
             if(P1&&g1)net+=`<path data-wtee="1" d="M${P1.x} ${P1.y} L${g1.B.x} ${g1.B.y} L${g1.C.x} ${g1.C.y}" ${st3}/>`; // aller : le long d'UN bord de la branche
             if(P2&&g2)net+=`<path data-wtee="1" d="M${P2.x} ${P2.y} L${g2.B.x} ${g2.B.y} L${g2.C.x} ${g2.C.y}" ${st3}/>`; // retour : le long de l'AUTRE bord
-            if(mode3==='boucle'&&g1&&g2){const eb={x:b1.x-uxn*(tip*.2),y:b1.y-uyn*(tip*.2)}; // BOUCLÉ AU MANCHON de sortie : le U se ferme là
+            if(mode3==='boucle'&&g1&&g2){const eb={x:b1.x-uxn*Math.max(tip*.2,abL2),y:b1.y-uyn*Math.max(tip*.2,abL2)}; // BOUCLÉ AU MANCHON de sortie : le U se ferme au ras du jaune
               net+=`<path data-wteeu="tee" d="M${g1.C.x} ${g1.C.y} Q ${eb.x} ${eb.y} ${g2.C.x} ${g2.C.y}" ${st3}/>`;}
             return;}
           net+=`<path d="${e.axis.map(pl=>pathD(offsetPoly(axisSub(pl,bare+.02,polyLen(pl)-bare-.02),d+o))).join(' ')}" ${st3}/>`;});
@@ -910,8 +912,8 @@ function renderPlan(){if(typeof linkTraceurBranches==='function')linkTraceurBran
       if(detail){
         if(j.status==='manchonnee'&&!isSxb){ // manchon droit : capsule graphite + bandes claires + reflet (case 👁 « manchons »)
           if(S.manch){const th=Math.atan2(p.ty,p.tx)*180/Math.PI;const h=w*1.18,Ls=.65*ppm;netJ+=`<g transform="translate(${px} ${py}) rotate(${th})"><rect x="${-Ls/2}" y="${-h/2}" width="${Ls}" height="${h}" rx="${h*.1}" fill="url(#gSleeve)"/><rect x="${-Ls/2+.025*ppm}" y="${-h/2+.012*ppm}" width="${Ls*.13}" height="${h-.024*ppm}" rx="${h*.05}" fill="#8b9099" opacity=".7"/><rect x="${Ls/2-.025*ppm-Ls*.13}" y="${-h/2+.012*ppm}" width="${Ls*.13}" height="${h-.024*ppm}" rx="${h*.05}" fill="#8b9099" opacity=".7"/></g>`;}
-        } else if(j.status!=='a_souder'&&j.status!=='manchonnee'){ // cordon de soudure
-          netJ+=`<path d="${pathD(seg(-.03,.03))}" stroke="#5d6269" stroke-width="${w*.56}" fill="none" stroke-linecap="butt"/>`;
+        } else if(j.status!=='a_souder'&&j.status!=='manchonnee'){ // cordon de soudure : bourrelet sombre, cœur clair — l'acier-SOUDURE-acier se lit (Ethan 26/08 « tout collé »)
+          netJ+=`<path d="${pathD(seg(-.05,.05))}" stroke="#42474d" stroke-width="${w*.62}" fill="none" stroke-linecap="butt"/><path d="${pathD(seg(-.032,.032))}" stroke="#6a7078" stroke-width="${w*.58}" fill="none" stroke-linecap="butt"/><path d="${pathD(seg(-.012,.012))}" stroke="#949aa2" stroke-width="${w*.52}" fill="none" stroke-linecap="butt"/>`;
         } else if(j.status==='a_souder'){ // jeu entre les deux aciers
           netJ+=`<path d="${pathD(seg(-.008,.008))}" stroke="#e9e8e2" stroke-width="${w*.6}" fill="none" stroke-linecap="butt"/>`;
         }
@@ -1051,7 +1053,7 @@ function jointView(l,c,j){const {els}=l.cond[c];const a=els[j.idx],b=els[j.idx+1
   if(hasData&&r==='chef')acts.push(`<button class="btn block" data-act="reset-weld" style="color:#d03b3b">⌫ Remettre à « À souder » (efface statut, photos, fils)</button>`);
   const teeUI=j.teeOut?(()=>{const t=j.tee||{};const dw=wireDefFournisseur()==='N'?'nu (cuivré)':'étamé';return `<div class="card" style="margin-top:8px;background:#f4f7fb"><b>Antenne au té</b> <span class="muted" style="font-size:12px">(sortie de té : comment l'antenne est prise dans la boucle DH)</span><div class="row" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap"><select class="f" id="teeMode"><option value="serie" ${(t.mode||'serie')==='serie'?'selected':''}>en série dans la boucle de la parente</option><option value="boucle" ${t.mode==='boucle'?'selected':''}>bouclée sur elle-même au té (boucle à part)</option><option value="none" ${t.mode==='none'?'selected':''}>pas encore raccordée au té</option></select><span class="hyChip" style="align-self:center" title="Règle fournisseur, non modifiable : Renalia / AXIOM = cuivré, LOGSTOR = étamé.">fil dans l'antenne : <b>${dw}</b></span></div></div>`;})():'';
   const wiringRO=(j.wire==='raccorde'||j.wire==='inversion')?`<div class="card" style="padding:6px 8px 2px">${wiringSVG(a,b,j.conn||{E:'E',N:'N'},null,false,{A:j.loopA,B:j.loopB})}</div>`:'';
-  const wireLine=(teeUI)+wiringRO+((j.loopA||j.loopB)?`<div class="okbox" style="background:#f3ecff;border-color:#c9b3ea">⟲ Fils bouclés ENTRE EUX ${j.loopA?'côté AMONT':''}${j.loopA&&j.loopB?' et ':''}${j.loopB?'côté AVAL':''} dans ce manchon — la boucle DH se ferme ici. Continuité ${j.cont?'OK':'—'}, isolement ${j.iso?'OK'+(j.isoVal?' ('+esc(j.isoVal)+' MΩ)':''):'—'}.</div>`:j.wire==='raccorde'?`<div class="okbox">Fils raccordés (étamé ↔ étamé, nu ↔ nu), continuité ${j.cont?'OK':'—'}, isolement ${j.iso?'OK'+(j.isoVal?' ('+esc(j.isoVal)+' MΩ)':''):'—'}.</div>`:j.wire==='inversion'?`<div class="err">Inversion des fils enregistrée : étamé amont → nu aval. Manchon à reprendre avant fermeture. ${esc(j.note)}</div>`:`<p class="hint">Fils d'alarme : à raccorder au manchonnage.</p>`);
+  const wireLine=(teeUI)+wiringRO+((j.loopA||j.loopB)?`<div class="okbox" style="background:#f3ecff;border-color:#c9b3ea">⟲ Fils bouclés ENTRE EUX ${j.loopA?'côté AMONT':''}${j.loopA&&j.loopB?' et ':''}${j.loopB?'côté AVAL':''} dans ce manchon — la boucle DH se ferme ici. Continuité ${j.cont?'OK':'—'}, isolement ${j.iso?'OK'+(j.isoVal?' ('+esc(j.isoVal)+' MΩ)':''):'—'}.</div>`:j.wire==='raccorde'?`<div class="okbox">Fils raccordés (${(a.kind==='teeout'||a.kind==='tee'&&Array.isArray(a.branch)&&a.branch.length===2)?'sortie de té : brins du té → fils de l\'antenne':'étamé ↔ étamé, nu ↔ nu'}), continuité ${j.cont?'OK':'—'}, isolement ${j.iso?'OK'+(j.isoVal?' ('+esc(j.isoVal)+' MΩ)':''):'—'}.</div>`:j.wire==='inversion'?`<div class="err">Inversion des fils enregistrée : étamé amont → nu aval. Manchon à reprendre avant fermeture. ${esc(j.note)}</div>`:`<p class="hint">Fils d'alarme : à raccorder au manchonnage.</p>`);
   // ---- manchon en 4 sous-étapes (maquette validée 20/08) : chaque étape a son gars, sa date, ses photos ; l'étape 2 affiche la valeur attendue CALCULÉE ----
   migrateSteps(j); // une soudure déclarée par l'ancien modèle coche ses sous-étapes : un seul et même objet
   const steps=j.steps||{};const sdone=n=>!!(steps[n]&&steps[n].done);const nDone=[1,2,3,4].filter(sdone).length;const curStep=[1,2,3,4].find(n=>!sdone(n))||0;
@@ -1076,8 +1078,8 @@ function jointView(l,c,j){const {els}=l.cond[c];const a=els[j.idx],b=els[j.idx+1
      ${(frz.temps||[]).length?`<br><span class="dim">ponts ⟲ posés ce jour-là : ${frz.temps.map(esc).join(', ')}</span>`:''}
      <br><span style="color:#1c3d6b;font-weight:700;font-size:11.5px">👁 Voir ce bouclage sur le plan</span></div>`;}
   else att2=cc2.length?`<div class="okbox" style="margin:4px 0;font-size:12.5px">Attendu au testeur ici : ${cc2.map(x=>`<b>${fmt2(x.R)} Ω</b> (${x.dir} — ${x.self?'boucle amont entière, départ → ce manchon':dhDirLab(x)})`).join(' · ')}${cc2.some(x=>x.self)?`<br><span class="dim">Étamé ${fmt(cc2[0].dE)} + nu ${fmt(cc2[0].dN)} m depuis le départ : c'est ce que tu lis si le départ est bouclé (centrale) — ou depuis le départ en pontant ⟲ ici.</span>`:''}<br><span class="dim">Cette valeur sera FIGÉE avec l'état du bouclage quand tu valideras l'étape.</span></div>`:`<p class="hint" style="margin:4px 0">Pas de boucle fermée depuis ce manchon : pose un pont ⟲ (ou déclare un bout bouclé) pour avoir une valeur attendue au testeur.</p>`;
-  const s2v=steps[2]||{},s3v=steps[3]||{};const lockA=elLock(l,c,j.idx),lockB=elLock(l,c,j.idx+1);
-  const wireRow2=w=>`<div class="conn"><div class="w"><i style="background:${WIRE[w].color};border:1px solid #999"></i>${a.id} ${WIRE[w].short} <span class="hint">(${clockText(clockPos(a,w))})</span></div><span>→</span><select data-conn="${w}"><option value="E" ${state.conn[w]==='E'?'selected':''}>${b.id} étamé</option><option value="N" ${state.conn[w]==='N'?'selected':''}>${b.id} nu</option><option value="X" ${state.conn[w]==='X'?'selected':''}>non raccordé</option></select></div>`;
+  const s2v=steps[2]||{},s3v=steps[3]||{};const lockA=elLock(l,c,j.idx),lockB=elLock(l,c,j.idx+1);const aTeeJ=a.kind==='teeout'||(a.kind==='tee'&&Array.isArray(a.branch)&&a.branch.length===2);
+  const wireRow2=w=>`<div class="conn"><div class="w"><i style="background:${WIRE[aTeeJ?wireOfTee(a):w].color};border:1px solid #999"></i>${a.id} ${aTeeJ?(w==='E'?'brin AMONT':'brin AVAL'):WIRE[w].short} <span class="hint">${aTeeJ?'(le long de la branche)':'('+clockText(clockPos(a,w))+')'}</span></div><span>→</span><select data-conn="${w}"><option value="E" ${state.conn[w]==='E'?'selected':''}>${b.id} étamé</option><option value="N" ${state.conn[w]==='N'?'selected':''}>${b.id} nu</option><option value="X" ${state.conn[w]==='X'?'selected':''}>non raccordé</option></select></div>`;
   const stepsCard=`<h3>Manchon — 4 sous-étapes <span class="muted" style="font-weight:400">· ${nDone}/4${nDone===4?' ✓':''}</span></h3>
    <details class="dstep ${sdone(1)?'done':curStep===1?'cur':''}" ${curStep===1?'open':''}>${sHead(1,'Soudure')}<div class="sb">
     ${sdone(1)?`<div class="dim" style="font-size:11.5px">Procédé : <b>${esc((PROCEDES.find(p=>p[0]===(steps[1]||{}).proc)||[])[1]||'—')}</b></div>`
@@ -1086,9 +1088,9 @@ function jointView(l,c,j){const {els}=l.cond[c];const a=els[j.idx],b=els[j.idx+1
     ${sPhotos(1)}<div class="hint" style="margin:0 0 4px">Photo du cordon obligatoire.</div><label class="tgl"><input type="checkbox" id="st1-vis" ${steps[1]&&steps[1].visuel?'checked':''} ${sdone(1)?'disabled':''}> Contrôle visuel fait par le soudeur</label>${sBtn(1)}</div></details>
    <details class="dstep ${sdone(2)?'done':curStep===2?'cur':''}" ${curStep===2?'open':''}>${sHead(2,'Fils raccordés')}<div class="sb">${att2}
     ${sdone(2)?`<div class="card" style="padding:6px 8px 2px">${wiringSVG(a,b,j.conn||{E:'E',N:'N'},null,false,{A:j.loopA,B:j.loopB})}</div>`
-      :`<div class="muted" style="font-size:11.5px;margin:4px 0">Relie les fils : touche un bout de fil du tube amont (à gauche) puis celui d'en face qu'il rejoint (ou « ∅ non raccordé »). Pour BOUCLER les deux fils d'un même tube entre eux (isoler un côté), touche ses DEUX fils l'un après l'autre.${state.wsel?` <b>Fil ${state.wsel==='E'?'étamé':'nu'} amont choisi → touche le fil aval qu'il rejoint, ou l'autre fil amont pour les boucler entre eux.</b>`:''}${state.wselB?` <b>Fil ${state.wselB==='E'?'étamé':'nu'} aval choisi → touche l'autre fil aval pour les boucler entre eux.</b>`:''}</div>
+      :`<div class="muted" style="font-size:11.5px;margin:4px 0">Relie les fils : touche un bout de fil du tube amont (à gauche) puis celui d'en face qu'il rejoint (ou « ∅ non raccordé »). Pour BOUCLER les deux fils d'un même tube entre eux (isoler un côté), touche ses DEUX fils l'un après l'autre.${state.wsel?` <b>${aTeeJ?'Brin '+(state.wsel==='E'?'AMONT':'AVAL')+' du té choisi':'Fil '+(state.wsel==='E'?'étamé':'nu')+' amont choisi'} → touche le fil aval qu'il rejoint, ou l'autre fil amont pour les boucler entre eux.</b>`:''}${state.wselB?` <b>Fil ${state.wselB==='E'?'étamé':'nu'} aval choisi → touche l'autre fil aval pour les boucler entre eux.</b>`:''}</div>
        <div class="card" style="padding:6px 8px 2px">${wiringSVG(a,b,state.conn,state.wsel,true,{A:state.loopA,B:state.loopB,selB:state.wselB})}</div>${rotCtlHTML(a,'a','amont',lockA)}${rotCtlHTML(b,'b','aval',lockB)}${wireRow2('E')}${wireRow2('N')}
-       ${(state.loopA||state.loopB)?'<div class="okbox" style="font-size:12px;background:#f3ecff;border-color:#c9b3ea">⟲ Fils bouclés ENTRE EUX '+(state.loopA?'côté AMONT':'')+(state.loopA&&state.loopB?' et ':'')+(state.loopB?'côté AVAL':'')+' : la boucle DH se ferme à ce manchon.</div>':(state.conn.E==='N'||state.conn.N==='E')?'<div class="err" style="font-size:12px">Inversion : l\'étamé amont part sur le nu aval — enregistre si c\'est ce qui a été fait.</div>':'<div class="okbox" style="font-size:12px">Raccordement droit : étamé ↔ étamé, nu ↔ nu.</div>'}`}
+       ${(state.loopA||state.loopB)?'<div class="okbox" style="font-size:12px;background:#f3ecff;border-color:#c9b3ea">⟲ Fils bouclés ENTRE EUX '+(state.loopA?'côté AMONT':'')+(state.loopA&&state.loopB?' et ':'')+(state.loopB?'côté AVAL':'')+' : la boucle DH se ferme à ce manchon.</div>':aTeeJ?'<div class="okbox" style="font-size:12px">Sortie de té : les deux brins du fil '+(wireOfTee(a)==='E'?'étamé':'cuivré')+' du té rejoignent les deux fils de l\'antenne — pas d\'inversion possible ici.</div>':(state.conn.E==='N'||state.conn.N==='E')?'<div class="err" style="font-size:12px">Inversion : l\'étamé amont part sur le nu aval — enregistre si c\'est ce qui a été fait.</div>':'<div class="okbox" style="font-size:12px">Raccordement droit : étamé ↔ étamé, nu ↔ nu.</div>'}`}
     ${sPhotos(2)}<div class="row" style="display:flex;gap:6px;align-items:end;flex-wrap:wrap"><div><label class="f">Boucle mesurée (Ω)</label><input class="f" id="st2-meas" type="number" step="0.01" inputmode="decimal" value="${s2v.meas??''}" ${sdone(2)?'disabled':''} style="width:104px"></div><div><label class="f">Isolement (MΩ)</label><input class="f" id="st2-iso" type="number" step="0.01" inputmode="decimal" value="${s2v.iso??''}" ${sdone(2)?'disabled':''} style="width:104px"></div></div>
     ${!sdone(2)&&cc2.length&&s2v.meas?(()=>{const bst=cc2.reduce((p,x)=>Math.abs(s2v.meas-x.R)<=Math.abs(s2v.meas-p.R)?x:p);const pct=Math.round(100*(s2v.meas-bst.R)/bst.R);const tol=+state.dh.tol||5;
       return `<div class="${Math.abs(pct)<=tol?'okbox':'warnbox'}" style="font-size:12px">${Math.abs(pct)<=tol?'✓ Cohérent avec la boucle '+bst.dir+' ('+fmt2(bst.R)+' Ω ± '+tol+' %)':'Écart '+(pct>0?'+':'')+pct+' % vs la boucle '+bst.dir+' ('+fmt2(bst.R)+' Ω attendus)'}</div>`;})():''}
@@ -1133,17 +1135,20 @@ function stockPickMapSVG(zs,p,mode){const s=stockOf();if(!s)return '';const zsAl
   labs.forEach(L=>{out+=`<text x="${L.x}" y="${L.y}" font-size="${L.fs}" text-anchor="middle" font-weight="${L.fw}" fill="${L.fill}" stroke="#f2f1ea" stroke-width="${(L.fs*.28).toFixed(2)}" paint-order="stroke" style="pointer-events:none" font-family="system-ui,sans-serif">${esc(L.t)}</text>`;});
   out+=`<circle cx="${p.x}" cy="${p.y}" r="${Math.max(1.4,vw*.014)}" fill="#d03b3b" stroke="#fff" stroke-width="1.6" vector-effect="non-scaling-stroke"/>`;
   return `<svg viewBox="${x0} ${y0} ${vw} ${vh}" preserveAspectRatio="xMidYMid meet" style="width:100%;max-height:200px;background:#edece6;border:1px solid var(--line);border-radius:9px;display:block;margin:4px 0 6px">${out}</svg>`;}
-function stockPickHTML(l,c,j,mode){const s=stockOf();if(!s||!s.zones.some(z=>z.status==='ok'))return '';
+function stockPickHTML(l,c,j,mode){const s=stockOf();if(!s)return '';
+  const okZones=s.zones.filter(z=>z.status==='ok');
   const need=stockNeedOf(l,c,j,mode);if(!need)return '';
+  if(!okZones.length)return ((s.livs&&s.livs.length)||(s.lots&&s.lots.length))?`<div class="warnbox" style="font-size:12px">Aucune zone de stockage active sur le plan : ${mode==='piece'?'la pièce':mode==='sleeve'?'le manchon':'la mousse'} ne sera pas décomptée. Décharge un camion ou recrée une zone (onglet Stock).</div>`:'';
   if(mode==='sleeve'&&j.sleeveWith&&s.takes.some(t=>t.weldId===j.sleeveWith&&/^sleeve/.test(t.key)))return `<div class="hint">Manchon déjà compté avec ${esc(j.sleeveWith)} (manchette nue : un seul manchon pour les deux soudures).</div>`;
   const isK=t=>mode==='pu'?/^pu(:|$)/.test(t.key):mode==='sleeve'?/^sleeve/.test(t.key):(!/^pu(:|$)/.test(t.key)&&!/^sleeve/.test(t.key)); // chaque mode ne regarde QUE son propre décompte
   const already=s.takes.find(t=>t.weldId===j.weldId&&isK(t));
   const WHAT=mode==='piece'?'Pièce':mode==='sleeve'?'Manchon':'Mousse';
   if(already)return `<div class="hint">${WHAT} déjà décomptée${already.zone?' — '+esc((stockZoneById(already.zone)||{}).name||''):''}.</div>`;
   const p=posAtChainage(l,l.cond[c].els[j.idx].m1);const zs=stockZonesFor(need,p.x,p.y);
-  if(!zs.length)return mode==='pu'?`<div class="hint">Aucune mousse en stock : ajoute-la à une livraison (catalogue → « Mousse PU (A+B) ») pour la suivre.</div>`:'';
+  const has=zs.length>0; // aucune zone n'a la pièce : la question RESTE posée (Ethan 26/08 « ça ne me demande plus ») — on répond quand même, le suivi se corrige
+  const list=has?zs:okZones.map(z2=>({z:z2,reste:0,d:(isFinite(p.x)&&isFinite(z2.x))?Math.hypot(z2.x-p.x,z2.y-p.y):1e9})).sort((a,b)=>a.d-b.d);
   return `<h3>${mode==='piece'?'Pièce prise dans quel stockage ?':mode==='sleeve'?'Manchon enfilé sur le tube — pris dans quel stockage ?':'Mousse prise dans quel stockage ?'} <span class="muted" style="font-weight:400;font-size:11.5px">${esc(need.label)} — décompte en direct</span></h3>
-   <div class="card" style="padding:8px">${stockPickMapSVG(zs,p,mode)}<div class="hint" style="margin:0 0 4px">Touche la zone sur la carte, ou une pastille :</div>${zs.map((o,i)=>`<span class="hyChip" data-stkpick="${o.z.id}" data-stkneed="${mode}" style="cursor:pointer;margin:2px;${i===0?'border-color:#eb6834;background:#fff7f2':''}" ${i===0?'data-on="1"':''}>${esc(o.z.name)} <span class="dim" style="font-size:10px">${o.d<9e8?'à '+fmt(o.d)+' m · ':''}reste ${o.reste}</span></span>`).join('')}<span class="hyChip" data-stkpick="none" data-stkneed="${mode}" style="cursor:pointer;margin:2px">hors stock / ailleurs</span></div>`;}
+   <div class="card" style="padding:8px">${has?'':`<div class="warnbox" style="font-size:12px;margin:0 0 5px">D'après l'appli, aucun stockage n'a « ${esc(need.label)} ». Dis quand même d'où ${mode==='sleeve'?'il':'elle'} vient : le stock de la zone passera en négatif et l'écart se verra (livraison oubliée ?).</div>`}${stockPickMapSVG(zs,p,mode)}<div class="hint" style="margin:0 0 4px">Touche la zone sur la carte, ou une pastille :</div>${list.map((o,i)=>`<span class="hyChip" data-stkpick="${o.z.id}" data-stkneed="${mode}" style="cursor:pointer;margin:2px;${has&&i===0?'border-color:#eb6834;background:#fff7f2':''}" ${has&&i===0?'data-on="1"':''}>${esc(o.z.name)} <span class="dim" style="font-size:10px">${o.d<9e8?'à '+fmt(o.d)+' m · ':''}${o.reste?'reste '+o.reste:"n'en a pas"}</span></span>`).join('')}<span class="hyChip" data-stkpick="none" data-stkneed="${mode}" style="cursor:pointer;margin:2px;${has?'':'border-color:#eb6834;background:#fff7f2'}" ${has?'':'data-on="1"'}>hors stock / ailleurs</span></div>`;}
 // applique le choix de stockage ; renvoie FALSE si l'utilisateur ne confirme pas (le formulaire s'arrête pour qu'il re-choisisse)
 function stockDoPick(l,c,j,mode){const s=stockOf();const pick=sheetEl.querySelector('[data-stkpick][data-on="1"][data-stkneed="'+mode+'"]');if(!pick||!s)return true;
   const need=stockNeedOf(l,c,j,mode);if(!need)return true;
@@ -1163,6 +1168,7 @@ function formSoudee(l,c,j){const u=me();return head(j.weldId,badge(j.status))+`<
    fils dominent, raccords sertis au milieu (halo rouge + changement de matière au raccord si inversion), écarteurs
    suggérés. Zones tactiles = les bouts de fils aux sorties de mousse (data-wire, logique inchangée). ---------- */
 function wiringSVG(a,b,conn,sel,editable,loops){
+  const teeIn=a&&(a.kind==='teeout'||(a.kind==='tee'&&Array.isArray(a.branch)&&a.branch.length===2))?{wire:wireOfTee(a)}:null; // SORTIE DE TÉ : côté amont, les DEUX BRINS du même fil du té arrivent le long de la branche (pas un étamé + un nu face à face)
   const W=640,H=260,cy=136,xs=W/2,kx=34,Rg=54,Ra=22,bare=132;
   const kxa=kx*Ra/Rg,Rm=Rg-6,kxm=kx*Rm/Rg,rr=(Ra+Rm)/2,PL=8;
   const xgL=xs-bare,xgR=xs+bare;
@@ -1188,7 +1194,8 @@ function wiringSVG(a,b,conn,sel,editable,loops){
   // fils : chaque fil sort de la mousse à son heure et SUIT L'ACIER jusqu'à la sortie d'en face — s'il doit faire le tour,
   // il prend le chemin angulaire le plus court en épousant l'arrondi (hélice) ; l'œil étant un poil au-dessus, ce qui passe
   // derrière l'acier est vu à travers (estompé sous un voile d'acier translucide), ce qui passe devant est net par-dessus.
-  const P={aE:exit(a,xgL,+1,'E'),aN:exit(a,xgL,+1,'N'),bE:exit(b,xgR,-1,'E'),bN:exit(b,xgR,-1,'N')};
+  const exitG=(g,xg,dir)=>[xg-dir*Math.sin(rad(g))*kxm*.9,cy-Math.cos(rad(g))*rr+Math.sin(rad(g))*PL,g];
+  const P=teeIn?{aE:exitG(270,xgL,+1),aN:exitG(90,xgL,+1),bE:exit(b,xgR,-1,'E'),bN:exit(b,xgR,-1,'N')}:{aE:exit(a,xgL,+1,'E'),aN:exit(a,xgL,+1,'N'),bE:exit(b,xgR,-1,'E'),bN:exit(b,xgR,-1,'N')};
   const PHI=Math.asin(PL/rr);
   const yOf=g=>cy-Math.cos(rad(g))*rr+Math.sin(rad(g))*PL;
   const behind=g=>Math.sin(rad(g)+PHI)<0&&Math.abs(yOf(g)-cy)<Ra-2;
@@ -1210,12 +1217,12 @@ function wiringSVG(a,b,conn,sel,editable,loops){
   Object.entries(P).forEach(([k,p])=>{const side=k[0],w=k[1];
     holes+=`<ellipse cx="${p[0]}" cy="${p[1]}" rx="4.4" ry="3.2" fill="#4d3f18" opacity=".8"/>`;
     const back=Math.sin(rad(p[2]))<0;const ax=side==='a'?-1:1;
-    labels+=`<text x="${p[0]+ax*11}" y="${back?p[1]-11:p[1]+19}" font-size="12" text-anchor="${ax<0?'end':'start'}" fill="${w==='E'?'#5c646c':'#8a4c1e'}" font-weight="600" font-family="system-ui,sans-serif" stroke="#fff" stroke-width="3" paint-order="stroke">${clockText(p[2])}</text>`;});
-  const usedB={};const hitPaths=[];const lp=loops||{};
+    labels+=`<text x="${p[0]+ax*11}" y="${back?p[1]-11:p[1]+19}" font-size="12" text-anchor="${ax<0?'end':'start'}" fill="${(side==='a'&&teeIn?teeIn.wire:w)==='E'?'#5c646c':'#8a4c1e'}" font-weight="600" font-family="system-ui,sans-serif" stroke="#fff" stroke-width="3" paint-order="stroke">${side==='a'&&teeIn?(w==='E'?'brin AMONT':'brin AVAL'):clockText(p[2])}</text>`;});
+  const usedB={};const hitPaths=[];const lp=loops||{};const wcolA=w2=>teeIn?wcol(teeIn.wire):wcol(w2);
   // fils bouclés ENTRE EUX (même tube) : pont en U entre les deux sorties de la tranche, serti au milieu (Ethan 26/08)
   const bridgeU=(pE,pN,ax,lab)=>{const mx=(pE[0]+pN[0])/2+ax*46,my=(pE[1]+pN[1])/2;
-    filsF+=strokes(`M ${pE[0]} ${pE[1]} Q ${mx} ${pE[1]} ${mx} ${my}`,wcol('E'),false);
-    filsF+=strokes(`M ${pN[0]} ${pN[1]} Q ${mx} ${pN[1]} ${mx} ${my}`,wcol('N'),false);
+    filsF+=strokes(`M ${pE[0]} ${pE[1]} Q ${mx} ${pE[1]} ${mx} ${my}`,wcolA('E'),false);
+    filsF+=strokes(`M ${pN[0]} ${pN[1]} Q ${mx} ${pN[1]} ${mx} ${my}`,wcolA('N'),false);
     crimpsF+=`<rect x="${mx-4.5}" y="${my-10}" width="9" height="20" rx="3.5" fill="url(#wpsn)" stroke="#6f777f" stroke-width="1"/><line x1="${mx-4.5}" y1="${my-3}" x2="${mx+4.5}" y2="${my-3}" stroke="#868e96" stroke-width="1"/><line x1="${mx-4.5}" y1="${my+3}" x2="${mx+4.5}" y2="${my+3}" stroke="#868e96" stroke-width="1"/>`;
     labels+=`<text x="${mx}" y="${my+34}" font-size="11.5" font-weight="700" text-anchor="middle" fill="#7a3fd1" font-family="system-ui,sans-serif" stroke="#fff" stroke-width="3" paint-order="stroke">⟲ ${lab}</text>`;};
   if(lp.A)bridgeU(P.aE,P.aN,+1,'fils amont bouclés entre eux');
@@ -1223,15 +1230,15 @@ function wiringSVG(a,b,conn,sel,editable,loops){
   ['E','N'].forEach((wA,wi)=>{const pA=P['a'+wA];if(lp.A)return;const to=conn[wA];
     if(!to||to==='X'){
       // fil amont non raccordé : petit bout qui retombe + pointillé
-      filsF+=strokes(`M ${pA[0]} ${pA[1]} C ${pA[0]+12} ${pA[1]-3} ${pA[0]+22} ${pA[1]+1} ${pA[0]+30} ${pA[1]+7}`,wcol(wA),editable&&sel===wA);
-      filsF+=`<line x1="${pA[0]+34}" y1="${pA[1]+10}" x2="${pA[0]+52}" y2="${pA[1]+15}" stroke="${wA==='E'?'#9aa2aa':'#b96f33'}" stroke-width="3" stroke-dasharray="4 4" stroke-linecap="round"/><text x="${pA[0]+58}" y="${pA[1]+20}" font-size="12" fill="#898781" font-family="system-ui,sans-serif">∅ non raccordé</text>`;
+      filsF+=strokes(`M ${pA[0]} ${pA[1]} C ${pA[0]+12} ${pA[1]-3} ${pA[0]+22} ${pA[1]+1} ${pA[0]+30} ${pA[1]+7}`,wcolA(wA),editable&&sel===wA);
+      filsF+=`<line x1="${pA[0]+34}" y1="${pA[1]+10}" x2="${pA[0]+52}" y2="${pA[1]+15}" stroke="${(teeIn?teeIn.wire:wA)==='E'?'#9aa2aa':'#b96f33'}" stroke-width="3" stroke-dasharray="4 4" stroke-linecap="round"/><text x="${pA[0]+58}" y="${pA[1]+20}" font-size="12" fill="#898781" font-family="system-ui,sans-serif">∅ non raccordé</text>`;
       return;}
     usedB[to]=1;
-    const pB=P['b'+to];const bad=to!==wA;const gA=pA[2],gB=pB[2];
-    drawSegs(helix(pA,gA,pB,gB,0,1,wi),wcol(wA),editable&&sel===wA);
+    const pB=P['b'+to];const bad=teeIn?false:to!==wA;const recol=teeIn?to!==teeIn.wire:bad;const gA=pA[2],gB=pB[2];
+    drawSegs(helix(pA,gA,pB,gB,0,1,wi),wcolA(wA),editable&&sel===wA);
     const t0=wi?0.565:0.435;
     // en inversion, la couleur change AU raccord serti : partie aval recolorée
-    if(bad)drawSegs(helix(pA,gA,pB,gB,t0,1,wi),wcol(to),false);
+    if(recol)drawSegs(helix(pA,gA,pB,gB,t0,1,wi),wcol(to),false);
     // pattes des écarteurs sur le fil
     [xs-56,xs+56].forEach(x=>{const t=(x-pA[0])/(pB[0]-pA[0]);if(t>.12&&t<.88){const sg=helix(pA,gA,pB,gB,t,t,wi)[0];const Pt=sg.pts[0];const r=`<rect x="${x-5}" y="${(Pt[1]-3.2).toFixed(1)}" width="10" height="6.4" rx="2" fill="#22262b" opacity=".26"/>`;if(sg.f)clipsF+=r;else clipsB+=r;}});
     // raccord serti, posé sur le fil (orienté selon sa pente), décalé du cordon
@@ -1253,7 +1260,7 @@ function wiringSVG(a,b,conn,sel,editable,loops){
   s+=`<rect x="25" y="${cy-Rg-4}" width="42" height="${2*Rg+8}" fill="url(#wpfl)"/><rect x="${W-67}" y="${cy-Rg-4}" width="42" height="${2*Rg+8}" fill="url(#wpfr)"/>`;
   s+=`<text x="${(26+xgL)/2}" y="${cy+Rg+30}" font-size="14.5" font-weight="600" text-anchor="middle" fill="#565c62" font-family="system-ui,sans-serif">${esc(a.id)} · amont</text><text x="${(W-26+xgR)/2}" y="${cy+Rg+30}" font-size="14.5" font-weight="600" text-anchor="middle" fill="#565c62" font-family="system-ui,sans-serif">${esc(b.id)} · aval</text>`;
   s+=labels;
-  const inv=(conn.E&&conn.E!=='X'&&conn.E!=='E')||(conn.N&&conn.N!=='X'&&conn.N!=='N');
+  const inv=!teeIn&&((conn.E&&conn.E!=='X'&&conn.E!=='E')||(conn.N&&conn.N!=='X'&&conn.N!=='N'));
   if(inv)s+=`<g><rect x="${xs-64}" y="4" width="128" height="22" rx="11" fill="#d03b3b"/><text x="${xs}" y="20" font-size="12.5" font-weight="700" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">⚠ INVERSION</text></g>`;
   if(lp.A||lp.B)s+=`<g><rect x="${xs-84}" y="4" width="168" height="22" rx="11" fill="#7a3fd1"/><text x="${xs}" y="20" font-size="12" font-weight="700" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">⟲ BOUCLÉS ENTRE EUX</text></g>`;
   // zones tactiles : les fils (moitié amont / moitié aval) puis cercles francs sur les quatre sorties (par-dessus), + « ∅ non raccordé »
@@ -1266,7 +1273,7 @@ function wiringSVG(a,b,conn,sel,editable,loops){
 // contrôles de rotation d'un bout de tube (amont / aval du manchon) — partagés entre l'étape 2 « fils » et l'ancien formulaire (retour Ethan 25/08 : « on ne peut plus tourner les tubes au moment de faire les fils »)
 const rotCtlHTML=(e2,suf,side,lock)=>lock?`<div class="lockbox">🔒 <b>${e2.id}</b> (${side}) : position figée — déjà manchonnée en ${lock.map(esc).join(' et ')}. Si ce manchon-là est bon, le tube est forcément en bonne position.</div>`
     :`<div class="btns" style="margin:2px 0;display:flex;gap:5px;flex-wrap:wrap;align-items:center;justify-content:center"><span class="muted" style="font-size:12px;min-width:74px">${e2.id} ${side}${e2.rot?' · '+e2.rot+'°':''}</span><button class="btn sm" data-rot${suf}="-90" title="tourner ${e2.id} de 90° vers la gauche" style="padding:4px 7px">⟲90</button><button class="btn sm" data-rot${suf}="-15" title="tourner ${e2.id} de 15° vers la gauche" style="padding:4px 7px">⟲15</button><button class="btn sm" data-rot${suf}="15" title="tourner ${e2.id} de 15° vers la droite" style="padding:4px 7px">15⟳</button><button class="btn sm" data-rot${suf}="90" title="tourner ${e2.id} de 90° vers la droite" style="padding:4px 7px">90⟳</button><button class="btn sm ${e2.flip?'on':''}" data-flip${suf}="1" title="${e2.id} retourné bout pour bout" style="padding:4px 7px">⇄</button></div>`;
-function formManchon(l,c,j){const {els}=l.cond[c];const a=els[j.idx],b=els[j.idx+1];const lwF=!!(state.loopA||state.loopB);const inv=!lwF&&(state.conn.E==='N'||state.conn.N==='E');
+function formManchon(l,c,j){const {els}=l.cond[c];const a=els[j.idx],b=els[j.idx+1];const lwF=!!(state.loopA||state.loopB);const aTF=a.kind==='teeout'||(a.kind==='tee'&&Array.isArray(a.branch)&&a.branch.length===2);const inv=!lwF&&!aTF&&(state.conn.E==='N'||state.conn.N==='E');
   const lockA=elLock(l,c,j.idx),lockB=elLock(l,c,j.idx+1);
   const wireRow=w=>`<div class="conn"><div class="w"><i style="background:${WIRE[w].color};border:1px solid #999"></i>${a.id} ${WIRE[w].short} <span class="hint">(${clockText(clockPos(a,w))})</span></div><span>→</span><select data-conn="${w}"><option value="E" ${state.conn[w]==='E'?'selected':''}>${b.id} étamé (${clockText(clockPos(b,'E'))})</option><option value="N" ${state.conn[w]==='N'?'selected':''}>${b.id} nu (${clockText(clockPos(b,'N'))})</option><option value="X" ${state.conn[w]==='X'?'selected':''}>non raccordé</option></select></div>`;
   return head(j.weldId,badge(j.status))+`<h3 style="margin-top:6px">Déclarer manchonnée</h3><label class="f">Manchonneur</label><input class="f" readonly value="${esc(me().name)}"><label class="f">Type de manchon</label><select class="f" id="f-manchon">${MANCHONS.map(p=>`<option value="${p[0]}">${p[1]}</option>`).join('')}</select>
@@ -1279,7 +1286,7 @@ function formProbleme(l,c,j){return head(j.weldId,badge(j.status))+`<h3 style="m
 function dialSVG(e){const s=90,c=45;let d=`<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}"><defs><linearGradient id="ac" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9bec4"/><stop offset="1" stop-color="#6d7278"/></linearGradient></defs><circle cx="${c}" cy="${c}" r="42" fill="#111"/><circle cx="${c}" cy="${c}" r="35" fill="#e9d36b"/><circle cx="${c}" cy="${c}" r="18" fill="url(#ac)"/>`;[0,90,180,270].forEach(a=>{d+=`<line x1="${c+40*Math.sin(rad(a))}" y1="${c-40*Math.cos(rad(a))}" x2="${c+44*Math.sin(rad(a))}" y2="${c-44*Math.cos(rad(a))}" stroke="#fff" stroke-width="1.5"/>`;});d+=`<text x="${c}" y="9" font-size="8" fill="#52514e" text-anchor="middle">12 h</text>`;d+='<g id="dialw">';['E','N'].forEach(w=>{const a=clockPos(e,w);d+=`<circle cx="${c+27*Math.sin(rad(a))}" cy="${c-27*Math.cos(rad(a))}" r="5" fill="${WIRE[w].color}" stroke="#333"/><text x="${c+27*Math.sin(rad(a))}" y="${c-27*Math.cos(rad(a))+3}" font-size="7" font-weight="700" text-anchor="middle" fill="#0b0b0b">${w==='E'?'É':'N'}</text>`;});return d+'</g></svg>';}
 function elView(l,c,i){const e=l.cond[c].els[i];const lock=elLock(l,c,i);const posOk=!e.rot&&!e.flip;const tl=e.kind==='pipe'?`barre ${fmt(e.len)} m${e.cut?' (coupée)':''}`:`${e.kindLabel||e.kind}${e.angle?' '+e.angle+'°':''}`;
   return head(`${e.id} · ${c==='A'?'aller':'retour'}`,`<span class="badge" style="background:${c==='A'?'#c8382f':'#2a5fb4'}">${c==='A'?'ALLER':'RETOUR'}</span>`)+`<div class="kv" style="margin-top:6px"><span>${esc(tl)} · DN ${esc(e.dn||l.dn)}</span><span>PK <b>${fmt(e.m0)}</b> → <b>${fmt(e.m1)} m</b></span><span>${esc(l.name)}</span></div>
-   <h3>Orientation des fils (coupe vue depuis l'amont)</h3><div class="card"><div class="dial">${dialSVG(e)}${lock?`<div class="lockbox" style="flex:1;margin-top:0">🔒 Position figée : déjà manchonnée en ${lock.map(esc).join(' et ')}. Pour corriger, le chef remet d'abord ce manchon à « À souder ».</div>`:`<div class="btns"><button class="btn sm" data-rot="-90">⟲ 90°</button><button class="btn sm" data-rot="90">⟳ 90°</button><button class="btn sm" data-rot="-15">⟲ 15°</button><button class="btn sm" data-rot="15">⟳ 15°</button><button class="btn sm ${e.flip?'on':''}" data-act="flip">⇄ retournée bout pour bout</button><button class="btn sm" data-act="rot0">Remettre à 0°</button></div>`}</div>${e.kind==='tee'&&e.saut&&!lock?`<div class="row" style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="muted" style="font-size:12.5px">Té à saut : la branche passe</span><button class="btn sm ${(e.sautDir||'haut')==='haut'?'on':''}" data-saut="haut">▲ au-dessus</button><button class="btn sm ${e.sautDir==='bas'?'on':''}" data-saut="bas">▼ en dessous</button></div>`:''}<p class="hint" style="margin-top:8px">Étamé à <b>${clockText(clockPos(e,'E'))}</b>, nu à <b>${clockText(clockPos(e,'N'))}</b> · rotation ${e.rot}°${e.flip?' · retournée':''}</p>${posOk?'<div class="okbox">Position standard du fournisseur — '+esc(wirePos().label)+'.</div>':'<div class="warnbox">Hors position standard : le manchonneur trouvera l\'étamé de l\'autre côté — l\'appli le prévient aux deux manchons voisins.</div>'}</div>
+   <h3>Orientation des fils (coupe vue depuis l'amont)</h3><div class="card"><div class="dial">${dialSVG(e)}${lock?`<div class="lockbox" style="flex:1;margin-top:0">🔒 Position figée : déjà manchonnée en ${lock.map(esc).join(' et ')}. Pour corriger, le chef remet d'abord ce manchon à « À souder ».</div>`:`<div class="btns"><button class="btn sm" data-rot="-90">⟲ 90°</button><button class="btn sm" data-rot="90">⟳ 90°</button><button class="btn sm" data-rot="-15">⟲ 15°</button><button class="btn sm" data-rot="15">⟳ 15°</button><button class="btn sm ${e.flip?'on':''}" data-act="flip">⇄ retournée bout pour bout</button><button class="btn sm" data-act="rot0">Remettre à 0°</button></div>`}</div>${e.kind==='tee'&&e.saut&&!lock?`<div class="row" style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="muted" style="font-size:12.5px">Té à saut : la branche passe</span><button class="btn sm ${(e.sautDir||'haut')==='haut'?'on':''}" data-saut="haut">▲ au-dessus</button><button class="btn sm ${e.sautDir==='bas'?'on':''}" data-saut="bas">▼ en dessous</button></div>`:''}${e.kind==='tee'&&Array.isArray(e.branch)&&e.branch.length===2&&!lock?`<div class="row" style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="muted" style="font-size:12.5px">Pose du té :</span><button class="btn sm ${!e.teeDown?'on':''}" data-teedown="0">fils AU-DESSUS</button><button class="btn sm ${e.teeDown?'on':''}" data-teedown="1">⤓ retourné — fils EN DESSOUS</button></div>`:''}<p class="hint" style="margin-top:8px">Étamé à <b>${clockText(clockPos(e,'E'))}</b>, nu à <b>${clockText(clockPos(e,'N'))}</b> · rotation ${e.rot}°${e.flip?' · retournée':''}</p>${posOk?'<div class="okbox">Position standard du fournisseur — '+esc(wirePos().label)+'.</div>':'<div class="warnbox">Hors position standard : le manchonneur trouvera l\'étamé de l\'autre côté — l\'appli le prévient aux deux manchons voisins.</div>'}</div>
    ${(()=>{ // état DH des extrémités : piquages purge / vidange, fins de ligne (bouchons), raccordements SST — pris en compte dans les valeurs attendues
      const isEnd=e.kind==='endcap'||e.kind==='endpoint'||(e.kind==='tee'&&e.vert);if(!isEnd)return '';
      const dd4=dhDataOf();const st4=(dd4&&dd4.ends[dhEndKey(l.id,e)])||null;const cur=st4?st4.state:null;
@@ -1305,7 +1312,7 @@ function collectStep(j,n){const s=j.steps[n]=j.steps[n]||{photos:[]};s.photos=s.
   if(n===2){const m2=q('st2-meas');if(m2&&m2.value!=='')s.meas=parseFloat(String(m2.value).replace(',','.'));const i2=q('st2-iso');if(i2&&i2.value!=='')s.iso=parseFloat(String(i2.value).replace(',','.'));const ma=q('st2-masse');if(ma)s.masse=ma.checked;const co=q('st2-cont');if(co)s.cont=co.checked;}
   if(n===3){const t=sheetEl.querySelector('input[name=st3-type]:checked');if(t)s.type=t.value;const p=q('st3-press');if(p)s.press=p.checked;}
   return s;}
-sheetEl.addEventListener('click',e=>{const b=e.target.closest('[data-act],[data-rot],[data-sw],[data-wire],[data-rotb],[data-flipb],[data-rota],[data-flipa],[data-saut],[data-dhend],[data-stepok],[data-stepundo],[data-stkpick],[data-dhfrz],[data-gostep]');if(!b)return;const s=state.sel;if(!s)return;const l=state.lines[s.line];
+sheetEl.addEventListener('click',e=>{const b=e.target.closest('[data-act],[data-rot],[data-sw],[data-wire],[data-rotb],[data-flipb],[data-rota],[data-flipa],[data-saut],[data-teedown],[data-dhend],[data-stepok],[data-stepundo],[data-stkpick],[data-dhfrz],[data-gostep]');if(!b)return;const s=state.sel;if(!s)return;const l=state.lines[s.line];
   if(b.dataset.dhfrz&&s.kind==='j'){e.preventDefault();showFrozenLoop(l,s.cond,l.cond[s.cond].joints[s.i]);return;}
   if(b.dataset.gostep){e.preventDefault();const d=[...sheetEl.querySelectorAll('.dstep')][+b.dataset.gostep-1];if(d){d.open=true;d.scrollIntoView({block:'center',behavior:'smooth'});d.style.boxShadow='0 0 0 3px rgba(235,104,52,.35)';setTimeout(()=>{d.style.boxShadow='';},1200);}return;}
   if(b.dataset.stkpick!==undefined){const md6=b.dataset.stkneed,val6=b.dataset.stkpick;
@@ -1339,7 +1346,7 @@ sheetEl.addEventListener('click',e=>{const b=e.target.closest('[data-act],[data-
       if(n===4&&stockDoPick(l,s.cond,j2,'pu')===false){toast('Mousse : confirme la zone (ou choisis-en une autre)');return;} // le manchonneur choisit son stock de mousse AU MOUSSAGE
       collectStep(j2,n);
       if(n===2){ // les fils déclarés au schéma deviennent ceux de la soudure, ET on FIGE le bouclage de l'instant t
-        const lw2=!!(state.loopA||state.loopB);const inv2=!lw2&&(state.conn.E==='N'||state.conn.N==='E');j2.conn=lw2?{E:'X',N:'X'}:{...state.conn};if(state.loopA)j2.loopA=true;else delete j2.loopA;if(state.loopB)j2.loopB=true;else delete j2.loopB;j2.wire=inv2?'inversion':'raccorde';
+        const lw2=!!(state.loopA||state.loopB);const aT9=l.cond[s.cond].els[j2.idx];const teeOut9=!!(aT9&&(aT9.kind==='teeout'||aT9.kind==='tee'&&Array.isArray(aT9.branch)&&aT9.branch.length===2));const inv2=!lw2&&!teeOut9&&(state.conn.E==='N'||state.conn.N==='E');j2.conn=lw2?{E:'X',N:'X'}:{...state.conn};if(state.loopA)j2.loopA=true;else delete j2.loopA;if(state.loopB)j2.loopB=true;else delete j2.loopB;j2.wire=inv2?'inversion':'raccorde';
         j2.cont=!!j2.steps[2].cont;j2.iso=j2.steps[2].iso!=null?j2.steps[2].iso>=(+state.dh.isoMin||200):j2.iso;if(j2.steps[2].iso!=null)j2.isoVal=String(j2.steps[2].iso);
         const dj2=dhOfJoint(l.id,s.cond,j2.idx);
         if(dj2){const AP3=dhAtPoint(dj2.D,dj2.row);const cc3=[AP3.up.closed&&AP3.up.R!==null?{dir:'amont',...AP3.up}:null,AP3.down.closed&&AP3.down.R!==null?{dir:'aval',...AP3.down}:null].filter(Boolean);
@@ -1379,7 +1386,7 @@ sheetEl.addEventListener('click',e=>{const b=e.target.closest('[data-act],[data-
     renderSheet();return;}
   if(b.dataset.rotb!==undefined||b.dataset.rota!==undefined){const j=l.cond[s.cond].joints[s.i];const off=b.dataset.rotb!==undefined?1:0;const el=l.cond[s.cond].els[j.idx+off];if(!el)return;const lk=elLock(l,s.cond,j.idx+off);if(lk)return lockedToast(lk);snapshotForm();el.rot=(((el.rot||0)+ +(off?b.dataset.rotb:b.dataset.rota))%360+360)%360;recordElPos(l,s.cond,el);renderSheet();renderPlan();return;}
   if(b.dataset.flipb!==undefined||b.dataset.flipa!==undefined){const j=l.cond[s.cond].joints[s.i];const off=b.dataset.flipb!==undefined?1:0;const el=l.cond[s.cond].els[j.idx+off];if(!el)return;const lk=elLock(l,s.cond,j.idx+off);if(lk)return lockedToast(lk);snapshotForm();el.flip=!el.flip;recordElPos(l,s.cond,el);renderSheet();renderPlan();return;}
-  const a=b.dataset.act;e.preventDefault();
+  const a=b.dataset.act||'';e.preventDefault();
   if(a==='close')return closeSheet();
   if(a==='transfer'){startTransfer(s.line,s.cond,s.i);return;}
   if(a==='reset-weld'){const j=l.cond[s.cond].joints[s.i];if(!confirm(`Tout effacer sur ${j.weldId} (statut, photos, fils, notes) et la remettre « À souder » ? Le journal serveur garde une trace.`))return;const by=(me()||{}).name;wipeWeld(j);try{sync.logEvent(state.siteId,j.weldId,'remise_a_zero',by,{});}catch(e){}closeSheet();renderAll();toast(j.weldId+' remise à « À souder »');pushWeld(j);return;}
@@ -1393,6 +1400,7 @@ sheetEl.addEventListener('click',e=>{const b=e.target.closest('[data-act],[data-
   if(a==='open-el-a'||a==='open-el-b'){openEl(s.line,s.cond,s.i+(a==='open-el-b'?1:0));return;}
   if(a==='flip'){const lk=elLock(l,s.cond,s.i);if(lk)return lockedToast(lk);const el=l.cond[s.cond].els[s.i];el.flip=!el.flip;recordElPos(l,s.cond,el);renderSheet();renderPlan();return;}
   if(b.dataset.saut){const lk=elLock(l,s.cond,s.i);if(lk)return lockedToast(lk);const el=l.cond[s.cond].els[s.i];el.sautDir=b.dataset.saut;renderSheet();renderPlan();return;}
+  if(b.dataset.teedown!==undefined){const lk=elLock(l,s.cond,s.i);if(lk)return lockedToast(lk);const el=l.cond[s.cond].els[s.i];el.teeDown=b.dataset.teedown==='1';recordElPos(l,s.cond,el);renderSheet();renderPlan();toast(el.teeDown?el.id+' : té retourné — les fils passent EN DESSOUS (dessinés en pointillé)':el.id+' : fils au-dessus');return;}
   if(a==='rot0'){const lk=elLock(l,s.cond,s.i);if(lk)return lockedToast(lk);const el=l.cond[s.cond].els[s.i];el.rot=0;el.flip=false;recordElPos(l,s.cond,el);renderSheet();renderPlan();return;}
   if(a==='demo-photo'){snapshotForm();state.err='';const kind=state.sheetMode==='form-manchon'?'fils':state.sheetMode==='form-soudee'?'soudure':'manchon';const label=s.kind==='el'?l.cond[s.cond].els[s.i].id:l.cond[s.cond].joints[s.i].weldId;state.pendingPhotos.push(makePhoto(label+' · photo',kind));renderSheet();return;}
   if(a==='save-el'){const el=l.cond[s.cond].els[s.i];el.note=$('#f-note',sheetEl).value;el.photos.push(...state.pendingPhotos);toast(`${el.id} enregistrée (rotation ${el.rot}°${el.flip?', retournée':''})`);closeSheet();return;}
@@ -1400,7 +1408,7 @@ sheetEl.addEventListener('click',e=>{const b=e.target.closest('[data-act],[data-
   if(a==='save-soudee'){if(!state.pendingPhotos.length){snapshotForm();state.err='Ajoute au moins une photo du cordon.';renderSheet();return;}if(stockDoPick(l,s.cond,j,'piece')===false){snapshotForm();state.err='Prélèvement au stock : confirme la zone (ou choisis-en une autre).';renderSheet();return;}j.events.push({type:'soudee',by:state.userId,at:new Date(),pos:curPos(),data:{procede:val('f-proc'),note:val('f-note')},photos:state.pendingPhotos});j.status='soudee';afterSave(`${j.weldId} déclarée soudée`);return;}
   if(a==='save-manchon'){if(!state.sw.etanch){snapshotForm();state.err='Le test d\'étanchéité doit être validé (ou signale un problème).';renderSheet();return;}if(!state.pendingPhotos.length){snapshotForm();state.err='Ajoute une photo du raccordement des fils et du manchon.';renderSheet();return;}
     if(stockDoPick(l,s.cond,j,'sleeve')===false){snapshotForm();state.err='Prélèvement au stock : confirme la zone (ou choisis-en une autre).';renderSheet();return;}
-    const lwm=!!(state.loopA||state.loopB);const inv=!lwm&&(state.conn.E==='N'||state.conn.N==='E');j.conn=lwm?{E:'X',N:'X'}:{...state.conn};if(state.loopA)j.loopA=true;else delete j.loopA;if(state.loopB)j.loopB=true;else delete j.loopB;j.cont=!!state.sw.cont;j.iso=!!state.sw.iso;j.isoVal=val('f-iso')||'';j.wire=inv?'inversion':'raccorde';if(inv)j.note='Inversion enregistrée au manchonnage';
+    const lwm=!!(state.loopA||state.loopB);const aT8=l.cond[s.cond].els[j.idx];const teeOut8=!!(aT8&&(aT8.kind==='teeout'||aT8.kind==='tee'&&Array.isArray(aT8.branch)&&aT8.branch.length===2));const inv=!lwm&&!teeOut8&&(state.conn.E==='N'||state.conn.N==='E');j.conn=lwm?{E:'X',N:'X'}:{...state.conn};if(state.loopA)j.loopA=true;else delete j.loopA;if(state.loopB)j.loopB=true;else delete j.loopB;j.cont=!!state.sw.cont;j.iso=!!state.sw.iso;j.isoVal=val('f-iso')||'';j.wire=inv?'inversion':'raccorde';if(inv)j.note='Inversion enregistrée au manchonnage';
     j.events.push({type:'manchonnee',by:state.userId,at:new Date(),pos:curPos(),data:{manchon:val('f-manchon'),etanch:true,mousse:!!state.sw.mousse,fils:true,inv,note:val('f-note')},photos:state.pendingPhotos});j.status='manchonnee';afterSave(inv?`${j.weldId} manchonnée — inversion signalée au chef`:`${j.weldId} manchonnée, fils raccordés ✓`);return;}
   if(a==='save-controle-ok'||a==='save-controle-nok'){const ok=a==='save-controle-ok';j.events.push({type:'controle',by:state.userId,at:new Date(),pos:curPos(),data:{result:ok?'OK':'NOK',mode:val('f-mode'),ref:val('f-ref'),note:val('f-note')},photos:state.pendingPhotos});j.status=ok?'controlee':'a_reprendre';afterSave(ok?`${j.weldId} contrôlée OK`:`${j.weldId} à reprendre`);return;}
   if(a==='save-probleme'){if(!val('f-note')&&!state.pendingPhotos.length){snapshotForm();state.err='Décris le problème ou ajoute une photo.';renderSheet();return;}j.events.push({type:'probleme',by:state.userId,at:new Date(),pos:curPos(),data:{note:val('f-note')},photos:state.pendingPhotos});afterSave('Signalement envoyé au chef');return;}
@@ -1422,11 +1430,15 @@ function afterSave(msg){state.sheetMode='view';resetForm();renderAll();toast(msg
 
 /* ---------- schéma de bouclage (généralisé aux lignes + antennes) ---------- */
 function wirePath(lineId,cond,wire){const line=state.lines[lineId];const segs=[];let d=0,cur=wire;if(!line.cond[cond])return {segs,total:0};if(typeof linkTraceurBranches==='function')linkTraceurBranches();const {els,joints}=line.cond[cond];
-  els.forEach((e,i)=>{const brId=e.branchLine||(typeof e.branch==='string'?e.branch:null);const am=brId&&state.lines[brId]?antennaMode(brId,cond,e):null;if(brId&&am&&am.mode==='serie'&&cur===am.wire&&state.lines[brId].cond[cond]){segs.push({line:lineId,elIdx:i,kind:'main',m0:d,m1:d+e.len/2,phys0:e.m0,phys1:e.m0+e.len/2,w:cur});d+=e.len/2;const br=state.lines[brId];const bl=br.cond[cond].els;bl.forEach((be,bi)=>{segs.push({line:brId,elIdx:bi,kind:'branchOut',m0:d,m1:d+be.len,phys0:be.m0,phys1:be.m1,w:cur});d+=be.len;});for(let bi=bl.length-1;bi>=0;bi--){const be=bl[bi];segs.push({line:brId,elIdx:bi,kind:'branchBack',m0:d,m1:d+be.len,phys0:be.m1,phys1:be.m0,w:cur});d+=be.len;}segs.push({line:lineId,elIdx:i,kind:'main',m0:d,m1:d+e.len/2,phys0:e.m0+e.len/2,phys1:e.m1,w:cur});d+=e.len/2;}
+  els.forEach((e,i)=>{const brId=e.branchLine||(typeof e.branch==='string'?e.branch:null);const am=brId&&state.lines[brId]?antennaMode(brId,cond,e):null;if(brId&&am&&am.mode==='serie'&&cur===am.wire&&state.lines[brId].cond[cond]){segs.push({line:lineId,elIdx:i,kind:'main',m0:d,m1:d+e.len/2,phys0:e.m0,phys1:e.m0+e.len/2,w:cur});d+=e.len/2;const br=state.lines[brId];const bl=br.cond[cond].els;const bj2=br.cond[cond].joints;const wOpen=j2=>!!(j2&&(j2.wire==='a_raccorder'||j2.loopA||j2.loopB||(j2.conn&&j2.conn.E==='X'&&j2.conn.N==='X')));bl.forEach((be,bi)=>{segs.push({line:brId,elIdx:bi,kind:'branchOut',m0:d,m1:d+be.len,phys0:be.m0,phys1:be.m1,w:cur});d+=be.len;if(bi<bl.length-1&&wOpen(bj2[bi]))segs.push({line:brId,elIdx:bi,kind:'cut',m0:d,m1:d,phys0:be.m1,phys1:be.m1,open:true});});for(let bi=bl.length-1;bi>=0;bi--){const be=bl[bi];if(bi<bl.length-1&&wOpen(bj2[bi]))segs.push({line:brId,elIdx:bi,kind:'cut',m0:d,m1:d,phys0:be.m1,phys1:be.m1,open:true});segs.push({line:brId,elIdx:bi,kind:'branchBack',m0:d,m1:d+be.len,phys0:be.m1,phys1:be.m0,w:cur});d+=be.len;}segs.push({line:lineId,elIdx:i,kind:'main',m0:d,m1:d+e.len/2,phys0:e.m0+e.len/2,phys1:e.m1,w:cur});d+=e.len/2;}
     else{segs.push({line:lineId,elIdx:i,kind:'main',m0:d,m1:d+e.len,phys0:e.m0,phys1:e.m1,w:cur});d+=e.len;}
-    const j=joints[i];if(j&&j.wire!=='a_raccorder'){const to=(j.loopA||j.loopB)?'X':j.conn[cur];if(to==='X'){segs.push({line:lineId,elIdx:i,kind:'cut',m0:d,m1:d,phys0:e.m1,phys1:e.m1});return;}cur=to;}});
+    const j=joints[i];if(j&&j.wire!=='a_raccorder'){const to=(j.loopA||j.loopB)?'X':j.conn[cur];if(to==='X'){segs.push({line:lineId,elIdx:i,kind:'cut',m0:d,m1:d,phys0:e.m1,phys1:e.m1});return;}cur=to;}else if(j){segs.push({line:lineId,elIdx:i,kind:'cut',m0:d,m1:d,phys0:e.m1,phys1:e.m1,open:true});}});
   return {segs,total:d};}
-function locate(lineId,cond,wire,dist){const {segs,total}=wirePath(lineId,cond,wire);if(dist>total)return {ok:false,total};const s=segs.find(x=>dist>=x.m0&&dist<=x.m1);if(!s)return {ok:false,total};const e=state.lines[s.line].cond[cond].els[s.elIdx];const f=(dist-s.m0)/Math.max(.001,s.m1-s.m0);const phys=s.phys0+(s.phys1-s.phys0)*f;return {ok:true,total,dist,seg:s,e,phys,fromJ:phys-e.m0,toJ:e.m1-phys,where:s.kind==='branchOut'?'dans l\'antenne (vers la SST)':s.kind==='branchBack'?'dans l\'antenne (retour vers le té)':'sur la ligne',lineName:state.lines[s.line].name,line:s.line};}
+function locate(lineId,cond,wire,dist,fromD){const {segs,total}=wirePath(lineId,cond,wire);
+  const f0=+fromD||0;const lo3=Math.min(f0,dist),hi3=Math.max(f0,dist);
+  const cut=segs.find(x=>x.kind==='cut'&&x.m0>lo3+.02&&x.m0<hi3-.02);
+  if(cut){const jj2=state.lines[cut.line]&&state.lines[cut.line].cond[cond]&&state.lines[cut.line].cond[cond].joints[cut.elIdx];return {ok:false,total,beyondCut:true,cutWeld:jj2?jj2.weldId:null,cutAt:cut.m0};}
+  if(dist>total)return {ok:false,total};const s=segs.find(x=>dist>=x.m0&&dist<=x.m1);if(!s)return {ok:false,total};const e=state.lines[s.line].cond[cond].els[s.elIdx];const f=(dist-s.m0)/Math.max(.001,s.m1-s.m0);const phys=s.phys0+(s.phys1-s.phys0)*f;return {ok:true,total,dist,seg:s,e,phys,fromJ:phys-e.m0,toJ:e.m1-phys,where:s.kind==='branchOut'?'dans l\'antenne (vers la SST)':s.kind==='branchBack'?'dans l\'antenne (retour vers le té)':'sur la ligne',lineName:state.lines[s.line].name,line:s.line};}
 const jColor=j=>j.wire==='raccorde'?'#0ca30c':j.wire==='inversion'?'#d03b3b':j.status==='manchonnee'?'#fab219':'#898781';
 function bouclageSVG(lineId){const line=state.lines[lineId];const conds=['A','R'].filter(c=>line.cond[c]);const SC=Math.max(2.2,Math.min(7,700/line.length));const W=70+line.length*SC+120;const rowH=215;const H=rowH*conds.length+16;
   let s=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="#fcfcfb"/>`;
@@ -1549,7 +1561,7 @@ function renderBouclage(){const el=$('#bouclage');const L=state.locate;const mai
   else{const refBase=L.wire==='E'?atRow.dE:atRow.dN;
     if(refBase===null)res={ok:false,noWire:true};
     else{const dFil=(L.dir==='up')?refBase-(+L.d||0):refBase+(+L.d||0);
-      res=dFil<0?{ok:false,uphill:true,total:refBase}:locate(L.line,cond,L.wire,dFil);}}
+      res=dFil<0?{ok:false,uphill:true,total:refBase}:locate(L.line,cond,L.wire,dFil,refBase);}}
   // legs = l'intervalle de FIL parcouru (du branchement au défaut), sur le walk du fil choisi : le tracé du plan suit LE FIL, pas l'axe (retour Ethan 25/08 « le visuel doit suivre le fil »)
   const legs0=res.ok?(()=>{const d0=useAt?(L.wire==='E'?atRow.dE:atRow.dN):0;return d0!==null&&d0!==undefined&&Math.abs(res.dist-d0)>0.05?[{wire:L.wire,d0,d1:res.dist}]:null;})():null;
   state.loc=res.ok?{...res,cond,lineId:L.line,wireLine:L.line,legs:legs0,dFil:+L.d||0,from:useAt?{line:atRow.line,idx:atRow.idx,pk:atRow.pk,weldId:atRow.weldId}:null}:null; // from = manchon de branchement → le trajet dessiné part de LÀ, sur la conduite mesurée
@@ -1581,10 +1593,10 @@ function renderBouclage(){const el=$('#bouclage');const L=state.locate;const mai
           else{const closeDN=act.kind==='tip'?D.totalN:act.row.dN;const closeDE=act.kind==='tip'?D.totalE:act.row.dE;let wire2,dFil;
             if(x<=act.dE){wire2='E';dFil=act.dir==='amont'?atRow.dE-x:atRow.dE+x;}
             else{wire2='N';dFil=act.dir==='amont'?closeDN+(x-act.dE):closeDN-(x-act.dE);}
-            const res2=locate(L.line,cond,wire2,dFil);
+            const res2=locate(L.line,cond,wire2,dFil,x<=act.dE?atRow.dE:closeDN);
             const legs2=(x<=act.dE?[{wire:'E',d0:atRow.dE,d1:dFil}]:[{wire:'E',d0:atRow.dE,d1:closeDE},{wire:'N',d0:closeDN,d1:dFil}]).filter(g=>g.d0!==null&&g.d0!==undefined&&g.d1!==null&&g.d1!==undefined&&Math.abs(g.d1-g.d0)>0.05);
             if(res2.ok)locBox=`<div class="warnbox" style="margin-top:6px"><b>Défaut estimé à ${fmt(x)} m de fil du point de mesure</b> (boucle ${act.dir}, fil ${wire2==='E'?'étamé':'nu'}) : ≈ <b>${esc(res2.e.id)}</b>, ${esc(res2.where)} — ${esc(res2.lineName)}, PK ${fmt(res2.phys)} m. <a href="#" id="dh-locshow" style="color:#1c3d6b;font-weight:700">Voir sur le plan (trajet + zone)</a></div>`;
-            else locBox=`<div class="err" style="margin-top:6px">Distance au-delà du fil connu (${fmt(res2.total)} m).</div>`;
+            else locBox=res2.beyondCut?`<div class="err" style="margin-top:6px">✋ Fil COUPÉ avant cette distance${res2.cutWeld?' — manchon '+esc(res2.cutWeld)+' non raccordé / bouclé':''} : le défaut ne peut pas être au-delà. Raccorde (ou vérifie) ce manchon d'abord.</div>`:`<div class="err" style="margin-top:6px">Distance au-delà du fil connu (${fmt(res2.total)} m).</div>`;
             state.dhLocPending=res2.ok?{...res2,cond,lineId:L.line,wireLine:L.line,legs:legs2,dFil:x,from:{line:atRow.line,idx:atRow.idx,pk:atRow.pk,weldId:atRow.weldId}}:null;}}}}
     mesCtx=act?{dir:act.dir,closure:act.kind==='temp'?'pont ⟲ '+act.row.weldId:'bout bouclé ('+(act.state==='coiffe'?'dans la coiffe':'sortie de coiffe')+')',closureId:act.kind==='temp'?act.row.weldId:'bout',expected:act.R,dE:act.dE,dN:act.dN}:null;
     const calc=act?`<details class="muted" style="font-size:12px;margin-top:6px"><summary style="cursor:pointer;color:#52514e">Le calcul, pas à pas (boucle ${act.dir})</summary>
@@ -1700,7 +1712,10 @@ function showFrozenLoop(l,c,j){const f=j.steps&&j.steps[2]&&j.steps[2].dh;if(!f)
 function offsetPl(pts,delta){const out=[];for(let i=0;i<pts.length;i++){const a2=pts[Math.max(0,i-1)],b2=pts[Math.min(pts.length-1,i+1)];const dx=b2.x-a2.x,dy=b2.y-a2.y;const L2=Math.hypot(dx,dy)||1;out.push({x:pts[i].x-dy/L2*delta,y:pts[i].y+dx/L2*delta});}return out;}
 function wireTraceSVG(lineId,cond,legs,k,color,mode){const col=color||'#e8102d';
   const groups=[];
-  legs.forEach((leg,li)=>{const wp=wirePath(lineId,cond,leg.wire);const lo=Math.min(leg.d0,leg.d1),hi=Math.max(leg.d0,leg.d1);
+  legs.forEach((leg,li)=>{const wp=wirePath(lineId,cond,leg.wire);let lo=Math.min(leg.d0,leg.d1),hi=Math.max(leg.d0,leg.d1);
+    // fils NON SERTIS (manchon à raccorder / bouclé) = circuit ouvert : le défaut ne se propage pas au-delà (Ethan 26/08)
+    const cuts=wp.segs.filter(sg=>sg.kind==='cut'&&sg.m0>lo+.02&&sg.m0<hi-.02).map(sg=>sg.m0);
+    if(cuts.length){if(leg.d1>=leg.d0)hi=Math.min(hi,Math.min(...cuts));else lo=Math.max(lo,Math.max(...cuts));}
     let g=null;const gs=[];const push=()=>{if(g)gs.push(g);g=null;};
     wp.segs.forEach(sg=>{if(sg.kind==='cut'||sg.m1<=lo||sg.m0>=hi)return;
       const t0=(Math.max(lo,sg.m0)-sg.m0)/Math.max(.001,sg.m1-sg.m0),t1=(Math.min(hi,sg.m1)-sg.m0)/Math.max(.001,sg.m1-sg.m0);
@@ -1715,10 +1730,14 @@ function wireTraceSVG(lineId,cond,legs,k,color,mode){const col=color||'#e8102d';
   const opp=w2=>w2==='E'?'N':'E';let s2='';const ends=[];
   groups.forEach(g2=>{const L3=state.lines[g2.line];const cd=L3&&L3.cond&&L3.cond[cond];if(!cd)return;
     const lo2=Math.min(g2.p0,g2.p1),hi2=Math.max(g2.p0,g2.p1);
-    const wn=g2.kind==='branchBack'?opp(g2.w):g2.w; // dans l'antenne : descend par un fil, REMONTE par l'autre — les deux traits deviennent rouges
+    const isBr=g2.kind==='branchOut'||g2.kind==='branchBack';
+    // dans l'antenne, le fil suivi n'est PAS forcément la même lettre que sur la parente : c'est le manchon de SORTIE DE TÉ
+    // qui dit sur quel fil de l'antenne le brin amont est serti (sa conn) — sinon le rouge saute sur le mauvais fil et croise (Ethan 26/08)
+    let wOut=g2.w,wBack=opp(g2.w);
+    if(isBr){const j0=cd.joints[0];const cE=j0&&j0.conn&&j0.conn.E;wOut=(cE==='E'||cE==='N')?cE:'E';wBack=opp(wOut);}
     const ppm=L3.ppm||1;const flw=Math.max(1.4/k,.022*ppm);let first=null,last=null;
     const glow=col==='#8a2be2'?'#c58cf0':'#ff5f5f';
-    cd.els.forEach(e=>{if(e.m1<=lo2||e.m0>=hi2)return;const pl=e.axis&&e.axis[0];if(!pl||pl.length<2)return;
+    cd.els.forEach(e=>{if(e.m1<=lo2||e.m0>=hi2)return;const pl=e.axis&&e.axis[0];if(!pl||pl.length<2)return;const wn=isBr?(g2.kind==='branchOut'?wOut:wBack):g2.w;
       const Lax=polyLen(pl);const sp=(e.m1-e.m0)||1;
       const sub=axisSub(pl,Lax*(Math.max(lo2,e.m0)-e.m0)/sp,Lax*(Math.min(hi2,e.m1)-e.m0)/sp);
       if(sub.length<2)return;
@@ -2592,4 +2611,4 @@ $('#loginSkip').addEventListener('click',e=>{e.preventDefault();localStorage.set
 document.addEventListener('click',e=>{if(e.target.id==='hbLogin'){e.preventDefault();showScreen('login');}});
 // poignée de débogage / tests (module ES : rien n'est global sinon)
 initNext({state,net:()=>NET,sync,esc,fmt,uname,toast,openModal,closeModal,role:()=>role(),userName:()=>(me()||{}).name||state.userId,users:()=>USERS,renderAll,saveNet:saveNetPart});
-window.TRACE={state,USERS,role,renderAll,renderPlan,centerOn,closeSheet,openStockZoneModal,allJoints,wirePath,dhLoop,dhAtPoint,dhDirLab,switchSite,openJoint,openEl,siteGeo,startCalage,calageTap,openSiteFromHome,renderHome,showScreen,geo:{planToLonLat,lonLatToPlan},hydro:{of:hydroOf,build:hydroBuild,pose:startHydroPose,tap:hydroTap,end:endHydroPose,save:saveHydro,nearest:nearestOnLines},geoRefresh(){if(NET)geoCache.delete(NET);},go:async id=>{const t=id||Object.keys(SITES).find(k=>k!=='__vide');if(t)return openSiteFromHome(t);},get lines(){return state.lines;},get net(){return NET;},get sites(){return SITES;}};
+window.TRACE={state,USERS,role,renderAll,renderPlan,centerOn,closeSheet,openStockZoneModal,allJoints,wirePath,locate,dhLoop,dhAtPoint,dhDirLab,switchSite,openJoint,openEl,siteGeo,startCalage,calageTap,openSiteFromHome,renderHome,showScreen,geo:{planToLonLat,lonLatToPlan},hydro:{of:hydroOf,build:hydroBuild,pose:startHydroPose,tap:hydroTap,end:endHydroPose,save:saveHydro,nearest:nearestOnLines},geoRefresh(){if(NET)geoCache.delete(NET);},go:async id=>{const t=id||Object.keys(SITES).find(k=>k!=='__vide');if(t)return openSiteFromHome(t);},get lines(){return state.lines;},get net(){return NET;},get sites(){return SITES;}};
