@@ -119,7 +119,7 @@ function offsetRaw(raw,d){ // décale l'axe partagé du plan pour donner à chaq
   return out;}
 function makeEngine(line,raw,c){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;raw.forEach(e=>e.axis.forEach(pl=>pl.forEach(p=>{x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);})));const M=8;
   const texts=(NET.ann||[]).filter(a=>a.p&&a.p[0]>x0-M&&a.p[0]<x1+M&&a.p[1]>y0-M&&a.p[1]<y1+M).map(a=>({x:a.p[0],y:a.p[1],t:String(a.text||'').replace(/\\[A-Za-z][^;]*;/g,'').trim()}));
-  const saved=(state.remoteLS[state.siteId]||{})[line.id+':'+c]||null;const opts={SUB:{main:{id:line.id,els:raw},bbox:[x0,y0,x1,y1],texts,others:othersOfLine(line)},statuses:{},saved,onChange:()=>{resyncLine(line);scheduleRender();},onCommitReport:rep=>applyCommitReport(line,rep,c),onCommit:st=>{sync.ensureSite({id:state.siteId,name:NET.name,supplier:NET.supplier,serie:NET.serie}).then(()=>sync.saveLineState(state.siteId,line.id,c,st));}};
+  const saved=(state.remoteLS[state.siteId]||{})[line.id+':'+c]||null;const opts={SUB:{main:{id:line.id,els:raw},bbox:[x0,y0,x1,y1],texts,others:othersOfLine(line)},statuses:{},saved,onChange:()=>{resyncLine(line);scheduleRender();},onCommitReport:rep=>applyCommitReport(line,rep,c),onCommit:st=>{state.engTouched=true;sync.ensureSite({id:state.siteId,name:NET.name,supplier:NET.supplier,serie:NET.serie}).then(()=>sync.saveLineState(state.siteId,line.id,c,st));}};
   Object.defineProperty(opts,'toolEl',{get:()=>state.tool&&state.toolLine===line.id&&state.toolCond===c?$('#toolPanel'):null});
   return createPieceEngine(opts);}
 function engOf(line,c){return line.engines?line.engines[c]:line.engine;}
@@ -251,7 +251,24 @@ function setupSite(id){
   siteStore[id]={NET,lines:state.lines,sheets:state.sheets,nextWeld:state.nextWeld,sheetId:state.sheetId,firstLine:roots[0]?roots[0].id:null};
   state.locate={...state.locate,line:roots[0]?roots[0].id:null};bgG.dataset.sheet='';
 }
-async function preloadRemote(id){try{if(!siteStore[id]&&await sync.user()){state.remoteLS[id]=await sync.loadLineStates(id);state.remoteWelds=await sync.loadWelds(id);}else state.remoteWelds=null;}catch(e){console.warn(e);state.remoteWelds=null;}}
+// Ouverture d'un chantier : on n'attend JAMAIS le serveur plus de ~6 s (Ethan 07/10, mobile : « je reste bloqué à l'écran d'accueil » —
+// une requête Supabase qui ne répond pas sur une 4G qui patine bloquait switchSite pour toujours, sans aucun message). Au-delà du délai on ouvre
+// la copie de l'appareil, et le résultat tardif (statuts de soudure, états de lignes) est appliqué quand il finit par arriver.
+const raceT=(p,ms,fb)=>Promise.race([p,new Promise(r=>setTimeout(()=>r(fb),ms))]);const LATE={late:true};const OPEN_WAIT=6000,SITE_WAIT=15000;
+async function preloadRemote(id){state.remoteWelds=null;if(siteStore[id])return;
+  const job=(async()=>{if(!(await sync.user()))return null;const [ls,w]=await Promise.all([sync.loadLineStates(id),sync.loadWelds(id)]);return {ls,w};})();
+  let r=null;try{r=await raceT(job,OPEN_WAIT,LATE);}catch(e){console.warn(e);r=null;}
+  if(r===LATE){toast('Serveur lent : version de cet appareil affichée, mise à jour en arrière-plan');job.then(res=>{if(res)applyLateRemote(id,res);}).catch(e=>console.warn(e));return;}
+  if(r){state.remoteLS[id]=r.ls||{};state.remoteWelds=r.w||null;}}
+// données serveur arrivées APRÈS l'ouverture : soudures fusionnées comme au rafraîchissement périodique ; états de lignes (lignes DXF à moteur) →
+// reconstruction du chantier vue conservée, sauf si l'utilisateur a déjà modifié une ligne entre-temps (le chantier sera reconstruit à sa prochaine ouverture)
+function applyLateRemote(id,res){state.remoteLS[id]=res.ls||{};
+  if(state.siteId!==id){delete siteStore[id];return;}
+  const hasEng=Object.values(state.lines).some(l=>l.engine||l.engines);const nLS=Object.keys(res.ls||{}).length;
+  if(hasEng&&nLS&&!state.engTouched){const keep={k:state.view.k,tx:state.view.tx,ty:state.view.ty,tab:state.tab};delete siteStore[id];state.remoteWelds=res.w||null;
+    try{setupSite(id);applyRemoteWelds();}catch(e){console.warn(e);}state.view=keep;state.tab=keep.tab;applyView();renderAll();toast('Chantier mis à jour depuis le serveur');return;}
+  if(hasEng&&nLS)delete siteStore[id];
+  state.remoteWelds=res.w||null;applyRemoteWelds();renderAll();}
 function applyRemoteWelds(){const rows=state.remoteWelds;if(!rows||!rows.length)return;let n=0;rows.forEach(r=>{const f=findWeld(r.weld_id);if(!f)return;const j=f.j;j.status=r.status||j.status;const d=r.data||{};if(d.events)j.events=d.events.map(e=>({...e,at:new Date(e.at)}));if(d.conn)j.conn=d.conn;if(d.wire)j.wire=d.wire;if(d.loopA!==undefined)j.loopA=d.loopA||undefined;if(d.loopB!==undefined)j.loopB=d.loopB||undefined;if(d.tee!==undefined)j.tee=d.tee||undefined;if(d.cont!==undefined)j.cont=d.cont;if(d.iso!==undefined)j.iso=d.iso;if(d.isoVal!==undefined)j.isoVal=d.isoVal;if(d.note!==undefined)j.note=d.note;if(d.steps!==undefined)j.steps=d.steps||undefined;if(d.photos)j.photos=d.photos;n++;});Object.values(state.lines).forEach(l=>{if(l.engine)resyncLine(l);});if(n)toast(n+' soudures rechargées depuis le serveur');state.remoteWelds=null;}
 async function pullRemote(id){try{if(!(await sync.user()))return;state.remoteWelds=await sync.loadWelds(id);if(state.siteId===id){applyRemoteWelds();renderAll();}}catch(e){console.warn(e);}}
 // date de version d'une copie locale de chantier (serveur > traceur > rien)
@@ -267,7 +284,7 @@ function rtSubscribe(id){if(state.rtOff){try{state.rtOff();}catch(e){}state.rtOf
     onSite:row=>{if(!row||!row.id)return;if(Date.now()-(state.ownSiteWrite||0)<15000)return;const cur=SITES[row.id];const at=row.updated_at?Date.parse(row.updated_at):0;if(at&&at>localUpdatedOf(cur)+1000)refreshSiteFromServer(row.id);}});}
 // filet de sécurité sans temps réel : toutes les 90 s (onglet visible), statuts + version du plan
 setInterval(async()=>{try{if(document.visibilityState!=='visible'||!state.cloudUser||!state.siteId||state.siteId==='__vide')return;pullRemote(state.siteId);const meta=await sync.listSiteMeta();if(!meta)return;const m=meta.find(x=>x.id===state.siteId);if(m&&m.updated_at&&Date.parse(m.updated_at)>localUpdatedOf(SITES[state.siteId])+1000&&Date.now()-(state.ownSiteWrite||0)>=15000)refreshSiteFromServer(state.siteId);}catch(e){}},90000);
-async function switchSite(id){if(state.calage)endCalage();if(siteStore[state.siteId]){siteStore[state.siteId].nextWeld=state.nextWeld;}state.siteId=id;rtSubscribe(id);try{if(id&&id!=='__vide')localStorage.setItem('trace:lastSite',id);}catch(e){}closeSheet();await preloadRemote(id);setupSite(id);applyRemoteWelds();if(siteStore[id])pullRemote(id);state.filter='all';renderAll();fitView();renderPlan();}
+async function switchSite(id){if(state.calage)endCalage();if(siteStore[state.siteId]){siteStore[state.siteId].nextWeld=state.nextWeld;}state.siteId=id;state.engTouched=false;try{rtSubscribe(id);}catch(e){console.warn(e);}try{if(id&&id!=='__vide')localStorage.setItem('trace:lastSite',id);}catch(e){}closeSheet();await preloadRemote(id);setupSite(id);applyRemoteWelds();if(siteStore[id])pullRemote(id);state.filter='all';renderAll();fitView();renderPlan();}
 function importReportHTML(){const r=NET.report||{};let h=`<h2>Rapport d'import — ${esc(NET.name)}</h2><p><b>Source :</b> ${esc(NET.source||'')}<br><b>Fournisseur :</b> ${esc(NET.supplier)} (série ${NET.serie||'?'}) · <b>Système de coordonnées :</b> ${esc(NET.crs||'')}<br><b>Méthode :</b> ${esc(NET.method||'')}</p>`;
   const lines=Object.values(state.lines);const nJ=allJoints().length;h+=`<p><b>Résultat :</b> ${lines.length} lignes (${lines.filter(l=>!l.parent).length} racines, ${lines.filter(l=>l.parent).length} antennes), ${lines.reduce((s,l)=>s+l.els.length,0)} éléments, ${nJ} soudures (aller + retour).</p>`;
   if(r.A||r.R){['A','R'].forEach(c=>{const x=r[c];if(!x)return;h+=`<p><b>${c==='A'?'Aller':'Retour'} :</b> ${x.barres} barres, ${x.coudes} coudes, ${x.chaines} chaînes dont ${x.antennes} rattachées en antenne, ${x.longueur_m} m · DN (barres) : ${Object.entries(x.DN||{}).map(([k,v])=>k+' ×'+v).join(', ')}${x.racines>1?`<br><span style="color:#7a5200">⚠ ${x.racines-1} chaîne(s) non rattachée(s) : jonction non reconnue, à valider</span>`:''}</p>`;});}
@@ -858,7 +875,7 @@ function renderPlan(){if(typeof linkTraceurBranches==='function')linkTraceurBran
           const st3=`stroke="${WIRE[wn].color}" stroke-width="${Math.max(1.4/k,.022*ppm)}" fill="none" ${front?'':'stroke-dasharray="'+(.25*ppm)+' '+(.15*ppm)+'"'} opacity="${front?.95:.55}" stroke-linejoin="round"`;
           if(brT&&wn===wbT){ // ce fil PLONGE dans le té, il ne traverse pas tout droit (maquette validée 25/08)
             const pl=e.axis[0];const Lax2=polyLen(pl);const b0={x:brT[0][0],y:brT[0][1]},b1={x:brT[1][0],y:brT[1][1]};
-            let mB=Lax2/2;{let bd=1e9,m2=0;for(let i2=1;i2<pl.length;i2++){const seg2=Math.hypot(pl[i2].x-pl[i2-1].x,pl[i2].y-pl[i2-1].y);const n2=Math.max(1,Math.ceil(seg2/.3));for(let t2=0;t2<=n2;t2++){const q2={x:pl[i2-1].x+(pl[i2].x-pl[i2-1].x)*t2/n2,y:pl[i2-1].y+(pl[i2].y-pl[i2-1].y)*t2/n2};const dd2=Math.hypot(q2.x-b0.x,q2.y-b0.y);if(dd2<bd){bd=dd2;mB=m2+seg2*t2/n2;}}m2+=seg2;}}
+            let mB=Lax2/2;{let bd=1e9,m2=0;for(let i2=1;i2<pl.length;i2++){const ax=pl[i2-1].x,ay=pl[i2-1].y,vx2=pl[i2].x-ax,vy2=pl[i2].y-ay;const seg2=Math.hypot(vx2,vy2);const t2=seg2>0?Math.max(0,Math.min(1,((b0.x-ax)*vx2+(b0.y-ay)*vy2)/(seg2*seg2))):0;const dd2=Math.hypot(ax+vx2*t2-b0.x,ay+vy2*t2-b0.y);if(dd2<bd){bd=dd2;mB=m2+seg2*t2;}m2+=seg2;}} // pied de la branche projeté EXACTEMENT sur l'axe (07/10 : l'ancien échantillonnage au pas de 0,3 m le décalait de 0,15 m sur les tés courts → raccords dissymétriques 0,02 / 0,32 m)
             const gap2=Math.max(.12,casingOf({dn:e.dnb||e.dn})*EX*.55);const mm0=bare+.02,mm1=Lax2-bare-.02;
             const A1=offsetPoly(axisSub(pl,mm0,Math.max(mm0+.01,mB-gap2)),d+o),A2=offsetPoly(axisSub(pl,Math.min(mm1-.01,mB+gap2),mm1),d+o);
             const mode3=child?antennaMode(child,c,e).mode:'serie';
@@ -1510,8 +1527,15 @@ function teeSideSign(e){const brT=e&&e.kind==='tee'&&Array.isArray(e.branch)&&e.
   return Math.sign((brT[1][0]-brT[0][0])*(vy/L3)-(brT[1][1]-brT[0][1])*(vx/L3))||1;}
 // position horaire d'un fil pour la fiche manchon — Ethan tranche (26/08 midi) : les fils d'un TÉ sortent à 10 h / 2 h
 // COMME UN TUBE ; té posé à l'envers (⤓ retourné) → miroir haut/bas : 8 h / 4 h. (Le PLAN, lui, montre le plongeur côté antenne.)
-function wireGOf(e,w){const isT=e&&e.kind==='tee'&&Array.isArray(e.branch)&&e.branch.length===2;const g=clockPos(e,w);
-  return isT&&e.teeDown?(540-g)%360:g;} // TOUJOURS le même fil, té retourné compris — seul le CÔTÉ où sortent les fils change (Ethan 26/08)
+function wireGOf(e,w){const isT=e&&e.kind==='tee'&&Array.isArray(e.branch)&&e.branch.length===2;
+  if(!isT)return clockPos(e,w);
+  // TÉ (Ethan 07/10, plans fournisseurs) : le fil qui part dans la branche est TOUJOURS celui qui est DU CÔTÉ de la branche —
+  // jamais le fil opposé ne passe par-dessus l'autre pour aller dans le té. Positions = celles de la pièce (10 h / 2 h Nordic,
+  // 25°/335° LOGSTOR), pas de rotation libre ; ⤓ retourné = miroir haut/bas (8 h / 4 h). « gauche » (sin<0) = côté normale + (offsetPoly).
+  const wp=wirePos();const gE=wp.E,gN=wp.N;const left=Math.sin(rad(gE))<0?gE:gN,right=left===gE?gN:gE;
+  const sB=teeSideSign(e);const plunge=wireOfTee(e);
+  let g=((w===plunge)===(sB>0))?left:right; // plongeur ↔ côté branche, l'autre fil ↔ l'autre côté
+  if(e.teeDown)g=(540-g)%360;return g;}
 // nombre de fils par tube : AXIOM 4 fils dès DN300 compris, Renalia 4 fils dès DN350 compris (2 paires ; câblage des tés 4 fils à confirmer fournisseurs), sinon 2
 function nWiresOf(dn){const sup=(NET&&NET.supplier)||'';return (sup==='AXIOM'&&+dn>=300)||((sup==='RENALIA'||sup==='ZPU')&&+dn>=350)?4:2;}
 // données DH partagées entre appareils (comme hydro) : états des extrémités (piquages, fins de ligne, SST), bouclages temporaires, mesures enregistrées
@@ -2602,10 +2626,10 @@ function initHomeMap(metas){const el=$('#homeMap');if(!el)return;
   el.addEventListener('dblclick',e=>{if(e.target.closest('.hmCtl,.hmCard'))return;const r=el.getBoundingClientRect();zoomAt(1,e.clientX-r.left,e.clientY-r.top);});
   el.querySelector('.hmCtl').addEventListener('click',e=>{const a=e.target.dataset.a;if(!a)return;e.stopPropagation();if(a==='fit'){card.classList.remove('show');fit();return;}zoomAt(a==='+'?1:-1,el.clientWidth/2,el.clientHeight/2);});
   // la capture pointeur retargette les « click » vers le conteneur : les taps pins/pastilles se gèrent au pointerup (cible mémorisée au pointerdown), comme sur le canvas du plan
-  const ptrs=new Map();let last=null,pinchD=null,moved=false,downTgt=null;
-  el.addEventListener('pointerdown',e=>{if(e.target.closest('.hmCtl,.hmCard'))return;el.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});if(ptrs.size===1){last={x:e.clientX,y:e.clientY};moved=false;downTgt=e.target.closest('.hmPin,.hmCluster');}el.classList.add('dragging');});
+  const ptrs=new Map();let last=null,down=null,pinchD=null,moved=false,downTgt=null;
+  el.addEventListener('pointerdown',e=>{if(e.target.closest('.hmCtl,.hmCard'))return;el.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});if(ptrs.size===1){last={x:e.clientX,y:e.clientY};down={x:e.clientX,y:e.clientY,tol:e.pointerType==='touch'?10:3};moved=false;downTgt=e.target.closest('.hmPin,.hmCluster');}el.classList.add('dragging');});
   el.addEventListener('pointermove',e=>{if(!ptrs.has(e.pointerId))return;ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
-    if(ptrs.size===1&&last){const dx=e.clientX-last.x,dy=e.clientY-last.y;if(Math.hypot(dx,dy)>3)moved=true;S.cx-=dx;S.cy-=dy;last={x:e.clientX,y:e.clientY};render();}
+    if(ptrs.size===1&&last){const dx=e.clientX-last.x,dy=e.clientY-last.y;if(down&&Math.hypot(e.clientX-down.x,e.clientY-down.y)>down.tol)moved=true;S.cx-=dx;S.cy-=dy;last={x:e.clientX,y:e.clientY};render();} // tap = déplacement TOTAL sous la tolérance (10 px au doigt : un tap bouge toujours un peu — Ethan 07/10, mobile)
     else if(ptrs.size===2){const [a,b]=[...ptrs.values()];const d=Math.hypot(a.x-b.x,a.y-b.y);const r=el.getBoundingClientRect();const mx=(a.x+b.x)/2-r.left,my=(a.y+b.y)/2-r.top;
       if(pinchD){if(d/pinchD>1.35){zoomAt(1,mx,my);pinchD=d;}else if(d/pinchD<0.74){zoomAt(-1,mx,my);pinchD=d;}}else pinchD=d;}});
   const up=e=>{ptrs.delete(e.pointerId);if(ptrs.size<2)pinchD=null;if(!ptrs.size){el.classList.remove('dragging');
@@ -2629,15 +2653,36 @@ function homeListHTML(metas){const q=(state.homeQ||'').toLowerCase();let list=me
     <div class="homeSorts">${[['recent','Récents'],['az','A → Z'],['pct','Avancement']].map(([v,l])=>`<button data-sort="${v}" class="${sort===v?'on':''}">${l}</button>`).join('')}</div>
     ${list.map(siteCardHTML).join('')||'<div class="muted" style="font-size:13px;padding:8px 2px">Aucun chantier ne correspond.</div>'}
     ${canNew?`<button class="siteNew" id="homeNew">＋ Nouveau chantier (tracer un réseau ou importer un DXF)</button>`:''}`;}
-async function openSiteFromHome(id){if(!id)return false;const local=SITES[id];const hasFull=local&&local.lines&&!(local.bgTooBig&&state.cloudUser);
-  if(hasFull){await switchSite(id);siteSel.value=id;showScreen('site');return true;}
-  const w=$('#homeWait');if(state.screen==='home'){$('#homeWaitTxt').textContent='Chargement du chantier…';w.classList.add('show');}
-  let net=null;try{net=state.cloudUser?await sync.loadSite(id):null;}catch(e){console.warn(e);}
-  w.classList.remove('show');
-  if(net&&net.lines&&!net.deleted){SITES[id]=net;delete siteStore[id];if(net.traceur){try{await kv.set('trace:handoff:'+id,{...net,sent:true,sentAt:Date.now()});}catch(e){}}
-    addSiteOption(net);await switchSite(id);siteSel.value=id;showScreen('site');return true;}
-  if(local&&local.lines){await switchSite(id);siteSel.value=id;showScreen('site');toast('Version de cet appareil (serveur injoignable)');return true;}
-  toast(state.cloudUser?'Chantier introuvable sur le serveur':'Connecte-toi pour ouvrir ce chantier');return false;}
+// Ouverture depuis l'accueil (07/10) : voile « Ouverture… » dans TOUS les cas (retour visuel immédiat au doigt), délai maxi sur le chargement serveur,
+// double tap ignoré, et aucune erreur silencieuse : un échec enlève le voile et dit pourquoi — plus jamais bloqué à l'accueil sans rien voir.
+// Ouverture depuis l'accueil (07/10) : voile « Ouverture… » dans TOUS les cas (retour visuel immédiat au doigt) avec bouton Annuler, délai maxi sur le
+// chargement serveur, double tap ignoré, copie locale illisible → rechargée depuis le serveur, et aucune erreur silencieuse : un échec enlève le voile et
+// dit pourquoi — plus jamais bloqué à l'accueil sans rien voir (Ethan 07/10, mobile).
+let openCancel=null;
+async function openSiteFromHome(id){if(!id)return false;if(state.opening)return false;const local=SITES[id];const hasFull=local&&local.lines&&!(local.bgTooBig&&state.cloudUser);
+  const w=$('#homeWait');const veil=txt=>{if(w&&state.screen==='home'){$('#homeWaitTxt').textContent=txt;w.classList.add('show');}};
+  const CANCEL={cancel:true};const cancelP=new Promise(r=>{openCancel=()=>r(CANCEL);});
+  const fetchSite=async ms=>{const job=state.cloudUser?sync.loadSite(id):Promise.resolve(null);let net=null;try{net=await raceT(Promise.race([job,cancelP]),ms,LATE);}catch(e){console.warn(e);net=null;}
+    if(net===LATE||net===CANCEL){job.then(async n2=>{if(!n2||!n2.lines||n2.deleted)return;SITES[id]=n2;delete siteStore[id];addSiteOption(n2);if(n2.traceur)kv.set('trace:handoff:'+id,{...n2,sent:true,sentAt:Date.now()}).catch(()=>{});
+      toast('« '+(n2.name||id)+' » reçu du serveur — touche-le pour l\'ouvrir');if(state.screen==='home')renderHome();}).catch(e=>console.warn(e));} // réponse tardive : gardée pour le prochain tap, sans bloquer l'accueil
+    return net;};
+  const enter=async()=>{const r=await Promise.race([switchSite(id),cancelP]);if(r===CANCEL)return false;siteSel.value=id;showScreen('site');return true;};
+  state.opening=id;let slow=false;
+  try{
+    if(hasFull){veil('Ouverture du chantier…');
+      try{return await enter();}
+      catch(e){console.warn('copie locale illisible',e);if(!state.cloudUser)throw e; // copie de l'appareil illisible (ancien format, fichier abîmé) → on repart de la version serveur
+        veil('Copie locale illisible — rechargement depuis le serveur…');const net=await fetchSite(SITE_WAIT);if(net===CANCEL)return false;if(!net||!net.lines||net.deleted)throw e;
+        SITES[id]=net;delete siteStore[id];if(net.traceur)kv.set('trace:handoff:'+id,{...net,sent:true,sentAt:Date.now()}).catch(()=>{});addSiteOption(net);return await enter();}}
+    veil('Chargement du chantier…');
+    let net=await fetchSite(SITE_WAIT);if(net===CANCEL)return false;if(net===LATE){slow=true;net=null;}
+    if(net&&net.lines&&!net.deleted){SITES[id]=net;delete siteStore[id];if(net.traceur)kv.set('trace:handoff:'+id,{...net,sent:true,sentAt:Date.now()}).catch(()=>{}); // cache traceur écrit en arrière-plan : l'écriture IndexedDB (plusieurs Mo, parfois très lente sur mobile) ne retarde plus l'ouverture
+      addSiteOption(net);return await enter();}
+    if(local&&local.lines){if(!(await enter()))return false;toast('Version de cet appareil (serveur injoignable)');return true;}
+    toast(!state.cloudUser?'Connecte-toi pour ouvrir ce chantier':slow?'Serveur trop lent ou injoignable — réessaie dans un instant':'Chantier introuvable sur le serveur');return false;}
+  catch(e){console.warn(e);toast('Impossible d\'ouvrir ce chantier : '+((e&&e.message)||e));return false;}
+  finally{state.opening=null;openCancel=null;if(w)w.classList.remove('show');}}
+{const bc=$('#homeWaitCancel');if(bc)bc.addEventListener('click',e=>{e.stopPropagation();if(openCancel)openCancel();});}
 $('#btnHome').addEventListener('click',()=>{showScreen('home');renderHome();});
 $('#htMap').addEventListener('click',()=>{state.homeTab='map';localStorage.setItem('trace:homeTab','map');renderHome();});
 $('#htList').addEventListener('click',()=>{state.homeTab='list';localStorage.setItem('trace:homeTab','list');renderHome();});
@@ -2665,4 +2710,5 @@ $('#loginSkip').addEventListener('click',e=>{e.preventDefault();localStorage.set
 document.addEventListener('click',e=>{if(e.target.id==='hbLogin'){e.preventDefault();showScreen('login');}});
 // poignée de débogage / tests (module ES : rien n'est global sinon)
 initNext({state,net:()=>NET,sync,esc,fmt,uname,toast,openModal,closeModal,role:()=>role(),userName:()=>(me()||{}).name||state.userId,users:()=>USERS,renderAll,saveNet:saveNetPart});
+window.addEventListener('unhandledrejection',e=>{const m=(e&&e.reason&&(e.reason.message||String(e.reason)))||'';if(/supabase|fetch|network|réseau|Load failed|abort/i.test(m))return;console.warn('promesse rejetée',e.reason);try{toast('Erreur : '+m.slice(0,120));}catch(_){}}); // 07/10 : plus d'échec muet (ouverture de chantier bloquée sans message sur mobile)
 window.TRACE={state,USERS,role,renderAll,renderPlan,centerOn,closeSheet,openStockZoneModal,allJoints,wirePath,locate,dhLoop,dhAtPoint,dhDirLab,switchSite,openJoint,openEl,siteGeo,startCalage,calageTap,openSiteFromHome,renderHome,showScreen,geo:{planToLonLat,lonLatToPlan},hydro:{of:hydroOf,build:hydroBuild,pose:startHydroPose,tap:hydroTap,end:endHydroPose,save:saveHydro,nearest:nearestOnLines},geoRefresh(){if(NET)geoCache.delete(NET);},go:async id=>{const t=id||Object.keys(SITES).find(k=>k!=='__vide');if(t)return openSiteFromHome(t);},get lines(){return state.lines;},get net(){return NET;},get sites(){return SITES;}};

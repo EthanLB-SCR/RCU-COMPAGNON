@@ -1,0 +1,28 @@
+import { chromium, devices } from 'playwright';
+const BASE='http://localhost:8765';
+const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
+const ctx=await browser.newContext({...devices['iPhone 13']});const page=await ctx.newPage();
+const GEO={crs:'EPSG:3857',aff:{a:1,b:0,e:-187009,c:0,d:-1,f:6124000}};
+const NET={id:'S1',name:'Chantier A',supplier:'AXIOM',w:100,h:100,sheetType:'plain',sent:true,traceur:{savedAt:'2026-08-19T10:00:00Z'},geo:GEO,lines:[]};
+await page.route(u=>u.hostname.endsWith('supabase.co'),route=>route.fulfill({status:404,contentType:'application/json',body:'{}'}));
+await page.goto(BASE+'/index.html');await page.waitForTimeout(300);
+await page.evaluate(h=>{localStorage.clear();localStorage.setItem('trace:handoff:S1',JSON.stringify(h));localStorage.setItem('trace:homeTab','map');},NET);
+await page.reload();await page.waitForTimeout(2500);
+await page.evaluate(()=>{window.TRACE.showScreen('home');window.TRACE.renderHome();});await page.waitForTimeout(1500);
+await page.evaluate(()=>{window.__ev=[];const el=document.querySelector('#homeMap');['pointerdown','pointermove','pointerup','pointercancel','click','touchstart','touchend'].forEach(t=>el.addEventListener(t,e=>window.__ev.push(t+':'+(e.pointerType||'')+':'+Math.round(e.clientX||0)+','+Math.round(e.clientY||0)+':'+(e.target.className&&e.target.className.toString().slice(0,12))),true));});
+await page.evaluate(()=>{const b=document.querySelector('#homeMap .hmCtl [data-a="fit"]');if(b)b.click();});await page.waitForTimeout(600);
+const dot=await page.$('#homeMap .hmPin[data-site="S1"] .dot');console.log('dot',!!dot,await page.evaluate(()=>{const el=document.querySelector('#homeMap');const r=el.getBoundingClientRect();const p=document.querySelector('#homeMap .hmPin');return {map:[r.left,r.top,r.width,r.height],pin:p&&p.style.left+'/'+p.style.top,vis:p&&getComputedStyle(p).display,view:JSON.stringify(window.TRACE.state.homeMapView)};}));
+const b2=await dot.boundingBox();const x=b2.x+b2.width/2,y=b2.y+b2.height/2;console.log('xy',x,y);
+const cdp=await ctx.newCDPSession(page);
+await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});await page.waitForTimeout(60);
+await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x+4,y:y+4}]});await page.waitForTimeout(40);
+await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x+6,y:y+5}]});await page.waitForTimeout(40);
+await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await page.waitForTimeout(500);
+console.log(JSON.stringify(await page.evaluate(()=>window.__ev)));
+console.log('card',await page.evaluate(()=>{const c=document.querySelector('#hmCard');return c&&c.classList.contains('show')&&c.textContent.slice(0,40);}));
+// variante : tap pur playwright
+await page.evaluate(()=>{window.__ev=[];});
+await dot.tap({force:true,timeout:5000}).catch(e=>console.log('tap KO',e.message.slice(0,80)));await page.waitForTimeout(500);
+console.log(JSON.stringify(await page.evaluate(()=>window.__ev)));
+console.log('card2',await page.evaluate(()=>{const c=document.querySelector('#hmCard');return c&&c.classList.contains('show')&&c.textContent.slice(0,40);}));
+await browser.close();

@@ -43,7 +43,7 @@ await page.click('[data-stksplit]');await page.waitForTimeout(300);
 await page.evaluate(()=>{document.querySelectorAll('#modal [data-stksel]').forEach(cb=>{const tr=cb.closest('tr');cb.checked=/Manchon|Mousse/.test(tr.textContent);if(cb.checked)document.querySelector('#modal [data-stksq="'+cb.dataset.stksel+'"]').value='2';});
   const d2=document.querySelector('#stk-dest');d2.value='__new';d2.dispatchEvent(new Event('change'));document.querySelector('#stk-destname').value='Base vie';});
 await page.click('#stk-splitok');await page.waitForTimeout(300);
-await page.mouse.click(540,300);await page.waitForTimeout(400);
+await page.mouse.click(540,540);await page.waitForTimeout(400);
 await page.click('#stkDone');await page.waitForTimeout(300);
 out=await page.evaluate(()=>{const s=window.TRACE.net.stock;const mv=s.moves.filter(m=>!m.zoneMove);return {n:mv.length,keys:mv.map(m=>m.key).sort(),livs:mv.every(m=>Array.isArray(m.livs)&&m.livs.length===1)};});
 console.log('2) transferts tracés avec clé + camion:',JSON.stringify(out));

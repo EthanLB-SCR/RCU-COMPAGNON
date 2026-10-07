@@ -67,7 +67,7 @@ await page.evaluate(()=>{[...document.querySelectorAll('#stock details')].forEac
 await page.click('[data-stksplit="Z1"]');await page.waitForTimeout(300);
 await page.evaluate(()=>{document.querySelectorAll('#modal [data-stksel]').forEach(cb=>cb.checked=false);const cbs=[...document.querySelectorAll('#modal [data-stksel]')];const i=cbs.findIndex(cb=>/Coude/.test(cb.closest('tr').textContent));cbs[i].checked=true;document.querySelector('#modal [data-stksq="'+cbs[i].dataset.stksel+'"]').value='2';document.querySelector('#stk-dest').value='__new';document.querySelector('#stk-dest').dispatchEvent(new Event('change'));document.querySelector('#stk-destname').value='Base vie';});
 await page.click('#stk-splitok');await page.waitForTimeout(300);
-await page.mouse.click(520,300);await page.waitForTimeout(400);
+await page.mouse.click(520,560);await page.waitForTimeout(400);
 out=await page.evaluate(()=>{const s=window.TRACE.net.stock;const z2=s.zones.find(z=>z.name==='Base vie');const agg=z2&&s.lots.filter(l=>l.zone===z2.id).reduce((t,l)=>t+l.qty,0);return {zones:s.zones.length,bv:!!z2,q:agg,moves:s.moves.length};});
 console.log('6) scission → Base vie (2 coudes):',JSON.stringify(out));
 const c6=out.zones===2&&out.bv&&out.q===2&&out.moves===1;
