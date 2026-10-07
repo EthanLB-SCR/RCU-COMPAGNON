@@ -22,7 +22,13 @@
   main{flex:1;position:relative;overflow:hidden;min-height:0}
   .view{position:absolute;inset:0;overflow:auto;display:none}.view.active{display:block}
   #view-plan.active{display:flex;flex-direction:column;overflow:hidden}
-  .plan-top{background:var(--surface);border-bottom:1px solid var(--line);padding:6px 10px;display:flex;flex-direction:column;gap:6px}
+  .plan-top{background:var(--surface);border-bottom:1px solid var(--line);padding:5px 10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12.5px;background:var(--page);cursor:pointer}.pill b{font-weight:700}.pill .x{color:var(--muted);font-weight:700}.pill.hot{background:#1c3d6b;color:#fff;border-color:#1c3d6b}.pill.hot .x{color:#fff}
+  .menu{display:none;position:absolute;inset:0;z-index:40;background:rgba(0,0,0,.35)}.menu.show{display:block}.menuBox{position:absolute;left:0;right:0;top:0;max-height:92%;overflow:auto;background:var(--surface);border-radius:0 0 16px 16px;box-shadow:0 14px 40px rgba(0,0,0,.25);padding:8px 12px 14px}
+  .menuHead{display:flex;align-items:center;gap:8px;padding:4px 0 8px;border-bottom:1px solid var(--line)}.menuHead b{font-size:15px}.menuHead .dim{flex:1;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .menu section{padding:10px 0 4px;border-bottom:1px solid var(--line)}.menu section:last-child{border-bottom:0}.menu h4{margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:700}
+  .chips.wrap{flex-wrap:wrap;overflow:visible}
+  @media (max-width:600px){.wideonly{display:none}}
   .searchrow{display:flex;gap:6px}.searchrow input{flex:1;border:1px solid var(--line);border-radius:10px;padding:7px 10px;font-size:16px;background:var(--page)}
   .chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}.chips::-webkit-scrollbar{display:none}
   .chip{white-space:nowrap;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 10px;font-size:12.5px;color:var(--ink2);display:inline-flex;align-items:center;gap:6px}
@@ -285,15 +291,19 @@
   <header class="topbar">
     <button class="iconbtn" id="btnHome" title="Mes chantiers">⌂</button>
     <div class="brand"><b>TRACÉ</b><select id="siteSel" style="display:block;border:0;background:transparent;font-size:11px;color:#52514e;padding:0;max-width:200px"></select></div>
-    <div class="rolebox"><select id="roleSel"></select><button class="iconbtn" id="btnWide" title="Affichage large">⤢</button><button class="iconbtn" id="btnHelp" title="Aide">?</button></div>
+    <div class="rolebox"><select id="roleSel"></select><button class="iconbtn wideonly" id="btnWide" title="Affichage large">⤢</button><button class="iconbtn wideonly" id="btnHelp" title="Aide">?</button><button class="iconbtn" id="btnSearch" title="Rechercher une soudure">🔍</button><button class="iconbtn" id="btnMenu" title="Menu">☰</button></div>
   </header>
+  <div id="menu" class="menu"><div class="menuBox">
+    <div class="menuHead"><b>Menu</b><span class="dim" id="menuSite"></span><button class="iconbtn" id="menuClose" title="Fermer">✕</button></div>
+    <section><h4>Rechercher</h4><div class="searchrow"><input id="search" inputmode="numeric" placeholder="N° de soudure (ex. 24)"><button class="btn" id="btnList">Liste</button></div></section>
+    <section><h4>Filtrer le plan</h4><div class="chips wrap" id="filters"></div></section>
+    <section><h4>Terrain &amp; chantier</h4><div class="tools" id="planTools"></div></section>
+    <section><h4>Compte</h4><div id="menuAccount"></div></section>
+    <section><h4>Affichage</h4><div class="tools"><button class="btn sm" id="btnDispM">👁 Calques du plan</button><button class="btn sm" id="btnWideM">⤢ Affichage large</button><button class="btn sm" id="btnHelpM">? Aide</button></div></section>
+  </div></div>
   <main>
     <section id="view-plan" class="view active">
-      <div class="plan-top">
-        <div class="searchrow"><input id="search" inputmode="numeric" placeholder="N° de soudure (ex. 24)"><button class="btn" id="btnList">Liste</button></div>
-        <div class="chips" id="filters"></div>
-        <div class="tools" id="planTools"></div>
-      </div>
+      <div class="plan-top" id="planPills" style="display:none"></div>
       <div class="canvas" id="canvas">
         <svg id="svg" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="gSleeve" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6b6f76"/><stop offset=".35" stop-color="#3a3d42"/><stop offset="1" stop-color="#212327"/></linearGradient></defs><g id="world"><g id="map"></g><g id="bg"></g><g id="marG"></g><g id="net"></g><g id="markers"></g><g id="hydroG"></g><g id="tsG"></g><g id="dhG"></g><g id="stockG"></g><g id="phG"></g><g id="gps"></g></g></svg>
         <div class="legend" id="legend"></div>

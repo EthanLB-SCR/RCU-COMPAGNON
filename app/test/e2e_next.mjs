@@ -8,14 +8,14 @@ const logs=[];page.on('pageerror',e=>logs.push('PAGEERROR: '+e.message.slice(0,3
 const PNG='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 await page.goto(BASE+'/traceur.html');await page.waitForTimeout(600);
 await page.evaluate(()=>{localStorage.clear();});await page.reload();await page.waitForTimeout(600);
-// ── 0) FLAGS OFF : l'appli ne change pas (pas d'onglet Dossier, catalogue visible) — le réseau porte déjà un TS : les hachures sont là d'office (TS définitif depuis le 07/10)
+// ── 0) FLAGS OFF : l'appli ne change pas (pas d'onglet Dossier) — catalogue déjà caché (barre allégée définitive), le réseau porte déjà un TS : les hachures sont là d'office (TS définitif depuis le 07/10)
 await page.evaluate(()=>{const S=window.MAQ.state;S.supplier='AXIOM';S.lines=[
   {id:'L1',name:'Feeder',dn:100,bar:12,pts:[[10,50],[110,50]],specials:[],parent:null,hm:{ts:'TS-01',etat:'propose'}}];S.seq=2;window.MAQ.setMode('select');window.MAQ.rebuild();});
 await page.click('#bSave');await page.waitForTimeout(200);await page.fill('#svName','Next test');await page.click('#svOk');await page.waitForTimeout(800);
 await page.click('#svGo');await page.waitForTimeout(1500);await page.selectOption('#roleSel','ethan');await page.waitForTimeout(300);
 let out=await page.evaluate(()=>({adm:!!document.querySelector('#tabbar [data-tab="admin"]'),cat:getComputedStyle(document.querySelector('#tabbar [data-tab="catalogue"]')).display!=='none',ts:(document.getElementById('tsG')||{innerHTML:''}).innerHTML.length}));
 console.log('0) flags OFF : rien ne change:',JSON.stringify(out));
-const c0=!out.adm&&out.cat&&out.ts>0;
+const c0=!out.adm&&!out.cat&&out.ts>0;
 // ── activer TOUT (comme depuis le panneau Nouveautés) puis recharger
 const sid=await page.evaluate(()=>{localStorage.setItem('trace:next',JSON.stringify({ts:1,admin:1,qse:1,tabs:1,doe:1}));return window.TRACE.state.siteId;});
 await page.reload();await page.waitForTimeout(900);
@@ -83,12 +83,12 @@ out=await pop2.evaluate(()=>({t:/Carnet de soudage/.test(document.body.textConte
 await pop2.close();
 console.log('5) carnet DOE généré:',JSON.stringify(out));
 const c5=out.t&&out.w&&out.soudee&&out.img&&out.plan;
-// ── 6) le panneau « Nouveautés » existe sur la home (3/5 actives — QSE et TS définitifs hors liste ; pointage et profil ajoutés le 07/10, éteints ici)
+// ── 6) le panneau « Nouveautés » existe sur la home (2/4 actives — QSE, TS et barre allégée définitifs hors liste ; pointage et profil ajoutés le 07/10, éteints ici)
 await page.evaluate(()=>{window.TRACE.showScreen&&window.TRACE.showScreen('home');window.TRACE.renderHome&&window.TRACE.renderHome();});
 await page.waitForTimeout(400);
 out=await page.evaluate(()=>{const b=document.getElementById('nextBtn');return {btn:!!b,txt:b?b.textContent:''};});
 console.log('6) bouton Nouveautés (home):',JSON.stringify(out));
-const c6=out.btn&&/3\/5/.test(out.txt);
+const c6=out.btn&&/2\/4/.test(out.txt);
 const ALL=c0&&c1&&c2a&&c2b&&c2c&&c3&&c4a&&c4b&&c4c&&c5&&c6;
 console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c0,c1,c2a,c2b,c2c,c3,c4a,c4b,c4c,c5,c6}));
 console.log(logs.length?logs:'[]');
