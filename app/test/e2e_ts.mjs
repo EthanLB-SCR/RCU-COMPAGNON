@@ -106,6 +106,17 @@ out=await page.evaluate(()=>{const S=window.MAQ.state;const l=S.lines.find(x=>x.
   return {nearA,nearR,vA:!!vA,vR:!!vR,vR100:!!vR100,wR,panel:/aller seul/.test(t2)&&/retour PK 108/.test(t2)};});
 console.log('11) traceur un seul côté : coupe aller seule (soudure à 55 sur A, pas sur R), vanne retour à 108 avec ses 2 soudures, aller reste à 100 :',JSON.stringify(out));
 C.c11=out.nearA&&!out.nearR&&out.vA&&out.vR&&!out.vR100&&out.wR===2&&out.panel;
+// ── 12) écart NON localisé (chantier figé avant la mémorisation des PK) : vignette = ligne entière, bouton « 📍 Placer sur le plan » → un tap → position posée, libellé daté
+await page.goto(BASE+'/index.html');await page.waitForTimeout(1200);await page.evaluate(id=>window.TRACE.go(id),siteId);await page.waitForTimeout(2000);await page.selectOption('#roleSel','ethan');await page.waitForTimeout(300);
+out=await page.evaluate(()=>{const T=window.TRACE;const Tq=T.ts.of();Tq.items.push({id:'tsX',kind:'delta',line:'L1',label:'Rue de la Gare — écart constaté le 07/10/2026 18h00 : +1 vanne',etat:'forfait',ts:'',qty:{vannes:1},pcs:[],geo:[],by:'test',at:new Date().toISOString(),photos:[]});T.state.tab='ts';T.renderAll();
+  const card=document.querySelector('#tsview [data-tscard="tsX"]');const btn=card&&card.querySelector('[data-tsplace]');const dashed=card&&/stroke-dasharray/.test(card.querySelector('.tsVig svg').innerHTML);if(btn)btn.click();return {btn:!!btn,dashed,pose:!!(T.state.tsPose&&T.state.tsPose.place==='tsX'),tab:T.state.tab};});
+await page.evaluate(()=>{window.TRACE.ts.tap(100,50);});await page.waitForTimeout(400);
+out=Object.assign(out,await page.evaluate(()=>{const T=window.TRACE;const it=T.ts.of().items.find(x=>x.id==='tsX');return {m:it&&it.m,located:it&&it.located,noPose:!T.state.tsPose,tab2:T.state.tab,noBtn:!document.querySelector('#tsview [data-tscard="tsX"] [data-tsplace]')};}));
+console.log('12) écart non localisé → 📍 placer → PK posé :',JSON.stringify(out));C.c12=out.btn&&out.dashed&&out.pose&&out.tab==='plan'&&Math.abs(out.m-90)<1.5&&out.located&&out.noPose&&out.tab2==='ts'&&out.noBtn;
+// ── 13) marché SANS PK mémorisés (chantier figé avant) : une nature absente du marché (0 vanne) → toutes les vannes du réel sont localisées comme ajoutées ; la complétion des PK les laisse de côté
+out=await page.evaluate(()=>{const T=window.TRACE;const M=T.ts.marche();const x=M.lines.find(y=>y.id==='L1');delete x.pcs;x.c.vannes=0;x.c.soud-=8;const D1=T.ts.diff();const r1=D1.rows.find(r=>r.id==='L1');
+  T.ts.ensureMarche();const x2=T.ts.marche().lines.find(y=>y.id==='L1');const D2=T.ts.diff();const r2=D2.rows.find(r=>r.id==='L1');return {a1:r1.added.length,k1:r1.added.every(p=>p.k==='valve'),pcs:!!x2.pcs,noValveInPcs:x2.pcs.every(p=>p.k!=='valve'),a2:r2.added.length,pk:r2.added.map(p=>Math.round(p.m)).sort((a,b)=>a-b).join()};});
+console.log('13) marché sans PK : vannes localisées comme ajoutées, complétion sans les vannes :',JSON.stringify(out));C.c13=out.a1===4&&out.k1&&out.pcs&&out.noValveInPcs&&out.a2===4&&out.pk==='40,40,100,100';
 const ALL=Object.values(C).every(Boolean);
 console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify(C));
 console.log(logs.length?logs:'[]');

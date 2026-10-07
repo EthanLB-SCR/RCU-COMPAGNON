@@ -76,7 +76,7 @@ const c4c=out.t&&out.img;
 await page.evaluate(()=>{const m=document.querySelector('#modal [data-close]');if(m)m.click();});
 await page.evaluate(({PNG})=>{const T=window.TRACE;const L=Object.values(T.lines).find(l=>!l.parent);const j=L.cond.A.joints[1];
   j.status='soudee';j.events=[{type:'soudee',by:'karim',at:new Date(),data:{procede:'tig'},photos:[PNG]}];T.renderAll();},{PNG});
-await page.click('#tabbar [data-tab=recap]');await page.waitForTimeout(500);
+await page.evaluate(()=>{window.TRACE.state.tab='recap';window.TRACE.renderAll();});await page.waitForTimeout(500); // Récap est derrière « ⋯ » (barre allégée)
 const [pop2]=await Promise.all([page.waitForEvent('popup'),page.evaluate(()=>document.getElementById('doe-go').click())]);
 await pop2.waitForLoadState('domcontentloaded');
 out=await pop2.evaluate(()=>({t:/Carnet de soudage/.test(document.body.textContent),w:/S-\d{4}/.test(document.body.textContent),soudee:/Soudée \(TIG\)/.test(document.body.textContent),img:!!document.querySelector('img'),plan:!!document.querySelector('svg')}));

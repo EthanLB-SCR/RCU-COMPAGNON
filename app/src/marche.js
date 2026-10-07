@@ -4,6 +4,7 @@
 // fige une photographie (snapshot) et calcule l'écart. Partagé par l'appli (src/app.js) et le traceur (maquette/bridge.js).
 export const M_KEYS=[['ml','Linéaire d\'axe','ml'],['soud','Soudures (aller + retour)',''],['coudes','Coudes',''],['vannes','Vannes',''],['purges','Purges',''],['vidanges','Vidanges',''],['tes','Tés',''],['reduc','Réductions',''],['bouchons','Fins de ligne',''],['lyres','Lyres',''],['baio','Baïonnettes',''],['manchons','Manchons posés (hors extrusions)',''],['extru','Manchons extrudés',''],['fc','Fausses coupes','']];
 const Z=()=>Object.fromEntries(M_KEYS.map(([k])=>[k,0]));
+export const PIECE_KEY={valve:'vannes',tee:'tes',purge:'purges',vidange:'vidanges',reducer:'reduc',bend:'coudes',endcap:'bouchons'}; // nature de pièce → quantité
 export const axisOf=l=>l.pts&&l.pts.length?l.pts.map(p=>Array.isArray(p)?[+p[0],+p[1]]:[+p.x,+p.y]):(l.axis||[]).map(p=>[+p[0],+p[1]]);
 export const polyLen=pts=>pts.reduce((s,p,i)=>i?s+Math.hypot(p[0]-pts[i-1][0],p[1]-pts[i-1][1]):0,0);
 const turn=(a,b,c)=>{let d=(Math.atan2(c[1]-b[1],c[0]-b[0])-Math.atan2(b[1]-a[1],b[0]-a[0]))*180/Math.PI;while(d>180)d-=360;while(d<-180)d+=360;return d;};
@@ -29,7 +30,7 @@ export function marcheSnapshot(lines,meta){const L=(lines||[]).filter(l=>l&&l.co
   return {v:1,at:new Date().toISOString(),...(meta||{}),lines:L,tot:sumCounts(L.map(x=>x.c))};}
 // écart : par ligne (marché | réel | delta), lignes nouvelles / disparues, totaux
 export function diffMarche(M,lines){const reel=(lines||[]).filter(l=>l&&l.cond&&(l.cond.A||l.cond.R));const byId={};(M&&M.lines||[]).forEach(x=>byId[x.id]=x);const seen=new Set();const rows=[];
-  reel.forEach(l=>{const m=byId[l.id]||null;seen.add(l.id);const r=lineCounts(l,false);const d=Z();M_KEYS.forEach(([k])=>d[k]=+((r[k]||0)-(m?m.c[k]||0:0)).toFixed(1));const pc=m&&m.pcs?diffPieces(m.pcs,linePieces(l)):{added:m?[]:linePieces(l),removed:[],unknown:!!m};rows.push({id:l.id,name:l.name||l.id,dn:+l.dn||0,mar:m?m.c:null,reel:r,d,isNew:!m,geo:m?geoDiff(m.axis,axisOf(l)):[],added:pc.added,removed:pc.removed,pcsUnknown:!!(m&&!m.pcs)});});
+  reel.forEach(l=>{const m=byId[l.id]||null;seen.add(l.id);const r=lineCounts(l,false);const d=Z();M_KEYS.forEach(([k])=>d[k]=+((r[k]||0)-(m?m.c[k]||0:0)).toFixed(1));const pc=m&&m.pcs?diffPieces(m.pcs,linePieces(l)):{added:m?linePieces(l).filter(p=>!(m.c[PIECE_KEY[p.k]]>0)):linePieces(l),removed:[],unknown:!!m}; /* marché sans PK mémorisés : une nature de pièce absente du marché (0 vanne) → toutes celles du réel sont ajoutées, donc localisables */ rows.push({id:l.id,name:l.name||l.id,dn:+l.dn||0,mar:m?m.c:null,reel:r,d,isNew:!m,geo:m?geoDiff(m.axis,axisOf(l)):[],added:pc.added,removed:pc.removed,pcsUnknown:!!(m&&!m.pcs)});});
   (M&&M.lines||[]).forEach(x=>{if(seen.has(x.id))return;const d=Z();M_KEYS.forEach(([k])=>d[k]=-(x.c[k]||0));rows.push({id:x.id,name:x.name,dn:x.dn,mar:x.c,reel:null,d,gone:true,geo:[],added:[],removed:x.pcs||[]});});
   const tM=M?M.tot:Z();const tR=sumCounts(rows.map(r=>r.reel));const tD=Z();M_KEYS.forEach(([k])=>tD[k]=+((tR[k]||0)-(tM[k]||0)).toFixed(1));
   return {rows,tot:{mar:tM,reel:tR,d:tD},changed:rows.filter(r=>M_KEYS.some(([k])=>Math.abs(r.d[k])>(k==='ml'?0.5:0))||r.geo.length||(r.added&&r.added.length)||(r.removed&&r.removed.length))};}

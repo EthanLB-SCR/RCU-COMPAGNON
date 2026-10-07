@@ -33,7 +33,7 @@ console.log('4) 🔍, Échap, outil → pastille, ✕ :',JSON.stringify(out));co
 // ── 5) barre d'onglets allégée définitive : Catalogue et Liste cachés, « ⋯ » présent et les ouvre
 out=await page.evaluate(()=>{const tb=document.querySelector('#tabbar');const vis=t=>{const b=tb.querySelector(`[data-tab="${t}"]`);return !!b&&getComputedStyle(b).display!=='none';};return {cat:vis('catalogue'),liste:vis('liste'),more:vis('__more'),recap:vis('recap'),qse:vis('qse'),ts:vis('ts')};});
 await page.evaluate(()=>document.querySelector('#tabbar [data-tab="__more"]').click());await page.waitForTimeout(250);
-out.modal=await page.evaluate(()=>({open:document.querySelector('#modal').classList.contains('show'),cat:!!document.querySelector('#modal [data-nmt="catalogue"]')}));
+out.modal=await page.evaluate(()=>({open:document.querySelector('#modal').classList.contains('show'),cat:!!document.querySelector('#modal [data-nmt="catalogue"]')&&!!document.querySelector('#modal [data-nmt="recap"]')}));
 await page.evaluate(()=>document.querySelector('#modal [data-nmt="liste"]').click());await page.waitForTimeout(300);out.tab=await page.evaluate(()=>window.TRACE.state.tab);
-console.log('5) barre allégée : Catalogue / Liste par « ⋯ » :',JSON.stringify(out));const c5=!out.cat&&!out.liste&&out.more&&out.recap&&out.qse&&out.ts&&out.modal.open&&out.modal.cat&&out.tab==='liste';
+console.log('5) barre allégée : Récap / Liste / Catalogue par « ⋯ » :',JSON.stringify(out));const c5=!out.cat&&!out.liste&&!out.recap&&out.more&&out.qse&&out.ts&&out.modal.open&&out.modal.cat&&out.tab==='liste';
 const ALL=c1&&c2&&c3&&c4&&c5;console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3,c4,c5}));console.log(logs.length?logs:'[]');await browser.close();process.exit(ALL?0:1);
