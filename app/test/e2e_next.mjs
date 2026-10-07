@@ -29,7 +29,10 @@ const c1=out.adm&&out.qse&&out.cat&&out.more;
 // ── 2) TS : hachures + badge sur le plan, récap par TS avec bascule d'état
 out=await page.evaluate(()=>({ts:document.getElementById('tsG').innerHTML.includes('TS-01'),dash:document.getElementById('tsG').innerHTML.includes('stroke-dasharray')}));
 console.log('2a) plan : ligne TS hachurée + badge:',JSON.stringify(out));
-const c2a=out.ts&&out.dash;
+// 07/10 (Ethan) : case 👁 « TS / hors marché » — décochée : plus d'hachures ; recochée : elles reviennent
+out.eye=await page.evaluate(()=>{const T=window.TRACE;T.state.show.ts=false;T.renderPlan();const off=document.getElementById('tsG').innerHTML.length;T.state.show.ts=true;T.renderPlan();const on=document.getElementById('tsG').innerHTML.includes('TS-01');const d=document.getElementById('disp');const lbl=d&&[...d.querySelectorAll('label')].some(l=>/hors marché/.test(l.textContent));return {off,on,lbl:lbl||!d};});
+console.log('2a\') case 👁 TS / hors marché (off → vide, on → hachures):',JSON.stringify(out.eye));
+const c2a=out.ts&&out.dash&&out.eye.off===0&&out.eye.on;
 await page.click('#tabbar [data-tab=recap]');await page.waitForTimeout(500);
 out=await page.evaluate(()=>{const el=document.getElementById('recap');return {bloc:/Travaux supplémentaires/.test(el.textContent),ts:/TS-01/.test(el.textContent),btns:el.querySelectorAll('[data-tsst]').length};});
 console.log('2b) récap TS + boutons d\'état:',JSON.stringify(out));

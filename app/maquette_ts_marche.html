@@ -1,0 +1,216 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Maquette — tracé marché figé, TS granulaires, extrusions, retouche d'un seul côté</title>
+<style>
+  :root{--ink:#0b0b0b;--ink2:#52514e;--line:#e1e0d9;--muted:#898781;--surface:#fcfcfb;--or:#eb6834;--A:#c8382f;--R:#2a5fb4;--mar:#9a9a9a;--ts:#c9a227;--tsc:#eb6834;--tsf:#8a2be2;--note:#5b7fa6;--ext:#0b7a75}
+  *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#e3e2dc;color:var(--ink);font-size:14px;line-height:1.35}
+  header{padding:12px 16px 10px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+  h1{margin:0;font-size:17px}h1 small{font-weight:400;color:var(--ink2);font-size:12.5px;display:block;margin-top:3px}
+  .wrap{max-width:1180px;margin:0 auto;padding:12px 12px 60px;display:grid;grid-template-columns:1fr;gap:10px}
+  @media(min-width:900px){.wrap{grid-template-columns:1.1fr .9fr}.span2{grid-column:1/-1}}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px}
+  h2{margin:0 0 8px;font-size:14.5px}h2 .muted{font-weight:400}h3{margin:10px 0 4px;font-size:13px}
+  .muted{color:var(--muted);font-size:12.5px}.dim{color:var(--ink2);font-size:12px}
+  .btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 12px;font-size:13px;color:var(--ink);display:inline-flex;align-items:center;gap:6px;justify-content:center;line-height:1.2;cursor:pointer}
+  .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink)}.btn.sm{padding:5px 9px;font-size:12px}.btn.on{background:#1c3d6b;color:#fff;border-color:#1c3d6b}.btn:disabled{opacity:.45;cursor:default}
+  .chip{white-space:nowrap;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 9px;font-size:12px;color:var(--ink2);display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+  .chip.on{background:#1c3d6b;color:#fff;border-color:#1c3d6b}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .okbox{background:#e6f6e6;color:#1d5c1d;border:1px solid #bfe3bf;border-radius:8px;padding:8px 10px;font-size:13px;margin-top:8px}
+  .warnbox{background:#fff3d6;color:#7a5200;border:1px solid #f0c76a;border-radius:8px;padding:8px 10px;font-size:13px;margin-top:8px}
+  .infobox{background:#eef3fb;color:#1c3d6b;border:1px solid #c7d6ee;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-top:6px}
+  .hint{color:var(--ink2);font-size:12px;margin:4px 0}
+  svg.plan{width:100%;height:auto;background:#f4f3ee;border-radius:10px;border:1px solid var(--line);touch-action:manipulation}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}td,th{padding:4px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{font-size:11px;text-transform:uppercase;color:var(--ink2);letter-spacing:.3px}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}tr.tot td{font-weight:700;border-top:2px solid #0b0b0b}
+  td.plus{color:#b8560f;font-weight:700}td.minus{color:#1d5c1d;font-weight:700}
+  .legend{display:flex;gap:10px;flex-wrap:wrap;font-size:11.5px;color:var(--ink2)}.legend i{display:inline-block;width:14px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:3px}
+  .note{background:#fffbe6;border:1px solid #f0e2a0;border-radius:10px;padding:8px 10px;font-size:12.5px}.note b{color:#7a5200}
+  .tag{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;color:#fff;letter-spacing:.3px;white-space:nowrap}
+  .tag.cand{background:#777}.tag.propose{background:var(--ts);color:#3a2a00}.tag.commande{background:var(--tsc)}.tag.forfait{background:var(--tsf)}.tag.note{background:var(--note)}.tag.marche{background:#ddd;color:#333}
+  .ts{border:1px solid var(--line);border-radius:10px;padding:8px;margin-top:6px;background:#fff}.ts.cand{border-style:dashed;background:#fbfaf6}
+  .ts h4{margin:0;font-size:13px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  select,input[type=text]{border:1px solid var(--line);border-radius:7px;padding:4px 6px;font:inherit;font-size:12.5px;background:#fff}
+  .sheet{border:1px solid var(--line);border-radius:14px;background:#fff;max-width:420px;padding:10px;margin:6px auto 0}
+  .step{display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--line)}.step:last-child{border:0}.step b.n{display:inline-flex;width:22px;height:22px;border-radius:50%;background:#0b0b0b;color:#fff;align-items:center;justify-content:center;font-size:12px;flex:none}
+  .step.done b.n{background:#0ca30c}.step .btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}
+  .pop{border:1.5px solid var(--ext);border-radius:10px;padding:8px;background:#eef8f7;margin-top:6px;font-size:12.5px}
+  .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#0b0b0b;color:#fff;padding:9px 14px;border-radius:999px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9}.toast.show{opacity:1}
+  .kbd{border:1px solid #bbb;border-bottom-width:2px;border-radius:5px;padding:0 5px;font-size:11px;background:#fff}
+  ul.dec{margin:4px 0;padding-left:18px;font-size:12.5px;line-height:1.5}ul.dec li{margin:3px 0}
+  .side{display:grid;grid-template-columns:1fr 1fr;gap:8px}@media(max-width:640px){.side{grid-template-columns:1fr}}
+</style></head><body>
+<header><h1>Maquette — tracé marché figé · écarts marché → réel · TS granulaires · extrusions · retouche d'un seul côté
+<small>Tout est factice : clique les boutons « simuler » pour voir le réel s'écarter du marché, le récap se mettre à jour et les TS se proposer. À valider avant codage.</small></h1></header>
+<div class="wrap">
+
+<div class="card span2">
+  <h2>1 · Plan d'ensemble : le <b>tracé marché</b> figé (gris) sous le <b>réel / projeté</b> <span class="muted">— calques 👁 au choix</span></h2>
+  <div class="row" style="margin-bottom:6px">
+    <span class="dim">👁</span>
+    <label class="chip on" data-eye="mar"><input type="checkbox" checked> Tracé marché (gris, figé)</label>
+    <label class="chip on" data-eye="ecart"><input type="checkbox" checked> Écarts marché → réel (surlignés)</label>
+    <label class="chip on" data-eye="ts"><input type="checkbox" checked> TS / hors marché (pastilles + hachures)</label>
+    <label class="chip on" data-eye="ext"><input type="checkbox" checked> Extrusions ⚡</label>
+    <label class="chip" data-eye="nums"><input type="checkbox"> N° de soudure</label>
+  </div>
+  <svg id="plan" class="plan" viewBox="0 0 140 95" preserveAspectRatio="xMidYMid meet"></svg>
+  <div class="legend" style="margin-top:6px"><span><i style="background:#9a9a9a;border:1px dashed #555"></i>axe du tracé marché (figé à l'import / au 1er dessin)</span><span><i style="background:var(--A)"></i>aller réel</span><span><i style="background:var(--R)"></i>retour réel</span><span><i style="background:#fff3b0;border:1px solid #c9a227"></i>écart géométrique au marché</span><span><i style="background:repeating-linear-gradient(45deg,#eb6834,#eb6834 3px,#fff 3px,#fff 6px)"></i>élément hors marché (TS)</span><span><i style="background:#cfe3e2;border:1px dashed #0b7a75"></i>note hors marché sans TS</span><span>⚡ manchon extrudé</span></div>
+  <h3>Simuler des modifications du réel <span class="muted">(ce que tu ferais au traceur ou sur le terrain)</span></h3>
+  <div class="row">
+    <button class="btn sm" data-sim="lyre">➕ Lyre de dilatation à PK 110 (4 coudes)</button>
+    <button class="btn sm" data-sim="valve">➕ Vanne en plus à PK 45 (la paire)</button>
+    <button class="btn sm" data-sim="ext10">➕ Prolonger de 10 ml</button>
+    <button class="btn sm" data-sim="vidange">➕ Vidange ▼ à PK 140 (en bout)</button>
+    <button class="btn sm" data-sim="move">↔ Déplacer un sommet (déviation, mêmes quantités)</button>
+    <button class="btn sm" data-sim="extru">⚡ Manchon extrudé sur S-0007 (coude nu soudé)</button>
+    <button class="btn sm" data-sim="fc">Fausse coupe 3° sur S-0003 (note, pas de TS)</button>
+    <button class="btn sm" data-sim="reset">↩ Revenir au tracé marché</button>
+  </div>
+  <p class="hint">Règle proposée : à l'import DXF ou au premier enregistrement du traceur, le réseau est <b>figé comme « tracé marché »</b> (copie des lignes + quantités). Ensuite chaque retouche (sommet glissé, lyre, vanne, prolongement, coupe) et chaque déclaration terrain (extrusion, coude nu) modifie le <b>réel / projeté</b> ; l'écart est calculé en continu et proposé comme TS. Le chef peut <b>re-figer</b> un nouveau marché (avenant) : l'ancien reste consultable.</p>
+</div>
+
+<div class="card">
+  <h2>2 · Récap <b>marché</b> vs <b>réel / projeté</b> <span class="muted">— à jour en temps réel</span></h2>
+  <div id="recap"></div>
+  <p class="hint">Même tableau dans l'onglet Récap de l'appli et dans le traceur (bandeau en bas). Le « réel » = tracé courant + déclarations terrain (soudures supplémentaires, extrusions). Exportable (PDF) avec le plan avant / après pour le dossier TS.</p>
+</div>
+
+<div class="card">
+  <h2>3 · TS / hors marché <b>par élément</b>, plus seulement par ligne <span class="muted">— candidats détectés, puis marqués</span></h2>
+  <div id="tsList"></div>
+  <div class="infobox"><b>Comment on marque, concrètement</b><br>• <b>Automatique</b> : chaque écart détecté (pièce en plus, ml en plus, extrusion, coude nu) apparaît en <i>candidat</i> ; tu choisis l'état et le n° de TS, ou « note sans TS » (fausse coupe, détail à garder mais jamais facturé).<br>• <b>À la main</b> : au traceur ou sur le plan de l'appli, appui long sur une pièce (vanne, lyre, coude, 10 ml de tube…) → « Marquer hors marché » : état + n° TS + photo si utile. Une ligne entière reste marquable comme aujourd'hui.<br>• <b>États</b> : <span class="tag cand">candidat</span> <span class="tag propose">TS proposé</span> <span class="tag commande">TS commandé</span> <span class="tag forfait">forfaitaire</span> <span class="tag note">note (sans TS)</span> <span class="tag marche">dans le marché</span> — la bascule reste réservée au chef / bureau.</div>
+</div>
+
+<div class="card">
+  <h2>4 · Terrain : <b>manchon extrudé</b> déclaré comme la soudure en + <span class="muted">— fiche soudure, étape ③</span></h2>
+  <div class="sheet">
+    <div style="display:flex;justify-content:space-between;align-items:center"><b>S-0007 · Rue de la Gare · aller · DN150</b><span class="dim">PK 94,5</span></div>
+    <div class="step done"><b class="n">1</b><div><b>Cordon soudé</b> <span class="dim">· TIG · 📷 2</span></div></div>
+    <div class="step done"><b class="n">2</b><div><b>Fils raccordés</b> <span class="dim">· testeur OK · 📷 1</span></div></div>
+    <div class="step"><b class="n">3</b><div><b>Manchon</b><div class="btns"><button class="btn sm">Manchon rétracté + test pression</button><button class="btn sm on" id="bExt">⚡ Manchon extrudé</button></div>
+      <div class="pop" id="extPop">
+        <b>Extrusion à la place du manchon</b> — pourquoi ?<br>
+        <label style="display:block;margin-top:4px"><input type="radio" name="cause" value="coudenu" checked> coude acier nu soudé (coude pré-isolé non livré / urgence) → <span class="tag propose">TS proposé</span> d'office</label>
+        <label style="display:block"><input type="radio" name="cause" value="geom"> impossible de manchonner (géométrie, place) → <span class="tag note">note</span>, à toi de décider</label>
+        <label style="display:block"><input type="radio" name="cause" value="manquant"> manchon manquant / cassé → <span class="tag note">note</span></label>
+        <div class="row" style="margin-top:6px"><button class="btn sm primary">📷 Photo de l'extrusion (obligatoire)</button><button class="btn sm">Valider ⚡</button></div>
+        <div class="hint" style="margin:6px 0 0">La soudure passe en « extrudée » : symbole ⚡ sur le plan, ligne « extrusions » dans le récap, pièce comptée en coude nu si c'est la cause. Le test de pression reste exigé.</div>
+      </div></div></div>
+    <div class="step"><b class="n">4</b><div><b>Contrôle</b> <span class="dim">· facultatif</span></div></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>5 · Traceur (conception) : bouger <b>une seule</b> soudure ou <b>un seul</b> organe, pas la paire</h2>
+  <div class="row" style="margin-bottom:6px"><span class="dim">Ce que je glisse s'applique à :</span><button class="btn sm on" data-pair="both">⇄ la paire (aller + retour, en face)</button><button class="btn sm" data-pair="one">un seul côté (celui que je glisse)</button><span class="dim">· ou <span class="kbd">Alt</span> enfoncé pendant le glisser = un seul côté</span></div>
+  <svg id="pair" class="plan" viewBox="0 0 140 40" preserveAspectRatio="xMidYMid meet"></svg>
+  <p class="hint">Aujourd'hui une coupe (soudure coulissée) et une pièce posée s'appliquent aux deux conduites au même PK (sauf les vannes « en quinconce »). Proposé : chaque coupe et chaque pièce porte son côté — <code>cuts[{m, cond:'A'|'R'|null}]</code>, <code>specials[{m, mR}]</code> — et le plan le montre : la soudure retour n'a plus à être en face de l'aller. Le petit visuel TS / hors marché (hachures, pastilles) s'affiche aussi dans le traceur, pour vérifier qu'on a fait les bonnes modifs avant d'enregistrer.</p>
+</div>
+
+<div class="card span2">
+  <h2>Ce qui est proposé / à valider</h2>
+  <div class="side">
+    <div><h3>Décisions</h3><ul class="dec">
+      <li><b>Figer le marché</b> : automatique au premier enregistrement (import ou traceur), bouton « Re-figer comme marché (avenant) » pour le chef ; l'ancien marché est gardé (historique).</li>
+      <li><b>Écart = réel − marché</b>, calculé sur les quantités (soudures, ml, coudes, vannes, purges/vidanges, tés, lyres, baïonnettes, manchons, extrusions) <i>et</i> sur la géométrie (surlignage des tronçons qui ne sont plus sur l'axe marché).</li>
+      <li><b>TS par élément</b> : une marque = { quoi (pièce / tronçon PK a→b / soudure / ligne), état, n° TS, photo, commentaire } ; les candidats automatiques se marquent en un geste.</li>
+      <li><b>Note sans TS</b> : fausses coupes, extrusions « géométrie », petites reprises — gardées et visibles, jamais comptées comme TS.</li>
+      <li><b>Extrusion</b> : déclarée à l'étape ③ avec photo obligatoire ; « coude nu soudé » → TS proposé d'office.</li>
+      <li><b>Un seul côté</b> au traceur : paire par défaut, « aller seul / retour seul » au choix (ou Alt), pour les soudures et tous les organes.</li>
+      <li><b>👁</b> : cases « Tracé marché », « Écarts », « TS / hors marché », « Extrusions » dans l'appli (plan d'ensemble) et dans le traceur.</li>
+    </ul></div>
+    <div><h3>Déjà codé aujourd'hui</h3><ul class="dec"><li>Case 👁 « TS / hors marché » sur le plan d'ensemble de l'appli (cocher / décocher les hachures et pastilles des lignes marquées TS).</li></ul>
+      <h3>Ordre de codage proposé</h3><ul class="dec"><li>Lot 1 — tracé marché figé + calque 👁 + récap marché / réel (appli + traceur).</li><li>Lot 2 — TS par élément (candidats automatiques + marquage manuel) + récap par n° de TS + export dossier TS.</li><li>Lot 3 — extrusion terrain (étape ③, photo, ⚡ sur le plan).</li><li>Lot 4 — traceur : un seul côté pour les soudures et les organes, visuel TS dans le traceur.</li></ul></div>
+  </div>
+</div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const $=(s,el=document)=>el.querySelector(s),$$=(s,el=document)=>[...el.querySelectorAll(s)];const fmt=n=>Number(n).toLocaleString('fr-FR',{maximumFractionDigits:1});
+let tmo;function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(tmo);tmo=setTimeout(()=>t.classList.remove('show'),1800);}
+// ---- modèle factice : lignes (axe en m), spéciaux (vannes, vidanges), marques TS, extrusions ; marché = copie figée ----
+const BAR=12;
+const MARCHE={lines:[{id:'L1',name:'Rue de la Gare',dn:150,pts:[[5,40],[60,40],[60,80],[120,80]],specials:[{id:'v1',type:'valve',m:12}]},{id:'L2',name:'Impasse des Lilas',dn:80,pts:[[30,40],[30,12]],specials:[]}]};
+let REEL=JSON.parse(JSON.stringify(MARCHE));let MARKS=[];let EXTRU=[];let FC=[];let SIM={lyre:false,valve:false,ext10:false,vidange:false,move:false,extru:false,fc:false};
+const eye={mar:true,ecart:true,ts:true,ext:true,nums:false};
+const polyLen=p=>p.reduce((s,q,i)=>i?s+Math.hypot(q[0]-p[i-1][0],q[1]-p[i-1][1]):0,0);
+function ptAt(pts,m){let acc=0;for(let i=1;i<pts.length;i++){const L=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);if(acc+L>=m||i===pts.length-1){const t=L?Math.max(0,Math.min(1,(m-acc)/L)):0;return {x:pts[i-1][0]+(pts[i][0]-pts[i-1][0])*t,y:pts[i-1][1]+(pts[i][1]-pts[i-1][1])*t,th:Math.atan2(pts[i][1]-pts[i-1][1],pts[i][0]-pts[i-1][0]),i};}acc+=L;}return {x:pts[0][0],y:pts[0][1],th:0,i:1};}
+function distToPoly(pts,q){let best=1e9;for(let i=1;i<pts.length;i++){const a=pts[i-1],b=pts[i];const dx=b[0]-a[0],dy=b[1]-a[1];const L2=dx*dx+dy*dy||1;let t=((q[0]-a[0])*dx+(q[1]-a[1])*dy)/L2;t=Math.max(0,Math.min(1,t));best=Math.min(best,Math.hypot(q[0]-a[0]-dx*t,q[1]-a[1]-dy*t));}return best;}
+// calepinage simplifié par conduite : tubes = ⌈L/12⌉ par tronçon droit, un coude par sommet intérieur, chaque spécial = 1 pièce qui coupe un tube ; soudures = pièces + 1 (raccord + fin)
+function calc(net){const out={ml:0,soud:0,coudes:0,vannes:0,vid:0,tes:0,lyres:0,manch:0};const isReel=net===REEL;net.lines.forEach(l=>{const L=polyLen(l.pts);out.ml+=L;const segs=[];for(let i=1;i<l.pts.length;i++)segs.push(Math.hypot(l.pts[i][0]-l.pts[i-1][0],l.pts[i][1]-l.pts[i-1][1]));
+    const nB=l.pts.length-2;const tubes=segs.reduce((s,x)=>s+Math.max(1,Math.ceil(x/BAR)),0);const sp=(l.specials||[]);const pieces=tubes+nB+sp.length+sp.length;const welds=pieces+1;out.soud+=2*welds;out.coudes+=2*nB;out.vannes+=2*sp.filter(s=>s.type==='valve').length;out.vid+=2*sp.filter(s=>s.type==='vid').length;if(l.id==='L2')out.tes+=2;out.lyres+=(l.lyres||0);});
+  out.manch=out.soud-(isReel?EXTRU.length:0);return out;}
+// ---- simulations ----
+function applySim(){REEL=JSON.parse(JSON.stringify(MARCHE));MARKS=MARKS.filter(m=>m.manual);EXTRU=[];FC=[];const L1=REEL.lines[0];
+  if(SIM.move){L1.pts[1]=[64,40];L1.pts[2]=[64,80];}
+  if(SIM.lyre){const x=SIM.move?79:75;L1.pts.splice(3,0,[x-3,80],[x-3,72],[x+3,72],[x+3,80]);L1.lyres=1;cand('lyre','Lyre de dilatation PK 110 — 4 coudes 90° × 2 conduites','8 coudes · 10 soudures · 4 manchons de plus',{soud:10,pieces:8},'propose');}
+  if(SIM.valve){L1.specials.push({id:'v2',type:'valve',m:45});cand('valve','Vanne en plus PK 45 (aller + retour)','2 vannes · 4 soudures',{soud:4,pieces:2},'propose');}
+  if(SIM.ext10){const last=L1.pts[L1.pts.length-1];L1.pts[L1.pts.length-1]=[last[0]+10,last[1]];cand('range','Prolongement PK 155 → 165 (10 ml)','10 ml · 2 barres · 4 soudures',{soud:4,ml:10},'propose');}
+  if(SIM.vidange){L1.specials.push({id:'pv',type:'vid',m:polyLen(L1.pts)-3});cand('vid','Vidange ▼ en bout de ligne (aller + retour)','2 tés + 2 bouchons · 4 soudures',{soud:4,pieces:2},'propose');}
+  if(SIM.extru){EXTRU.push({line:'L1',cond:'A',m:94.5,id:'S-0007',cause:'coudenu'});cand('weld','S-0007 — manchon extrudé, coude acier nu soudé (coude pré-isolé non livré)','1 coude nu isolé sur place · 1 extrusion',{pieces:1},'propose');}
+  if(SIM.fc){FC.push({line:'L1',cond:'A',m:60,id:'S-0003',dev:3});cand('fc','S-0003 — fausse coupe 3° (tubes coupés en biais)','à noter, jamais facturé',{},'note');}
+  if(SIM.move&&!MARKS.some(m=>m.kind==='move'))cand('move','Déviation du coude PK 55 → +4 m vers l\'est (mêmes quantités)','géométrie seulement — 0 pièce en plus',{},'note');
+  render();}
+let seq=1;function cand(kind,label,qty,q,def){if(MARKS.some(m=>m.kind===kind&&!m.manual))return;MARKS.push({id:'m'+(seq++),kind,label,qty,q,etat:'cand',def,ts:''});}
+$$('[data-sim]').forEach(b=>b.onclick=()=>{const k=b.dataset.sim;if(k==='reset'){Object.keys(SIM).forEach(x=>SIM[x]=false);MARKS=[];toast('Réel = marché : aucun écart');}else{SIM[k]=!SIM[k];toast(SIM[k]?'Modification simulée — regarde le récap et les TS':'Modification retirée');}$$('[data-sim]').forEach(x=>x.classList.toggle('on',!!SIM[x.dataset.sim]));applySim();});
+$$('[data-eye]').forEach(l=>{const cb=$('input',l);cb.onchange=()=>{eye[l.dataset.eye]=cb.checked;l.classList.toggle('on',cb.checked);render();};});
+// ---- rendu du plan ----
+function offset(pts,d){const out=[];for(let i=0;i<pts.length;i++){const a=pts[Math.max(0,i-1)],b=pts[Math.min(pts.length-1,i+1)];const th=Math.atan2(b[1]-a[1],b[0]-a[0]);out.push([pts[i][0]-Math.sin(th)*d,pts[i][1]+Math.cos(th)*d]);}return out;}
+function weldsOf(l,pts){const W=[];const L=polyLen(pts);let n=1;let acc=0;for(let i=1;i<pts.length;i++){const sl=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);let m=BAR;while(m<sl-0.5){const q=ptAt(pts,acc+m);W.push({x:q.x,y:q.y,m:acc+m,id:'S-'+String(n++).padStart(4,'0')});m+=BAR;}if(i<pts.length-1){const q=ptAt(pts,acc+sl-1);W.push({x:q.x,y:q.y,m:acc+sl-1,id:'S-'+String(n++).padStart(4,'0')});const q2=ptAt(pts,acc+sl+1);W.push({x:q2.x,y:q2.y,m:acc+sl+1,id:'S-'+String(n++).padStart(4,'0')});}acc+=sl;}const q=ptAt(pts,L-0.3);W.push({x:q.x,y:q.y,m:L-0.3,id:'S-'+String(n++).padStart(4,'0')});return W;}
+function render(){const svg=$('#plan');let h='';
+  // tracé marché (gris, figé)
+  if(eye.mar)MARCHE.lines.forEach(l=>{h+=`<path d="M${l.pts.map(p=>p.join(' ')).join('L')}" stroke="#9a9a9a" stroke-width="3.2" fill="none" stroke-dasharray="2 1.4" opacity=".75" stroke-linejoin="round"/>`;const b=l.pts[l.pts.length-1];h+=l.id==='L2'?`<text x="${b[0]}" y="${b[1]-2.6}" font-size="2.4" fill="#777" text-anchor="middle" font-family="system-ui,sans-serif">marché : ${fmt(polyLen(l.pts))} m</text>`:`<text x="${b[0]}" y="${b[1]+6.2}" font-size="2.4" fill="#777" text-anchor="end" font-family="system-ui,sans-serif">tracé marché (figé) : ${l.name} · ${fmt(polyLen(l.pts))} m</text>`;});
+  // écarts géométriques : tronçons du réel dont un bout est à > 0,3 m de l'axe marché
+  if(eye.ecart)REEL.lines.forEach((l,li)=>{const M=MARCHE.lines[li];for(let i=1;i<l.pts.length;i++){const a=l.pts[i-1],b=l.pts[i];if(distToPoly(M.pts,a)>0.3||distToPoly(M.pts,b)>0.3)h+=`<path d="M${a.join(' ')}L${b.join(' ')}" stroke="#fff3b0" stroke-width="7" fill="none" stroke-linecap="round" opacity=".95"/><path d="M${a.join(' ')}L${b.join(' ')}" stroke="#c9a227" stroke-width=".5" fill="none" stroke-dasharray="1 .8"/>`;}});
+  // réel : deux conduites + soudures + spéciaux
+  REEL.lines.forEach(l=>{const e=l.dn>=150?1.1:0.8;const A=offset(l.pts,-e),R=offset(l.pts,e);
+    [['A',A,'#c8382f'],['R',R,'#2a5fb4']].forEach(([c,pts,col])=>{h+=`<path d="M${pts.map(p=>p.join(' ')).join('L')}" stroke="${col}" stroke-width="${l.dn>=150?1.4:1}" fill="none" stroke-linejoin="round" opacity=".9"/>`;
+      weldsOf(l,pts).forEach(w=>{const ex=EXTRU.find(x=>x.line===l.id&&x.cond===c&&Math.abs(x.m-w.m)<1.5);const fc=FC.find(x=>x.line===l.id&&x.cond===c&&Math.abs(x.m-w.m)<1.5);h+=`<circle cx="${w.x}" cy="${w.y}" r=".75" fill="${fc?'#f4a24a':'#fff'}" stroke="${fc?'#9a4a0a':'#333'}" stroke-width=".25"/>`;if(eye.nums)h+=`<text x="${w.x}" y="${w.y+2.4}" font-size="1.6" text-anchor="middle" fill="#333" font-family="system-ui,sans-serif">${w.id.slice(2)}</text>`;
+        if(ex&&eye.ext)h+=`<rect x="${w.x-1.6}" y="${w.y-.9}" width="3.2" height="1.8" rx=".4" fill="none" stroke="#0b7a75" stroke-width=".35" stroke-dasharray=".6 .4"/><text x="${w.x}" y="${w.y-1.6}" font-size="2.4" text-anchor="middle" font-family="system-ui,sans-serif">⚡</text>`;
+        if(fc&&eye.ts)h+=`<text x="${w.x}" y="${w.y+3.4}" font-size="1.7" text-anchor="middle" fill="#9a4a0a" font-weight="700" font-family="system-ui,sans-serif">FC 3°</text>`;});
+      (l.specials||[]).forEach(sp=>{const q=ptAt(pts,sp.m);if(sp.type==='valve')h+=`<g transform="translate(${q.x} ${q.y}) rotate(${q.th*180/Math.PI})"><rect x="-1" y="-1.3" width="2" height="2.6" fill="#333" stroke="#fff" stroke-width=".2"/><line x1="0" y1="-1.3" x2="0" y2="-2.6" stroke="#333" stroke-width=".5"/><circle cx="0" cy="-2.6" r=".6" fill="#333"/></g>`;
+        if(sp.type==='vid')h+=`<circle cx="${q.x}" cy="${q.y}" r="1.4" fill="#fff" stroke="${col}" stroke-width=".3"/><polygon points="${q.x},${q.y+.9} ${q.x-.8},${q.y-.6} ${q.x+.8},${q.y-.6}" fill="#2a5fb4"/>`;});});
+    const a=l.pts[0];h+=l.id==='L2'?`<text x="${a[0]+2.6}" y="${a[1]-20}" font-size="2.6" fill="#52514e" font-weight="600" font-family="system-ui,sans-serif">${l.name} · DN${l.dn} · ${fmt(polyLen(l.pts))} m</text>`:`<text x="${a[0]}" y="${a[1]+5.5}" font-size="2.6" fill="#52514e" font-weight="600" font-family="system-ui,sans-serif">${l.name} · DN${l.dn} · ${fmt(polyLen(l.pts))} m</text>`;});
+  // marques TS : hachure + pastille sur l'élément
+  if(eye.ts)MARKS.forEach(mk=>{if(mk.etat==='cand'&&!mk.def)return;const L1=REEL.lines[0];const col=mk.etat==='note'||(mk.etat==='cand'&&mk.def==='note')?'#0b7a75':mk.etat==='commande'?'#eb6834':mk.etat==='forfait'?'#8a2be2':'#c9a227';const dash=mk.etat==='cand';let q=null,lab='';
+    if(mk.kind==='lyre'){q={x:SIM.move?79:75,y:68.5};lab='lyre';h+=`<rect x="${q.x-4.6}" y="70.6" width="9.2" height="11.2" rx="1" fill="none" stroke="${col}" stroke-width=".5" ${dash?'stroke-dasharray="1 .7"':''}/>`;}
+    if(mk.kind==='valve'){q=ptAt(L1.pts,45);q={x:q.x,y:q.y-5.5};lab='vanne';h+=`<rect x="${q.x-2.5}" y="${q.y+1.5}" width="5" height="7" rx="1" fill="none" stroke="${col}" stroke-width=".5" ${dash?'stroke-dasharray="1 .7"':''}/>`;}
+    if(mk.kind==='range'){const b=L1.pts[L1.pts.length-1];q={x:b[0]-5,y:b[1]-5};lab='+10 ml';h+=`<rect x="${b[0]-10}" y="${b[1]-2.5}" width="10" height="5" fill="url(#hatch)" opacity=".8" stroke="${col}" stroke-width=".4"/>`;}
+    if(mk.kind==='vid'){const b=L1.pts[L1.pts.length-1];q={x:b[0]-3,y:b[1]+5};lab='vidange';}
+    if(mk.kind==='weld'){const w=ptAt(L1.pts,94.5);q={x:w.x-10,y:w.y-2};lab='⚡ coude nu';}
+    if(mk.kind==='fc'){const w=ptAt(L1.pts,60);q={x:w.x+9.5,y:w.y+1};lab='FC note';}
+    if(mk.kind==='move'){q={x:SIM.move?74:70,y:60};lab='déviation';}
+    if(!q)return;const txt=(mk.ts?mk.ts+' · ':'')+lab+(mk.etat==='cand'?' ?':'');const wl=txt.length*1.5+2.4;h+=`<g><rect x="${q.x-wl/2}" y="${q.y-2}" width="${wl}" height="3.4" rx="1.7" fill="${col}" ${dash?'opacity=".75"':''}/><text x="${q.x}" y="${q.y+.5}" font-size="2.1" font-weight="800" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif">${txt}</text></g>`;});
+  svg.innerHTML=`<defs><pattern id="hatch" width="2" height="2" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="1" height="2" fill="#eb6834"/></pattern></defs>`+h;
+  renderRecap();renderTs();}
+const ET={cand:'candidat',propose:'TS proposé',commande:'TS commandé',forfait:'forfaitaire (hors marché)',note:'note sans TS',marche:'dans le marché'};
+function renderRecap(){const M=calc(MARCHE),R=calc(REEL);const rows=[['Linéaire d\'axe (ml)',M.ml,R.ml,1],['Soudures (aller + retour)',M.soud,R.soud],['Coudes',M.coudes,R.coudes],['Vannes',M.vannes,R.vannes],['Purges / vidanges',M.vid,R.vid],['Tés (antennes)',M.tes,R.tes],['Lyres',M.lyres,R.lyres],['Manchons',M.manch,R.manch],['Extrusions ⚡',0,EXTRU.length],['Fausses coupes',0,FC.length]];
+  const ts=MARKS.filter(m=>m.etat!=='cand'&&m.etat!=='note'&&m.etat!=='marche');const sSoud=ts.reduce((s,m)=>s+(m.q.soud||0),0),sMl=ts.reduce((s,m)=>s+(m.q.ml||0),0);
+  $('#recap').innerHTML=`<table><tr><th>Quantité</th><th class="n">Marché (figé)</th><th class="n">Réel / projeté</th><th class="n">Écart</th></tr>${rows.map(([lab,a,b,dec])=>{const d=b-a;return `<tr><td>${lab}</td><td class="n">${fmt(dec?Math.round(a*10)/10:a)}</td><td class="n"><b>${fmt(dec?Math.round(b*10)/10:b)}</b></td><td class="n ${d>0?'plus':d<0?'minus':''}">${d>0?'+':''}${d?fmt(Math.round(d*10)/10):'—'}</td></tr>`;}).join('')}<tr class="tot"><td>Dont TS marqués (proposés / commandés / forfait)</td><td class="n"></td><td class="n">${ts.length} TS</td><td class="n">${sSoud?'+'+sSoud+' soud.':''}${sMl?' +'+sMl+' ml':''}${!sSoud&&!sMl?'—':''}</td></tr></table>
+   ${R.soud!==M.soud||Math.abs(R.ml-M.ml)>0.1?`<div class="warnbox">Le réel s'écarte du marché : ${R.soud-M.soud>0?'+'+(R.soud-M.soud)+' soudures':''}${Math.abs(R.ml-M.ml)>0.1?' · '+(R.ml-M.ml>0?'+':'')+fmt(Math.round((R.ml-M.ml)*10)/10)+' ml':''}${EXTRU.length?' · '+EXTRU.length+' extrusion':''} — ${MARKS.filter(m=>m.etat==='cand').length} candidat(s) à marquer.</div>`:`<div class="okbox">Réel = marché${FC.length||MARKS.some(m=>m.kind==='move')?' (écarts notés sans incidence sur les quantités)':''}.</div>`}`;}
+function renderTs(){const el=$('#tsList');if(!MARKS.length){el.innerHTML='<div class="muted">Aucun écart ni marque. Simule une modification ci-dessus, ou marque une pièce à la main (appui long sur le plan).</div>';return;}
+  const groups={};MARKS.forEach(m=>{const k=m.etat==='cand'?'_cand':m.etat==='note'?'_note':(m.ts||'(sans n°)');(groups[k]=groups[k]||[]).push(m);});
+  const card=m=>`<div class="ts ${m.etat==='cand'?'cand':''}"><h4><span class="tag ${m.etat==='cand'?(m.def||'cand'):m.etat}" style="${m.etat==='cand'?'opacity:.75':''}">${m.etat==='cand'?'candidat → '+ET[m.def||'propose']:ET[m.etat]}</span> ${m.label}</h4><div class="dim" style="margin-top:3px">${m.qty}</div>
+     <div class="row" style="margin-top:6px"><select data-etat="${m.id}">${Object.entries(ET).map(([v,t])=>`<option value="${v}" ${(m.etat==='cand'?(m.def||'propose'):m.etat)===v?'selected':''}>${t}</option>`).join('')}</select><input type="text" data-ts="${m.id}" value="${m.ts||''}" placeholder="n° TS (ex. TS-02)" style="width:110px"><button class="btn sm" data-photo="${m.id}">📷</button>${m.etat==='cand'?`<button class="btn sm primary" data-ok="${m.id}">Marquer</button>`:''}<button class="btn sm" data-del="${m.id}" title="retirer la marque">✕</button></div></div>`;
+  el.innerHTML=Object.entries(groups).sort(([a],[b])=>(a==='_cand'?-1:b==='_cand'?1:a.localeCompare(b))).map(([k,ms])=>`<h3 style="margin-top:8px">${k==='_cand'?'⚠ Écarts détectés — à marquer ('+ms.length+')':k==='_note'?'Notes hors marché, sans TS ('+ms.length+')':'📎 '+k+' — '+ms.length+' élément'+(ms.length>1?'s':'')+(ms.some(m=>m.etat==='commande')?' · <span class="tag commande">commandé</span>':ms.some(m=>m.etat==='forfait')?' · <span class="tag forfait">forfaitaire</span>':' · <span class="tag propose">proposé</span>')}</h3>${ms.map(card).join('')}`).join('');
+  $$('[data-ok]',el).forEach(b=>b.onclick=()=>{const m=MARKS.find(x=>x.id===b.dataset.ok);m.etat=$(`[data-etat="${m.id}"]`).value;if(m.etat==='cand')m.etat=m.def||'propose';m.ts=$(`[data-ts="${m.id}"]`).value||(m.etat==='note'?'':'TS-0'+(MARKS.filter(x=>x.ts).length+1));toast('Marqué « '+ET[m.etat]+' »'+(m.ts?' · '+m.ts:''));render();});
+  $$('[data-etat]',el).forEach(s=>s.onchange=()=>{const m=MARKS.find(x=>x.id===s.dataset.etat);if(m.etat!=='cand'){m.etat=s.value;render();}});
+  $$('[data-ts]',el).forEach(i=>i.onchange=()=>{const m=MARKS.find(x=>x.id===i.dataset.ts);m.ts=i.value;if(m.etat!=='cand')render();});
+  $$('[data-del]',el).forEach(b=>b.onclick=()=>{MARKS=MARKS.filter(x=>x.id!==b.dataset.del);render();});
+  $$('[data-photo]',el).forEach(b=>b.onclick=()=>toast('Photo jointe à la marque (dans l\'appli : appareil photo)'));}
+// ---- 5 · un seul côté ----
+let pair='both';let pos={A:60,R:60,vA:30,vR:30};
+function renderPair(){const svg=$('#pair');const A=12,R=28;let h='';h+=`<line x1="5" y1="${A}" x2="135" y2="${A}" stroke="#c8382f" stroke-width="1.6"/><line x1="5" y1="${R}" x2="135" y2="${R}" stroke="#2a5fb4" stroke-width="1.6"/>`;
+  [[pos.vA,A,'#c8382f'],[pos.vR,R,'#2a5fb4']].forEach(([x,y])=>{h+=`<g class="drg" data-k="${y===A?'vA':'vR'}" style="cursor:ew-resize"><rect x="${x-1.4}" y="${y-2}" width="2.8" height="4" fill="#333" stroke="#fff" stroke-width=".3"/><line x1="${x}" y1="${y-2}" x2="${x}" y2="${y-4}" stroke="#333" stroke-width=".6"/><circle cx="${x}" cy="${y-4}" r=".9" fill="#333"/></g>`;});
+  [[pos.A,A],[pos.R,R]].forEach(([x,y])=>{h+=`<g class="drg" data-k="${y===A?'A':'R'}" style="cursor:ew-resize"><circle cx="${x}" cy="${y}" r="2" fill="#fff" stroke="#333" stroke-width=".4"/><circle cx="${x}" cy="${y}" r="4" fill="transparent"/></g>`;});
+  for(let x=18;x<135;x+=24){if(Math.abs(x-pos.A)>3)h+=`<circle cx="${x}" cy="${A}" r="1.4" fill="#fff" stroke="#999" stroke-width=".3"/>`;if(Math.abs(x-pos.R)>3)h+=`<circle cx="${x}" cy="${R}" r="1.4" fill="#fff" stroke="#999" stroke-width=".3"/>`;}
+  h+=`<text x="6" y="${A-3.5}" font-size="2.6" fill="#c8382f" font-family="system-ui,sans-serif">aller · soudure PK ${fmt(pos.A)} · vanne PK ${fmt(pos.vA)}</text><text x="6" y="${R+6}" font-size="2.6" fill="#2a5fb4" font-family="system-ui,sans-serif">retour · soudure PK ${fmt(pos.R)} · vanne PK ${fmt(pos.vR)}${pos.R!==pos.A||pos.vR!==pos.vA?' — décalé (plus en face)':''}</text>`;
+  h+=`<text x="135" y="${(A+R)/2+1}" font-size="2.4" text-anchor="end" fill="#52514e" font-family="system-ui,sans-serif">glisse la soudure blanche ou la vanne →</text>`;svg.innerHTML=h;}
+$$('[data-pair]').forEach(b=>b.onclick=()=>{pair=b.dataset.pair;$$('[data-pair]').forEach(x=>x.classList.toggle('on',x===b));toast(pair==='both'?'Le glisser bouge la paire (les deux restent en face)':'Le glisser ne bouge que la conduite touchée');});
+{let dg=null;const svg=$('#pair');const toX=e=>{const r=svg.getBoundingClientRect();return (e.clientX-r.left)/r.width*140;};
+  svg.addEventListener('pointerdown',e=>{const g=e.target.closest('.drg');if(!g)return;dg={k:g.dataset.k,x0:toX(e),p0:{...pos}};svg.setPointerCapture(e.pointerId);});
+  svg.addEventListener('pointermove',e=>{if(!dg)return;const dx=toX(e)-dg.x0;const side=dg.k.replace('v','');const isV=dg.k.startsWith('v');const only=(e.altKey||pair!=='both')?side:null;
+    (isV?['vA','vR']:['A','R']).forEach(k=>{if(only&&k.replace('v','')!==only)return;pos[k]=Math.max(8,Math.min(132,dg.p0[k]+dx));});renderPair();});
+  svg.addEventListener('pointerup',()=>{dg=null;});}
+$('#bExt').onclick=()=>{const p=$('#extPop');p.style.display=p.style.display==='none'?'':'none';};
+render();renderPair();
+</script></body></html>
