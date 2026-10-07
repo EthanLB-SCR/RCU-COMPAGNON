@@ -66,9 +66,23 @@ console.log('7) marché importé (figé) + écart vs marché + planning:',JSON.s
 await page.evaluate(()=>{const P=window.TRACE.net.phasage;P.week=5;window.TRACE.phasage.render();});
 await page.evaluate(()=>document.querySelector('#phasage [data-phwk="5"]').click());await page.waitForTimeout(1500);
 await page.reload();await page.waitForTimeout(2500);await page.evaluate(id=>window.TRACE.go(id),siteId);await page.waitForTimeout(1500);
-out=await page.evaluate(()=>{const P=window.TRACE.net.phasage;return {n:P&&P.phases.length,g:P&&P.groups.length,week:P&&P.week,ov:document.querySelectorAll('#phG path').length};});
-console.log('8) après rechargement : phases / groupe / semaine conservés, tronçons dessinés sur le plan:',JSON.stringify(out));const c8=out.n===4&&out.g===1&&out.week===5&&out.ov>=2;
-const ALL=c1&&c2a&&c2c&&c3&&c4&&c4b&&c5&&c6&&c7&&c8;
-console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2a,c2c,c3,c4,c4b,c5,c6,c7,c8}));
+await page.selectOption('#roleSel','ethan');await page.waitForTimeout(300);
+out=await page.evaluate(()=>{const T=window.TRACE;const P=T.net.phasage;const ov0=document.querySelectorAll('#phG path').length;T.state.show.phasage=true;T.renderPlan();const ov1=document.querySelectorAll('#phG path').length;T.state.show.phasage=false;T.renderPlan();
+  document.querySelector('#tabbar [data-tab="phasage"]').click();const mini=document.querySelectorAll('#phasage .phMini [data-phmini]').length;const badges=document.querySelectorAll('#phasage .phMini g[data-phmini]').length;
+  return {n:P&&P.phases.length,g:P&&P.groups.length,week:P&&P.week,ov0,ov1,mini,badges};});
+console.log('8) après rechargement : conservé ; plan d\'ensemble : liseré seulement si 👁 coché (décoché par défaut) ; vue plan de l\'onglet avec tronçons numérotés:',JSON.stringify(out));const c8=out.n===4&&out.g===1&&out.week===5&&out.ov0===0&&out.ov1>=2&&out.mini>=2&&out.badges===2;
+// ── 9) week-end forcé : samedi 17/10 dans la fenêtre soudure → +1 jour ; jour ouvré exclu → −1 ; phase marché à la main + figée (non supprimable, dates verrouillées)
+out=await page.evaluate(()=>{const T=window.TRACE;const P=T.net.phasage;const ph=P.phases[0];T.state.phOpen=ph.id;T.state.phLv='ferme';T.phasage.render();const d0=T.phasage.calc([ph],P.week).days;
+  const sat=document.querySelector('#phasage [data-phday="2026-10-17"]');if(sat)sat.click();const d1=T.phasage.calc([ph],P.week).days;
+  const tue=document.querySelector('#phasage [data-phday="2026-10-20"]');if(tue)tue.click();const d2=T.phasage.calc([ph],P.week).days;
+  const forced=document.querySelectorAll('#phasage .phCal .forced').length;return {d0,d1,d2,forced,force:ph.force,off:ph.off};});
+console.log('9a) samedi forcé (+1), mardi exclu (−1):',JSON.stringify(out));const c9a=out.d1===out.d0+1&&out.d2===out.d1-1&&out.forced===1&&out.force[0]==='2026-10-17'&&out.off[0]==='2026-10-20';
+await page.evaluate(()=>document.querySelector('#phasage #phImport').click());await page.waitForTimeout(300);
+await page.evaluate(()=>{document.querySelector('#phImpName').value='Marché — Rue de la Gare';const set=(k,i,v)=>{const inp=document.querySelector(`#modal [data-impd="${k}"][data-i="${i}"]`);inp.value=v;};set('so',0,'2026-10-12');set('so',1,'2026-10-20');document.querySelector('#phImpOk').click();});await page.waitForTimeout(400);
+out=await page.evaluate(()=>{const T=window.TRACE;const P=T.net.phasage;const m=P.phases[P.phases.length-1];T.state.phOpen=m.id;T.state.phLv='marche';T.phasage.render();const lockBtn=document.querySelector(`#phasage [data-phlock="${m.id}"]`);if(lockBtn)lockBtn.click();
+  const dis=!!document.querySelector(`#phasage [data-phd="so"][data-ph="${m.id}"]:disabled`);const delBtn=document.querySelector(`#phasage [data-phdel="${m.id}"]`);if(delBtn)delBtn.click();return {level:m.level,so:m.dates.so,locked:m.locked,dis,still:P.phases.some(p=>p.id===m.id)};});
+console.log('9b) phase marché à la main, figée : dates verrouillées, suppression refusée:',JSON.stringify(out));const c9b=out.level==='marche'&&out.so[1]==='2026-10-20'&&out.locked&&out.dis&&out.still;
+const ALL=c1&&c2a&&c2c&&c3&&c4&&c4b&&c5&&c6&&c7&&c8&&c9a&&c9b;
+console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2a,c2c,c3,c4,c4b,c5,c6,c7,c8,c9a,c9b}));
 console.log(logs.length?logs:'[]');
 await browser.close();process.exit(ALL?0:1);

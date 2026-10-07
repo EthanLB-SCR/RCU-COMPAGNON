@@ -80,12 +80,12 @@ out=await pop2.evaluate(()=>({t:/Carnet de soudage/.test(document.body.textConte
 await pop2.close();
 console.log('5) carnet DOE généré:',JSON.stringify(out));
 const c5=out.t&&out.w&&out.soudee&&out.img&&out.plan;
-// ── 6) le panneau « Nouveautés » existe sur la home (5/5 actives)
+// ── 6) le panneau « Nouveautés » existe sur la home (4/4 actives — QSE est définitif depuis le 07/10, plus dans la liste)
 await page.evaluate(()=>{window.TRACE.showScreen&&window.TRACE.showScreen('home');window.TRACE.renderHome&&window.TRACE.renderHome();});
 await page.waitForTimeout(400);
 out=await page.evaluate(()=>{const b=document.getElementById('nextBtn');return {btn:!!b,txt:b?b.textContent:''};});
 console.log('6) bouton Nouveautés (home):',JSON.stringify(out));
-const c6=out.btn&&/5\/5/.test(out.txt);
+const c6=out.btn&&/4\/4/.test(out.txt);
 const ALL=c0&&c1&&c2a&&c2b&&c2c&&c3&&c4a&&c4b&&c4c&&c5&&c6;
 console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c0,c1,c2a,c2b,c2c,c3,c4a,c4b,c4c,c5,c6}));
 console.log(logs.length?logs:'[]');

@@ -7,12 +7,17 @@ let A=null; // API fournie par app.js (state, NET, sync, openModal, toast, esc�
 const FEATS=[
  ['ts','Travaux supplémentaires (hors marché)','Marquer une ligne du tracé « TS » (traceur, fiche de la ligne) : proposé / commandé / forfaitaire — hachures sur le plan, récap par TS dans l’onglet Récap, bascule d’état par le chef.'],
  ['admin','Dossier administratif','Onglet par chantier : DT / DICT, plans exé, qualifications, PGC, PPSPS, planning, habilitations, BL, accueil… Les fichiers partent au serveur (pas dans l’appli) ; un BL importé au stock peut s’y classer tout seul.'],
- ['qse','QSE — formulaires et émargements','Accueil chantier (avec signature du PPSPS), quart d’heure sécurité, et n’importe quel PDF à faire émarger — signatures au doigt sur la tablette du chef, feuilles imprimables.'],
  ['tabs','Barre d’onglets allégée','Catalogue et Liste sortent de la barre — accessibles par « ⋯ ».'],
  ['doe','Export DOE — carnet de soudage','Toutes les soudures : n°, vue du plan, qui a soudé / manchonné quel jour, photos, DH — document imprimable pour le DOE.'],
 ];
+// QSE : DÉFINITIF depuis le 07/10 (Ethan : « l'onglet qui était en test QSE, rends-le définitif ») — toujours présent, plus d'interrupteur.
+// Backlog SCR interne (pas dans la version vendue), cadré avec Ethan le 07/10, à concevoir en maquette avant de coder :
+const BACKLOG=[
+ ['Profils opérateurs (SCR interne)','Chaque opérateur a son compte : avatar aux couleurs de l’entreprise (type jeu vidéo) représentant son poste ; points, trophées et médailles selon des critères à creuser — nombre de manchons (manchonneur) / de soudures (soudeur), pouces reçus, jours consécutifs au-dessus des cadences de référence, signature des PPSPS et quarts d’heure (points modérés : encourager à tout signer sans favoriser celui qui change souvent de chantier), pointage jamais contesté par le chef, pause d’une heure bien prise. Partie perso (trophées, heures pointées / validées) + partie chantier (l’accès au logiciel pro). Avantages selon les points : à décider.'],
+ ['Pointage heures & production (SCR interne)','Production : automatique depuis ce que chacun déclare sur le plan d’ensemble (le soudeur ses soudures, le chef attribue à un soudeur) → production du jour par personne. Heures : début de journée (géolocalisé), pause midi, reprise, fin de journée (trace de l’endroit, sans flicage — le compteur ne tourne pas à l’hôtel) ; choix du chantier, « départ du chantier » = inter-chantier qui continue le chrono jusqu’à l’arrivée sur le suivant. Variante : le chef déclare après coup son personnel et les heures par jour, avec rapprochement des tâches pointées sur le plan ces jours-là. Validation : statut « validé par <chef> » ou « refusé, heures corrigées », par le chef de chantier PUIS le conducteur de travaux — profils par poste avec accès selon le poste.'],
+];
 export function initNext(api){A=api;
-  if(nOn('admin')||nOn('qse'))injectViews();
+  injectViews();
   if(nOn('tabs'))lightTabs();
 }
 // ---------- panneau d'activation (home) ----------
@@ -22,6 +27,8 @@ export function nextBindHome(){const b=document.getElementById('nextBtn');if(b)b
   A.openModal(`<h3 style="margin-top:0">Nouveautés en attente</h3>
    <p class="hint" style="margin-top:0">Codées et testées, mais INACTIVES tant que tu ne les allumes pas. Active-les une par une, vérifie tranquillement, redis-moi. (L'appli se recharge à chaque bascule.)</p>
    ${FEATS.map(f=>`<label style="display:flex;gap:8px;align-items:flex-start;padding:8px;border:1.5px solid var(--line);border-radius:10px;margin:6px 0;cursor:pointer;${nOn(f[0])?'background:#f2fbf2;border-color:#9fd49f':''}"><input type="checkbox" data-nextf="${f[0]}" ${nOn(f[0])?'checked':''} style="margin-top:3px"><span><b>${f[1]}</b><br><span class="hint">${f[2]}</span></span></label>`).join('')}
+   <div style="margin:10px 0 4px;font-size:12.5px"><b>Rendu définitif :</b> QSE (07/10).</div>
+   <h4 style="margin:10px 0 4px">À concevoir (SCR interne, pas dans la version vendue)</h4>${BACKLOG.map(b=>`<div style="padding:8px;border:1.5px dashed var(--line);border-radius:10px;margin:6px 0"><b>${b[0]}</b><br><span class="hint">${b[1]}</span></div>`).join('')}
    <div class="actions"><button class="btn block" data-close>Fermer</button></div>`);
   document.querySelectorAll('#modal [data-nextf]').forEach(cb=>cb.onchange=()=>{const o={...NEXTF};if(cb.checked)o[cb.dataset.nextf]=1;else delete o[cb.dataset.nextf];try{localStorage.setItem('trace:next',JSON.stringify(o));}catch(e){}location.reload();});};}
 // ---------- onglets / vues injectés ----------
@@ -29,7 +36,7 @@ function injectViews(){const tb=document.getElementById('tabbar');const cont=doc
   const mk=(tab,label)=>{if(!tb.querySelector(`[data-tab="${tab}"]`)){const b=document.createElement('button');b.dataset.tab=tab;b.textContent=label;tb.insertBefore(b,tb.querySelector('[data-tab="recap"]'));}
     if(!document.getElementById('view-'+tab)){const v=document.createElement('div');v.className='view';v.id='view-'+tab;v.innerHTML='<div class="pad" id="'+tab+'"></div>';cont.appendChild(v);}};
   if(nOn('admin'))mk('admin','Dossier');
-  if(nOn('qse'))mk('qse','QSE');}
+  mk('qse','QSE');}
 function lightTabs(){const tb=document.getElementById('tabbar');if(!tb)return;
   ['catalogue','liste'].forEach(t=>{const b=tb.querySelector(`[data-tab="${t}"]`);if(b)b.style.display='none';});
   if(!tb.querySelector('[data-tab="__more"]')){const b=document.createElement('button');b.dataset.tab='__more';b.textContent='⋯';b.title='Catalogue · Liste';
@@ -38,7 +45,7 @@ function lightTabs(){const tb=document.getElementById('tabbar');if(!tb)return;
       document.querySelectorAll('#modal [data-nmt]').forEach(x=>x.onclick=()=>{A.closeModal();A.state.tab=x.dataset.nmt;A.renderAll();});},true);
     tb.appendChild(b);}}
 // dispatch de renderAll pour les vues injectées
-export function nextRenderTab(tab){if(tab==='admin'&&nOn('admin')){renderAdmin();return true;}if(tab==='qse'&&nOn('qse')){renderQse();return true;}return false;}
+export function nextRenderTab(tab){qseBadge();if(tab==='admin'&&nOn('admin')){renderAdmin();return true;}if(tab==='qse'){renderQse();return true;}return false;}
 // ---------- données ----------
 function adminOf(){const NET=A.net();if(!NET||NET.id==='__vide')return null;if(!NET.admin)NET.admin={docs:[]};NET.admin.docs=NET.admin.docs||[];return NET.admin;}
 function qseOf(){const NET=A.net();if(!NET||NET.id==='__vide')return null;if(!NET.qse)NET.qse={docs:[]};NET.qse.docs=NET.qse.docs||[];return NET.qse;}
@@ -77,14 +84,23 @@ export const ACCUEIL_Q=[ // PROVISOIRE — questions à remplacer par celles d'E
  'La conduite à tenir en cas d’accident (secours, n° d’urgence, point de rassemblement) a été expliquée.',
  'Le tri des déchets et les règles environnementales du chantier ont été présentés.'];
 export const QUART_Q=['Le point sécurité du jour a été compris.','Les EPI du poste sont portés et en bon état.','Aucune situation dangereuse constatée non signalée.'];
-function renderQse(){const el=document.getElementById('qse');if(!el)return;const q=qseOf();const esc=A.esc;
+// documents que l'utilisateur courant DOIT émarger sur ce chantier (PDF déposés + accueil chantier, sauf si le chef a levé l'obligation ; les quarts d'heure ne sont pas obligatoires)
+const qseRequired=d0=>d0.required!==undefined?!!d0.required:(d0.type==='pdf'||d0.type==='accueil');
+const qseSignedBy=(d0,name)=>(d0.sigs||[]).some(s2=>String(s2.name||'').trim().toLowerCase()===String(name||'').trim().toLowerCase());
+export function qseTodo(){const q=qseOf();if(!q)return [];const me=A.userName();return q.docs.filter(d0=>qseRequired(d0)&&!qseSignedBy(d0,me));}
+// pastille rouge sur l'onglet QSE tant qu'il reste des documents à émarger (Ethan 07/10 : « un truc visuel qui encourage à signer »)
+function qseBadge(){const b=document.querySelector('#tabbar [data-tab="qse"]');if(!b)return;const n=qseTodo().length;let i=b.querySelector('.qseBadge');if(!n){if(i)i.remove();b.style.color='';return;}if(!i){i=document.createElement('i');i.className='qseBadge';b.appendChild(i);}i.textContent=n;b.style.color='#d03b3b';}
+let qseNudged={};export function qseNudge(){const n=qseTodo().length;const NET=A.net();if(!NET||!n||qseNudged[NET.id+'|'+A.userName()])return;qseNudged[NET.id+'|'+A.userName()]=1;A.toast('QSE : '+n+' document'+(n>1?'s':'')+' à émarger sur ce chantier');}
+function renderQse(){const el=document.getElementById('qse');if(!el)return;const q=qseOf();const esc=A.esc;qseBadge();
   if(!q){el.innerHTML='<h2 class="vt">QSE</h2><div class="card muted">Aucun chantier.</div>';return;}
-  const canEd=A.role()==='chef'||A.role()==='bureau';
+  const canEd=A.role()==='chef'||A.role()==='bureau';const todo=qseTodo();const me=A.userName();
   const T={accueil:'Accueil chantier',quart:'Quart d’heure sécurité',pdf:'Document à émarger'};
   el.innerHTML=`<h2 class="vt">QSE — ${esc(A.net().name||'')}</h2>
-   <div class="hint" style="margin-bottom:8px">Une tablette par chef : le document s'ouvre, on le lit ensemble, et chaque opérateur émarge au doigt. Chaque feuille s'imprime (émargements inclus).</div>
+   ${todo.length?`<div class="card" style="border-color:#d03b3b;background:#fdecec"><b style="color:#a01212">✍️ ${esc(me)}, il te reste ${todo.length} document${todo.length>1?'s':''} à émarger sur ce chantier</b><div class="hint" style="margin:4px 0 6px">Lis-les et signe au doigt : l'émargement vaut « j'ai pris connaissance ».</div>${todo.map(d0=>`<button class="btn block" data-qsignme="${d0.id}" style="margin-top:4px;justify-content:space-between"><span>${esc(d0.title||T[d0.type])}</span><span style="color:#d03b3b;font-weight:700">à émarger →</span></button>`).join('')}</div>`:q.docs.some(qseRequired)?`<div class="okbox" style="margin-bottom:8px">✓ ${esc(me)} : tout est émargé sur ce chantier.</div>`:''}
+   <div class="hint" style="margin-bottom:8px">Une tablette par chef : le document s'ouvre, on le lit ensemble, et chaque opérateur émarge au doigt. Chaque feuille s'imprime (émargements inclus). Les PDF déposés et l'accueil chantier sont à émarger par <b>tous</b> (pastille rouge sur l'onglet tant que ce n'est pas fait).</div>
    ${canEd?`<div class="card" style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn primary" data-qnew="accueil">➕ Accueil chantier</button><button class="btn primary" data-qnew="quart">➕ Quart d’heure sécurité</button><label class="btn">📎 PDF à faire émarger (flash info…)<input type="file" id="qse-pdf" accept="application/pdf,image/*" style="display:none"></label></div>`:''}
-   ${q.docs.length?q.docs.slice().reverse().map(d0=>`<div class="card" style="cursor:pointer" data-qopen="${d0.id}"><b>${esc(d0.title||T[d0.type])}</b> <span class="hyChip" style="font-size:10.5px">${T[d0.type]||d0.type}</span><div class="kv" style="margin-top:4px;font-size:12px"><span>${dFR(d0.at)}</span><span>par ${esc(d0.by||'')}</span><span><b>${(d0.sigs||[]).length}</b> émargement${(d0.sigs||[]).length>1?'s':''}</span></div></div>`).join(''):'<div class="card muted">Rien pour l’instant : crée un accueil, un quart d’heure, ou dépose un PDF.</div>'}`;
+   ${q.docs.length?q.docs.slice().reverse().map(d0=>{const mine=qseSignedBy(d0,me);const req=qseRequired(d0);return `<div class="card" style="cursor:pointer;${req&&!mine?'border-color:#e9a1a1':''}" data-qopen="${d0.id}"><b>${esc(d0.title||T[d0.type])}</b> <span class="hyChip" style="font-size:10.5px">${T[d0.type]||d0.type}</span>${req?(mine?' <span style="color:#0ca30c;font-size:11.5px;font-weight:700">✓ émargé</span>':' <span style="color:#d03b3b;font-size:11.5px;font-weight:700">● à émarger</span>'):' <span class="dim" style="font-size:11px">facultatif</span>'}<div class="kv" style="margin-top:4px;font-size:12px"><span>${dFR(d0.at)}</span><span>par ${esc(d0.by||'')}</span><span><b>${(d0.sigs||[]).length}</b> émargement${(d0.sigs||[]).length>1?'s':''}</span></div></div>`;}).join(''):'<div class="card muted">Rien pour l’instant : crée un accueil, un quart d’heure, ou dépose un PDF.</div>'}`;
+  el.querySelectorAll('[data-qsignme]').forEach(b=>b.onclick=ev=>{ev.stopPropagation();const d0=q.docs.find(x=>x.id===b.dataset.qsignme);if(d0)qseSign(d0,me);});
   el.querySelectorAll('[data-qnew]').forEach(b=>b.onclick=()=>qseNew(b.dataset.qnew));
   const pf=document.getElementById('qse-pdf');if(pf)pf.onchange=async e2=>{const f=e2.target.files[0];if(!f)return;
     let url=null;try{url=await A.sync.uploadDoc(A.state.siteId,'qse',f.name,f);}catch(e){}
@@ -112,16 +128,19 @@ function qseOpen(id){const q=qseOf();const d0=q&&q.docs.find(x=>x.id===id);if(!d
   A.openModal(`<h3 style="margin-top:0">${esc(d0.title)}</h3><div class="kv" style="font-size:12px"><span>${dFR(d0.at)}</span><span>par ${esc(d0.by||'')}</span></div>${body}
    <b style="font-size:12.5px">Émargements (${(d0.sigs||[]).length})</b>
    ${(d0.sigs||[]).length?`<table class="rc" style="margin-top:4px">${d0.sigs.map(s2=>`<tr><td>${esc(s2.name)}</td><td class="dim">${esc(s2.detail||'')}</td><td class="dim">${dhFR(s2.at)}</td><td>${s2.img?`<img src="${s2.img}" style="height:26px">`:''}</td></tr>`).join('')}</table>`:'<div class="hint">personne n’a encore signé</div>'}
-   <div class="actions" style="margin-top:8px"><button class="btn primary block" id="qse-sign">✍️ Émarger (opérateur suivant)</button><button class="btn block" id="qse-print">🖨 Feuille d’émargement</button>${canEd?`<button class="btn block" id="qse-del" style="color:#d03b3b">Supprimer</button>`:''}<button class="btn block" data-close>Fermer</button></div>`);
+   ${canEd?`<label class="tgl" style="display:flex;gap:6px;align-items:center;margin-top:8px;font-size:12.5px"><input type="checkbox" id="qse-req" ${qseRequired(d0)?'checked':''}> Émargement obligatoire pour tous (pastille rouge tant que ce n'est pas fait)</label>`:''}
+   <div class="actions" style="margin-top:8px">${!qseSignedBy(d0,A.userName())?`<button class="btn primary block" id="qse-signme">✍️ J'ai lu — j'émarge (${esc(A.userName())})</button>`:`<div class="okbox" style="margin:0 0 6px">✓ Tu as émargé ce document.</div>`}<button class="btn block" id="qse-sign">✍️ Émarger pour un autre opérateur (tablette du chef)</button><button class="btn block" id="qse-print">🖨 Feuille d’émargement</button>${canEd?`<button class="btn block" id="qse-del" style="color:#d03b3b">Supprimer</button>`:''}<button class="btn block" data-close>Fermer</button></div>`);
+  const rq=document.getElementById('qse-req');if(rq)rq.onchange=()=>{d0.required=rq.checked;A.saveNet('qse');qseBadge();};
+  const sm=document.getElementById('qse-signme');if(sm)sm.onclick=()=>qseSign(d0,A.userName());
   const th=document.getElementById('qse-theme');if(th)th.onchange=()=>{d0.theme=th.value;A.saveNet('qse');};
   const po=document.getElementById('qse-points');if(po)po.onchange=()=>{d0.points=po.value;A.saveNet('qse');};
   document.getElementById('qse-sign').onclick=()=>qseSign(d0);
   document.getElementById('qse-print').onclick=()=>qsePrint(d0);
   const dl=document.getElementById('qse-del');if(dl)dl.onclick=()=>{if(!confirm('Supprimer « '+d0.title+' » et ses émargements ?'))return;q.docs=q.docs.filter(x=>x.id!==d0.id);A.saveNet('qse');A.closeModal();renderQse();};}
 // signature au doigt : nom + trait sur canvas (tablette du chef, les opérateurs passent chacun leur tour)
-function qseSign(d0){const esc=A.esc;const others=A.users().map(u=>u.name);
+function qseSign(d0,preset){const esc=A.esc;const others=A.users().map(u=>u.name);
   A.openModal(`<h3 style="margin-top:0">Émargement — ${esc(d0.title)}</h3>
-   <label class="f">Qui signe ?</label><div class="row" style="display:flex;gap:6px"><select class="f" id="sig-who" style="flex:1"><option value="">— saisir un nom —</option>${others.map(n=>`<option>${esc(n)}</option>`).join('')}</select><input class="f" id="sig-name" placeholder="Nom Prénom" style="flex:1"></input></div>
+   <label class="f">Qui signe ?</label><div class="row" style="display:flex;gap:6px"><select class="f" id="sig-who" style="flex:1"><option value="">— saisir un nom —</option>${others.map(n=>`<option>${esc(n)}</option>`).join('')}</select><input class="f" id="sig-name" placeholder="Nom Prénom" style="flex:1" value="${esc(preset||'')}"></input></div>
    <label class="f" style="margin-top:6px">Signature au doigt <span class="dim">(la case = « j'ai pris connaissance »)</span></label>
    <canvas id="sig-pad" width="640" height="220" style="width:100%;height:150px;border:1.5px dashed #b8b4a8;border-radius:10px;background:#fff;touch-action:none"></canvas>
    <div class="actions" style="margin-top:8px"><button class="btn primary block" id="sig-ok">Valider l’émargement</button><button class="btn block" id="sig-clear">Effacer le trait</button><button class="btn block" data-close>Annuler</button></div>`);
@@ -136,7 +155,7 @@ function qseSign(d0){const esc=A.esc;const others=A.users().map(u=>u.name);
     if(!name){A.toast('Le nom du signataire');return;}
     if(!drawn){A.toast('La signature (un trait au doigt)');return;}
     d0.sigs=d0.sigs||[];d0.sigs.push({name,detail:'',at:new Date().toISOString(),img:cv.toDataURL('image/png')});
-    A.saveNet('qse');A.closeModal();qseOpen(d0.id);A.toast(name+' a émargé — au suivant');};}
+    A.saveNet('qse');A.closeModal();qseBadge();renderQse();qseOpen(d0.id);A.toast(name+' a émargé'+(preset?'':' — au suivant'));};}
 function qsePrint(d0){const esc=A.esc;const NET=A.net();
   const w=window.open('','_blank');if(!w){A.toast('Autorise la fenêtre pop-up pour imprimer');return;}
   w.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${esc(d0.title)}</title>

@@ -1,0 +1,15 @@
+import { chromium } from 'playwright';
+const BASE=process.env.BASE||'http://localhost:8765';
+const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
+const ctx=await browser.newContext({viewport:{width:520,height:900},deviceScaleFactor:2});const page=await ctx.newPage();
+page.on('dialog',d=>d.accept().catch(()=>{}));
+await page.goto(BASE+'/traceur.html');await page.waitForTimeout(500);
+await page.evaluate(()=>{localStorage.clear();});await page.reload();await page.waitForTimeout(500);
+await page.evaluate(()=>{const S=window.MAQ.state;S.supplier='RENALIA';S.lines=[{id:'L1',name:'Feeder',dn:100,bar:12,pts:[[10,50],[60,50]],specials:[],parent:null}];S.seq=2;window.MAQ.setMode('select');window.MAQ.rebuild();});
+await page.click('#bSave');await page.waitForTimeout(200);await page.fill('#svName','QSE démo');await page.click('#svOk');await page.waitForTimeout(600);
+await page.click('#svGo');await page.waitForTimeout(1200);await page.selectOption('#roleSel','karim');await page.waitForTimeout(300);
+await page.evaluate(()=>{const T=window.TRACE;T.net.qse={docs:[{id:'Q1',type:'pdf',title:'Flash info sécurité — tranchées',by:'Ethan L.',at:new Date().toISOString(),sigs:[{name:'Ethan L.',at:new Date().toISOString()}]},{id:'Q0',type:'accueil',title:'Accueil chantier du 07/10/2026',by:'Ethan L.',at:new Date().toISOString(),qs:[],sigs:[]},{id:'Q2',type:'quart',title:'Quart d\'heure sécurité du 07/10/2026',by:'Ethan L.',at:new Date().toISOString(),sigs:[]}]};T.renderAll();});await page.waitForTimeout(300);
+await page.screenshot({path:'/tmp/qse_0.png'});
+await page.evaluate(()=>document.querySelector('#tabbar [data-tab="qse"]').click());await page.waitForTimeout(400);
+await page.screenshot({path:'/tmp/qse_1.png'});
+console.log('ok');await browser.close();

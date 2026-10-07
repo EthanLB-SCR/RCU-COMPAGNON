@@ -22,6 +22,6 @@ await page.evaluate(()=>{const set=(k,i,v)=>{const inp=document.querySelector(`#
   set('tr',0,'2026-10-12');set('tr',1,'2026-10-14');set('so',0,'2026-10-13');set('so',1,'2026-10-22');set('rb',0,'2026-10-15');set('rb',1,'2026-10-26');set('en',0,'2026-10-28');set('en',1,'2026-10-28');});
 await page.waitForTimeout(400);
 await page.evaluate(()=>{window.TRACE.phasage.importText('Rue de la Gare;12/10/2026;20/10/2026');const P=window.TRACE.net.phasage;P.phases[0].parent=P.phases[1].id;window.TRACE.state.phLv='ferme';window.TRACE.phasage.render();});await page.waitForTimeout(300);
-await page.screenshot({path:'/tmp/ph_app_2.png'});
+await page.evaluate(()=>{window.TRACE.state.phOpen=null;window.TRACE.phasage.render();});await page.waitForTimeout(300);await page.screenshot({path:'/tmp/ph_app_2.png'});
 for(const [i,y] of [[3,760],[4,1500],[5,2300]]){await page.evaluate(y=>{const v=document.querySelector('#view-phasage');(v.scrollTop!==undefined)&&(v.scrollTop=y);const pd=document.querySelector('#phasage');if(pd.parentElement.scrollHeight>pd.parentElement.clientHeight)pd.parentElement.scrollTop=y;window.scrollTo(0,y);},y);await page.waitForTimeout(250);await page.screenshot({path:`/tmp/ph_app_${i}.png`});}
 console.log('ok');await browser.close();
