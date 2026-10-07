@@ -43,7 +43,7 @@ function makePhoto(label,kind){const c=document.createElement('canvas');c.width=
 const state={siteId:null,userId:'karim',tool:false,toolLine:null,toolCond:null,remoteLS:{},cloudUser:null,tab:'plan',filter:'all',listMode:false,tracing:false,tracePts:[],sheetId:null,sel:null,view:{k:1,tx:0,ty:0},sheetMode:'view',pendingPhotos:[],sw:{},conn:{},err:'',formVals:{},locate:{line:'R1',cond:'A',wire:'E',d:61},nextWeld:1,sheets:{},lines:{}};
 
 // couches d'affichage du plan (cases 👁) : ce qu'on montre ou non pour épurer une zone — mémorisé sur l'appareil
-const SHOW_KEYS=[['pieces','Noms des pièces (P7, C5, T2…)'],['cotes','Longueurs et angles'],['soud','Pastilles de soudure (statut)'],['nums','N° de soudure'],['manch','Manchons posés'],['fils','Fils E / N (au zoom)'],['fond','Fond de plan (DXF / image)'],['couleurs','Fond en couleurs (celles du DWG)'],['textes','Textes du fond'],['notes','Annotations']];
+const SHOW_KEYS=[['pieces','Noms des pièces (P7, C5, T2…)'],['cotes','Longueurs et angles'],['soud','Pastilles de soudure (statut)'],['nums','N° de soudure'],['manch','Manchons posés'],['fils','Fils E / N (au zoom)'],['fond','Fond de plan (DXF / image)'],['couleurs','Fond en couleurs (celles du DWG)'],['textes','Textes du fond'],['notes','Annotations'],['phasage','Phases du phasage (tronçons colorés)']];
 const SHOW_DEF=Object.assign(Object.fromEntries(SHOW_KEYS.map(([k])=>[k,true])),{carte:'none',cadastre:false}); // carte : none | ortho | plan (fond IGN sous le plan, si le chantier est géoréférencé)
 function loadShow(){let o={};try{o=JSON.parse(localStorage.getItem('trace:show')||'{}')||{};}catch(e){}return Object.assign({},SHOW_DEF,o);}
 function saveShow(){try{localStorage.setItem('trace:show',JSON.stringify(state.show));}catch(e){}}
@@ -257,7 +257,7 @@ function saveNetPart(key){if(!NET||NET.id==='__vide')return;if(SITES[NET.id])SIT
 function setupSite(id){
   state.hydroPose=null;hydroCache=null;state.hydroMapView=null;state.osmHydrants=null;state.hydroCalStart=null;state.hydroCalMonth=null;state.hydroCalT=0;state.dhShowLoc=false;state.loc=null;state.dhLocPending=null;state.dh.at=null;state.dh.dir=null;state.dh.meas=null;state.dh.iso=null;state.dh.locVal='';const hb=$('#hydroBar');if(hb)hb.style.display='none';
   state.stockPose=null;state.stockSel=null;state.stockMatSel='';const sb2=$('#stockBar');if(sb2)sb2.style.display='none';
-  state.extraPose=false;
+  state.extraPose=false;state.phPose=null;state.phOpen=null;state.phChk=[];const pb=$('#phBar');if(pb)pb.style.display='none';
   if(siteStore[id]){const st=siteStore[id];NET=st.NET;state.lines=st.lines;state.sheets=st.sheets;state.nextWeld=st.nextWeld;state.sheetId=st.sheetId;state.locate={...state.locate,line:st.firstLine};bgG.dataset.sheet='';return;}
   NET=SITES[id];state.lines={};state.sheets={};state.nextWeld=1;
   const sh={id:'s_'+id,name:NET.name,type:NET.sheetType||'blank',w:NET.w,h:NET.h,ppm:1,lines:[],ann:NET.ann||[],drawing:NET.drawing||null,plain:NET.source==='traceur',image:NET.image||null};state.sheets[sh.id]=sh;state.sheetId=sh.id;
@@ -988,12 +988,12 @@ function renderPlan(){if(typeof linkTraceurBranches==='function')linkTraceurBran
     const ob=$('#offscreen');if(ob)ob.style.display=off&&sh.lines.length?'':'none';}
   $('#legend').innerHTML=`<span><i class="bar" style="background:#c8382f"></i>aller</span><span><i class="bar" style="background:#2a5fb4"></i>retour</span>`+ORDER.map(s=>`<span><i style="${s==='a_souder'?`border-color:${STATUS[s].color};background:#fff`:`background:${STATUS[s].color};border-color:${STATUS[s].color}`}"></i>${STATUS[s].label}</span>`).join('')+`<span><i class="bar" style="background:#dfe4ea;border:1px solid #999"></i>étamé</span><span><i class="bar" style="background:#e2843a"></i>cuivré</span><span>${lod<3?'zoome : manchons puis détail':lod<12?'zoome pour le détail des pièces (bouts d\'acier, manchons, n°)':lod<30?'zoome encore pour les fils':'fils visibles'} · 👁 : choisir ce qui s\'affiche</span>`;
   $('#btnList').textContent=state.listMode?'Plan':'Liste';
-  renderGps();renderHydroOverlay();renderDhOverlay();renderStockOverlay();renderTsOverlay();
+  renderGps();renderHydroOverlay();renderDhOverlay();renderStockOverlay();renderTsOverlay();renderPhOverlay();
 }
 
 /* ---------- pan / zoom / tap ---------- */
 const ptrs=new Map();let gesture=null;
-canvas.addEventListener('pointerdown',e=>{if(e.target.closest('.zoomctl,.legend,.zoominfo,.disp,#offscreen,#transferBar,#calageBar,#hydroBar,#stockBar'))return;if($('#disp').classList.contains('show'))toggleDisp(false);try{canvas.setPointerCapture(e.pointerId);}catch(e2){}ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});const rect=canvas.getBoundingClientRect();
+canvas.addEventListener('pointerdown',e=>{if(e.target.closest('.zoomctl,.legend,.zoominfo,.disp,#offscreen,#transferBar,#calageBar,#hydroBar,#stockBar,#phBar'))return;if($('#disp').classList.contains('show'))toggleDisp(false);try{canvas.setPointerCapture(e.pointerId);}catch(e2){}ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});const rect=canvas.getBoundingClientRect();
   const stkT=e.target.closest('[data-stkh],[data-stkz]'); // zone de stockage : glisser / poignées (chef/bureau)
   if(ptrs.size===1&&stkT&&stockCanEdit()&&!state.stockPose){const zid=stkT.dataset.stkzid||stkT.dataset.stkz;const z0=stockZoneById(zid);gesture={type:'stk',h:stkT.dataset.stkh||'move',zid,lx:e.clientX,ly:e.clientY,rect,moved:false,x0:z0?z0.x:0,y0:z0?z0.y:0};return;}
   if(ptrs.size===1){const tg=e.target.closest('[data-j],[data-el]');gesture={type:'pan',sx:e.clientX,sy:e.clientY,tx:state.view.tx,ty:state.view.ty,moved:false,target:tg,lx:e.clientX-rect.left,ly:e.clientY-rect.top,t0:Date.now()};
@@ -1039,6 +1039,7 @@ function endPtr(e){if(!ptrs.has(e.pointerId))return;ptrs.delete(e.pointerId);
     if(state.hydroPose){const v=state.view;hydroTap((gesture.lx-v.tx)/v.k,(gesture.ly-v.ty)/v.k);gesture=null;if(ptrs.size===0)scheduleRender();return;}
     if(state.stockPose){const v=state.view;stockTap((gesture.lx-v.tx)/v.k,(gesture.ly-v.ty)/v.k);gesture=null;if(ptrs.size===0)scheduleRender();return;}
     if(state.extraPose){const v=state.view;const wx=(gesture.lx-v.tx)/v.k,wy=(gesture.ly-v.ty)/v.k;extraWeldTap(t,wx,wy);gesture=null;if(ptrs.size===0)scheduleRender();return;}
+    if(state.phPose){const v=state.view;phTap((gesture.lx-v.tx)/v.k,(gesture.ly-v.ty)/v.k);gesture=null;if(ptrs.size===0)scheduleRender();return;}
     if(t&&t.dataset.j!==undefined)openJoint(t.dataset.line,t.dataset.cond,+t.dataset.j);
     else if(state.tracing){const v=state.view;state.tracePts.push({x:(gesture.lx-v.tx)/v.k,y:(gesture.ly-v.ty)/v.k});renderPlan();}
     else if(t&&t.dataset.el!==undefined&&state.view.k*sheet().ppm>=7)openEl(t.dataset.line,t.dataset.cond,+t.dataset.el);
@@ -2505,7 +2506,7 @@ function renderRecap(){const el=$('#recap');if(!el)return;if(!NET||!Object.keys(
   $('#csvWelds').onclick=()=>{const rows=[['N°','Ligne','Conduite','DN','PK (m)','Statut','Fausse coupe (°)','Sortie de té','Même manchon que','Fils','Dernier événement','Par','Le','Photos','Note']];
     D.welds.forEach(({j,l,c,dn,pk})=>{const ev=(j.events||[]).slice(-1)[0];rows.push([j.weldId,l.name,c==='A'?'aller':'retour',dn,fmt(pk),(STATUS[j.status]||{}).label||j.status,j.fc?fmt(Math.abs(j.dev)):'',j.teeOut?'oui':'',j.sleeveWith||'',j.wire==='inversion'?'inversion':j.wire==='raccorde'?'raccordés':'',ev?ev.type:'',ev?ev.by:'',ev&&ev.at?new Date(ev.at).toLocaleString('fr-FR'):'',(j.photos||[]).length+(j.events||[]).reduce((s,e)=>s+((e.photos||[]).length),0),j.note||'']);});dl(slug+'_soudures.csv',rows);};
   $('#csvPieces').onclick=()=>{const rows=[['Pièce','DN','Quantité','Aller','Retour','ml','Référence catalogue']];D.pieces.forEach(g=>rows.push([g.lab,g.dn||'',g.n,g.nA,g.nR,g.ml?fmt(g.ml):'',g.ref||'']));dl(slug+'_pieces.csv',rows);};}
-function renderAll(){nextRenderTab(state.tab);if(state.tab==='catalogue')renderCatalogue();if(state.tab==='recap')renderRecap();if(state.tab==='hydro'){hydroCache=null;renderHydro();}if(state.tab==='stock')renderStock();$$('#tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.tab===state.tab));$$('.view').forEach(v=>v.classList.toggle('active',v.id==='view-'+state.tab));renderPlan();if(state.tab==='bouclage')renderBouclage();renderListe();}
+function renderAll(){nextRenderTab(state.tab);if(state.tab==='catalogue')renderCatalogue();if(state.tab==='phasage')renderPhasage();if(state.tab==='recap')renderRecap();if(state.tab==='hydro'){hydroCache=null;renderHydro();}if(state.tab==='stock')renderStock();$$('#tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.tab===state.tab));$$('.view').forEach(v=>v.classList.toggle('active',v.id==='view-'+state.tab));renderPlan();if(state.tab==='bouclage')renderBouclage();renderListe();}
 $('#tabbar').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;state.tab=b.dataset.tab;closeSheet();renderAll();});
 const roleSel=$('#roleSel');function syncRoleSel(){roleSel.innerHTML='';if(state.profile){const o=document.createElement('option');o.value='__me';o.textContent=`${state.profile.name||state.profile.email} — ${ROLE_LABEL[state.profile.role]||state.profile.role}`;roleSel.appendChild(o);}USERS.forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=`${u.name} — ${ROLE_LABEL[u.role]}`;roleSel.appendChild(o);});roleSel.value=state.userId;}
 USERS.forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=`${u.name} — ${ROLE_LABEL[u.role]}`;roleSel.appendChild(o);});
@@ -2759,5 +2760,188 @@ $('#loginSkip').addEventListener('click',e=>{e.preventDefault();localStorage.set
 document.addEventListener('click',e=>{if(e.target.id==='hbLogin'){e.preventDefault();showScreen('login');}});
 // poignée de débogage / tests (module ES : rien n'est global sinon)
 initNext({state,net:()=>NET,sync,esc,fmt,uname,toast,openModal,closeModal,role:()=>role(),userName:()=>(me()||{}).name||state.userId,users:()=>USERS,renderAll,saveNet:saveNetPart});
+/* ---------- onglet PHASAGE (maquette v2 validée par Ethan le 07/10) : découpage réel d'exécution ----------
+   Trois niveaux : MARCHÉ (planning du marché, importé une fois, figé = référence) → prév. EXÉ → phases FERMES.
+   Une phase = des tronçons {line,m0,m1} (PK libres, coupe au milieu d'une barre possible ; une antenne se prend « jusqu'où on tape »)
+   + 4 périodes [début,fin] : ouverture de tranchée · soudure · remblaiement · enrobé.
+   Calculs : soudures INDUITES par DN (soudures du tracé dans le tronçon + recoupe au début libre), moyenne par jour de soudure
+   (jours ouvrés de la fenêtre soudure, semaine 4 ou 5 j, fériés déduits), fournitures du tronçon vs stock chantier.
+   Groupes LIBRES de phases fermes (calcul d'ensemble, même sans racine commune). Porté par NET.phasage (saveNetPart). */
+const PH_PER={tr:['Ouverture de tranchée','#8a5a2b'],so:['Soudure','#eb6834'],rb:['Remblaiement','#2f8a3a'],en:['Enrobé','#3b3f46']};
+const PH_LV={marche:['Marché','#8a8a8a'],exe:['Prév. exé','#6b6bb8'],ferme:['Ferme','#0b0b0b']};
+const PH_COLORS=['#8a5a2b','#2a78d6','#0ca30c','#c2185b','#b8860b','#0b7a75','#d03b3b','#6b4fbb','#e07b00','#3f51b5'];
+function phasageOf(){if(!NET||NET.id==='__vide')return null;if(!NET.phasage||typeof NET.phasage!=='object')NET.phasage={week:4,phases:[],groups:[],seq:1};const P=NET.phasage;P.phases=Array.isArray(P.phases)?P.phases:[];P.groups=Array.isArray(P.groups)?P.groups:[];P.week=P.week===5?5:4;P.seq=P.seq||1;return P;}
+function savePhasage(){if(!phasageOf())return;saveNetPart('phasage');}
+function phNewId(P){return 'PH'+String(P.seq++).padStart(3,'0');}
+// jours fériés français (fixes + mobiles depuis Pâques — algorithme de Meeus)
+function phEaster(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),da=((h+l-7*m+114)%31)+1;return new Date(y,mo-1,da);}
+const phHolCache={};function frHolidays(y){if(phHolCache[y])return phHolCache[y];const E=phEaster(y);const add=n=>{const x=new Date(E);x.setDate(x.getDate()+n);return isoD(x);};
+  const s=new Set([`${y}-01-01`,`${y}-05-01`,`${y}-05-08`,`${y}-07-14`,`${y}-08-15`,`${y}-11-01`,`${y}-11-11`,`${y}-12-25`,add(1),add(39),add(50)]);phHolCache[y]=s;return s;}
+const phD=s=>{if(!s)return null;const d=new Date(s+'T00:00');return isFinite(d)?d:null;};
+function phWorkDays(d0,d1,week){const out=new Set();const a=phD(d0),b=phD(d1);if(!a||!b||b<a)return out;for(let d=new Date(a);d<=b;d.setDate(d.getDate()+1)){const wd=(d.getDay()+6)%7;const k=isoD(d);if(wd<week&&!frHolidays(d.getFullYear()).has(k))out.add(k);}return out;}
+const phLen=l=>l.length||((l.els&&l.els.length)?l.els[l.els.length-1].m1:0);
+// soudures induites par un tronçon : soudures du tracé dont le PK est dans [m0,m1[ (bout de ligne compris), + recoupe au début s'il tombe au milieu d'une barre (1 par conduite)
+function phTrWelds(t){const l=state.lines[t.line];const by={};let n=0,recut=0;if(!l)return {by,n,recut,len:0};const L=phLen(l);
+  ['A','R'].forEach(c=>{const cd=l.cond&&l.cond[c];if(!cd)return;
+    cd.joints.forEach(j=>{const e=cd.els[j.idx];if(!e)return;const m=e.m1;const inside=(m>=t.m0-0.01&&m<t.m1-0.01)||(t.m1>=L-0.01&&m>=t.m0-0.01&&m<=L+0.01);if(!inside)return;const dn=+(j.dn||e.dn||l.dn)||0;by[dn]=(by[dn]||0)+1;n++;});
+    const m=t.m0;if(m>0.05&&m<L-0.05){const onJ=cd.joints.some(j=>{const e=cd.els[j.idx];return e&&Math.abs(e.m1-m)<0.05;});if(!onJ){const e=cd.els.find(x=>m>x.m0+0.02&&m<x.m1-0.02);if(e&&e.kind==='pipe'){const dn=+(e.dn||l.dn)||0;by[dn]=(by[dn]||0)+1;n++;recut++;}}}});
+  return {by,n,recut,len:Math.max(0,t.m1-t.m0)};}
+function phWelds(ph){const by={};let n=0,recut=0,len=0;(ph.tr||[]).forEach(t=>{const r=phTrWelds(t);Object.entries(r.by).forEach(([dn,v])=>by[dn]=(by[dn]||0)+v);n+=r.n;recut+=r.recut;len+=r.len;});return {by,n,recut,len};}
+// fournitures d'un tronçon : pièces dont le MILIEU est dans [m0,m1[ (une barre à cheval n'est comptée qu'une fois), manchons + mousse aux soudures du tronçon
+function phNeeds(ph){const need={},lab={};(ph.tr||[]).forEach(t=>{const l=state.lines[t.line];if(!l)return;const L=phLen(l);
+  ['A','R'].forEach(c=>{const cd=l.cond&&l.cond[c];if(!cd)return;
+    cd.els.forEach(e=>{const mc=(e.m0+e.m1)/2;if(!(mc>=t.m0&&(mc<t.m1||(t.m1>=L-0.01&&mc<=L))))return;let o=null;
+      if(e.kind==='pipe'&&!e.manchette&&!e.nue)o={kind:'pipe',dn:+e.dn||+l.dn};else if(e.kind==='bend')o={kind:'bend',dn:+e.dn||+l.dn,angle:Math.abs(+e.angle||90)};
+      else if(e.kind==='tee')o={kind:'tee',dn:+e.dn||+l.dn,dn2:+e.dnb||undefined};else if(e.kind==='reducer')o={kind:'reducer',dn:+e.dn||+l.dn,dn2:+e.dn2||undefined};
+      if(o){const k=matchKey(o);need[k]=(need[k]||0)+1;lab[k]=stockLabel({...o,len:12});}});
+    const seenSl=new Set();cd.joints.forEach(j=>{const e=cd.els[j.idx];if(!e)return;const m=e.m1;const inside=(m>=t.m0-0.01&&m<t.m1-0.01)||(t.m1>=L-0.01&&m>=t.m0-0.01&&m<=L+0.01);if(!inside)return;
+      if(j.sleeveWith&&seenSl.has(j.weldId))return;if(j.sleeveWith)seenSl.add(j.sleeveWith);const dn=+((e&&e.dn)||l.dn);const o={kind:'sleeve',dn,gaine:(e&&e.casing)||gaineMM(dn)||undefined};const k=matchKey(o);need[k]=(need[k]||0)+1;lab[k]=stockLabel(o);const kp='pu:'+dn;need[kp]=(need[kp]||0)+1;lab[kp]='Mousse PU (A+B) DN'+dn;});});});
+  return {need,lab};}
+function phStockMap(){const s=stockOf();const st={};if(!s)return st;globalAgg(s).forEach(a=>{const k=matchKey(a);st[k]=(st[k]||0)+Math.max(0,a.reste||0);});return st;}
+// calcul d'une phase ou d'un ensemble de phases : soudures par DN, jours de soudure (union des fenêtres), moyennes, fournitures cumulées
+function phCalc(phs,week){const by={};let n=0,recut=0,len=0;const days=new Set();const need={},lab={};
+  phs.forEach(ph=>{const W=phWelds(ph);Object.entries(W.by).forEach(([dn,v])=>by[dn]=(by[dn]||0)+v);n+=W.n;recut+=W.recut;len+=W.len;phWorkDays(ph.dates.so[0],ph.dates.so[1],week).forEach(d=>days.add(d));const N=phNeeds(ph);Object.entries(N.need).forEach(([k,v])=>{need[k]=(need[k]||0)+v;lab[k]=N.lab[k];});});
+  const nd=days.size;return {by,n,recut,len,days:nd,perDay:nd?n/nd:null,need,lab};}
+function phRoot(ph,P){let cur=ph,guard=0;while(cur&&cur.parent&&guard++<5){const p=P.phases.find(x=>x.id===cur.parent);if(!p)break;cur=p;}return cur&&cur.level==='marche'&&cur!==ph?cur:null;}
+const phFr=s=>{const d=phD(s);return d?String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0'):'—';};
+const phFrY=s=>{const d=phD(s);return d?d.toLocaleDateString('fr-FR'):'—';};
+function phTrLabel(t){const l=state.lines[t.line];if(!l)return t.line;const L=phLen(l);const whole=t.m0<=0.05&&t.m1>=L-0.05;return esc(l.name)+(whole?' (entière)':(t.m0<=0.05?' jusqu\'au PK '+fmt(t.m1):' PK '+fmt(t.m0)+' → '+fmt(t.m1)));}
+// ---- mode de pose sur le plan : début, fin (même ligne), antennes « jusqu'où on tape », PK libres ----
+state.phPose=null;
+const phCanEdit=()=>role()==='chef'||role()==='bureau';
+function phStartPose(level,phId){if(!phCanEdit()){toast('Réservé au chef / bureau');return;}if(!NET||NET.id==='__vide'||!hydroLines().length){toast('Aucun réseau dans ce chantier');return;}
+  state.phPose={level:level||'ferme',edit:phId||null,a:null,b:null,ant:[]};state.tab='plan';closeSheet();renderAll();updatePhBar();toast('Touche la conduite au DÉBUT du tronçon (n\'importe où, même au milieu d\'une barre)');}
+function phEndPose(){if(!state.phPose)return;state.phPose=null;updatePhBar();state.tab='phasage';renderAll();}
+function updatePhBar(){const bar=$('#phBar');if(!bar)return;const p=state.phPose;bar.style.display=p?'flex':'none';if(!p)return;
+  const lv=PH_LV[p.level][0];let msg;
+  if(!p.a)msg=`➕ Phase <b>${lv}</b> : touche la conduite au <b>début</b> du tronçon.`;
+  else if(!p.b)msg=`Début : <b>${esc(state.lines[p.a.line].name)} · PK ${fmt(p.a.m)}</b> — touche la conduite à la <b>fin</b> (même rue). Une antenne : touche-la <b>jusqu'où</b> tu veux aller.`;
+  else{const m0=Math.min(p.a.m,p.b.m),m1=Math.max(p.a.m,p.b.m);msg=`Tronçon : <b>${esc(state.lines[p.a.line].name)} · PK ${fmt(m0)} → ${fmt(m1)}</b> (${fmt(m1-m0)} m)${p.ant.length?' + '+p.ant.map(a=>esc(state.lines[a.line].name)+' jusqu\'au PK '+fmt(a.m1)).join(', '):''}. Re-touche la rue pour déplacer la fin, une antenne pour l'ajouter.`;}
+  $('#phMsg').innerHTML=msg;$('#phOk').style.display=p.a&&p.b?'':'none';}
+function phTap(wx,wy){const p=state.phPose;if(!p)return;const k=state.view.k;const n=nearestOnLines(wx,wy);if(!n||n.d>36/k){toast('Touche le réseau (zoome si besoin)');return;}
+  const l=state.lines[n.line];const m=+Math.max(0,Math.min(phLen(l),n.m)).toFixed(1);
+  if(!p.a){p.a={line:n.line,m};updatePhBar();renderPlan();return;}
+  if(n.line===p.a.line){p.b={line:n.line,m};updatePhBar();renderPlan();return;}
+  if(l.parent===p.a.line){const i=p.ant.findIndex(a=>a.line===n.line);if(m<0.3){if(i>=0)p.ant.splice(i,1);toast('Antenne retirée');}else{if(i>=0)p.ant[i].m1=m;else p.ant.push({line:n.line,m0:0,m1:m});toast(esc(l.name)+' : jusqu\'au PK '+fmt(m));}updatePhBar();renderPlan();return;}
+  if(!p.b){toast('La fin doit être sur la même rue que le début (une antenne se prend en la touchant)');return;}
+  toast('Cette conduite n\'est pas une antenne du tronçon');}
+function phCommitPose(){const p=state.phPose;const P=phasageOf();if(!p||!P||!p.a||!p.b)return;const m0=Math.min(p.a.m,p.b.m),m1=Math.max(p.a.m,p.b.m);if(m1-m0<0.5){toast('Tronçon trop court');return;}
+  const tr=[{line:p.a.line,m0,m1},...p.ant.map(a=>({line:a.line,m0:0,m1:a.m1}))];const by=(me()||{}).name||state.userId;
+  let ph=p.edit?P.phases.find(x=>x.id===p.edit):null;
+  if(ph){ph.tr=tr;ph.name=ph.autoName?phAutoName(tr,ph.level,P):ph.name;}
+  else{const id=phNewId(P);const color=PH_COLORS[P.phases.filter(x=>x.level==='ferme').length%PH_COLORS.length];ph={id,name:'',autoName:true,level:p.level,parent:null,color:p.level==='ferme'?color:p.level==='exe'?'#a7a7dd':'#bdbdbd',tr,dates:{tr:['',''],so:['',''],rb:['',''],en:['','']},by,at:new Date().toISOString()};ph.name=phAutoName(tr,ph.level,P);
+    if(p.level==='ferme'){const ex=P.phases.find(x=>x.level==='exe'&&(x.tr||[]).some(t2=>t2.line===p.a.line&&m0<t2.m1&&m1>t2.m0));if(ex)ph.parent=ex.id;}
+    P.phases.push(ph);}
+  savePhasage();state.phOpen=ph.id;state.phLv=ph.level;phEndPose();toast('Phase « '+ph.name+' » enregistrée — renseigne ses périodes');}
+function phAutoName(tr,level,P){const n=P.phases.filter(x=>x.level===level).length+1;const t=tr[0];const l=state.lines[t.line];return `${PH_LV[level][0]} ${n} — ${l?l.name:t.line} PK ${fmt(t.m0)} → ${fmt(t.m1)}${tr.slice(1).map(a=>' + '+(state.lines[a.line]?state.lines[a.line].name:a.line)+' → PK '+fmt(a.m1)).join('')}`;}
+// tracé d'un tronçon le long des deux conduites (sous-axes réels des pièces)
+function phTrPath(t){const l=state.lines[t.line];if(!l)return [];const out=[];['A','R'].forEach(c=>{const cd=l.cond&&l.cond[c];if(!cd)return;cd.els.forEach(e=>{const a=Math.max(t.m0,e.m0),b=Math.min(t.m1,e.m1);if(b-a<=0.02)return;const pl=e.axis&&e.axis[0];if(!pl||pl.length<2)return;const L=polyLen(pl);const sp=e.m1-e.m0||1;out.push(axisSub(pl,L*(a-e.m0)/sp,L*(b-e.m0)/sp));});});return out;}
+function renderPhOverlay(){const g=document.getElementById('phG');if(!g)return;const P=NET&&NET.id!=='__vide'?NET.phasage:null;const p=state.phPose;
+  if((!P||!P.phases.length||state.show.phasage===false)&&!p){g.innerHTML='';return;}
+  const k=state.view.k;const w=Math.max(10/k,.9);let h='<g style="pointer-events:none">';
+  if(P&&state.show.phasage!==false){const vis=P.phases.filter(x=>x.level!=='marche'&&(x.tr||[]).length);
+    vis.filter(x=>x.level==='exe').forEach(ph=>{(ph.tr||[]).forEach(t=>phTrPath(t).forEach(pl=>{h+=`<path d="${pathD(pl)}" stroke="${ph.color||'#a7a7dd'}" stroke-width="${w*1.9}" fill="none" stroke-linecap="butt" opacity=".28" stroke-dasharray="${8/k} ${6/k}"/>`;}));});
+    vis.filter(x=>x.level==='ferme').forEach(ph=>{(ph.tr||[]).forEach(t=>phTrPath(t).forEach(pl=>{h+=`<path d="${pathD(pl)}" stroke="${ph.color}" stroke-width="${w}" fill="none" stroke-linecap="butt" opacity="${state.phOpen===ph.id?.85:.5}"/>`;}));
+      const t0=(ph.tr||[])[0];if(t0&&state.lines[t0.line]&&k*sheet().ppm>=1.5){const q=posAtChainage(state.lines[t0.line],(t0.m0+t0.m1)/2);h+=`<g transform="translate(${q.x} ${q.y}) scale(${1/k})"><rect x="-4" y="-26" width="${Math.min(260,ph.name.length*6.2+10)}" height="16" rx="4" fill="${ph.color}" opacity=".92"/><text x="2" y="-14" font-size="10.5" font-weight="700" fill="#fff" font-family="system-ui,sans-serif">${esc(ph.name.slice(0,40))}</text></g>`;}});}
+  if(p){const mark=(pt,txt)=>`<g transform="translate(${pt.x} ${pt.y}) scale(${1/k})"><circle r="8" fill="#1c3d6b" stroke="#fff" stroke-width="2.5"/><text y="-14" font-size="11.5" font-weight="700" fill="#1c3d6b" text-anchor="middle" paint-order="stroke" stroke="#fff" stroke-width="3.5" font-family="system-ui,sans-serif">${txt}</text></g>`;
+    if(p.a&&p.b){const t={line:p.a.line,m0:Math.min(p.a.m,p.b.m),m1:Math.max(p.a.m,p.b.m)};phTrPath(t).forEach(pl=>{h+=`<path d="${pathD(pl)}" stroke="#1c3d6b" stroke-width="${w*1.1}" fill="none" stroke-linecap="butt" opacity=".85"/>`;});}
+    p.ant.forEach(a=>phTrPath({line:a.line,m0:0,m1:a.m1}).forEach(pl=>{h+=`<path d="${pathD(pl)}" stroke="#1c3d6b" stroke-width="${w*1.1}" fill="none" stroke-linecap="butt" opacity=".85"/>`;}));
+    if(p.a)h+=mark(posAtChainage(state.lines[p.a.line],p.a.m),'début · PK '+fmt(p.a.m));if(p.b)h+=mark(posAtChainage(state.lines[p.b.line],p.b.m),'fin · PK '+fmt(p.b.m));
+    p.ant.forEach(a=>{h+=mark(posAtChainage(state.lines[a.line],a.m1),'→ PK '+fmt(a.m1));});}
+  g.innerHTML=h+'</g>';}
+// ---- onglet ----
+function phPeriodsHTML(ph){const dis=ph.locked?'disabled':'';return `<div class="phSteps">${Object.entries(PH_PER).map(([k,[lab,col]])=>`<div style="border-top-color:${col}"><b style="color:${col}">${lab}</b><label>du <input type="date" data-phd="${k}" data-i="0" data-ph="${ph.id}" value="${ph.dates[k][0]||''}" ${dis}></label><label>au <input type="date" data-phd="${k}" data-i="1" data-ph="${ph.id}" value="${ph.dates[k][1]||''}" ${dis}></label></div>`).join('')}</div>`;}
+function phCalHTML(ph,week){const D=ph.dates;const all=Object.values(D).flat().filter(Boolean).sort();if(!all.length)return '<p class="hint" style="margin:4px 0">Renseigne les périodes pour voir le mini-calendrier.</p>';const first=phD(all[0]);const start=new Date(first.getTime()-((first.getDay()+6)%7)*864e5);const end=phD(all[all.length-1]);if(!end)return '';
+  if((end-start)/864e5>120)return `<p class="hint" style="margin:4px 0">Période longue (${Math.round((end-start)/864e5)} j) : voir le planning en semaines ci-dessous.</p>`;
+  const inP=(k,d)=>D[k][0]&&D[k][1]&&d>=D[k][0]&&d<=D[k][1];let h='<div class="phCal">'+['L','M','M','J','V','S','D'].map(x=>`<div class="h">${x}</div>`).join('');let months='';
+  for(let t=new Date(start);;t.setDate(t.getDate()+1)){const k=isoD(t);const wd=(t.getDay()+6)%7;if(t>end&&wd===0)break;const cls=[];if(wd>=5)cls.push('we');if(inP('tr',k))cls.push('tr');if(inP('so',k))cls.push(wd<week&&!frHolidays(t.getFullYear()).has(k)?'so':'off');if(inP('rb',k))cls.push('rb');if(inP('en',k))cls.push('en');
+    h+=`<div class="${cls.join(' ')}" title="${k}">${t.getDate()===1||(t.getTime()===start.getTime())?`<small>${t.toLocaleDateString('fr-FR',{month:'short'})}</small>`:''}${t.getDate()}</div>`;}
+  return h+'</div>';}
+function phDnTable(C){const dns=Object.keys(C.by).map(Number).sort((a,b)=>b-a);if(!dns.length)return '<p class="hint" style="margin:4px 0">Aucune soudure dans ce tronçon.</p>';
+  return `<table class="phT"><tr><th>Soudures induites</th><th class="n">total</th><th class="n">par jour (moy.)</th></tr>${dns.map(dn=>`<tr><td>DN ${dn}</td><td class="n">${C.by[dn]}</td><td class="n">${C.days?(C.by[dn]/C.days).toFixed(1):'—'}</td></tr>`).join('')}<tr class="tot"><td>Toutes DN${C.recut?` <span class="dim">(dont ${C.recut} recoupe${C.recut>1?'s':''})</span>`:''}</td><td class="n">${C.n}</td><td class="n">${C.days?(C.n/C.days).toFixed(1):'—'}</td></tr></table>`;}
+function phNeedTable(C){const st=phStockMap();const keys=Object.keys(C.need).sort((a,b)=>String(C.lab[a]).localeCompare(String(C.lab[b]),'fr'));if(!keys.length)return '';const hasStock=!!stockOf()&&(stockOf().lots||[]).length>0;
+  return `<details class="phDet"><summary><b>Fournitures nécessaires</b>${hasStock?' vs stock chantier':''}</summary><table class="phT"><tr><th>Fourniture</th><th class="n">Besoin</th>${hasStock?'<th class="n">En stock</th><th class="n">Écart</th>':''}</tr>${keys.map(k=>{const be=C.need[k],s=st[k]||0,m=be-s;return `<tr><td>${esc(C.lab[k]||k)}</td><td class="n">${be}</td>${hasStock?`<td class="n">${s}</td><td class="n ${m>0?'miss':''}">${m>0?'− '+m+' à commander':'✓'}</td>`:''}</tr>`;}).join('')}</table><p class="hint">Pièces du tracé dont le milieu est dans le tronçon (une barre à cheval n'est comptée qu'une fois) ; manchons + mousse aux soudures du tronçon${hasStock?' ; stock = reste des zones de stockage (onglet Stock)':''}.</p></details>`;}
+function phEcartHTML(ph,P){const ref=phRoot(ph,P);if(!ref)return '';const rows=Object.entries(PH_PER).map(([k,[lab]])=>{const a=ph.dates[k][1],b=ref.dates[k][1];if(!a||!b)return null;const d=Math.round((phD(a)-phD(b))/864e5);return {lab,d,b};}).filter(Boolean);if(!rows.length)return '';
+  const worst=Math.max(...rows.map(r=>r.d));return `<div class="${worst>0?'warnbox':'okbox'}" style="margin-top:6px;font-size:12.5px"><b>Écart vs marché</b> (${esc(ref.name)}) : ${rows.map(r=>`${r.lab.toLowerCase()} ${r.d>0?'+':''}${r.d} j`).join(' · ')}${worst>0?' — en retard sur le planning du marché':' — dans les clous'}.</div>`;}
+function phCardHTML(ph,P){const week=P.week;const open=state.phOpen===ph.id;const C=phCalc([ph],week);const LV=PH_LV[ph.level]||PH_LV.ferme;const kids=P.phases.filter(x=>x.parent===ph.id);const parent=ph.parent?P.phases.find(x=>x.id===ph.parent):null;const edit=phCanEdit();
+  return `<div class="ph ${ph.level}" data-phc="${ph.id}">
+   <div class="phH">${ph.level==='ferme'?`<input type="checkbox" data-phchk="${ph.id}" ${(state.phChk||[]).includes(ph.id)?'checked':''} title="cocher pour grouper">`:''}<i class="sw" style="background:${ph.color}"></i>
+     <b class="nm">${esc(ph.name)}</b><span class="tag" style="background:${LV[1]}">${LV[0].toUpperCase()}</span>${ph.locked?'<span class="dim">🔒 marché, figé</span>':''}
+     <span class="dim">${(ph.tr||[]).length?fmt(C.len)+' m · '+(ph.tr||[]).map(phTrLabel).join(' · '):'sans tronçon'}</span>${parent?`<span class="dim">↳ ${esc(parent.name)}</span>`:''}
+     <span style="flex:1"></span>${(ph.tr||[]).length?`<button class="btn sm" data-phmap="${ph.id}" title="voir sur le plan">🗺</button>`:''}<button class="btn sm" data-phopen="${ph.id}">${open?'Replier':'Ouvrir'}</button></div>
+   ${!open?'':`
+   ${kids.length?`<div class="infobox">${kids.length} phase${kids.length>1?'s':''} rattachée${kids.length>1?'s':''} : ${kids.map(k=>esc(k.name)).join(' · ')}</div>`:''}
+   ${edit&&!ph.locked?`<div class="row" style="margin:2px 0 6px"><label class="dim">Nom <input type="text" data-phname="${ph.id}" value="${esc(ph.name)}" style="width:min(420px,70vw)"></label></div>`:''}
+   ${phPeriodsHTML(ph)}${phCalHTML(ph,week)}
+   <div class="phStat"><div><b>${C.days||'—'}</b><small>jours de soudure (sem. ${week} j, fériés déduits)</small></div><div class="cad"><b>${C.days?C.perDay.toFixed(1):'—'}</b><small>soudures / jour en moyenne</small></div><div><b>${C.n}</b><small>soudures induites (toutes DN)</small></div></div>
+   ${phDnTable(C)}${phEcartHTML(ph,P)}${phNeedTable(C)}
+   <div class="row" style="margin-top:8px;gap:8px">
+     ${edit&&ph.level!=='marche'?`<label class="dim">Rattacher à <select data-phpar="${ph.id}"><option value="">— aucune —</option>${P.phases.filter(x=>x.id!==ph.id&&(ph.level==='ferme'?x.level!=='ferme':x.level==='marche')).map(x=>`<option value="${x.id}" ${ph.parent===x.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select></label>`:''}
+     ${edit&&!ph.locked?`<button class="btn sm" data-phretrace="${ph.id}">✎ Reprendre le tronçon sur le plan</button>`:''}
+     ${edit?`<button class="btn sm" style="color:#d03b3b" data-phdel="${ph.id}">Supprimer</button>`:''}</div>`}
+  </div>`;}
+function phGroupHTML(g,P){const phs=g.phases.map(id=>P.phases.find(p=>p.id===id)).filter(Boolean);if(!phs.length)return '';const C=phCalc(phs,P.week);const firsts=phs.map(p=>p.dates.tr[0]||p.dates.so[0]).filter(Boolean).sort(),lasts=phs.map(p=>p.dates.en[1]||p.dates.rb[1]||p.dates.so[1]).filter(Boolean).sort();
+  return `<div class="ph grp"><div class="phH"><b class="nm">Σ ${esc(g.name)}</b><span class="dim">${phs.map(p=>esc(p.name)).join(' · ')}</span><span style="flex:1"></span>${phCanEdit()?`<button class="btn sm" data-phgdel="${g.id}">Dissoudre</button>`:''}</div>
+   <div class="phStat"><div><b>${C.days||'—'}</b><small>jours de soudure cumulés</small></div><div class="cad"><b>${C.days?C.perDay.toFixed(1):'—'}</b><small>soudures / jour en moyenne</small></div><div><b>${C.n}</b><small>soudures induites</small></div><div><b>${fmt(C.len)} m</b><small>de tranchée</small></div><div><b>${firsts.length?phFr(firsts[0]):'—'} → ${lasts.length?phFr(lasts[lasts.length-1]):'—'}</b><small>première tranchée → dernier enrobé</small></div></div>
+   ${phDnTable(C)}${phNeedTable(C)}</div>`;}
+function phGanttHTML(P){const phs=P.phases.filter(p=>Object.values(p.dates).flat().some(Boolean));if(!phs.length)return '<p class="hint">Le planning en semaines apparaît dès qu\'une phase a des dates.</p>';
+  const all=phs.flatMap(p=>Object.values(p.dates).flat()).filter(Boolean).sort();const d0=phD(all[0]);const start=new Date(d0.getTime()-((d0.getDay()+6)%7)*864e5);const end=phD(all[all.length-1]);const weeks=[];for(let t=new Date(start);t<=end&&weeks.length<80;t.setDate(t.getDate()+7))weeks.push(new Date(t));
+  const span=Math.max(7,(end-start)/864e5+7);const pos=s=>((phD(s)-start)/864e5)/span*100;const wid=(a,b)=>Math.max(100/span*.6,pos(b)-pos(a)+100/span);
+  const wkNo=w=>{const j1=new Date(w.getFullYear(),0,1);return 'S'+String(Math.ceil(((w-j1)/864e5+j1.getDay()+1)/7)).padStart(2,'0');};
+  const order=[...phs.filter(p=>p.level==='marche'),...phs.filter(p=>p.level==='exe'),...phs.filter(p=>p.level==='ferme')];
+  let h=`<div class="phGantt"><table style="min-width:${Math.max(640,220+weeks.length*44)}px"><tr><th style="width:220px">Phase</th>${weeks.map(w=>`<th>${wkNo(w)}<br><span class="dim">${w.getDate()}/${w.getMonth()+1}</span></th>`).join('')}</tr>`;
+  order.forEach(p=>{const D=p.dates;h+=`<tr><td><i class="sw" style="background:${p.color}"></i>${esc(p.name)}</td><td class="w" colspan="${weeks.length}">`;
+    const d0=D.tr[0]||D.so[0]||D.rb[0]||D.en[0],d1=D.en[1]||D.rb[1]||D.so[1]||D.tr[1];
+    if(p.level==='marche'){if(d0&&d1)h+=`<span class="bar mar" style="left:${pos(d0)}%;width:${wid(d0,d1)}%;top:12px;height:10px">marché</span>`;}
+    else if(p.level==='exe'){if(d0&&d1)h+=`<span class="bar exe" style="left:${pos(d0)}%;width:${wid(d0,d1)}%;top:12px;height:10px">exé</span>`;}
+    else{[['tr',2],['so',11],['rb',20],['en',29]].forEach(([k,top])=>{if(D[k][0]&&D[k][1])h+=`<span class="bar ${k}" style="left:${pos(D[k][0])}%;width:${wid(D[k][0],D[k][1])}%;top:${top}px;height:7px" title="${PH_PER[k][0]} ${phFr(D[k][0])} → ${phFr(D[k][1])}"></span>`;});}
+    h+='</td></tr>';});
+  return h+'</table></div>';}
+function renderPhasage(){const el=$('#phasage');if(!el)return;const P=phasageOf();if(!P){el.innerHTML='<h2 class="vt">Phasage</h2><p class="hint">Ouvre un chantier.</p>';return;}const edit=phCanEdit();
+  const lv=state.phLv||'ferme';const vis=P.phases.filter(p=>lv==='all'||p.level===lv);const nFirm=P.phases.filter(p=>p.level==='ferme').length;
+  el.innerHTML=`<h2 class="vt">Phasage <span class="muted" style="font-weight:400;font-size:13px">— découpage réel d'exécution</span></h2>
+   <div class="card">${edit?`<div class="row" style="gap:6px"><button class="btn primary" data-phnew="ferme">➕ Nouvelle phase ferme</button><button class="btn" data-phnew="exe">＋ Prév. exé</button><button class="btn" id="phImport">📥 Marché</button></div>`:''}
+     <div class="row" style="gap:6px;margin-top:${edit?'8px':'0'}"><span class="dim">Semaine de soudure :</span><button class="btn sm ${P.week===4?'on':''}" data-phwk="4">4 j (lun → jeu)</button><button class="btn sm ${P.week===5?'on':''}" data-phwk="5">5 j (lun → ven)</button></div>
+     <p class="hint" style="margin:6px 0 0">Une phase ferme = un tronçon pris <b>sur le plan</b> (début et fin où tu touches, même au milieu d'une barre ; une antenne : touche-la jusqu'où tu veux aller) + ses 4 périodes. L'outil en déduit les soudures par DN, la moyenne par jour de soudure et les fournitures. <b>Marché</b> = planning du marché importé une fois, figé ; <b>exé</b> = ton prévisionnel ; les groupes sont libres.</p></div>
+   <div class="row" style="margin:6px 0 4px"><span class="chip ${lv==='ferme'?'on':''}" data-phlv="ferme">Fermes (${nFirm})</span><span class="chip ${lv==='exe'?'on':''}" data-phlv="exe">Exé (${P.phases.filter(p=>p.level==='exe').length})</span><span class="chip ${lv==='marche'?'on':''}" data-phlv="marche">Marché (${P.phases.filter(p=>p.level==='marche').length})</span><span class="chip ${lv==='all'?'on':''}" data-phlv="all">Tout</span>
+     ${edit&&nFirm>1?`<span style="flex:1"></span><input type="text" id="phGrpName" placeholder="nom du groupe (ex. Secteur nord)" style="width:170px"><button class="btn sm" id="phGroup">Σ Grouper les cochées</button>`:''}</div>
+   <div id="phList">${vis.map(p=>phCardHTML(p,P)).join('')||'<p class="hint">Aucune phase à ce niveau.</p>'}</div>
+   ${P.groups.length?`<h3 style="margin:12px 0 4px">Groupes</h3>${P.groups.map(g=>phGroupHTML(g,P)).join('')}`:''}
+   <h3 style="margin:14px 0 4px">Planning <span class="muted" style="font-weight:400;font-size:12px">— semaines · marché (gris pointillé) · exé (hachuré) · ferme (tranchée / soudure / remblai / enrobé)</span></h3>${phGanttHTML(P)}
+   <div class="phLegend" style="margin-top:6px;display:flex;gap:10px;flex-wrap:wrap;font-size:11.5px;color:var(--ink2)">${Object.values(PH_PER).map(([lab,col])=>`<span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${col};vertical-align:-2px;margin-right:3px"></i>${lab}</span>`).join('')}<span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:repeating-linear-gradient(45deg,#6b6bb8,#6b6bb8 4px,#a7a7dd 4px,#a7a7dd 8px);vertical-align:-2px;margin-right:3px"></i>prév. exé</span><span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#c9c9c9;border:1px dashed #777;vertical-align:-2px;margin-right:3px"></i>marché (figé)</span></div>`;}
+// import du planning du marché : CSV / TSV (nom ; début ; fin [; début soudure ; fin soudure ; début remblai ; fin remblai ; début enrobé ; fin enrobé]) ou saisie d'une ligne à la main
+function phParseDate(s){s=String(s||'').trim();if(!s)return '';let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return m[1]+'-'+m[2]+'-'+m[3];m=s.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{2,4})/);if(m){const y=m[3].length===2?'20'+m[3]:m[3];return y+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');}return '';}
+function phImportText(txt){const P=phasageOf();if(!P)return 0;let n=0;String(txt||'').split(/\r?\n/).forEach(line=>{const cells=line.split(/[;\t]|,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(c=>c.replace(/^"|"$/g,'').trim());if(cells.length<3)return;const name=cells[0];const d=cells.slice(1).map(phParseDate);if(!name||!d[0]||!d[1])return;if(/^nom|^phase|^zone|^d[ée]signation/i.test(name)&&!phParseDate(cells[1]))return;
+    const dates={tr:[d[0],d[0]],so:[d[0],d[1]],rb:[d[1],d[1]],en:[d[1],d[1]]};if(d[2]&&d[3]){dates.tr=[d[0],d[1]];dates.so=[d[2],d[3]];}if(d[4]&&d[5])dates.rb=[d[4],d[5]];if(d[6]&&d[7])dates.en=[d[6],d[7]];
+    P.phases.push({id:phNewId(P),name:name.slice(0,80),level:'marche',parent:null,color:'#bdbdbd',locked:true,tr:[],dates,by:(me()||{}).name||state.userId,at:new Date().toISOString()});n++;});
+  if(n)savePhasage();return n;}
+function openPhImport(){openModal(`<h3>Planning du marché</h3><p class="muted" style="font-size:12.5px">Importé <b>une fois</b> et figé : c'est la référence pour mesurer l'écart. Fichier CSV / TSV (depuis Excel : « Enregistrer sous… CSV ») avec une phase par ligne : <b>nom ; début ; fin</b> — ou, plus détaillé : nom ; début tranchée ; fin tranchée ; début soudure ; fin soudure ; début remblai ; fin remblai ; début enrobé ; fin enrobé. Dates au format 12/03/2027 ou 2027-03-12.</p>
+   <label class="btn block" style="cursor:pointer">📄 Choisir le fichier CSV / TSV<input type="file" id="phImpFile" accept=".csv,.tsv,.txt,text/csv,text/plain" style="display:none"></label>
+   <div class="muted" style="font-size:12px;margin:8px 0 4px">… ou colle le tableau ici (copié depuis Excel) :</div><textarea id="phImpTxt" style="width:100%;min-height:90px;font:12px/1.3 ui-monospace,monospace" placeholder="Rue de la Gare;12/10/2026;06/11/2026&#10;Rue Pasteur;09/11/2026;04/12/2026"></textarea>
+   <div class="muted" style="font-size:12px;margin:10px 0 4px">… ou saisis une phase marché à la main :</div><div class="row"><input type="text" id="phImpName" placeholder="nom (ex. Rue Pasteur)" style="flex:1;min-width:140px"><input type="date" id="phImpD0"><input type="date" id="phImpD1"></div>
+   <div class="actions" style="margin-top:10px"><button class="btn primary block" id="phImpOk">Enregistrer</button><button class="btn block" data-close>Annuler</button></div>`);
+  $('#phImpFile').addEventListener('change',e=>{const f=e.target.files&&e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{$('#phImpTxt').value=String(rd.result||'');};rd.readAsText(f,'utf-8');});
+  $('#phImpOk').onclick=()=>{let n=phImportText($('#phImpTxt').value);const nm=$('#phImpName').value.trim(),d0=$('#phImpD0').value,d1=$('#phImpD1').value;if(nm&&d0&&d1){n+=phImportText(nm+';'+d0+';'+d1);}
+    if(!n){toast('Rien d\'importé : vérifie le format (nom ; début ; fin)');return;}closeModal();state.phLv='marche';renderAll();toast(n+' phase'+(n>1?'s':'')+' marché enregistrée'+(n>1?'s':'')+' (figée'+(n>1?'s':'')+')');};}
+function phFocus(ph){const t=(ph.tr||[])[0];if(!t||!state.lines[t.line])return;state.phOpen=ph.id;state.tab='plan';renderAll();const l=state.lines[t.line];let x0=1e15,y0=1e15,x1=-1e15,y1=-1e15;(ph.tr||[]).forEach(t2=>phTrPath(t2).forEach(pl=>pl.forEach(p=>{x0=Math.min(x0,p.x);y0=Math.min(y0,p.y);x1=Math.max(x1,p.x);y1=Math.max(y1,p.y);})));
+  if(x0>x1){const q=posAtChainage(l,(t.m0+t.m1)/2);centerOn(q.x,q.y,Math.max(state.view.k,2));return;}const cw=canvas.clientWidth||400,ch=canvas.clientHeight||500;const m=Math.max(6,(x1-x0)*.08,(y1-y0)*.08);x0-=m;x1+=m;y0-=m;y1+=m;const k=Math.min(cw/(x1-x0),ch/(y1-y0))*.95;state.view={k,tx:(cw-(x1-x0)*k)/2-x0*k,ty:(ch-(y1-y0)*k)/2-y0*k};applyView();renderPlan();}
+$('#phasage').addEventListener('click',e=>{const P=phasageOf();if(!P)return;const b=e.target.closest('[data-phnew],[data-phwk],[data-phlv],[data-phopen],[data-phdel],[data-phgdel],[data-phmap],[data-phretrace],#phImport,#phGroup');if(!b)return;const d=b.dataset;
+  if(d.phnew){phStartPose(d.phnew);return;}
+  if(d.phwk){P.week=+d.phwk===5?5:4;savePhasage();renderPhasage();return;}
+  if(d.phlv){state.phLv=d.phlv;renderPhasage();return;}
+  if(d.phopen){state.phOpen=state.phOpen===d.phopen?null:d.phopen;renderPhasage();renderPlan();return;}
+  if(d.phmap){const ph=P.phases.find(x=>x.id===d.phmap);if(ph)phFocus(ph);return;}
+  if(d.phretrace){const ph=P.phases.find(x=>x.id===d.phretrace);if(ph)phStartPose(ph.level,ph.id);return;}
+  if(d.phdel){const ph=P.phases.find(x=>x.id===d.phdel);if(!ph)return;if(!confirm(`Supprimer la phase « ${ph.name} » ?`))return;P.phases=P.phases.filter(x=>x.id!==ph.id);P.phases.forEach(x=>{if(x.parent===ph.id)x.parent=null;});P.groups.forEach(g=>g.phases=g.phases.filter(x=>x!==ph.id));P.groups=P.groups.filter(g=>g.phases.length);savePhasage();renderAll();toast('Phase supprimée');return;}
+  if(d.phgdel){P.groups=P.groups.filter(g=>g.id!==d.phgdel);savePhasage();renderPhasage();return;}
+  if(b.id==='phImport'){openPhImport();return;}
+  if(b.id==='phGroup'){const ids=(state.phChk||[]).filter(id=>P.phases.some(p=>p.id===id&&p.level==='ferme'));if(ids.length<2){toast('Coche au moins deux phases fermes');return;}const name=($('#phGrpName').value||'').trim()||('Groupe '+(P.groups.length+1));P.groups.push({id:phNewId(P),name,phases:ids});state.phChk=[];savePhasage();renderPhasage();toast(`Groupe « ${name} » créé (${ids.length} phases)`);return;}});
+$('#phasage').addEventListener('change',e=>{const P=phasageOf();if(!P)return;const t=e.target;const d=t.dataset;
+  if(d.phd){const ph=P.phases.find(x=>x.id===d.ph);if(!ph||ph.locked)return;ph.dates[d.phd][+d.i]=t.value||'';if(ph.dates[d.phd][0]&&ph.dates[d.phd][1]&&ph.dates[d.phd][1]<ph.dates[d.phd][0]){ph.dates[d.phd][1]=ph.dates[d.phd][0];toast('Fin avant début : fin ramenée au début');}savePhasage();renderPhasage();return;}
+  if(d.phchk!==undefined){const s=new Set(state.phChk||[]);if(t.checked)s.add(d.phchk);else s.delete(d.phchk);state.phChk=[...s];return;}
+  if(d.phpar){const ph=P.phases.find(x=>x.id===d.phpar);if(ph){ph.parent=t.value||null;savePhasage();renderPhasage();}return;}
+  if(d.phname){const ph=P.phases.find(x=>x.id===d.phname);if(ph){ph.name=t.value.trim()||ph.name;ph.autoName=false;savePhasage();renderPhasage();renderPlan();}return;}});
+{const bar=$('#phBar');if(bar){$('#phOk').addEventListener('click',phCommitPose);$('#phCancel').addEventListener('click',()=>{phEndPose();toast('Choix de tronçon annulé');});}}
+
 window.addEventListener('unhandledrejection',e=>{const m=(e&&e.reason&&(e.reason.message||String(e.reason)))||'';if(/supabase|fetch|network|réseau|Load failed|abort/i.test(m))return;console.warn('promesse rejetée',e.reason);try{toast('Erreur : '+m.slice(0,120));}catch(_){}}); // 07/10 : plus d'échec muet (ouverture de chantier bloquée sans message sur mobile)
-window.TRACE={state,USERS,role,renderAll,renderPlan,centerOn,closeSheet,openStockZoneModal,allJoints,wirePath,locate,dhLoop,dhAtPoint,dhDirLab,switchSite,openJoint,openEl,siteGeo,startCalage,calageTap,openSiteFromHome,renderHome,showScreen,geo:{planToLonLat,lonLatToPlan},hydro:{of:hydroOf,build:hydroBuild,pose:startHydroPose,tap:hydroTap,end:endHydroPose,save:saveHydro,nearest:nearestOnLines},geoRefresh(){if(NET)geoCache.delete(NET);},go:async id=>{const t=id||Object.keys(SITES).find(k=>k!=='__vide');if(t)return openSiteFromHome(t);},get lines(){return state.lines;},get net(){return NET;},get sites(){return SITES;}};
+window.TRACE={phasage:{of:phasageOf,calc:phCalc,welds:phWelds,needs:phNeeds,start:phStartPose,tap:phTap,commit:phCommitPose,end:phEndPose,workDays:phWorkDays,holidays:frHolidays,importText:phImportText,render:renderPhasage},state,USERS,role,renderAll,renderPlan,centerOn,closeSheet,openStockZoneModal,allJoints,wirePath,locate,dhLoop,dhAtPoint,dhDirLab,switchSite,openJoint,openEl,siteGeo,startCalage,calageTap,openSiteFromHome,renderHome,showScreen,geo:{planToLonLat,lonLatToPlan},hydro:{of:hydroOf,build:hydroBuild,pose:startHydroPose,tap:hydroTap,end:endHydroPose,save:saveHydro,nearest:nearestOnLines},geoRefresh(){if(NET)geoCache.delete(NET);},go:async id=>{const t=id||Object.keys(SITES).find(k=>k!=='__vide');if(t)return openSiteFromHome(t);},get lines(){return state.lines;},get net(){return NET;},get sites(){return SITES;}};
