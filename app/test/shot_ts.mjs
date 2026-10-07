@@ -15,7 +15,7 @@ const PNG='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAA
 // extrusion sur une soudure
 await page.evaluate(({PNG})=>{const T=window.TRACE;const L=Object.values(T.lines).find(l=>l.name==='Rue de la Gare');const j=L.cond.A.joints[3];j.steps={1:{done:true,by:'Karim',at:new Date().toISOString(),photos:[PNG],proc:'tig'},2:{done:true,by:'Karim',at:new Date().toISOString(),photos:[PNG]},3:{photos:[PNG]}};j.status='soudee';j.wire='raccorde';T.openJoint(L.id,'A',3);},{PNG});
 await page.waitForTimeout(400);
-await page.evaluate(()=>{const r=document.querySelector('#sheet input[name=st3-type][value=extrude]');r.click();r.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('#sheet #st3-cause').value='coudenu';});await page.waitForTimeout(200);
+await page.evaluate(()=>{const r=document.querySelector('#sheet input[name=st3-type][value=extrude]');r.click();r.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('#sheet #st3-cause').value='angle';});await page.waitForTimeout(200);
 {const el=await page.$('#sheet details.dstep.cur');if(el)await el.screenshot({path:'shot_ts_step3.png'});}
 await page.evaluate(()=>{document.querySelector('#sheet #st3-press').checked=true;document.querySelector('#sheet [data-stepok="3"]').click();});await page.waitForTimeout(400);
 {const el=await page.$('#sheet');await el.screenshot({path:'shot_ts_sheet.png'});}

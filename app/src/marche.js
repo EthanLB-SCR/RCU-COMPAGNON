@@ -2,7 +2,7 @@
 // un calque qu'on affiche ou masque ; après deux-trois modifs on voit l'avant / après et on a le récap marché (soudures, linéaire, vannes, purges…) et le réel à jour ».
 // Ce module compte les quantités d'un réseau dans les DEUX formats (lignes de l'appli : cond.A.els + joints ; lignes d'un chantier enregistré : cond.A.els + welds),
 // fige une photographie (snapshot) et calcule l'écart. Partagé par l'appli (src/app.js) et le traceur (maquette/bridge.js).
-export const M_KEYS=[['ml','Linéaire d\'axe','ml'],['soud','Soudures (aller + retour)',''],['coudes','Coudes',''],['vannes','Vannes',''],['purges','Purges',''],['vidanges','Vidanges',''],['tes','Tés',''],['reduc','Réductions',''],['bouchons','Fins de ligne',''],['lyres','Lyres',''],['baio','Baïonnettes',''],['manchons','Manchons',''],['extru','Extrusions',''],['fc','Fausses coupes','']];
+export const M_KEYS=[['ml','Linéaire d\'axe','ml'],['soud','Soudures (aller + retour)',''],['coudes','Coudes',''],['vannes','Vannes',''],['purges','Purges',''],['vidanges','Vidanges',''],['tes','Tés',''],['reduc','Réductions',''],['bouchons','Fins de ligne',''],['lyres','Lyres',''],['baio','Baïonnettes',''],['manchons','Manchons posés (hors extrusions)',''],['extru','Manchons extrudés',''],['fc','Fausses coupes','']];
 const Z=()=>Object.fromEntries(M_KEYS.map(([k])=>[k,0]));
 export const axisOf=l=>l.pts&&l.pts.length?l.pts.map(p=>Array.isArray(p)?[+p[0],+p[1]]:[+p.x,+p.y]):(l.axis||[]).map(p=>[+p[0],+p[1]]);
 export const polyLen=pts=>pts.reduce((s,p,i)=>i?s+Math.hypot(p[0]-pts[i-1][0],p[1]-pts[i-1][1]):0,0);
