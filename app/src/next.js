@@ -88,7 +88,8 @@ export const ACCUEIL_Q=[ // PROVISOIRE — questions à remplacer par celles d'E
 export const QUART_Q=['Le point sécurité du jour a été compris.','Les EPI du poste sont portés et en bon état.','Aucune situation dangereuse constatée non signalée.'];
 // documents que l'utilisateur courant DOIT émarger sur ce chantier (PDF déposés + accueil chantier, sauf si le chef a levé l'obligation ; les quarts d'heure ne sont pas obligatoires)
 const qseRequired=d0=>d0.required!==undefined?!!d0.required:(d0.type==='pdf'||d0.type==='accueil');
-const qseSignedBy=(d0,name)=>(d0.sigs||[]).some(s2=>String(s2.name||'').trim().toLowerCase()===String(name||'').trim().toLowerCase());
+// signé par MOI ? par la clé du compte (profil connecté ou utilisateur de la liste) OU par le nom — le bug d'Ethan 07/10 : son profil « Ethan LE BIHAN » signait sous un autre libellé que celui comparé
+const qseSignedBy=(d0,name)=>{const key=A.userKey?A.userKey():null;const nn=String(name||'').trim().toLowerCase();return (d0.sigs||[]).some(s2=>(key&&s2.uid&&s2.uid===key)||String(s2.name||'').trim().toLowerCase()===nn);};
 export function qseTodo(){const q=qseOf();if(!q)return [];const me=A.userName();return q.docs.filter(d0=>qseRequired(d0)&&!qseSignedBy(d0,me));}
 // pastille rouge sur l'onglet QSE tant qu'il reste des documents à émarger (Ethan 07/10 : « un truc visuel qui encourage à signer »)
 function qseBadge(){const b=document.querySelector('#tabbar [data-tab="qse"]');if(!b)return;const n=qseTodo().length;let i=b.querySelector('.qseBadge');if(!n){if(i)i.remove();b.style.color='';return;}if(!i){i=document.createElement('i');i.className='qseBadge';b.appendChild(i);}i.textContent=n;b.style.color='#d03b3b';}
@@ -142,7 +143,7 @@ function qseOpen(id){const q=qseOf();const d0=q&&q.docs.find(x=>x.id===id);if(!d
 // signature au doigt : nom + trait sur canvas (tablette du chef, les opérateurs passent chacun leur tour)
 function qseSign(d0,preset){const esc=A.esc;const others=A.users().map(u=>u.name);
   A.openModal(`<h3 style="margin-top:0">Émargement — ${esc(d0.title)}</h3>
-   <label class="f">Qui signe ?</label><div class="row" style="display:flex;gap:6px"><select class="f" id="sig-who" style="flex:1"><option value="">— saisir un nom —</option>${others.map(n=>`<option>${esc(n)}</option>`).join('')}</select><input class="f" id="sig-name" placeholder="Nom Prénom" style="flex:1" value="${esc(preset||'')}"></input></div>
+   <label class="f">Qui signe ?</label>${preset?`<div class="okbox" style="margin:0 0 4px">Toi : <b>${esc(preset)}</b></div><input type="hidden" id="sig-name" value="${esc(preset)}">`:`<div class="row" style="display:flex;gap:6px"><select class="f" id="sig-who" style="flex:1"><option value="">— saisir un nom —</option>${others.map(n=>`<option>${esc(n)}</option>`).join('')}</select><input class="f" id="sig-name" placeholder="Nom Prénom" style="flex:1"></input></div>`}
    <label class="f" style="margin-top:6px">Signature au doigt <span class="dim">(la case = « j'ai pris connaissance »)</span></label>
    <canvas id="sig-pad" width="640" height="220" style="width:100%;height:150px;border:1.5px dashed #b8b4a8;border-radius:10px;background:#fff;touch-action:none"></canvas>
    <div class="actions" style="margin-top:8px"><button class="btn primary block" id="sig-ok">Valider l’émargement</button><button class="btn block" id="sig-clear">Effacer le trait</button><button class="btn block" data-close>Annuler</button></div>`);
@@ -152,11 +153,12 @@ function qseSign(d0,preset){const esc=A.esc;const others=A.users().map(u=>u.name
   cv.addEventListener('pointermove',e2=>{if(!drawing)return;const p=pos(e2);cx.lineTo(p.x,p.y);cx.stroke();});
   const up=()=>{drawing=false;};cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
   document.getElementById('sig-clear').onclick=()=>{cx.clearRect(0,0,cv.width,cv.height);drawn=false;};
-  const who=document.getElementById('sig-who');who.onchange=()=>{if(who.value)document.getElementById('sig-name').value=who.value;};
+  const who=document.getElementById('sig-who');if(who)who.onchange=()=>{if(who.value)document.getElementById('sig-name').value=who.value;};
   document.getElementById('sig-ok').onclick=()=>{const name=document.getElementById('sig-name').value.trim();
     if(!name){A.toast('Le nom du signataire');return;}
     if(!drawn){A.toast('La signature (un trait au doigt)');return;}
-    d0.sigs=d0.sigs||[];d0.sigs.push({name,detail:'',at:new Date().toISOString(),img:cv.toDataURL('image/png')});
+    const uid=preset?(A.userKey?A.userKey():undefined):(()=>{const u=A.users().find(x=>x.name===name);return u?'l:'+u.id:undefined;})();
+    d0.sigs=d0.sigs||[];d0.sigs.push({name,uid,detail:'',at:new Date().toISOString(),img:cv.toDataURL('image/png')});
     A.saveNet('qse');A.closeModal();qseBadge();renderQse();qseOpen(d0.id);A.toast(name+' a émargé'+(preset?'':' — au suivant'));};}
 function qsePrint(d0){const esc=A.esc;const NET=A.net();
   const w=window.open('','_blank');if(!w){A.toast('Autorise la fenêtre pop-up pour imprimer');return;}
