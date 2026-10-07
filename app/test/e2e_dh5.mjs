@@ -36,7 +36,7 @@ out=await page.evaluate(()=>{const t=document.querySelector('#sheet').textConten
   return {att:m?m[1]:null,entiere:/boucle amont entière/.test(t),centrale:/centrale/.test(t)};});
 console.log('B1) attendu « boucle amont entière » sans aucune fermeture:',JSON.stringify(out));
 const b1=out.att==='0,30'&&out.entiere&&out.centrale; // J[1] est à 12 m (joint d'about au PK 0) : (12 + 12) × 12,5 Ω/km
-await page.evaluate(({L,PNG})=>{const j=window.TRACE.lines[L].cond.A.joints[1];j.steps={1:{photos:[PNG]}};},{L,PNG});
+await page.evaluate(({L,PNG})=>{const j=window.TRACE.lines[L].cond.A.joints[1];j.steps={1:{photos:[PNG]},2:{photos:[PNG]}};},{L,PNG});
 await open(1);await page.waitForTimeout(400);
 await page.evaluate(()=>{document.querySelector('#st1-vis').checked=true;});
 await page.evaluate(()=>document.querySelector('#sheet [data-stepok="1"]').click());await page.waitForTimeout(500);
@@ -75,7 +75,7 @@ out=await page.evaluate(()=>{const ds=[...document.querySelectorAll('#sheet .dst
   return {slv1:ds[0].querySelectorAll('[data-stkneed="sleeve"]').length,enfile:/Manchon enfilé/.test(ds[0].textContent),slv3:!!ds[2].querySelector('[data-stkneed="sleeve"]')};});
 console.log('D1) pick manchon dans l\'étape 1 (« Manchon enfilé »), pas à la 3:',JSON.stringify(out));
 const d1=out.slv1>=2&&out.enfile&&!out.slv3;
-await page.evaluate(({L,PNG})=>{const j=window.TRACE.lines[L].cond.A.joints[5];j.steps={1:{photos:[PNG]}};},{L,PNG});
+await page.evaluate(({L,PNG})=>{const j=window.TRACE.lines[L].cond.A.joints[5];j.steps={1:{photos:[PNG]},2:{photos:[PNG]}};},{L,PNG});
 await open(5);await page.waitForTimeout(400);
 await page.evaluate(()=>{document.querySelector('#st1-vis').checked=true;});
 await page.evaluate(()=>document.querySelector('#sheet [data-stepok="1"]').click());await page.waitForTimeout(600);

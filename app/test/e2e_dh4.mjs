@@ -14,6 +14,7 @@ await page.click('#svGo');await page.waitForTimeout(1500);await page.selectOptio
 const ids=await page.evaluate(()=>{const T=window.TRACE;const L=Object.values(T.lines).find(l=>!l.parent);const J=L.cond.A.joints;
   J.slice(0,5).forEach(j=>{j.status='soudee';j.wire='raccorde';j.conn={E:'E',N:'N'};}); // soudées, fils continus : l'étape 2 reste À FAIRE sur la cible (le modèle unique coche l'étape 1 tout seul)
   const d=T.net.dhData||(T.net.dhData={ends:{},temps:{},mesures:[]});d.temps[J[5].weldId]={by:'test',at:new Date().toISOString()};
+  J[2].steps={2:{photos:['data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==']}}; // photo obligatoire à l'étape 2 (07/10)
   T.renderAll();return {line:L.id,w2:J[2].weldId,w5:J[5].weldId,idx2:J[2].idx};});
 console.log('réseau prêt (pont ⟲ à '+ids.w5+'):',JSON.stringify(ids));
 // 1) fiche du manchon joints[2] : étape 2 porte le SCHÉMA des fils + boucle + isolement

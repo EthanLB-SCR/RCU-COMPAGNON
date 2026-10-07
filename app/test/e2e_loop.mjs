@@ -15,7 +15,7 @@ await page.click('#bSave');await page.waitForTimeout(200);await page.fill('#svNa
 await page.click('#svGo');await page.waitForTimeout(1500);await page.selectOption('#roleSel','ethan');await page.waitForTimeout(300);
 // étape 1 déjà faite sur S-0002 (2e manchon), fiche ouverte
 await page.evaluate(()=>{const T=window.TRACE;const L=Object.values(T.lines)[0];const j=L.cond.A.joints[1];
-  j.steps={1:{done:true,by:'karim',at:new Date().toISOString(),photos:[],visuel:true}};j.status='soudee';T.openJoint(L.id,'A',1);});
+  j.steps={1:{done:true,by:'karim',at:new Date().toISOString(),photos:[],visuel:true},2:{photos:['data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==']}};j.status='soudee';T.openJoint(L.id,'A',1);}); // photo obligatoire à l'étape 2 (07/10)
 await page.waitForTimeout(600);
 const tap=sel2=>page.evaluate(s2=>{document.querySelector(s2).dispatchEvent(new MouseEvent('click',{bubbles:true}));},sel2);
 // ── 1) deux taps sur les deux fils AMONT → bouclés entre eux (état + pont dessiné + badge)
