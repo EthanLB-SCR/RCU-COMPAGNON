@@ -132,11 +132,28 @@ await page.evaluate(()=>document.querySelector('#phasage #phImport').click());aw
 await page.evaluate(()=>{const P=window.TRACE.net.phasage;const m=P.phases.find(p=>p.level==='marche');m.dates.so=['2026-10-05','2026-10-30'];});
 out=await page.evaluate(()=>{const T=window.TRACE;const P=T.net.phasage;const ex=P.phases.find(p=>p.level==='exe');const m=P.phases.find(p=>p.level==='marche'&&(p.tr||[]).length);if(!ex||!m)return {skip:true};
   ex.parent=null;ex.dates.so=['2026-10-13','2026-10-16'];T.phasage.render();const rows=[...document.querySelectorAll('#phasage .phGantt tr')].map(r=>r.textContent.replace(/\s+/g,' ').trim());
-  const iM=rows.findIndex(r=>r.startsWith(m.name)),iE=rows.findIndex(r=>r.includes('↳')&&r.includes(ex.name));
+  const iM=rows.findIndex(r=>r.includes(m.name)&&!r.includes('↳')&&!r.includes('Phase')),iE=rows.findIndex(r=>r.includes('↳')&&r.includes(ex.name));
   return {marcheName:m.name,exName:ex.name,iM,iE,under:iM>=0&&iE>iM,card:/↳ Marché/.test(document.querySelector('#phasage').textContent)};});
 console.log('13) parent effacé → rattachée d\'après le plan, et sous sa marché dans le planning:',JSON.stringify(out));
-const c13=!!out.skip||(out.under&&/^Marché \d+$/.test(out.marcheName)&&/^Phase \d+$/.test(out.exName));
-const ALL=c1&&c2a&&c2c&&c3&&c4&&c4b&&c5&&c6&&c7&&c8&&c9a&&c9b&&c10&&c11&&c12&&c13;
-console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2a,c2c,c3,c4,c4b,c5,c6,c7,c8,c9a,c9b,c10,c11,c12,c13}));
+const c13=!!out.skip||(out.under&&/^Marché [A-Z]+$/.test(out.marcheName)&&/^Phase \d+$/.test(out.exName));
+// ── 14) « On vient souder » : pastilles des jours de la fenêtre soudure (+ 7 j), cocher 3 jours → cadence sur 3 jours, section « Interventions prévues », « Tout cocher » = jours théoriques
+out=await page.evaluate(()=>{const T=window.TRACE;const P=T.net.phasage;const ph=P.phases.find(p=>p.level==='exe');ph.dates.so=['2026-10-13','2026-10-22'];T.state.phOpen=ph.id;T.state.phLv='exe';T.phasage.render();
+  const chips=document.querySelectorAll(`#phasage .phDay[data-ph="${ph.id}"]`).length;['2026-10-13','2026-10-14','2026-10-17'].forEach(k=>{const b=document.querySelector(`#phasage [data-phpick="${k}"]`);if(b)b.click();});
+  const C=T.phasage.calc([ph],P.week);const W=T.phasage.welds(ph);const t=document.querySelector('#phasage').textContent;
+  return {chips,days:ph.days,picked:C.picked,per:C.perDayPicked&&+C.perDayPicked.toFixed(2),exp:+(W.n/3).toFixed(2),txt:/3 jours cochés/.test(t)&&/sur ces jours/.test(t),agenda:/Interventions prévues/.test(t)&&/sam 17\/10/.test(t),stat:/sur les 3 jours cochés/.test(t)};});
+console.log('14a) jours cochés → cadence sur ces jours + interventions prévues:',JSON.stringify(out));
+const c14a=out.chips>=17&&out.days.length===3&&out.picked===3&&out.per===out.exp&&out.txt&&out.agenda&&out.stat;
+await page.evaluate(()=>{const ph=window.TRACE.net.phasage.phases.find(p=>p.level==='exe');document.querySelector(`#phasage [data-phpickall="${ph.id}"]`).click();});await page.waitForTimeout(200);
+out=await page.evaluate(()=>{const T=window.TRACE;const P=T.net.phasage;const ph=P.phases.find(p=>p.level==='exe');return {n:ph.days.length,theo:T.phasage.workDays(ph.dates.so[0],ph.dates.so[1],P.week,ph.force,ph.off).size};});
+console.log('14b) « Tout cocher » = jours théoriques:',JSON.stringify(out));const c14b=out.n===out.theo&&out.n>0;
+// ── 15) export imprimable : nouvelle fenêtre avec plan, planning, interventions, une section par phase
+const [pop]=await Promise.all([page.waitForEvent('popup'),page.evaluate(()=>document.querySelector('#phExport').click())]);await pop.waitForLoadState('domcontentloaded');await pop.waitForTimeout(300);
+out=await pop.evaluate(()=>({title:document.title,h2:[...document.querySelectorAll('h2')].map(h=>h.textContent.trim().slice(0,30)),gantt:!!document.querySelector('.phGantt .bar.so'),mini:!!document.querySelector('svg.phMini'),print:!!document.querySelector('button.np')}));await pop.close();
+console.log('15) export du phasage (fenêtre imprimable):',JSON.stringify(out));const c15=/Phasage/.test(out.title)&&out.h2.some(h=>/Plan/.test(h))&&out.h2.some(h=>/Planning/.test(h))&&out.h2.some(h=>/Interventions/.test(h))&&out.h2.some(h=>/Phase 1/.test(h))&&out.gantt&&out.mini&&out.print;
+// ── 16) barre d'onglets : Liste · Récap · Catalogue au bout, QSE avant
+out=await page.evaluate(()=>[...document.querySelectorAll('#tabbar [data-tab]')].map(b=>b.dataset.tab));
+console.log('16) ordre des onglets:',JSON.stringify(out));const c16=out.slice(-3).join()==='liste,recap,catalogue'&&out.indexOf('qse')<out.indexOf('liste')&&out.indexOf('phasage')<out.indexOf('liste');
+const ALL=c1&&c2a&&c2c&&c3&&c4&&c4b&&c5&&c6&&c7&&c8&&c9a&&c9b&&c10&&c11&&c12&&c13&&c14a&&c14b&&c15&&c16;
+console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2a,c2c,c3,c4,c4b,c5,c6,c7,c8,c9a,c9b,c10,c11,c12,c13,c14a,c14b,c15,c16}));
 console.log(logs.length?logs:'[]');
 await browser.close();process.exit(ALL?0:1);

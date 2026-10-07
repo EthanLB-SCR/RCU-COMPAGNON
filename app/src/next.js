@@ -35,7 +35,7 @@ export function nextBindHome(){const b=document.getElementById('nextBtn');if(b)b
   document.querySelectorAll('#modal [data-nextf]').forEach(cb=>cb.onchange=()=>{const o={...NEXTF};if(cb.checked)o[cb.dataset.nextf]=1;else delete o[cb.dataset.nextf];try{localStorage.setItem('trace:next',JSON.stringify(o));}catch(e){}location.reload();});};}
 // ---------- onglets / vues injectés ----------
 function injectViews(){const tb=document.getElementById('tabbar');const cont=document.querySelector('.view')?.parentElement;if(!tb||!cont)return;
-  const mk=(tab,label)=>{if(!tb.querySelector(`[data-tab="${tab}"]`)){const b=document.createElement('button');b.dataset.tab=tab;b.textContent=label;tb.insertBefore(b,tb.querySelector('[data-tab="recap"]'));}
+  const mk=(tab,label)=>{if(!tb.querySelector(`[data-tab="${tab}"]`)){const b=document.createElement('button');b.dataset.tab=tab;b.textContent=label;tb.insertBefore(b,tb.querySelector('[data-tab="liste"]')||tb.querySelector('[data-tab="recap"]'));}
     if(!document.getElementById('view-'+tab)){const v=document.createElement('div');v.className='view';v.id='view-'+tab;v.innerHTML='<div class="pad" id="'+tab+'"></div>';cont.appendChild(v);}};
   if(nOn('admin'))mk('admin','Dossier');
   mk('qse','QSE');scrInject(mk);}

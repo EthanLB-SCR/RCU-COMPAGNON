@@ -15,8 +15,8 @@ await page.evaluate(()=>{const T=window.TRACE;const P=T.phasage.of();const L1=Ob
   P.phases.push(mk('E1','Phase 1','exe','#8a5a2b',[{line:L1,m0:0,m1:70}],['2026-10-06','2026-10-14'],{tr:['2026-10-05','2026-10-07'],rb:['2026-10-08','2026-10-16'],en:['2026-10-19','2026-10-19']}));
   P.phases.push(mk('E2','Phase 2','exe','#2a78d6',[{line:L1,m0:70,m1:140},{line:L2,m0:0,m1:30}],['2026-10-19','2026-11-04'],{tr:['2026-10-16','2026-10-20'],rb:['2026-10-21','2026-11-06'],en:['2026-11-09','2026-11-09']}));
   P.phases.push(mk('E3','Phase 3','exe','#0ca30c',[{line:L1,m0:140,m1:240}],['2026-11-03','2026-11-20'],{tr:['2026-11-02','2026-11-04'],rb:['2026-11-05','2026-11-24'],en:['2026-11-26','2026-11-26']}));
-  P.phases.forEach(p=>{if(p.level==='exe')p.parent=null;});T.state.tab='phasage';T.renderAll();});
+  P.phases.forEach(p=>{if(p.level==='exe')p.parent=null;});P.phases.find(p=>p.id==='E1').days=['2026-10-06','2026-10-07','2026-10-08','2026-10-12','2026-10-13'];T.state.tab='phasage';T.state.phOpen='E1';T.renderAll();});
 await page.waitForTimeout(400);
-await page.evaluate(()=>{const g=document.querySelector('#phasage .phGantt');g.scrollIntoView({block:'start'});});await page.waitForTimeout(200);
+await page.evaluate(()=>{const g=document.querySelector('#phasage .phDays');g.scrollIntoView({block:'center'});});await page.waitForTimeout(200);
 await page.screenshot({path:'/tmp/planning.png'});
 console.log('ok');await browser.close();
