@@ -175,7 +175,7 @@ function qsePrint(d0){const esc=A.esc;const NET=A.net();
   ${Array.from({length:Math.max(0,6-(d0.sigs||[]).length)}).map(()=>'<tr><td style="height:34px"></td><td></td><td></td></tr>').join('')}</table>
   </body></html>`);w.document.close();}
 // ---------- TS / hors marché : porté par app.js depuis le 07/10 (tracé marché figé, marques par élément, extrusions) — HM_ET gardé pour le traceur ----------
-export const HM_ET={propose:'TS proposé',commande:'TS commandé',forfait:'forfaitaire (hors marché)',marche:'dans le marché'};
+export const HM_ET={propose:'TS proposé',commande:'TS commandé',forfait:'compris (global et forfaitaire)',marche:'conforme au marché'};
 // ---------- EXPORT DOE : carnet de soudage / manchonnage ----------
 export function nextDoeHTML(){if(!nOn('doe'))return '';return `<div class="card"><h3 style="margin-top:0">Export DOE</h3><div class="hint" style="margin-top:0">Le carnet de soudage / manchonnage : chaque soudure avec sa vue du plan, qui a soudé / manchonné quel jour, les photos, la DH.</div><button class="btn primary" id="doe-go" style="margin-top:6px">📕 Générer le carnet (imprimable)</button></div>`;}
 export function nextBindDoe(el){const b=el.querySelector('#doe-go');if(b)b.onclick=doeOpen;}

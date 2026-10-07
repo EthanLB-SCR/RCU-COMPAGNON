@@ -34,7 +34,7 @@ out.eye=await page.evaluate(()=>{const T=window.TRACE;T.state.show.ts=false;T.re
 console.log('2a\') case 👁 TS / hors marché (off → vide, on → hachures):',JSON.stringify(out.eye));
 const c2a=out.ts&&out.dash&&out.eye.off===0&&out.eye.on;
 await page.click('#tabbar [data-tab=ts]');await page.waitForTimeout(500);
-out=await page.evaluate(()=>{const el=document.getElementById('tsview');return {bloc:/Travaux supplémentaires/.test(el.textContent),ts:/TS-01/.test(el.textContent),btns:el.querySelectorAll('[data-tsst]').length};});
+out=await page.evaluate(()=>{const el=document.getElementById('tsview');return {bloc:/Modifications/.test(el.textContent),ts:/TS-01/.test(el.textContent),btns:el.querySelectorAll('[data-tsst]').length};});
 console.log('2b) onglet TS + boutons d\'état:',JSON.stringify(out));
 const c2b=out.bloc&&out.ts&&out.btns>=4;
 await page.evaluate(()=>{[...document.querySelectorAll('#tsview [data-tsst]')].find(b=>b.dataset.tsst==='commande').click();});
