@@ -1,5 +1,6 @@
 // PHASAGE (maquette v2 validée 07/10) : onglet, pose d'un tronçon sur le plan (PK libres + antenne « jusqu'où on tape »), 4 périodes,
-// soudures induites par DN + moyenne/jour (semaine 4/5 j, fériés), fournitures, groupes libres, import marché figé + écart, persistance (NET.phasage) après rechargement.
+// soudures induites par DN + moyenne/jour (semaine 4/5 j, fériés), fournitures, groupes libres, import marché figé + écart, persistance (NET.phasage) après rechargement,
+// jours cochés « on vient souder », planning soudure & terrassement en grille (ml ouverts / remblayés / enrobés par jour), export imprimable.
 import { chromium } from 'playwright';
 const BASE=process.env.BASE||'http://localhost:8765';
 const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
@@ -136,24 +137,33 @@ out=await page.evaluate(()=>{const T=window.TRACE;const P=T.net.phasage;const ex
   return {marcheName:m.name,exName:ex.name,iM,iE,under:iM>=0&&iE>iM,card:/↳ Marché/.test(document.querySelector('#phasage').textContent)};});
 console.log('13) parent effacé → rattachée d\'après le plan, et sous sa marché dans le planning:',JSON.stringify(out));
 const c13=!!out.skip||(out.under&&/^Marché [A-Z]+$/.test(out.marcheName)&&/^Phase \d+$/.test(out.exName));
-// ── 14) « On vient souder » : pastilles des jours de la fenêtre soudure (+ 7 j), cocher 3 jours → cadence sur 3 jours, section « Interventions prévues », « Tout cocher » = jours théoriques
+// ── 14) « On vient souder » : pastilles des jours de la fenêtre soudure (+ 7 j), cocher 3 jours → cadence sur 3 jours, PLANNING SOUDURE en grille (le samedi 17/10 coché apparaît en colonne sam), « Tout cocher » = jours théoriques
 out=await page.evaluate(()=>{const T=window.TRACE;const P=T.net.phasage;const ph=P.phases.find(p=>p.level==='exe');ph.dates.so=['2026-10-13','2026-10-22'];T.state.phOpen=ph.id;T.state.phLv='exe';T.phasage.render();
   const chips=document.querySelectorAll(`#phasage .phDay[data-ph="${ph.id}"]`).length;['2026-10-13','2026-10-14','2026-10-17'].forEach(k=>{const b=document.querySelector(`#phasage [data-phpick="${k}"]`);if(b)b.click();});
   const C=T.phasage.calc([ph],P.week);const W=T.phasage.welds(ph);const t=document.querySelector('#phasage').textContent;
-  return {chips,days:ph.days,picked:C.picked,per:C.perDayPicked&&+C.perDayPicked.toFixed(2),exp:+(W.n/3).toFixed(2),txt:/3 jours cochés/.test(t)&&/sur ces jours/.test(t),agenda:/Interventions prévues/.test(t)&&/sam 17\/10/.test(t),stat:/sur les 3 jours cochés/.test(t)};});
-console.log('14a) jours cochés → cadence sur ces jours + interventions prévues:',JSON.stringify(out));
+  return {chips,days:ph.days,picked:C.picked,per:C.perDayPicked&&+C.perDayPicked.toFixed(2),exp:+(W.n/3).toFixed(2),txt:/3 jours cochés/.test(t)&&/sur ces jours/.test(t),agenda:/Planning soudure/.test(t)&&!!document.querySelector('#phPlanning .phPlan')&&!!document.querySelector('#phPlanning td.we[data-phpd="2026-10-17"] .ld.so:not(.theo)')&&!document.querySelector('#phPlanning td[data-phpd="2026-10-15"] .ld.so'),stat:/sur les 3 jours cochés/.test(t)};});
+console.log('14a) jours cochés → cadence sur ces jours + planning soudure en grille (samedi coché en colonne sam, jeudi non coché vide):',JSON.stringify(out));
 const c14a=out.chips>=17&&out.days.length===3&&out.picked===3&&out.per===out.exp&&out.txt&&out.agenda&&out.stat;
 await page.evaluate(()=>{const ph=window.TRACE.net.phasage.phases.find(p=>p.level==='exe');document.querySelector(`#phasage [data-phpickall="${ph.id}"]`).click();});await page.waitForTimeout(200);
 out=await page.evaluate(()=>{const T=window.TRACE;const P=T.net.phasage;const ph=P.phases.find(p=>p.level==='exe');return {n:ph.days.length,theo:T.phasage.workDays(ph.dates.so[0],ph.dates.so[1],P.week,ph.force,ph.off).size};});
 console.log('14b) « Tout cocher » = jours théoriques:',JSON.stringify(out));const c14b=out.n===out.theo&&out.n>0;
-// ── 15) export imprimable : nouvelle fenêtre avec plan, planning, interventions, une section par phase
+// ── 14c) tout métier : ml d'ouverture / remblaiement par jour ouvré (lun → ven, fériés déduits) — tranchée 12 → 14/10 = 3 j, remblai 15 → 26/10 = 8 j, enrobé 28/10 = 1 j ; tuiles dans la carte, lignes ml dans le planning, Σ semaine
+await page.evaluate(()=>{const ph=window.TRACE.net.phasage.phases.find(p=>p.level==='exe');window.TRACE.state.phOpen=ph.id;window.TRACE.phasage.render();const set=(k,i,v)=>{const inp=document.querySelector(`#phasage [data-phd="${k}"][data-i="${i}"][data-ph="${ph.id}"]`);inp.value=v;inp.dispatchEvent(new Event('change',{bubbles:true}));};
+  set('tr',0,'2026-10-12');set('tr',1,'2026-10-14');set('rb',0,'2026-10-15');set('rb',1,'2026-10-26');set('en',0,'2026-10-28');set('en',1,'2026-10-28');});await page.waitForTimeout(300);
+out=await page.evaluate(()=>{const T=window.TRACE;const P=T.net.phasage;const ph=P.phases.find(p=>p.level==='exe');const C=T.phasage.calc([ph],P.week);const L=T.phasage.loads(P);const t=document.querySelector(`#phasage [data-phc="${ph.id}"]`).textContent;
+  const cell=document.querySelector('#phPlanning td[data-phpd="2026-10-12"] .ld.tr'),rb=document.querySelector('#phPlanning td[data-phpd="2026-10-16"] .ld.rb'),en=document.querySelector('#phPlanning td[data-phpd="2026-10-28"] .ld.en');
+  return {len:+C.len.toFixed(2),trDays:C.trDays,mlTr:+C.mlTr.toFixed(2),rbDays:C.rbDays,mlRb:+C.mlRb.toFixed(2),enDays:C.enDays,ld12:L['2026-10-12']&&L['2026-10-12'].tr.length===1&&+L['2026-10-12'].tr[0].ml.toFixed(2),noTr15:!!L['2026-10-15']&&L['2026-10-15'].tr.length===0&&L['2026-10-15'].rb.length===1,
+    tiles:/ml\/j/.test(t)&&/ouverture/.test(t)&&/remblaiement/.test(t)&&/de tranchée à ouvrir/.test(t),cellTr:cell&&cell.querySelector('b').textContent,cellRb:!!rb,cellEn:!!en,sum:[...document.querySelectorAll('#phPlanning td.sum')].some(td=>/ml ouverts/.test(td.textContent)&&/soud\./.test(td.textContent)),chips:/ml à ouvrir/.test(document.querySelector('#phPlanning').textContent)&&/ml à remblayer/.test(document.querySelector('#phPlanning').textContent)};});
+console.log('14c) ml ouverture / remblai / enrobé par jour ouvré, tuiles carte, planning, Σ semaine:',JSON.stringify(out));
+const c14c=out.trDays===3&&Math.abs(out.mlTr-out.len/3)<0.02&&out.rbDays===8&&Math.abs(out.mlRb-out.len/8)<0.02&&out.enDays===1&&Math.abs(out.ld12-out.len/3)<0.02&&out.noTr15&&out.tiles&&out.cellTr===String(Math.round(out.len/3))&&out.cellRb&&out.cellEn&&out.sum&&out.chips;
+// ── 15) export imprimable : nouvelle fenêtre avec plan, planning par marché, planning soudure & terrassement (grille), une section par phase avec les ml/j
 const [pop]=await Promise.all([page.waitForEvent('popup'),page.evaluate(()=>document.querySelector('#phExport').click())]);await pop.waitForLoadState('domcontentloaded');await pop.waitForTimeout(300);
-out=await pop.evaluate(()=>({title:document.title,h2:[...document.querySelectorAll('h2')].map(h=>h.textContent.trim().slice(0,30)),gantt:!!document.querySelector('.phGantt .bar.so'),mini:!!document.querySelector('svg.phMini'),print:!!document.querySelector('button.np')}));await pop.close();
-console.log('15) export du phasage (fenêtre imprimable):',JSON.stringify(out));const c15=/Phasage/.test(out.title)&&out.h2.some(h=>/Plan/.test(h))&&out.h2.some(h=>/Planning/.test(h))&&out.h2.some(h=>/Interventions/.test(h))&&out.h2.some(h=>/Phase 1/.test(h))&&out.gantt&&out.mini&&out.print;
+out=await pop.evaluate(()=>({title:document.title,h2:[...document.querySelectorAll('h2')].map(h=>h.textContent.trim().slice(0,30)),gantt:!!document.querySelector('.phGantt .bar.so'),mini:!!document.querySelector('svg.phMini'),print:!!document.querySelector('button.np'),plan:!!document.querySelector('.phPlan td.d .ld.so')&&!!document.querySelector('.phPlan td.d .ld.tr'),ml:/ouverture [\d,]+ ml\/j sur 3 j/.test(document.body.textContent)&&/remblaiement [\d,]+ ml\/j sur 8 j/.test(document.body.textContent)}));await pop.close();
+console.log('15) export du phasage (fenêtre imprimable):',JSON.stringify(out));const c15=/Phasage/.test(out.title)&&out.h2.some(h=>/Plan/.test(h))&&out.h2.some(h=>/Planning/.test(h))&&out.h2.some(h=>/Planning soudure/.test(h))&&out.h2.some(h=>/Phase 1/.test(h))&&out.gantt&&out.mini&&out.print&&out.plan&&out.ml;
 // ── 16) barre d'onglets : Liste · Récap · Catalogue au bout, QSE avant
 out=await page.evaluate(()=>[...document.querySelectorAll('#tabbar [data-tab]')].map(b=>b.dataset.tab));
 console.log('16) ordre des onglets:',JSON.stringify(out));const c16=out.slice(-3).join()==='liste,recap,catalogue'&&out.indexOf('qse')<out.indexOf('liste')&&out.indexOf('phasage')<out.indexOf('liste');
-const ALL=c1&&c2a&&c2c&&c3&&c4&&c4b&&c5&&c6&&c7&&c8&&c9a&&c9b&&c10&&c11&&c12&&c13&&c14a&&c14b&&c15&&c16;
-console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2a,c2c,c3,c4,c4b,c5,c6,c7,c8,c9a,c9b,c10,c11,c12,c13,c14a,c14b,c15,c16}));
+const ALL=c1&&c2a&&c2c&&c3&&c4&&c4b&&c5&&c6&&c7&&c8&&c9a&&c9b&&c10&&c11&&c12&&c13&&c14a&&c14b&&c14c&&c15&&c16;
+console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2a,c2c,c3,c4,c4b,c5,c6,c7,c8,c9a,c9b,c10,c11,c12,c13,c14a,c14b,c14c,c15,c16}));
 console.log(logs.length?logs:'[]');
 await browser.close();process.exit(ALL?0:1);
