@@ -25,12 +25,13 @@ await page.evaluate(()=>{const S=window.MAQ.state;const l=S.lines.find(x=>x.id==
 await page.waitForTimeout(300);await page.evaluate(()=>document.querySelector('#zFit').click());await page.waitForTimeout(300);
 await page.screenshot({path:'shot_ts_traceur.png'});
 await page.click('#bSave');await page.waitForTimeout(200);await page.selectOption('#svMode','update');await page.click('#svOk');await page.waitForTimeout(800);await page.click('#svGo');await page.waitForTimeout(1500);await page.selectOption('#roleSel','ethan');await page.waitForTimeout(300);
-await page.evaluate(()=>{const T=window.TRACE;const c=T.ts.candidates();if(c[0])T.ts.markCandidate(c[0],'propose','TS-01');const L=Object.values(T.lines).find(l=>l.name==='Rue de la Gare');const i=L.cond.A.els.findIndex(e=>e.kind==='valve'&&Math.abs((e.m0+e.m1)/2-100)<4);if(i>=0)T.ts.markEl(L,'A',i,{etat:'commande',ts:'TS-02',label:'vanne demandée par le client',pair:true});T.ts.markRange(L.id,100,115,{etat:'note',label:'reprise d\'enrobé'});T.state.show.marche=true;T.renderAll();});
+await page.evaluate(()=>{const T=window.TRACE;const L=Object.values(T.lines).find(l=>l.name==='Rue de la Gare');const i=L.cond.A.els.findIndex(e=>e.kind==='valve'&&Math.abs((e.m0+e.m1)/2-100)<4);if(i>=0)T.ts.markEl(L,'A',i,{etat:'commande',ts:'TS-02',label:'vanne demandée par le client',pair:true});T.ts.markRange(L.id,100,115,{etat:'note',label:'reprise d\'enrobé'});T.state.show.marche=true;T.renderAll();});
 await page.waitForTimeout(300);
 await page.evaluate(()=>{document.querySelector('#app').classList.add('wide');document.querySelector('#tabbar [data-tab=plan]').click();window.TRACE.closeSheet();});await page.waitForTimeout(300);
 await page.evaluate(()=>{const T=window.TRACE;T.centerOn(85,70,5);});await page.waitForTimeout(400);
 await page.screenshot({path:'shot_ts_plan.png'});
-await page.evaluate(()=>{document.querySelector('#tabbar [data-tab=recap]').click();});await page.waitForTimeout(400);
-{const el=await page.$('#tsRecap');if(el)await el.screenshot({path:'shot_ts_recap.png'});}
+await page.evaluate(()=>{document.querySelector('#app').classList.remove('wide');document.querySelector('#tabbar [data-tab=ts]').click();});await page.waitForTimeout(500);
+await page.addStyleTag({content:'#view-ts{position:static!important;overflow:visible!important}main{overflow:visible!important;height:auto!important}.app{height:auto!important;overflow:visible!important}'});await page.waitForTimeout(200);
+{const el=await page.$('#tsview');if(el)await el.screenshot({path:'shot_ts_tab.png'});}
 console.log(await page.evaluate(()=>({items:window.TRACE.ts.of().items.map(x=>[x.kind,x.etat,x.ts,x.label]),cands:window.TRACE.ts.candidates().map(c=>c.label),d:window.TRACE.ts.diff().tot.d})));
 console.log(logs.length?logs:'[]');await browser.close();
