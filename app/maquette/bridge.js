@@ -3,6 +3,7 @@
 const KIND={tube:'pipe',bend:'bend',tee:'tee',valve:'valve',reducer:'reducer',endcap:'endcap',endpoint:'endpoint',bypassEnd:'bypass',teeBranch:'teeout'};
 const KLABEL={pipe:'barre',bend:'coude',tee:'té',valve:'vanne',reducer:'réduction',endcap:'fin de ligne',endpoint:'raccordement',bypass:'by-pass',teeout:'sortie de té'};
 import {reduceDrawing} from '../src/dxfimport.js';
+import {marcheSnapshot} from '../src/marche.js';
 const r3=v=>+(+v||0).toFixed(3);
 export function siteFromTraceur({id,name,supplier,serie,lines,built,rules,bg,prev,barDefault}){
   // numéros de soudure : on reprend ceux de la version précédente quand une soudure est retrouvée (même ligne, même conduite, PK à ± 0,35 m), sinon un numéro neuf
@@ -32,6 +33,9 @@ export function siteFromTraceur({id,name,supplier,serie,lines,built,rules,bg,pre
   if(prev&&prev.elPos)site.elPos=prev.elPos; // rotations / retournements des tubes : conservés d'une version du tracé à l'autre // DH : états d'extrémités, bouclages temporaires, mesures — conservés d'une version du tracé à l'autre
   if(prev&&prev.admin)site.admin=prev.admin; // dossier administratif (métadonnées des documents) : conservé
   if(prev&&prev.qse)site.qse=prev.qse; // QSE (formulaires, émargements) : conservé
+  if(prev&&prev.marche)site.marche=prev.marche;else site.marche=marcheSnapshot(outLines,{source:'traceur',by:'traceur'}); // tracé MARCHÉ figé au premier enregistrement (Ethan 07/10) — ensuite c'est la référence des écarts / TS
+  if(prev&&prev.ts)site.ts=prev.ts; // marques TS / hors marché par élément (faites dans l'appli) : conservées
+  if(prev&&prev.full)Object.keys(prev.full).forEach(k=>{if(site[k]===undefined&&prev.full[k]!==undefined&&prev.full[k]!==null)site[k]=prev.full[k];}); // toute autre partie du chantier faite dans l'appli (phasage, soudures ajoutées sur place, pointage…) : conservée telle quelle — un enregistrement depuis le traceur ne doit rien effacer
   return {site,lost,nW};
 }
 // soudures d'un chantier existant (pour l'appariement) : [{line,cond,m,weldId,status}]

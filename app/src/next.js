@@ -6,7 +6,7 @@ export const nOn=k=>!!NEXTF[k];
 import {initScr,scrInject,scrRenderTab} from './scr.js';
 let A=null; // API fournie par app.js (state, NET, sync, openModal, toast, esc…)
 const FEATS=[
- ['ts','Travaux supplémentaires (hors marché)','Marquer une ligne du tracé « TS » (traceur, fiche de la ligne) : proposé / commandé / forfaitaire — hachures sur le plan, récap par TS dans l’onglet Récap, bascule d’état par le chef.'],
+ ['ts','Travaux supplémentaires (hors marché)','Tracé marché figé (calque gris), écarts marché → réel détectés et proposés en TS, marquage de n’importe quelle pièce / soudure / tronçon / ligne (proposé · commandé · forfaitaire · note), extrusions, récap et export dossier TS dans l’onglet Récap.'],
  ['admin','Dossier administratif','Onglet par chantier : DT / DICT, plans exé, qualifications, PGC, PPSPS, planning, habilitations, BL, accueil… Les fichiers partent au serveur (pas dans l’appli) ; un BL importé au stock peut s’y classer tout seul.'],
  ['tabs','Barre d’onglets allégée','Catalogue et Liste sortent de la barre — accessibles par « ⋯ ».'],
  ['doe','Export DOE — carnet de soudage','Toutes les soudures : n°, vue du plan, qui a soudé / manchonné quel jour, photos, DH — document imprimable pour le DOE.'],
@@ -174,20 +174,8 @@ function qsePrint(d0){const esc=A.esc;const NET=A.net();
   ${(d0.sigs||[]).map(s2=>`<tr><td>${esc(s2.name)}</td><td>${dhFR(s2.at)}</td><td>${s2.img?`<img src="${s2.img}">`:''}</td></tr>`).join('')}
   ${Array.from({length:Math.max(0,6-(d0.sigs||[]).length)}).map(()=>'<tr><td style="height:34px"></td><td></td><td></td></tr>').join('')}</table>
   </body></html>`);w.document.close();}
-// ---------- TS / hors marché : récap + bascule (le marquage se fait au traceur, fiche de la ligne) ----------
+// ---------- TS / hors marché : porté par app.js depuis le 07/10 (tracé marché figé, marques par élément, extrusions) — HM_ET gardé pour le traceur ----------
 export const HM_ET={propose:'TS proposé',commande:'TS commandé',forfait:'forfaitaire (hors marché)',marche:'dans le marché'};
-export function nextTsRecapHTML(){if(!nOn('ts'))return '';const esc=A.esc;const NET=A.net();if(!NET)return '';
-  const lines=Object.values(A.state.lines).filter(l=>l.hm&&l.hm.etat);if(!lines.length)return `<div class="card"><h3 style="margin-top:0">Travaux supplémentaires</h3><div class="hint">Aucune ligne marquée hors marché. Ça se marque au TRACEUR, dans la fiche de la ligne (bloc « Marché / TS »).</div></div>`;
-  const per={};lines.forEach(l=>{const k=(l.hm.ts||'(sans n°)');(per[k]=per[k]||[]).push(l);});
-  return `<div class="card"><h3 style="margin-top:0">Travaux supplémentaires</h3>
-   ${Object.entries(per).map(([ts,ls])=>{const ml=ls.reduce((t,l)=>t+(l.length||0),0);const nW=ls.reduce((t,l)=>t+['A','R'].reduce((t2,c)=>t2+((l.cond[c]||{}).joints||[]).length,0),0);
-     return `<div style="border:1px solid var(--line);border-radius:10px;padding:8px;margin:6px 0"><b>${esc(ts)}</b> — ${ls.map(l=>esc(l.name)).join(', ')}<div class="kv" style="font-size:12px;margin-top:4px"><span>${A.fmt(ml)} m d’axe</span><span>${nW} soudures</span><span>état : <b>${esc(HM_ET[ls[0].hm.etat]||ls[0].hm.etat)}</b></span></div>
-      ${(A.role()==='chef'||A.role()==='bureau')?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${Object.entries(HM_ET).map(([v,t])=>`<button class="btn sm ${ls[0].hm.etat===v?'primary':''}" data-tsst="${v}" data-tslines="${ls.map(l=>l.id).join(',')}">${t}</button>`).join('')}</div>`:''}</div>`;}).join('')}
-   <div class="hint">« dans le marché » = la commande est passée ou c’est finalement du global : les hachures disparaissent du plan, la trace reste ici.</div></div>`;}
-export function nextBindRecap(el){el.querySelectorAll('[data-tsst]').forEach(b=>b.onclick=()=>{const NET=A.net();
-  b.dataset.tslines.split(',').forEach(id=>{const l=A.state.lines[id];const L0=(NET.lines||[]).find(x=>x.id===id);
-    if(l)l.hm={...(l.hm||{}),etat:b.dataset.tsst};if(L0)L0.hm={...(L0.hm||{}),etat:b.dataset.tsst};});
-  A.saveNet('lines');A.renderAll();A.toast('État TS mis à jour');});}
 // ---------- EXPORT DOE : carnet de soudage / manchonnage ----------
 export function nextDoeHTML(){if(!nOn('doe'))return '';return `<div class="card"><h3 style="margin-top:0">Export DOE</h3><div class="hint" style="margin-top:0">Le carnet de soudage / manchonnage : chaque soudure avec sa vue du plan, qui a soudé / manchonné quel jour, les photos, la DH.</div><button class="btn primary" id="doe-go" style="margin-top:6px">📕 Générer le carnet (imprimable)</button></div>`;}
 export function nextBindDoe(el){const b=el.querySelector('#doe-go');if(b)b.onclick=doeOpen;}
