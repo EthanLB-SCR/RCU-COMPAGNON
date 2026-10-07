@@ -8,7 +8,7 @@ const logs=[];page.on('pageerror',e=>logs.push('PAGEERROR: '+e.message.slice(0,3
 page.on('dialog',d=>d.accept().catch(()=>{}));
 const C={};
 await page.goto(BASE+'/traceur.html');await page.waitForTimeout(500);
-await page.evaluate(()=>{localStorage.clear();localStorage.setItem('trace:next',JSON.stringify({ts:1}));});await page.reload();await page.waitForTimeout(500);
+await page.evaluate(()=>{localStorage.clear(); /* TS définitif : aucun interrupteur à poser */});await page.reload();await page.waitForTimeout(500);
 await page.evaluate(()=>{const S=window.MAQ.state;S.supplier='RENALIA';S.lines=[
   {id:'L1',name:'Rue de la Gare',dn:150,bar:12,pts:[[10,50],[130,50]],specials:[{id:'v1',type:'valve',m:40}],parent:null},
   {id:'L2',name:'Impasse des Lilas',dn:80,bar:12,pts:[[70,50],[70,100]],specials:[],parent:{line:'L1',m:60,side:1}}];S.seq=3;window.MAQ.setMode('select');window.MAQ.rebuild();});

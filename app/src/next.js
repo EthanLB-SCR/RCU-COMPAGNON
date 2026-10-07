@@ -2,11 +2,10 @@
 // Interrupteurs : localStorage 'trace:next' — panneau « ⏳ Nouveautés » sur la home (chef/bureau), activation UNE PAR UNE, l'appli
 // se recharge à chaque bascule. Tant que rien n'est allumé, l'appli ne change pas d'un poil.
 export const NEXTF=(()=>{try{return JSON.parse(localStorage.getItem('trace:next')||'{}')||{};}catch(e){return {};}})();
-export const nOn=k=>!!NEXTF[k];
+export const nOn=k=>k==='ts'||!!NEXTF[k]; // ts : DÉFINITIF depuis le 07/10 (Ethan : « mets ça en définitif, enlève ça des nouveautés en attente »)
 import {initScr,scrInject,scrRenderTab} from './scr.js';
 let A=null; // API fournie par app.js (state, NET, sync, openModal, toast, esc…)
 const FEATS=[
- ['ts','Travaux supplémentaires (hors marché)','Tracé marché figé (calque gris), écarts marché → réel détectés et proposés en TS, marquage de n’importe quelle pièce / soudure / tronçon / ligne (proposé · commandé · forfaitaire · note), extrusions, récap et export dossier TS dans l’onglet Récap.'],
  ['admin','Dossier administratif','Onglet par chantier : DT / DICT, plans exé, qualifications, PGC, PPSPS, planning, habilitations, BL, accueil… Les fichiers partent au serveur (pas dans l’appli) ; un BL importé au stock peut s’y classer tout seul.'],
  ['tabs','Barre d’onglets allégée','Catalogue et Liste sortent de la barre — accessibles par « ⋯ ».'],
  ['doe','Export DOE — carnet de soudage','Toutes les soudures : n°, vue du plan, qui a soudé / manchonné quel jour, photos, DH — document imprimable pour le DOE.'],
@@ -14,6 +13,7 @@ const FEATS=[
  ['profil','Profil opérateur (SCR interne)','Avatar aux couleurs de l’entreprise, points, trophées et médailles (soudures, manchons, fils, jours au-dessus de la cadence, QSE signés, pointage non contesté, pauses), mes heures validées. Onglet « Profil ».'],
 ];
 // QSE : DÉFINITIF depuis le 07/10 (Ethan : « l'onglet qui était en test QSE, rends-le définitif ») — toujours présent, plus d'interrupteur.
+// TS / hors marché : DÉFINITIF depuis le 07/10 (tracé marché figé, écarts, marques par élément, extrusions, récap et export dans Récap) — nOn('ts') vaut toujours vrai.
 // Backlog SCR interne (pas dans la version vendue), cadré avec Ethan le 07/10, à concevoir en maquette avant de coder :
 const BACKLOG=[
  ['Suites profils & pointage (SCR interne)','Les deux options sont codées (interrupteurs ci-dessus). Reste à cadrer : avantages liés aux points, pouces 👍 entre collègues, profils synchronisés (avatar et compteurs serveur plutôt que par appareil), lien pointage ↔ paie.'],

@@ -5,7 +5,7 @@ const browser=await chromium.launch({headless:true, executablePath: process.env.
 const ctx=await browser.newContext({viewport:{width:1000,height:1100}});const page=await ctx.newPage();page.on('dialog',d=>d.accept().catch(()=>{}));
 const logs=[];page.on('pageerror',e=>logs.push('PAGEERROR: '+e.message.slice(0,300)));
 await page.goto(BASE+'/traceur.html');await page.waitForTimeout(500);
-await page.evaluate(()=>{localStorage.clear();localStorage.setItem('trace:next',JSON.stringify({ts:1}));});await page.reload();await page.waitForTimeout(500);
+await page.evaluate(()=>{localStorage.clear(); /* TS définitif : aucun interrupteur à poser */});await page.reload();await page.waitForTimeout(500);
 await page.evaluate(()=>{const S=window.MAQ.state;S.supplier='RENALIA';S.lines=[
   {id:'L1',name:'Rue de la Gare',dn:150,bar:12,pts:[[10,50],[60,50],[60,90],[130,90]],specials:[{id:'v1',type:'valve',m:30}],parent:null},
   {id:'L2',name:'Impasse des Lilas',dn:80,bar:12,pts:[[35,50],[35,10]],specials:[],parent:{line:'L1',m:25,side:1}}];S.seq=3;window.MAQ.setMode('select');window.MAQ.rebuild();});
