@@ -3,20 +3,22 @@
 // se recharge à chaque bascule. Tant que rien n'est allumé, l'appli ne change pas d'un poil.
 export const NEXTF=(()=>{try{return JSON.parse(localStorage.getItem('trace:next')||'{}')||{};}catch(e){return {};}})();
 export const nOn=k=>!!NEXTF[k];
+import {initScr,scrInject,scrRenderTab} from './scr.js';
 let A=null; // API fournie par app.js (state, NET, sync, openModal, toast, esc…)
 const FEATS=[
  ['ts','Travaux supplémentaires (hors marché)','Marquer une ligne du tracé « TS » (traceur, fiche de la ligne) : proposé / commandé / forfaitaire — hachures sur le plan, récap par TS dans l’onglet Récap, bascule d’état par le chef.'],
  ['admin','Dossier administratif','Onglet par chantier : DT / DICT, plans exé, qualifications, PGC, PPSPS, planning, habilitations, BL, accueil… Les fichiers partent au serveur (pas dans l’appli) ; un BL importé au stock peut s’y classer tout seul.'],
  ['tabs','Barre d’onglets allégée','Catalogue et Liste sortent de la barre — accessibles par « ⋯ ».'],
  ['doe','Export DOE — carnet de soudage','Toutes les soudures : n°, vue du plan, qui a soudé / manchonné quel jour, photos, DH — document imprimable pour le DOE.'],
+ ['pointage','Pointage heures & production (SCR interne)','Chacun pointe sa journée (début géolocalisé, pause, reprise, fin ; départ du chantier = inter-chantier) ; production du jour prise sur le plan ; le chef déclare après coup, valide ou corrige ; le conducteur valide en second. Onglet « Pointage ».'],
+ ['profil','Profil opérateur (SCR interne)','Avatar aux couleurs de l’entreprise, points, trophées et médailles (soudures, manchons, fils, jours au-dessus de la cadence, QSE signés, pointage non contesté, pauses), mes heures validées. Onglet « Profil ».'],
 ];
 // QSE : DÉFINITIF depuis le 07/10 (Ethan : « l'onglet qui était en test QSE, rends-le définitif ») — toujours présent, plus d'interrupteur.
 // Backlog SCR interne (pas dans la version vendue), cadré avec Ethan le 07/10, à concevoir en maquette avant de coder :
 const BACKLOG=[
- ['Profils opérateurs (SCR interne)','Chaque opérateur a son compte : avatar aux couleurs de l’entreprise (type jeu vidéo) représentant son poste ; points, trophées et médailles selon des critères à creuser — nombre de manchons (manchonneur) / de soudures (soudeur), pouces reçus, jours consécutifs au-dessus des cadences de référence, signature des PPSPS et quarts d’heure (points modérés : encourager à tout signer sans favoriser celui qui change souvent de chantier), pointage jamais contesté par le chef, pause d’une heure bien prise. Partie perso (trophées, heures pointées / validées) + partie chantier (l’accès au logiciel pro). Avantages selon les points : à décider.'],
- ['Pointage heures & production (SCR interne)','Production : automatique depuis ce que chacun déclare sur le plan d’ensemble (le soudeur ses soudures, le chef attribue à un soudeur) → production du jour par personne. Heures : début de journée (géolocalisé), pause midi, reprise, fin de journée (trace de l’endroit, sans flicage — le compteur ne tourne pas à l’hôtel) ; choix du chantier, « départ du chantier » = inter-chantier qui continue le chrono jusqu’à l’arrivée sur le suivant. Variante : le chef déclare après coup son personnel et les heures par jour, avec rapprochement des tâches pointées sur le plan ces jours-là. Validation : statut « validé par <chef> » ou « refusé, heures corrigées », par le chef de chantier PUIS le conducteur de travaux — profils par poste avec accès selon le poste.'],
+ ['Suites profils & pointage (SCR interne)','Les deux options sont codées (interrupteurs ci-dessus). Reste à cadrer : avantages liés aux points, pouces 👍 entre collègues, profils synchronisés (avatar et compteurs serveur plutôt que par appareil), lien pointage ↔ paie.'],
 ];
-export function initNext(api){A=api;
+export function initNext(api){A=api;initScr(api);
   injectViews();
   if(nOn('tabs'))lightTabs();
 }
@@ -36,7 +38,7 @@ function injectViews(){const tb=document.getElementById('tabbar');const cont=doc
   const mk=(tab,label)=>{if(!tb.querySelector(`[data-tab="${tab}"]`)){const b=document.createElement('button');b.dataset.tab=tab;b.textContent=label;tb.insertBefore(b,tb.querySelector('[data-tab="recap"]'));}
     if(!document.getElementById('view-'+tab)){const v=document.createElement('div');v.className='view';v.id='view-'+tab;v.innerHTML='<div class="pad" id="'+tab+'"></div>';cont.appendChild(v);}};
   if(nOn('admin'))mk('admin','Dossier');
-  mk('qse','QSE');}
+  mk('qse','QSE');scrInject(mk);}
 function lightTabs(){const tb=document.getElementById('tabbar');if(!tb)return;
   ['catalogue','liste'].forEach(t=>{const b=tb.querySelector(`[data-tab="${t}"]`);if(b)b.style.display='none';});
   if(!tb.querySelector('[data-tab="__more"]')){const b=document.createElement('button');b.dataset.tab='__more';b.textContent='⋯';b.title='Catalogue · Liste';
@@ -45,7 +47,7 @@ function lightTabs(){const tb=document.getElementById('tabbar');if(!tb)return;
       document.querySelectorAll('#modal [data-nmt]').forEach(x=>x.onclick=()=>{A.closeModal();A.state.tab=x.dataset.nmt;A.renderAll();});},true);
     tb.appendChild(b);}}
 // dispatch de renderAll pour les vues injectées
-export function nextRenderTab(tab){qseBadge();if(tab==='admin'&&nOn('admin')){renderAdmin();return true;}if(tab==='qse'){renderQse();return true;}return false;}
+export function nextRenderTab(tab){qseBadge();if(tab==='admin'&&nOn('admin')){renderAdmin();return true;}if(tab==='qse'){renderQse();return true;}if(scrRenderTab(tab))return true;return false;}
 // ---------- données ----------
 function adminOf(){const NET=A.net();if(!NET||NET.id==='__vide')return null;if(!NET.admin)NET.admin={docs:[]};NET.admin.docs=NET.admin.docs||[];return NET.admin;}
 function qseOf(){const NET=A.net();if(!NET||NET.id==='__vide')return null;if(!NET.qse)NET.qse={docs:[]};NET.qse.docs=NET.qse.docs||[];return NET.qse;}

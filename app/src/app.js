@@ -28,7 +28,7 @@ const WIRE={E:{label:'fil étamé (alarme)',short:'étamé',color:'#dfe4ea',cloc
 const WIRE_POS={LOGSTOR:{E:25,N:335,label:'LOGSTOR : fils au sommet, ± 3-20 cm de 12 h — étamé et nu inversés vs Nordic (l\'étamé côté piquage)'},RENALIA:{E:300,N:60,label:'Nordic (ZPU / Renalia) : étamé 10 h, nu 2 h'},AXIOM:{E:300,N:60,label:'Nordic (Axiom PI) : étamé 10 h, nu 2 h'},INPAL:{E:300,N:60,label:'Nordic (Inpal cuivre) : étamé 10 h, nu 2 h'},DEFAULT:{E:300,N:60,label:'Nordic : étamé 10 h, nu 2 h'}};
 const wirePos=()=>WIRE_POS[(NET&&NET.supplier)||'DEFAULT']||WIRE_POS.DEFAULT;
 const USERS=[{id:'karim',name:'Karim B.',role:'soudeur',detail:'Soudeur · QS 141/111'},{id:'julien',name:'Julien R.',role:'manchonneur',detail:'Manchonneur'},{id:'ethan',name:'Ethan L.',role:'chef',detail:'Chef de chantier'},{id:'sophie',name:'Sophie M.',role:'bureau',detail:'Bureau'}];
-const ROLE_LABEL={soudeur:'Soudeur',manchonneur:'Manchonneur',chef:'Chef de chantier',bureau:'Bureau'};
+const ROLE_LABEL={soudeur:'Soudeur',manchonneur:'Manchonneur',chef:'Chef de chantier',conducteur:'Conducteur de travaux',bureau:'Bureau'}; // conducteur (07/10) : valide le pointage en second ; pour le reste, droits = à étendre avec les profils
 const PROCEDES=[['tig','TIG'],['cellu','Cellulosique']]; // simplifié (Ethan 25/08) : sur le terrain c'est l'un ou l'autre
 const MANCHONS=[['thermo','Manchon thermorétractable'],['electro','Manchon électrosoudable']];
 const rad=a=>a*Math.PI/180;
@@ -2544,7 +2544,7 @@ function renderCloud(){let box=$('#cloudBox');if(!box){box=document.createElemen
   const bu=$('#cloudUsers');if(bu)bu.onclick=openUsersModal;}
 // gestion des comptes (chef) : activer les nouveaux, donner les rôles — les inscriptions se font par le lien e-mail, le compte n'a AUCUN accès tant qu'il n'est pas activé ici
 async function openUsersModal(){const rows=await sync.listProfiles();if(!rows.length){openModal('<h3>Comptes</h3><div class="muted">Liste indisponible — exécute d\'abord tools/supabase_setup.sql dans Supabase (SQL Editor), puis reviens ici.</div><div class="actions" style="margin-top:8px"><button class="btn block" data-close>Fermer</button></div>');return;}
-  const ROLES=['soudeur','manchonneur','chef','bureau'];
+  const ROLES=['soudeur','manchonneur','chef','conducteur','bureau'];
   openModal(`<h3>Comptes (${rows.length})</h3><div class="muted" style="margin-bottom:6px">Un nouveau se connecte une fois avec le lien e-mail → il apparaît ici, inactif. Tu l'actives et tu donnes son rôle. Un compte inactif ne voit rien.</div>
    <table class="rc">${rows.map(r=>`<tr><td style="text-align:left"><b>${esc(r.name||'')}</b><br><span class="muted" style="font-size:11px">${esc(r.email||'')}</span></td>
      <td><select class="f" data-uid="${r.id}" data-k="role">${ROLES.map(x=>`<option value="${x}" ${r.role===x?'selected':''}>${ROLE_LABEL[x]||x}</option>`).join('')}</select></td>
@@ -2759,7 +2759,8 @@ $('#loginEmail').addEventListener('keydown',e=>{if(e.key==='Enter')$('#loginGo')
 $('#loginSkip').addEventListener('click',e=>{e.preventDefault();localStorage.setItem('trace:skipLogin','1');renderHome();showScreen('home');});
 document.addEventListener('click',e=>{if(e.target.id==='hbLogin'){e.preventDefault();showScreen('login');}});
 // poignée de débogage / tests (module ES : rien n'est global sinon)
-initNext({state,net:()=>NET,sync,esc,fmt,uname,toast,openModal,closeModal,role:()=>role(),userName:()=>(me()||{}).name||state.userId,users:()=>USERS,renderAll,saveNet:saveNetPart});
+initNext({state,net:()=>NET,sync,esc,fmt,uname,toast,openModal,closeModal,role:()=>role(),userName:()=>(me()||{}).name||state.userId,users:()=>USERS,renderAll,saveNet:saveNetPart,
+  sites:()=>{const out=Object.entries(siteStore).map(([id,s])=>({id,name:s.NET&&s.NET.name||id,lines:s.lines,net:s.NET}));if(NET&&NET.id!=='__vide'&&!out.some(x=>x.id===NET.id))out.push({id:NET.id,name:NET.name,lines:state.lines,net:NET});return out;}});
 /* ---------- onglet PHASAGE (maquette v2 validée par Ethan le 07/10) : découpage réel d'exécution ----------
    Trois niveaux : MARCHÉ (planning du marché, importé une fois, figé = référence) → prév. EXÉ → phases FERMES.
    Une phase = des tronçons {line,m0,m1} (PK libres, coupe au milieu d'une barre possible ; une antenne se prend « jusqu'où on tape »)
