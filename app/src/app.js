@@ -2778,7 +2778,11 @@ const PH_LV={marche:['Marché','#8a8a8a'],exe:['Exé','#0b0b0b']}; // 07/10 (Eth
 const PH_COLORS=['#8a5a2b','#2a78d6','#0ca30c','#c2185b','#b8860b','#0b7a75','#d03b3b','#6b4fbb','#e07b00','#3f51b5'];
 function phasageOf(){if(!NET||NET.id==='__vide')return null;if(!NET.phasage||typeof NET.phasage!=='object')NET.phasage={week:4,phases:[],groups:[],seq:1};const P=NET.phasage;P.phases=Array.isArray(P.phases)?P.phases:[];P.groups=Array.isArray(P.groups)?P.groups:[];P.week=P.week===5?5:4;P.seq=P.seq||1;
   P.phases.forEach((ph,i)=>{if(ph.level==='ferme')ph.level='exe';if(ph.level!=='marche'&&ph.level!=='exe')ph.level='exe';if(ph.level==='exe'&&(!ph.color||ph.color==='#a7a7dd'))ph.color=PH_COLORS[i%PH_COLORS.length];if(ph.parent){const par=P.phases.find(x=>x.id===ph.parent);if(!par||par.level!=='marche')ph.parent=null;}}); // migration 07/10 : ferme → exé, exé ne se rattache qu'au marché
+  {const cnt={};P.phases.forEach(ph=>{cnt[ph.level]=(cnt[ph.level]||0)+1;if(ph.autoName!==false&&/ — .* PK /.test(ph.name||''))ph.name=`${ph.level==='marche'?'Marché':'Phase'} ${cnt[ph.level]}`;});} // noms automatiques longs (« Ferme 1 — Ligne L13 PK 0,3 → 283,9 ») raccourcis
   return P;}
+// marché d'une phase exé : celle choisie, sinon celle qui couvre le mieux son tronçon SUR LE PLAN (recouvrement de PK sur une même conduite) — Ethan 07/10 : « le positionnement sur plan doit suffire »
+function phOverlap(a,b){let o=0;(a.tr||[]).forEach(t=>(b.tr||[]).forEach(u=>{if(t.line!==u.line)return;o+=Math.max(0,Math.min(t.m1,u.m1)-Math.max(t.m0,u.m0));}));return o;}
+function phMarcheOf(ph,P){if(!ph||ph.level!=='exe')return null;if(ph.parent){const p=P.phases.find(x=>x.id===ph.parent);if(p&&p.level==='marche')return p;}let best=null,bo=0;P.phases.filter(x=>x.level==='marche').forEach(m=>{const o=phOverlap(ph,m);if(o>bo){bo=o;best=m;}});return bo>0.5?best:null;}
 function savePhasage(){if(!phasageOf())return;saveNetPart('phasage');}
 function phNewId(P){return 'PH'+String(P.seq++).padStart(3,'0');}
 // jours fériés français (fixes + mobiles depuis Pâques — algorithme de Meeus)
@@ -2816,7 +2820,7 @@ function phCalc(phs,week){const by={};let n=0,recut=0,len=0;const days=new Set()
   phs.forEach(ph=>{const W=phWelds(ph);Object.entries(W.by).forEach(([dn,v])=>by[dn]=(by[dn]||0)+v);n+=W.n;recut+=W.recut;len+=W.len;phWorkDays(ph.dates.so[0],ph.dates.so[1],week,ph.force,ph.off).forEach(d=>days.add(d));const N=phNeeds(ph);Object.entries(N.need).forEach(([k,v])=>{need[k]=(need[k]||0)+v;lab[k]=N.lab[k];});});
   const posed={};phs.forEach(ph=>{const D=phPosed(ph);Object.entries(D).forEach(([k,v])=>posed[k]=(posed[k]||0)+v);});
   const nd=days.size;return {by,n,recut,len,days:nd,perDay:nd?n/nd:null,need,lab,posed};}
-function phRoot(ph,P){if(!ph.parent)return null;const p=P.phases.find(x=>x.id===ph.parent);return p&&p.level==='marche'?p:null;}
+function phRoot(ph,P){return phMarcheOf(ph,P);}
 const phFr=s=>{const d=phD(s);return d?String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0'):'—';};
 const phFrY=s=>{const d=phD(s);return d?d.toLocaleDateString('fr-FR'):'—';};
 function phTrLabel(t){const l=state.lines[t.line];if(!l)return t.line;const L=phLen(l);const whole=t.m0<=0.05&&t.m1>=L-0.05;return esc(l.name)+(whole?' (entière)':(t.m0<=0.05?' jusqu\'au PK '+fmt(t.m1):' PK '+fmt(t.m0)+' → '+fmt(t.m1)));}
@@ -2829,23 +2833,26 @@ function phEndPose(){if(!state.phPose)return;state.phPose=null;updatePhBar();sta
 function updatePhBar(){const bar=$('#phBar');if(!bar)return;const p=state.phPose;bar.style.display=p?'flex':'none';if(!p)return;
   const lv=p.level==='marche'?'MARCHÉ':'';let msg;
   if(!p.a)msg=`➕ ${lv?'Phase <b>marché</b>':'Nouvelle phase'} : touche la conduite au <b>début</b> du tronçon.`;
-  else if(!p.b)msg=`Début : <b>${esc(state.lines[p.a.line].name)} · PK ${fmt(p.a.m)}</b> — touche la conduite à la <b>fin</b> (même rue). Une antenne : touche-la <b>jusqu'où</b> tu veux aller.`;
+  else if(!p.b)msg=`Début : <b>${esc(state.lines[p.a.line].name)} · PK ${fmt(p.a.m)}</b> — touche la conduite à la <b>fin</b> (même rue). Une antenne (ou antenne d'antenne) : touche-la <b>jusqu'où</b> tu veux aller.`;
   else{const m0=Math.min(p.a.m,p.b.m),m1=Math.max(p.a.m,p.b.m);msg=`Tronçon : <b>${esc(state.lines[p.a.line].name)} · PK ${fmt(m0)} → ${fmt(m1)}</b> (${fmt(m1-m0)} m)${p.ant.length?' + '+p.ant.map(a=>esc(state.lines[a.line].name)+' jusqu\'au PK '+fmt(a.m1)).join(', '):''}. Re-touche la rue pour déplacer la fin, une antenne pour l'ajouter.`;}
-  $('#phMsg').innerHTML=msg;$('#phOk').style.display=p.a&&p.b?'':'none';}
+  if(p.ask&&state.lines[p.ask]){const k=state.lines[p.ask];msg+=`<div style="margin-top:5px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span>L'antenne <b>${esc(k.name)}</b> (${fmt(phLen(k))} m) part ici :</span><button class="btn sm" id="phAskYes" style="background:#fff;color:#0b0b0b;border-color:#fff">Inclure en entier</button><button class="btn sm" id="phAskNo" style="background:transparent;color:#fff;border-color:#fff8">Non</button></div>`;}
+  $('#phMsg').innerHTML=msg;$('#phOk').style.display=p.a&&p.b?'':'none';
+  const y=$('#phAskYes'),nb=$('#phAskNo');if(y)y.onclick=()=>{const k=state.lines[p.ask];if(k){p.ant.push({line:k.id,m0:0,m1:+phLen(k).toFixed(1)});toast(esc(k.name)+' incluse en entier');}p.ask=null;updatePhBar();renderPlan();};if(nb)nb.onclick=()=>{p.ask=null;updatePhBar();};}
 function phTap(wx,wy){const p=state.phPose;if(!p)return;const k=state.view.k;const n=nearestOnLines(wx,wy);if(!n||n.d>36/k){toast('Touche le réseau (zoome si besoin)');return;}
   const l=state.lines[n.line];const m=+Math.max(0,Math.min(phLen(l),n.m)).toFixed(1);
-  if(!p.a){p.a={line:n.line,m};updatePhBar();renderPlan();return;}
-  if(n.line===p.a.line){p.b={line:n.line,m};updatePhBar();renderPlan();return;}
+  if(!p.a){p.a={line:n.line,m};phAskNearTee(p,n.line,m);updatePhBar();renderPlan();return;}
+  if(n.line===p.a.line){p.b={line:n.line,m};phAskNearTee(p,n.line,m);updatePhBar();renderPlan();return;}
   // antenne — ou antenne d'antenne (Ethan 07/10) : toute conduite dont la chaîne des parents remonte à la rue du début. Les antennes intermédiaires
   // sont prises d'office au moins jusqu'au départ de la suivante (sinon le tronçon ne se tient pas).
   const anc=[];{let cur=l,g=0;while(cur&&cur.parent&&state.lines[cur.parent]&&g++<8){anc.push(state.lines[cur.parent]);cur=state.lines[cur.parent];}}
   if(anc.some(a=>a.id===p.a.line)){const i=p.ant.findIndex(a=>a.line===n.line);
     if(m<0.3){if(i>=0)p.ant.splice(i,1);toast('Antenne retirée');}
-    else{let child=l;for(const A of anc){if(A.id===p.a.line)break;const need=(child.parentM!=null&&isFinite(+child.parentM))?Math.min(phLen(A),+child.parentM+0.5):phLen(A);const j=p.ant.findIndex(a=>a.line===A.id);if(j<0)p.ant.push({line:A.id,m0:0,m1:+need.toFixed(1)});else if(p.ant[j].m1<need)p.ant[j].m1=+need.toFixed(1);child=A;}
-      if(i>=0)p.ant[i].m1=m;else p.ant.push({line:n.line,m0:0,m1:m});toast(esc(l.name)+' : jusqu\'au PK '+fmt(m)+(anc.length>1?' (antenne d\'antenne : la précédente est prise jusqu\'au départ)':''));}
+    else{if(i>=0)p.ant[i].m1=m;else p.ant.push({line:n.line,m0:0,m1:m});toast(esc(l.name)+' : jusqu\'au PK '+fmt(m));phAskNearTee(p,n.line,m);} // antenne d'antenne : rien n'est pris d'office — on la touche comme les autres, et près d'un té on propose l'antenne entière
     updatePhBar();renderPlan();return;}
   if(!p.b){toast('La fin doit être sur la même rue que le début (une antenne se prend en la touchant)');return;}
   toast('Cette conduite n\'est pas une antenne du tronçon');}
+// tap près d'un té (départ d'une antenne de cette conduite, ± 2 m) : proposer d'inclure cette antenne EN ENTIER — ou pas (Ethan 07/10 : « il faut avoir le choix »)
+function phAskNearTee(p,lineId,m){p.ask=null;const kids=Object.values(state.lines).filter(l=>l.parent===lineId&&l.parentM!=null&&isFinite(+l.parentM)&&Math.abs(+l.parentM-m)<=2&&!p.ant.some(a=>a.line===l.id));if(kids.length)p.ask=kids[0].id;}
 function phCommitPose(){const p=state.phPose;const P=phasageOf();if(!p||!P||!p.a||!p.b)return;const m0=Math.min(p.a.m,p.b.m),m1=Math.max(p.a.m,p.b.m);if(m1-m0<0.5){toast('Tronçon trop court');return;}
   const tr=[{line:p.a.line,m0,m1},...p.ant.map(a=>({line:a.line,m0:0,m1:a.m1}))];const by=(me()||{}).name||state.userId;
   let ph=p.edit?P.phases.find(x=>x.id===p.edit):null;
@@ -2855,7 +2862,7 @@ function phCommitPose(){const p=state.phPose;const P=phasageOf();if(!p||!P||!p.a
     P.phases.push(ph);}
   if(ph.level==='marche'){P.phases.forEach(x=>{if(x.level!=='exe'||x.parent)return;const t0=(x.tr||[])[0];if(t0&&tr.some(t2=>t2.line===t0.line&&t0.m0<t2.m1&&t0.m1>t2.m0))x.parent=ph.id;});} // phase marché posée : les phases exé qu'elle couvre s'y rattachent toutes seules
   savePhasage();state.phOpen=ph.id;state.phLv=ph.level;state.phFocusName=true;phEndPose();toast('Phase enregistrée — donne-lui un nom et ses périodes');}
-function phAutoName(tr,level,P){const n=P.phases.filter(x=>x.level===level).length+1;const t=tr[0];const l=state.lines[t.line];return `${level==='marche'?'Marché':'Phase'} ${n} — ${l?l.name:t.line} PK ${fmt(t.m0)} → ${fmt(t.m1)}${tr.slice(1).map(a=>' + '+(state.lines[a.line]?state.lines[a.line].name:a.line)+' → PK '+fmt(a.m1)).join('')}`;}
+function phAutoName(tr,level,P){const n=P.phases.filter(x=>x.level===level).length+1;return `${level==='marche'?'Marché':'Phase'} ${n}`;} // court (Ethan 07/10 : « Ligne L13 PK … n'aide pas ») — le tronçon se lit sur le plan (🗺) ou dans la fiche
 // tracé d'un tronçon le long des deux conduites (sous-axes réels des pièces)
 function phTrPath(t){const l=state.lines[t.line];if(!l)return [];const out=[];['A','R'].forEach(c=>{const cd=l.cond&&l.cond[c];if(!cd)return;cd.els.forEach(e=>{const a=Math.max(t.m0,e.m0),b=Math.min(t.m1,e.m1);if(b-a<=0.02)return;const pl=e.axis&&e.axis[0];if(!pl||pl.length<2)return;const L=polyLen(pl);const sp=e.m1-e.m0||1;out.push(axisSub(pl,L*(a-e.m0)/sp,L*(b-e.m0)/sp));});});return out;}
 function renderPhOverlay(){const g=document.getElementById('phG');if(!g)return;const P=NET&&NET.id!=='__vide'?NET.phasage:null;const p=state.phPose;
@@ -2874,8 +2881,10 @@ function renderPhOverlay(){const g=document.getElementById('phG');if(!g)return;c
     p.ant.forEach(a=>{h+=mark(posAtChainage(state.lines[a.line],a.m1),'→ PK '+fmt(a.m1));});}
   g.innerHTML=h+'</g>';}
 // ---- onglet ----
-function phPeriodsHTML(ph){const dis=ph.locked?'disabled':'';return `<div class="phSteps">${Object.entries(PH_PER).map(([k,[lab,col]])=>`<div style="border-top-color:${col}"><b style="color:${col}">${lab}</b><label>du <input type="date" data-phd="${k}" data-i="0" data-ph="${ph.id}" value="${ph.dates[k][0]||''}" ${dis}></label><label>au <input type="date" data-phd="${k}" data-i="1" data-ph="${ph.id}" value="${ph.dates[k][1]||''}" ${dis}></label></div>`).join('')}</div>`;}
-function phCalHTML(ph,week){const D=ph.dates;const all=Object.values(D).flat().filter(Boolean).sort();if(!all.length)return '<p class="hint" style="margin:4px 0">Renseigne les périodes pour voir le mini-calendrier.</p>';const first=phD(all[0]);const start=new Date(first.getTime()-((first.getDay()+6)%7)*864e5);const end=phD(all[all.length-1]);if(!end)return '';
+function phPeriodsHTML(ph){const dis=ph.locked?'disabled':'';
+  if(ph.level==='marche')return `<div class="phSteps" style="grid-template-columns:1fr"><div style="border-top-color:#8a8a8a"><b style="color:#555">Période du marché</b><div class="row" style="gap:10px"><label>du <input type="date" data-phd="so" data-i="0" data-ph="${ph.id}" value="${ph.dates.so[0]||''}" ${dis} style="width:auto"></label><label>au <input type="date" data-phd="so" data-i="1" data-ph="${ph.id}" value="${ph.dates.so[1]||''}" ${dis} style="width:auto"></label></div></div></div>`; // marché : juste début et fin, pas le détail tranchée / soudure / remblai / enrobé (Ethan 07/10)
+  return `<div class="phSteps">${Object.entries(PH_PER).map(([k,[lab,col]])=>`<div style="border-top-color:${col}"><b style="color:${col}">${lab}</b><label>du <input type="date" data-phd="${k}" data-i="0" data-ph="${ph.id}" value="${ph.dates[k][0]||''}" ${dis}></label><label>au <input type="date" data-phd="${k}" data-i="1" data-ph="${ph.id}" value="${ph.dates[k][1]||''}" ${dis}></label></div>`).join('')}</div>`;}
+function phCalHTML(ph,week){const D=ph.dates;if(ph.level==='marche')return D.so[0]&&D.so[1]?`<p class="hint" style="margin:4px 0">Fenêtre marché : ${phFr(D.so[0])} → ${phFr(D.so[1])} (${Math.round((phD(D.so[1])-phD(D.so[0]))/864e5)+1} j) — le détail des périodes se fait sur les phases exé rattachées.</p>`:'';const all=Object.values(D).flat().filter(Boolean).sort();if(!all.length)return '<p class="hint" style="margin:4px 0">Renseigne les périodes pour voir le mini-calendrier.</p>';const first=phD(all[0]);const start=new Date(first.getTime()-((first.getDay()+6)%7)*864e5);const end=phD(all[all.length-1]);if(!end)return '';
   if((end-start)/864e5>120)return `<p class="hint" style="margin:4px 0">Période longue (${Math.round((end-start)/864e5)} j) : voir le planning en semaines ci-dessous.</p>`;
   const inP=(k,d)=>D[k][0]&&D[k][1]&&d>=D[k][0]&&d<=D[k][1];const F=new Set(ph.force||[]),O=new Set(ph.off||[]);const edit=phCanEdit()&&!ph.locked;let h='<div class="phCal">'+['L','M','M','J','V','S','D'].map(x=>`<div class="h">${x}</div>`).join('');
   for(let t=new Date(start);;t.setDate(t.getDate()+1)){const k=isoD(t);const wd=(t.getDay()+6)%7;if(t>end&&wd===0)break;const cls=[];const hol=frHolidays(t.getFullYear()).has(k);const base=wd<week&&!hol;if(wd>=5||hol)cls.push('we');if(inP('tr',k))cls.push('tr');
@@ -2893,22 +2902,24 @@ function phNeedTable(C){const {st,att}=phStockMap();const keys=Object.keys(C.nee
   return `<details class="phDet"><summary><b>Fournitures</b> <span class="dim">besoin · posé · restant${hasStock?' · stock · attendu (BL)':''}</span> ${nMiss?`<span style="color:#b8560f;font-weight:700">⚠ ${nMiss} référence${nMiss>1?'s':''} à commander</span>`:nWarn?`<span style="color:#8a6d1f;font-weight:700">⏳ ${nWarn} en attente de livraison</span>`:hasStock?'<span style="color:#0ca30c;font-weight:700">✓ couvert</span>':''}</summary>
    <div style="overflow-x:auto"><table class="phT"><tr><th>Fourniture</th><th class="n">Besoin</th><th class="n">Posé</th><th class="n">Restant</th>${hasStock?'<th class="n">Stock</th><th class="n">Attendu</th>':''}<th>Verdict</th></tr>${rows.map(r=>`<tr><td>${esc(C.lab[r.k]||r.k)}</td><td class="n">${r.be}</td><td class="n dim">${r.po||'—'}</td><td class="n"><b>${r.rest}</b></td>${hasStock?`<td class="n">${r.s2||'—'}</td><td class="n dim">${r.a2||'—'}</td>`:''}<td class="${r.cls==='miss'?'miss':''}" style="${r.cls==='ok'?'color:#0ca30c':r.cls==='warn'?'color:#8a6d1f':''};white-space:nowrap">${r.verdict}</td></tr>`).join('')}</table></div>
    <p class="hint">Besoin = pièces du tracé dans le tronçon (une barre à cheval n'est comptée qu'une fois), manchons + mousse aux soudures ; posé = ce qui est déjà soudé / manchonné dans le tronçon ; stock = reste des zones de stockage ; attendu = BL importés pas encore livrés (onglet Stock).${hasStock?'':' Pas de stock saisi sur ce chantier : seuls besoin / posé / restant sont affichés.'}</p></details>`;}
-function phEcartHTML(ph,P){const ref=phRoot(ph,P);if(!ref)return '';const rows=Object.entries(PH_PER).map(([k,[lab]])=>{const a=ph.dates[k][1],b=ref.dates[k][1];if(!a||!b)return null;const d=Math.round((phD(a)-phD(b))/864e5);return {lab,d,b};}).filter(Boolean);if(!rows.length)return '';
-  const worst=Math.max(...rows.map(r=>r.d));return `<div class="${worst>0?'warnbox':'okbox'}" style="margin-top:6px;font-size:12.5px"><b>Écart vs marché</b> (${esc(ref.name)}) : ${rows.map(r=>`${r.lab.toLowerCase()} ${r.d>0?'+':''}${r.d} j`).join(' · ')}${worst>0?' — en retard sur le planning du marché':' — dans les clous'}.</div>`;}
-function phCardHTML(ph,P){const week=P.week;const open=state.phOpen===ph.id;const C=phCalc([ph],week);const LV=PH_LV[ph.level]||PH_LV.exe;const kids=P.phases.filter(x=>x.parent===ph.id);const parent=ph.parent?P.phases.find(x=>x.id===ph.parent):null;const edit=phCanEdit();
+function phEcartHTML(ph,P){const ref=phRoot(ph,P);if(!ref||!ref.dates.so[0]||!ref.dates.so[1])return '';const D=ph.dates;const d0=D.tr[0]||D.so[0]||D.rb[0]||D.en[0],d1=D.en[1]||D.rb[1]||D.so[1]||D.tr[1];if(!d0||!d1)return '';
+  const dS=Math.round((phD(d0)-phD(ref.dates.so[0]))/864e5),dE=Math.round((phD(d1)-phD(ref.dates.so[1]))/864e5);const worst=Math.max(dS,dE);
+  return `<div class="${dE>0?'warnbox':'okbox'}" style="margin-top:6px;font-size:12.5px"><b>Écart vs marché</b> (${esc(ref.name)} : ${phFr(ref.dates.so[0])} → ${phFr(ref.dates.so[1])}) : début ${dS>0?'+':''}${dS} j · fin ${dE>0?'+':''}${dE} j${dE>0?' — en retard sur le planning du marché':' — dans les clous'}.</div>`;}
+function phCardHTML(ph,P){const week=P.week;const open=state.phOpen===ph.id;const C=phCalc([ph],week);const LV=PH_LV[ph.level]||PH_LV.exe;const kids=P.phases.filter(x=>x.level==='exe'&&phMarcheOf(x,P)===ph);const parent=phMarcheOf(ph,P);const edit=phCanEdit();
   return `<div class="ph ${ph.level}" data-phc="${ph.id}">
    <div class="phH">${ph.level==='exe'?`<input type="checkbox" data-phchk="${ph.id}" ${(state.phChk||[]).includes(ph.id)?'checked':''} title="cocher pour grouper">`:''}<i class="sw" style="background:${ph.color}"></i>${ph.level==='exe'?`<b class="phNum" style="background:${ph.color}">${P.phases.filter(x=>x.level==='exe').indexOf(ph)+1}</b>`:''}
      <b class="nm">${esc(ph.name)}</b><span class="tag" style="background:${LV[1]}">${LV[0].toUpperCase()}</span>${ph.locked?'<span class="dim">🔒 figé</span>':''}
-     <span class="dim">${(ph.tr||[]).length?fmt(C.len)+' m · '+(ph.tr||[]).map(phTrLabel).join(' · '):'sans tronçon'}</span>${parent?`<span class="dim">↳ ${esc(parent.name)}</span>`:''}
+     <span class="dim">${(ph.tr||[]).length?fmt(C.len)+' m':'sans tronçon'}${ph.dates.so[0]?' · '+phFr(ph.dates.tr[0]||ph.dates.so[0])+' → '+phFr(ph.dates.en[1]||ph.dates.rb[1]||ph.dates.so[1]):''}</span>${parent?`<span class="dim">↳ ${esc(parent.name)}</span>`:''}
      <span style="flex:1"></span>${(ph.tr||[]).length?`<button class="btn sm" data-phmap="${ph.id}" title="voir sur le plan">🗺</button>`:''}<button class="btn sm" data-phopen="${ph.id}">${open?'Replier':'Ouvrir'}</button></div>
    ${!open?'':`
-   ${kids.length?`<div class="infobox">${kids.length} phase${kids.length>1?'s':''} rattachée${kids.length>1?'s':''} : ${kids.map(k=>esc(k.name)).join(' · ')}</div>`:''}
+   ${(ph.tr||[]).length?`<div class="dim" style="font-size:12px">Tronçon : ${(ph.tr||[]).map(phTrLabel).join(' · ')}</div>`:''}
+   ${kids.length?`<div class="infobox">${kids.length} phase${kids.length>1?'s':''} rattachée${kids.length>1?'s':''} (par position sur le plan) : ${kids.map(k=>esc(k.name)).join(' · ')}</div>`:''}
    ${edit&&!ph.locked?`<div class="row" style="margin:4px 0 6px"><input type="text" class="phName" data-phname="${ph.id}" value="${esc(ph.name)}" placeholder="Nom de la phase (ex. Rue de la Gare — tronçon 1)" style="flex:1;min-width:200px"><span class="dim">${ph.autoName?'nom automatique — tape le tien':'nom choisi'}</span></div>`:''}
    ${phPeriodsHTML(ph)}${phCalHTML(ph,week)}
-   <div class="phStat"><div><b>${C.days||'—'}</b><small>jours de soudure (sem. ${week} j, fériés déduits)</small></div><div class="cad"><b>${C.days?C.perDay.toFixed(1):'—'}</b><small>soudures / jour en moyenne</small></div><div><b>${C.n}</b><small>soudures induites (toutes DN)</small></div></div>
+   <div class="phStat"><div><b>${C.days||'—'}</b><small>${ph.level==='marche'?'jours ouvrés de la fenêtre':'jours de soudure'} (sem. ${week} j, fériés déduits)</small></div><div class="cad"><b>${C.days?C.perDay.toFixed(1):'—'}</b><small>soudures / jour en moyenne</small></div><div><b>${C.n}</b><small>soudures induites (toutes DN)</small></div></div>
    ${phDnTable(C)}${phEcartHTML(ph,P)}${phNeedTable(C)}
    <div class="row" style="margin-top:8px;gap:8px">
-     ${edit&&ph.level==='exe'&&P.phases.some(x=>x.level==='marche')?`<label class="dim">Rattacher au marché <select data-phpar="${ph.id}"><option value="">— aucune —</option>${P.phases.filter(x=>x.level==='marche').map(x=>`<option value="${x.id}" ${ph.parent===x.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select></label>`:''}
+     ${edit&&ph.level==='exe'&&P.phases.some(x=>x.level==='marche')?`<label class="dim">Marché <select data-phpar="${ph.id}"><option value="">— d'après le plan${parent&&!ph.parent?' : '+esc(parent.name):''} —</option>${P.phases.filter(x=>x.level==='marche').map(x=>`<option value="${x.id}" ${ph.parent===x.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select></label>`:''}
      ${edit&&!ph.locked?`<button class="btn sm" data-phretrace="${ph.id}">✎ ${(ph.tr||[]).length?'Reprendre':'Poser'} le tronçon sur le plan</button>`:''}
      ${edit&&ph.level==='marche'?`<button class="btn sm" data-phlock="${ph.id}">${ph.locked?'🔓 Déverrouiller':'🔒 Figer (référence des écarts)'}</button>`:''}
      ${edit?`<button class="btn sm" style="color:#d03b3b" data-phdel="${ph.id}">Supprimer</button>`:''}</div>`}
@@ -2922,13 +2933,21 @@ function phGanttHTML(P){const phs=P.phases.filter(p=>Object.values(p.dates).flat
   const all=phs.flatMap(p=>Object.values(p.dates).flat()).filter(Boolean).sort();const d0=phD(all[0]);const start=new Date(d0.getTime()-((d0.getDay()+6)%7)*864e5);const end=phD(all[all.length-1]);const weeks=[];for(let t=new Date(start);t<=end&&weeks.length<80;t.setDate(t.getDate()+7))weeks.push(new Date(t));
   const span=Math.max(7,(end-start)/864e5+7);const pos=s=>((phD(s)-start)/864e5)/span*100;const wid=(a,b)=>Math.max(100/span*.6,pos(b)-pos(a)+100/span);
   const wkNo=w=>{const j1=new Date(w.getFullYear(),0,1);return 'S'+String(Math.ceil(((w-j1)/864e5+j1.getDay()+1)/7)).padStart(2,'0');};
-  const order=[...phs.filter(p=>p.level==='marche'),...phs.filter(p=>p.level==='exe')];
+  const first=p=>{const D=p.dates;return D.tr[0]||D.so[0]||D.rb[0]||D.en[0];},last=p=>{const D=p.dates;return D.en[1]||D.rb[1]||D.so[1]||D.tr[1];};
+  const exes=P.phases.filter(p=>p.level==='exe');const num=p=>exes.indexOf(p)+1;
+  const exeRow=(p,indent)=>{const D=p.dates;let h=`<tr><td class="${indent?'sub':''}">${indent?'<span class="dim">↳ </span>':''}<span class="phNum" style="background:${p.color}">${num(p)}</span> ${esc(p.name)}</td><td class="w" colspan="${weeks.length}">`;
+    [['tr',2],['so',11],['rb',20],['en',29]].forEach(([k,top])=>{if(D[k][0]&&D[k][1])h+=`<span class="bar ${k}" style="left:${pos(D[k][0])}%;width:${wid(D[k][0],D[k][1])}%;top:${top}px;height:7px" title="${PH_PER[k][0]} ${phFr(D[k][0])} → ${phFr(D[k][1])}"></span>`;});return h+'</td></tr>';};
   let h=`<div class="phGantt"><table style="min-width:${Math.max(640,220+weeks.length*44)}px"><tr><th style="width:220px">Phase</th>${weeks.map(w=>`<th>${wkNo(w)}<br><span class="dim">${w.getDate()}/${w.getMonth()+1}</span></th>`).join('')}</tr>`;
-  order.forEach(p=>{const D=p.dates;h+=`<tr><td><i class="sw" style="background:${p.color}"></i>${esc(p.name)}</td><td class="w" colspan="${weeks.length}">`;
-    const d0=D.tr[0]||D.so[0]||D.rb[0]||D.en[0],d1=D.en[1]||D.rb[1]||D.so[1]||D.tr[1];
-    if(p.level==='marche'){if(d0&&d1)h+=`<span class="bar mar" style="left:${pos(d0)}%;width:${wid(d0,d1)}%;top:12px;height:10px">marché</span>`;}
-    else{[['tr',2],['so',11],['rb',20],['en',29]].forEach(([k,top])=>{if(D[k][0]&&D[k][1])h+=`<span class="bar ${k}" style="left:${pos(D[k][0])}%;width:${wid(D[k][0],D[k][1])}%;top:${top}px;height:7px" title="${PH_PER[k][0]} ${phFr(D[k][0])} → ${phFr(D[k][1])}"></span>`;});}
-    h+='</td></tr>';});
+  // un bloc par marché : la fenêtre marché (gris), les phases exé qu'elle couvre, puis « l'ensemble » des phases comparé au marché (début / fin)
+  const marches=P.phases.filter(p=>p.level==='marche').slice().sort((a,b)=>String(a.dates.so[0]||'9').localeCompare(String(b.dates.so[0]||'9')));const placed=new Set();
+  marches.forEach(m=>{const kids=exes.filter(e=>phMarcheOf(e,P)===m).sort((a,b)=>String(first(a)||'9').localeCompare(String(first(b)||'9')));kids.forEach(k=>placed.add(k.id));const m0=m.dates.so[0],m1=m.dates.so[1];
+    h+=`<tr class="mar"><td><b>${esc(m.name)}</b> <span class="dim">${m0&&m1?phFr(m0)+' → '+phFr(m1):'sans dates'}</span></td><td class="w" colspan="${weeks.length}">${m0&&m1?`<span class="bar mar" style="left:${pos(m0)}%;width:${wid(m0,m1)}%;top:12px;height:10px">marché</span>`:''}</td></tr>`;
+    const dated=kids.filter(k=>first(k)&&last(k));kids.forEach(k=>{if(first(k))h+=exeRow(k,true);else h+=`<tr><td class="sub"><span class="dim">↳ </span><span class="phNum" style="background:${k.color}">${num(k)}</span> ${esc(k.name)} <span class="dim">(sans dates)</span></td><td class="w" colspan="${weeks.length}"></td></tr>`;});
+    if(dated.length&&m0&&m1){const a=dated.map(first).sort()[0],b=dated.map(last).sort().pop();const dS=Math.round((phD(a)-phD(m0))/864e5),dE=Math.round((phD(b)-phD(m1))/864e5);const late=dE>0;
+      h+=`<tr class="ens"><td class="sub dim">↳ ensemble des ${dated.length} phase${dated.length>1?'s':''} vs marché</td><td class="w" colspan="${weeks.length}"><span class="bar ens ${late?'late':'ok'}" style="left:${pos(a)}%;width:${wid(a,b)}%;top:9px;height:16px" title="${phFr(a)} → ${phFr(b)}">début ${dS>0?'+':''}${dS} j · fin ${dE>0?'+':''}${dE} j${late?' — en retard':' — dans les clous'}</span></td></tr>`;}
+    if(!kids.length)h+=`<tr><td class="sub dim">↳ aucune phase posée dessus</td><td class="w" colspan="${weeks.length}"></td></tr>`;});
+  const rest=exes.filter(e=>!placed.has(e.id)&&first(e)).sort((a,b)=>String(first(a)).localeCompare(String(first(b))));
+  if(rest.length){if(marches.length)h+=`<tr class="mar"><td><b>Hors marché</b> <span class="dim">(aucune phase marché ne couvre ces tronçons)</span></td><td class="w" colspan="${weeks.length}"></td></tr>`;rest.forEach(e=>{h+=exeRow(e,!!marches.length);});}
   return h+'</table></div>';}
 // vue plan de l'onglet : le réseau en gris, les tronçons des phases colorés et numérotés (Ethan 07/10 : « avec 20 phases on ne s'y retrouve qu'avec le titre ») — tap = ouvre la phase
 function phMiniPlanHTML(P){const sh=sheet();if(!sh||!sh.lines.length)return '';const bb=sheetBBox(sh);let [x0,y0,x1,y1]=bb;if(!(x1>x0&&y1>y0))return '';const pad=Math.max(4,(x1-x0)*.05,(y1-y0)*.05);x0-=pad;y0-=pad;x1+=pad;y1+=pad;
@@ -2950,7 +2969,7 @@ function renderPhasage(){const el=$('#phasage');if(!el)return;const P=phasageOf(
    ${phMiniPlanHTML(P)}
    <div id="phList">${vis.map(p=>phCardHTML(p,P)).join('')||'<p class="hint">Aucune phase à ce niveau.</p>'}</div>
    ${P.groups.length?`<h3 style="margin:12px 0 4px">Groupes</h3>${P.groups.map(g=>phGroupHTML(g,P)).join('')}`:''}
-   <h3 style="margin:14px 0 4px">Planning <span class="muted" style="font-weight:400;font-size:12px">— semaines · marché (gris pointillé) · phases (tranchée / soudure / remblai / enrobé)</span></h3>${phGanttHTML(P)}
+   <h3 style="margin:14px 0 4px">Planning <span class="muted" style="font-weight:400;font-size:12px">— par marché : sa fenêtre, les phases qu'il couvre (d'après le plan), et l'ensemble comparé au marché</span></h3>${phGanttHTML(P)}
    <div class="phLegend" style="margin-top:6px;display:flex;gap:10px;flex-wrap:wrap;font-size:11.5px;color:var(--ink2)">${Object.values(PH_PER).map(([lab,col])=>`<span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${col};vertical-align:-2px;margin-right:3px"></i>${lab}</span>`).join('')}<span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#c9c9c9;border:1px dashed #777;vertical-align:-2px;margin-right:3px"></i>marché</span></div>`;
   if(state.phFocusName){state.phFocusName=false;const inp=el.querySelector('.phName');if(inp){inp.scrollIntoView({block:'center'});inp.focus();inp.select();}}}
 // import du planning du marché : CSV / TSV (nom ; début ; fin [; début soudure ; fin soudure ; début remblai ; fin remblai ; début enrobé ; fin enrobé]) ou saisie d'une ligne à la main

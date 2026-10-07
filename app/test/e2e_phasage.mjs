@@ -31,7 +31,7 @@ const c2a=out.a&&Math.abs(out.a.m-25)<1.5&&out.b&&Math.abs(out.b.m-100)<1.5&&out
 await page.evaluate(()=>document.querySelector('#phOk').click());await page.waitForTimeout(500);
 out=await page.evaluate(()=>{const P=window.TRACE.net.phasage;const ph=P.phases[0];return {tab:window.TRACE.state.tab,n:P.phases.length,level:ph&&ph.level,tr:ph&&ph.tr,name:ph&&ph.name,open:!!document.querySelector('#phasage [data-phd="so"]')};});
 console.log('2c) phase ferme enregistrée, onglet rouvert avec la fiche:',JSON.stringify(out));
-const c2c=out.tab==='phasage'&&out.n===1&&out.level==='exe'&&out.tr.length===2&&out.tr[1].line==='L2'&&out.open;
+const c2c=out.tab==='phasage'&&out.n===1&&out.level==='exe'&&out.tr.length===2&&out.tr[1].line==='L2'&&out.open&&out.name==='Phase 1';
 // ── 3) soudures induites par DN : tracé L1 DN150 soudures tous les 12 m → PK 36,48,60,72,84,96 dans [25,100[ = 6 × 2 conduites + recoupe à 25 (×2) ; antenne DN80 : soudures ≤ 30 (sortie de té PK 0 et PK 12, 24) × 2
 out=await page.evaluate(()=>{const T=window.TRACE;const ph=T.net.phasage.phases[0];const W=T.phasage.welds(ph);const L1=Object.values(T.lines).find(l=>!l.parent),L2=Object.values(T.lines).find(l=>l.parent);
   const exp150=['A','R'].reduce((s,c)=>s+L1.cond[c].joints.filter(j=>{const m=L1.cond[c].els[j.idx].m1;return m>=25-0.01&&m<100-0.01;}).length,0)+2;
@@ -60,8 +60,8 @@ out=await page.evaluate(()=>{const T=window.TRACE;const P=T.net.phasage;const g=
 console.log('6) 2e phase + groupe libre (calcul d\'ensemble):',JSON.stringify(out));const c6=out.n===2&&out.g&&out.gn===2&&out.sum===out.n1+out.n2&&out.txt;
 // ── 7) import marché (texte) → phases figées ; rattachement → écart affiché
 out=await page.evaluate(()=>{const T=window.TRACE;const n=T.phasage.importText('Rue de la Gare;12/10/2026;20/10/2026\nRue Pasteur;2026-11-09;2026-12-04');const P=T.net.phasage;const m=P.phases.filter(p=>p.level==='marche');P.phases[0].parent=m[0].id;T.state.phLv='exe';T.state.phOpen=P.phases[0].id;T.phasage.render();
-  return {n,locked:m.every(p=>p.locked),so:m[0].dates.so,ecart:/Écart vs marché/.test(document.querySelector('#phasage').textContent),plus2:/soudure \+2 j/.test(document.querySelector('#phasage').textContent),gantt:document.querySelectorAll('#phasage .phGantt .bar.mar').length};});
-console.log('7) marché importé (figé) + écart vs marché + planning:',JSON.stringify(out));const c7=out.n===2&&out.locked&&out.so[0]==='2026-10-12'&&out.so[1]==='2026-10-20'&&out.ecart&&out.plus2&&out.gantt===2;
+  return {n,locked:m.every(p=>p.locked),so:m[0].dates.so,ecart:/Écart vs marché/.test(document.querySelector('#phasage').textContent),plus2:/fin \+8 j/.test(document.querySelector('#phasage').textContent),gantt:document.querySelectorAll('#phasage .phGantt .bar.mar').length,ens:document.querySelectorAll('#phasage .phGantt .bar.ens').length,ensTxt:(document.querySelector('#phasage .phGantt .bar.ens')||{}).textContent||''};});
+console.log('7) marché importé (figé) + écart vs marché + planning:',JSON.stringify(out));const c7=out.n===2&&out.locked&&out.so[0]==='2026-10-12'&&out.so[1]==='2026-10-20'&&out.ecart&&out.plus2&&out.gantt===2&&out.ens===1&&/fin \+8 j/.test(out.ensTxt)&&/en retard/.test(out.ensTxt);
 // ── 8) persistance : rechargement → phases, groupe, semaine conservés ; overlay sur le plan
 await page.evaluate(()=>{const P=window.TRACE.net.phasage;P.week=5;window.TRACE.phasage.render();});
 await page.evaluate(()=>document.querySelector('#phasage [data-phwk="5"]').click());await page.waitForTimeout(1500);
@@ -85,8 +85,9 @@ await tapWorld(12,50);await tapWorld(128,50);await page.evaluate(()=>document.qu
 await page.evaluate(()=>{const P=window.TRACE.net.phasage;const m=P.phases[P.phases.length-1];const set=(k,i,v)=>{const inp=document.querySelector(`#phasage [data-phd="${k}"][data-i="${i}"][data-ph="${m.id}"]`);if(inp){inp.value=v;inp.dispatchEvent(new Event('change',{bubbles:true}));}};set('so',0,'2026-10-12');set('so',1,'2026-10-20');});await page.waitForTimeout(400);
 out=await page.evaluate(()=>{const T=window.TRACE;const P=T.net.phasage;const m=P.phases[P.phases.length-1];const exes=P.phases.filter(p=>p.level==='exe');T.state.phOpen=m.id;T.state.phLv='marche';T.phasage.render();const lockBtn=document.querySelector(`#phasage [data-phlock="${m.id}"]`);if(lockBtn)lockBtn.click();
   const dis=!!document.querySelector(`#phasage [data-phd="so"][data-ph="${m.id}"]:disabled`);const delBtn=document.querySelector(`#phasage [data-phdel="${m.id}"]`);if(delBtn)delBtn.click();return {level:m.level,tr:m.tr.length,so:m.dates.so,locked:m.locked,dis,still:P.phases.some(p=>p.id===m.id),attached:exes.filter(p=>p.parent===m.id).length,nExe:exes.length};});
-console.log('9b) phase marché posée sur le plan, phases exé couvertes rattachées d\'office, figée : dates verrouillées, suppression refusée:',JSON.stringify(out));
-const c9b=out.level==='marche'&&out.tr===1&&out.so[1]==='2026-10-20'&&out.locked&&out.dis&&out.still&&out.attached===out.nExe&&out.nExe===2;
+out.single=await page.evaluate(()=>{const P=window.TRACE.net.phasage;const m=P.phases[P.phases.length-1];return !document.querySelector(`#phasage [data-phd="tr"][data-ph="${m.id}"]`)&&!!document.querySelector(`#phasage [data-phd="so"][data-ph="${m.id}"]`);});
+console.log('9b) phase marché posée sur le plan (une seule période début → fin), phases exé couvertes rattachées d\'office, figée : dates verrouillées, suppression refusée:',JSON.stringify(out));
+const c9b=out.level==='marche'&&out.tr===1&&out.so[1]==='2026-10-20'&&out.locked&&out.dis&&out.still&&out.attached===out.nExe&&out.nExe===2&&out.single;
 // ── 10) week-ends GRISÉS dans toutes les périodes (liseré couleur), groupe affiché « phases 1 + 2 », fournitures besoin / posé / restant
 out=await page.evaluate(()=>{const T=window.TRACE;const P=T.net.phasage;const ph=P.phases[0];T.state.phOpen=ph.id;T.state.phLv='exe';T.phasage.render();
   const sat=document.querySelector('#phasage .phCal div[title^="2026-10-24"]');const we=sat&&sat.classList.contains('we')&&sat.classList.contains('rb')&&getComputedStyle(sat).backgroundColor;
@@ -108,15 +109,34 @@ await page.click('#svGo');await page.waitForTimeout(1200);await page.selectOptio
 await page.evaluate(()=>{document.querySelector('#tabbar [data-tab="phasage"]').click();});await page.waitForTimeout(300);
 await page.evaluate(()=>document.querySelector('#phasage [data-phnew="exe"]').click());await page.waitForTimeout(300);
 await tapWorld(30,50);await tapWorld(110,50);await tapWorld(95,65);
-out=await page.evaluate(()=>{const p=window.TRACE.state.phPose;const L=window.TRACE.lines;return {ant:p.ant.map(a=>({line:L[a.line].name,m1:a.m1})),parentM:L[Object.keys(L).find(k=>L[k].name==='Sous-antenne C')].parentM};});
-console.log('11) antenne d\'antenne prise jusqu\'au PK touché, antenne intermédiaire prise jusqu\'à son départ:',JSON.stringify(out));
-const c11=out.ant.length===2&&out.ant.some(a=>a.line==='Sous-antenne C'&&Math.abs(a.m1-25)<1.5)&&out.ant.some(a=>a.line==='Antenne B'&&Math.abs(a.m1-(out.parentM+0.5))<0.6);
+out=await page.evaluate(()=>{const p=window.TRACE.state.phPose;const L=window.TRACE.lines;return {ant:p.ant.map(a=>({line:L[a.line].name,m1:a.m1})),ask:p.ask};});
+console.log('11a) antenne d\'antenne prise jusqu\'au PK touché, RIEN d\'office sur l\'antenne intermédiaire:',JSON.stringify(out));
+const c11a=out.ant.length===1&&out.ant[0].line==='Sous-antenne C'&&Math.abs(out.ant[0].m1-25)<1.5&&!out.ask;
+// tap sur l'antenne B près du té de C (PK 15 ± 2) → l'antenne B est prise jusqu'au PK touché ET on propose C en entier
+await page.evaluate(()=>{const p=window.TRACE.state.phPose;p.ant=[];});
+await tapWorld(70,64);
+out=await page.evaluate(()=>{const p=window.TRACE.state.phPose;const L=window.TRACE.lines;return {ant:p.ant.map(a=>({line:L[a.line].name,m1:a.m1})),ask:p.ask&&L[p.ask].name,yes:!!document.querySelector('#phAskYes'),no:!!document.querySelector('#phAskNo')};});
+console.log('11b) tap près du té → question « inclure l\'antenne C en entier ? »:',JSON.stringify(out));
+const c11b=out.ant.length===1&&out.ant[0].line==='Antenne B'&&Math.abs(out.ant[0].m1-14)<1.5&&out.ask==='Sous-antenne C'&&out.yes&&out.no;
+await page.evaluate(()=>document.querySelector('#phAskYes').click());await page.waitForTimeout(200);
+out=await page.evaluate(()=>{const p=window.TRACE.state.phPose;const L=window.TRACE.lines;return {ant:p.ant.map(a=>({line:L[a.line].name,m1:a.m1})),ask:p.ask,lenC:L[Object.keys(L).find(k=>L[k].name==='Sous-antenne C')].length};});
+console.log('11c) « Inclure en entier » → C entière:',JSON.stringify(out));
+const c11=c11a&&c11b&&out.ant.length===2&&out.ant.some(a=>a.line==='Sous-antenne C'&&Math.abs(a.m1-out.lenC)<0.2)&&!out.ask;
 await page.evaluate(()=>document.querySelector('#phOk').click());await page.waitForTimeout(400);
 // ── 12) rechargement serveur pendant la saisie : les parties locales en attente (phasage) gagnent sur la copie serveur
 out=await page.evaluate(()=>{const T=window.TRACE;const P=T.net.phasage;P.phases[0].dates.so=['2026-11-02','2026-11-06'];T.phasage.render();const inp=document.querySelector('#phasage [data-phd="so"][data-i="1"]');inp.dispatchEvent(new Event('change',{bubbles:true}));
   const pend=T._pending();const serverCopy=JSON.parse(JSON.stringify(T.net));delete serverCopy.phasage;const merged=T._keepPending(serverCopy,T.state.siteId);return {pending:!!pend.phasage,kept:!!(merged.phasage&&merged.phasage.phases.length===1&&merged.phasage.phases[0].dates.so[1]==='2026-11-06')};});
 console.log('12) copie serveur sans notre phasage en attente → notre phasage conservé:',JSON.stringify(out));const c12=out.pending&&out.kept;
-const ALL=c1&&c2a&&c2c&&c3&&c4&&c4b&&c5&&c6&&c7&&c8&&c9a&&c9b&&c10&&c11&&c12;
-console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2a,c2c,c3,c4,c4b,c5,c6,c7,c8,c9a,c9b,c10,c11,c12}));
+// ── 13) rattachement PAR POSITION : une marché posée sur le plan par-dessus, parent effacé → la phase exé reste sous la marché qui couvre son tronçon ; planning groupé (ligne marché puis ↳ phase)
+await page.evaluate(()=>document.querySelector('#phasage #phImport').click());await page.waitForTimeout(300);await tapWorld(15,50);await tapWorld(125,50);await page.evaluate(()=>document.querySelector('#phOk').click());await page.waitForTimeout(400);
+await page.evaluate(()=>{const P=window.TRACE.net.phasage;const m=P.phases.find(p=>p.level==='marche');m.dates.so=['2026-10-05','2026-10-30'];});
+out=await page.evaluate(()=>{const T=window.TRACE;const P=T.net.phasage;const ex=P.phases.find(p=>p.level==='exe');const m=P.phases.find(p=>p.level==='marche'&&(p.tr||[]).length);if(!ex||!m)return {skip:true};
+  ex.parent=null;ex.dates.so=['2026-10-13','2026-10-16'];T.phasage.render();const rows=[...document.querySelectorAll('#phasage .phGantt tr')].map(r=>r.textContent.replace(/\s+/g,' ').trim());
+  const iM=rows.findIndex(r=>r.startsWith(m.name)),iE=rows.findIndex(r=>r.includes('↳')&&r.includes(ex.name));
+  return {marcheName:m.name,exName:ex.name,iM,iE,under:iM>=0&&iE>iM,card:/↳ Marché/.test(document.querySelector('#phasage').textContent)};});
+console.log('13) parent effacé → rattachée d\'après le plan, et sous sa marché dans le planning:',JSON.stringify(out));
+const c13=!!out.skip||(out.under&&/^Marché \d+$/.test(out.marcheName)&&/^Phase \d+$/.test(out.exName));
+const ALL=c1&&c2a&&c2c&&c3&&c4&&c4b&&c5&&c6&&c7&&c8&&c9a&&c9b&&c10&&c11&&c12&&c13;
+console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2a,c2c,c3,c4,c4b,c5,c6,c7,c8,c9a,c9b,c10,c11,c12,c13}));
 console.log(logs.length?logs:'[]');
 await browser.close();process.exit(ALL?0:1);
