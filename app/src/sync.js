@@ -21,6 +21,7 @@ export const sync = {
   async logout() { if (sb) await sb.auth.signOut() },
   // mot de passe (comptes et accès, 08/10) : connexion e-mail + mot de passe, première connexion = création du mot de passe (le profil est pré-créé par l'invitation côté serveur)
   async loginPassword(email, pwd) { if (!sb) throw new Error('hors ligne'); const { error } = await sb.auth.signInWithPassword({ email, password: pwd }); if (error) throw error; return true },
+  async setPassword(pwd) { if (!sb) throw new Error('hors ligne'); const { error } = await sb.auth.updateUser({ password: pwd }); if (error) throw error; return true }, // compte existant (connecté par code e-mail) : se donner un mot de passe
   async signUp(email, pwd) { if (!sb) throw new Error('hors ligne'); const { data, error } = await sb.auth.signUp({ email, password: pwd, options: { emailRedirectTo: location.href.split('#')[0] } }); if (error) throw error; return { needsConfirm: !(data && data.session) } },
   // administration des comptes (sql/comptes_acces.sql) : invitation = profil pré-rempli que la personne récupère à sa première connexion ; mise à jour poste / type / droits / chantiers / actif
   async inviteAccess(o) { if (!(await ok())) return 'hors ligne'; try { const { error } = await sb.rpc('invite_access', { p_email: o.email, p_nom: o.nom || '', p_prenom: o.prenom || '', p_poste: o.poste || 'soudeur', p_type: o.type || 'salarie', p_rights: o.rights || {}, p_sites: o.sites || null }); return error ? error.message : null } catch (e) { return String(e) } },
