@@ -12,7 +12,7 @@ const user=()=>({id:UID,aud:'authenticated',role:'authenticated',email:EMAIL,ema
 const session=()=>{const t=now();const jwt=b64u({alg:'HS256',typ:'JWT'})+'.'+b64u({iss:SB+'/auth/v1',sub:UID,aud:'authenticated',exp:t+3600,iat:t,email:EMAIL,role:'authenticated',session_id:'sess-1'})+'.sig';
   return {access_token:jwt,token_type:'bearer',expires_in:3600,expires_at:t+3600,refresh_token:'rt-'+t,user:user()};};
 const profile={id:UID,email:EMAIL,name:'Ethan LE BIHAN',role:'chef',active:true,poste:'resp_exploitation',admin:true,type:'salarie',rights:{},sites:null,prenom:'Ethan',nom:'LE BIHAN',created_at:'2026-10-08T09:00:00Z'}; // comptes v2 : poste réel + drapeau admin
-const calls=[];let loggedOut=0;const profiles=[profile];const settings={};const rpcs=[];
+const calls=[];let loggedOut=0;const paul={id:'u-2',email:'paul.durand@scr-soudure.fr',name:'Paul DURAND',nom:'DURAND',prenom:'Paul',role:'soudeur',active:true,poste:'soudeur',admin:false,type:'salarie',rights:{},sites:null,created_at:'2026-10-08T09:30:00Z'};const profiles=[profile,paul];const invites=[];const settings={};const rpcs=[];
 const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
 const ctx=await browser.newContext({viewport:{width:440,height:900}});
 await ctx.route(u=>u.href.startsWith(SB),async route=>{const req=route.request();const u=new URL(req.url());const p=u.pathname;const acc=req.headers()['accept']||'';calls.push(req.method()+' '+p+(u.search?u.search.slice(0,40):''));
@@ -26,8 +26,12 @@ await ctx.route(u=>u.href.startsWith(SB),async route=>{const req=route.request()
   if(p.startsWith('/rest/v1/rpc/')){let b={};try{b=JSON.parse(req.postData()||'{}');}catch(e){}const fn=p.slice('/rest/v1/rpc/'.length);rpcs.push(fn+' '+JSON.stringify(b).slice(0,120));
     if(fn==='admin_set_setting'){settings[b.p_key]=b.p_value;return json(null);}
     if(fn==='admin_set_profile'){const t=profiles.find(x=>x.id===b.target);if(t&&b.patch){if(b.target===UID&&((b.patch.admin===false)||(b.patch.active===false)))return json({message:'tu ne peux pas te retirer tes propres pouvoirs'},400);Object.assign(t,b.patch);}return json(null);}
-    if(fn==='invite_access'){const id='u-'+(profiles.length+1);profiles.push({id,email:b.p_email,name:(b.p_prenom+' '+b.p_nom).trim(),nom:b.p_nom,prenom:b.p_prenom,poste:b.p_poste,role:'soudeur',type:b.p_type,rights:b.p_rights||{},sites:b.p_sites,active:true,admin:false,created_at:new Date().toISOString()});return json(null);}
+    if(fn==='invite_access'){ /* comme le vrai serveur : invitation ; le profil n'existe qu'après la première connexion */ const i=invites.findIndex(x=>x.email===b.p_email);const row={email:b.p_email,nom:b.p_nom,prenom:b.p_prenom,poste:b.p_poste,type:b.p_type,rights:b.p_rights||{},sites:b.p_sites,created_at:new Date().toISOString(),used_at:null};if(i>=0)invites[i]=row;else invites.push(row);const pr=profiles.find(x=>x.email===b.p_email);if(pr)Object.assign(pr,{nom:b.p_nom,prenom:b.p_prenom,poste:b.p_poste,type:b.p_type,rights:b.p_rights||{},sites:b.p_sites,active:true});return json(null);}
     return json([]);}
+  if(p==='/rest/v1/invites'){const m=/email=eq\.([^&]+)/.exec(u.search);const em=m?decodeURIComponent(m[1]):null;
+    if(req.method()==='GET')return json(invites.filter(x=>!x.used_at&&(!em||x.email===em)));
+    if(req.method()==='PATCH'){let b={};try{b=JSON.parse(req.postData()||'{}');}catch(e){}rpcs.push('PATCH invites '+em+' '+JSON.stringify(b).slice(0,80));invites.filter(x=>x.email===em).forEach(x=>Object.assign(x,b));return json([]);}
+    if(req.method()==='DELETE'){rpcs.push('DELETE invites '+em);for(let i=invites.length-1;i>=0;i--)if(invites[i].email===em)invites.splice(i,1);return json([]);}}
   if(p.startsWith('/rest/v1/'))return json([]);
   return json([]);});
 const page=await ctx.newPage();
@@ -83,13 +87,19 @@ out=await page.evaluate(async()=>{const t=document.querySelector('#homeBody').te
 console.log('7a) mode serveur — carte « moi » :',JSON.stringify(out));
 C.c7a=!out.noMe&&out.server&&out.star&&out.stillChecked&&/propre compte/.test(out.t1)&&/propres pouvoirs/.test(out.t2)&&!out.modal&&out.poste==='resp_exploitation';
 await page.click('#admNew');await page.waitForTimeout(200);await page.fill('#an-prenom','Karim');await page.fill('#an-nom','BENALI');await page.fill('#an-email','karim.benali@scr-soudure.fr');await page.selectOption('#an-poste','soudeur');await page.click('#an-ok');await page.waitForTimeout(800);
-out=await page.evaluate(()=>({n:document.querySelectorAll('#homeBody .admAcc').length,karim:/Karim BENALI/.test(document.querySelector('#homeBody').textContent),toast:document.querySelector('#toast').textContent}));
-out.rpc=rpcs.filter(r=>/^invite_access/.test(r)).length;out.role=profiles.find(x=>x.email==='karim.benali@scr-soudure.fr');out.role=out.role&&out.role.role;
-console.log('7b) accès créé sur le serveur :',JSON.stringify(out));C.c7b=out.n===2&&out.karim&&/serveur/.test(out.toast)&&out.rpc===1&&out.role==='soudeur';
+out=await page.evaluate(()=>{const cards=[...document.querySelectorAll('#homeBody .admAcc')];const k=cards.find(c=>/Karim BENALI/.test(c.textContent));return {n:cards.length,karim:!!k,chip:k&&/invité · jamais connecté/.test(k.textContent),star:k&&k.querySelector('.admStar').disabled,retirer:k&&!!k.querySelector('[data-admuninvite]'),noActif:k&&!k.querySelector('[data-adm="active"]'),count:/1 invité/.test(document.querySelector('#admCount').textContent),toast:document.querySelector('#toast').textContent};});
+out.rpc=rpcs.filter(r=>/^invite_access/.test(r)).length;out.noProfile=!profiles.some(x=>x.email==='karim.benali@scr-soudure.fr');out.inv=invites.length;out.listed=calls.some(c=>/GET \/rest\/v1\/invites/.test(c));
+console.log('7b) accès créé sur le serveur = invitation visible :',JSON.stringify(out));C.c7b=out.n===3&&out.karim&&out.chip&&out.star&&out.retirer&&out.noActif&&out.count&&/serveur/.test(out.toast)&&out.rpc===1&&out.noProfile&&out.inv===1&&out.listed;
+// l'invitation se règle comme un compte (poste → table invites) et se retire
+await page.evaluate(()=>{const k=[...document.querySelectorAll('#homeBody .admAcc')].find(c=>/Karim BENALI/.test(c.textContent));const s=k.querySelector('[data-adm="poste"]');s.value='activites_specifiques';s.dispatchEvent(new Event('change'));});await page.waitForTimeout(700);
+out={patch:rpcs.filter(r=>/^PATCH invites karim/.test(r)&&/activites_specifiques/.test(r)).length,inv:invites[0]&&invites[0].poste,card:await page.evaluate(()=>{const k=[...document.querySelectorAll('#homeBody .admAcc')].find(c=>/Karim BENALI/.test(c.textContent));return k&&k.querySelector('[data-adm="poste"]').value;})};
+await page.evaluate(()=>{const k=[...document.querySelectorAll('#homeBody .admAcc')].find(c=>/Karim BENALI/.test(c.textContent));k.querySelector('[data-admuninvite]').click();});await page.waitForTimeout(200);out.modal=await page.evaluate(()=>/Retirer l'invitation/.test(document.getElementById('modal').textContent));await page.click('#ai-ok');await page.waitForTimeout(700);
+out.after={del:rpcs.filter(r=>/^DELETE invites karim/.test(r)).length,inv:invites.length,n:await page.evaluate(()=>document.querySelectorAll('#homeBody .admAcc').length)};
+console.log('7b2) invitation modifiée puis retirée :',JSON.stringify(out));C.c7b2=out.patch===1&&out.inv==='activites_specifiques'&&out.card==='activites_specifiques'&&out.modal&&out.after.del===1&&out.after.inv===0&&out.after.n===2;
 // droit de poste : les soudeurs ont le stock → RPC admin_set_setting ; Karim (soudeur) passe en rôle serveur « bureau » (règles RLS) ; relu au rechargement
 await page.evaluate(()=>[...document.querySelectorAll('#homeBody [data-av]')].find(b=>b.dataset.av==='postes').click());await page.waitForTimeout(300);
 await page.evaluate(()=>{const cb=document.querySelector('#homeBody [data-pr="stock.edit"]');cb.checked=true;cb.dispatchEvent(new Event('change'));});await page.waitForTimeout(600);
-out={set:rpcs.filter(r=>/^admin_set_setting/.test(r)).length,stored:settings.poste_rights,karimRole:(profiles.find(x=>x.email==='karim.benali@scr-soudure.fr')||{}).role,toast:await page.evaluate(()=>document.querySelector('#toast').textContent)};
+out={set:rpcs.filter(r=>/^admin_set_setting/.test(r)).length,stored:settings.poste_rights,karimRole:(profiles.find(x=>x.email==='paul.durand@scr-soudure.fr')||{}).role,toast:await page.evaluate(()=>document.querySelector('#toast').textContent)};
 await page.evaluate(()=>localStorage.removeItem('trace:posteRights'));await page.reload();await page.waitForTimeout(1800);
 out.reloaded=await page.evaluate(()=>({sou:window.TRACE.acces.posteRights('soudeur')['stock.edit'],mirror:JSON.parse(localStorage.getItem('trace:posteRights')||'{}')}));
 console.log('7c) droit de poste sur le serveur :',JSON.stringify(out));C.c7c=out.set===1&&out.stored&&out.stored.soudeur&&out.stored.soudeur['stock.edit']===true&&out.karimRole==='bureau'&&/serveur/.test(out.toast)&&out.reloaded.sou===true&&out.reloaded.mirror.soudeur;
