@@ -2,15 +2,15 @@
 // Interrupteurs : localStorage 'trace:next' — panneau « ⏳ Nouveautés » sur la home (chef/bureau), activation UNE PAR UNE, l'appli
 // se recharge à chaque bascule. Tant que rien n'est allumé, l'appli ne change pas d'un poil.
 export const NEXTF=(()=>{try{return JSON.parse(localStorage.getItem('trace:next')||'{}')||{};}catch(e){return {};}})();
-export const nOn=k=>k==='ts'||k==='tabs'||!!NEXTF[k]; // ts et tabs : DÉFINITIFS depuis le 07/10 (Ethan : « mets ça en définitif », « rends définitif barre d'onglets allégée »)
+export const nOn=k=>k==='ts'||k==='tabs'||k==='doe'||!!NEXTF[k]; // ts et tabs : DÉFINITIFS depuis le 07/10 (Ethan : « mets ça en définitif », « rends définitif barre d'onglets allégée »)
 import {initScr,scrInject,scrRenderTab} from './scr.js';
 let A=null; // API fournie par app.js (state, NET, sync, openModal, toast, esc…)
 const FEATS=[
  ['admin','Dossier administratif','Onglet par chantier : DT / DICT, plans exé, qualifications, PGC, PPSPS, planning, habilitations, BL, accueil… Les fichiers partent au serveur (pas dans l’appli) ; un BL importé au stock peut s’y classer tout seul.'],
- ['doe','Export DOE — carnet de soudage','Toutes les soudures : n°, vue du plan, qui a soudé / manchonné quel jour, photos, DH — document imprimable pour le DOE.'],
  ['pointage','Pointage heures & production (SCR interne)','Chacun pointe sa journée (début géolocalisé, pause, reprise, fin ; départ du chantier = inter-chantier) ; production du jour prise sur le plan ; le chef déclare après coup, valide ou corrige ; le conducteur valide en second. Onglet « Pointage ».'],
  ['profil','Profil opérateur (SCR interne)','Avatar aux couleurs de l’entreprise, points, trophées et médailles (soudures, manchons, fils, jours au-dessus de la cadence, QSE signés, pointage non contesté, pauses), mes heures validées. Onglet « Profil ».'],
 ];
+// Export DOE : DÉFINITIF depuis le 07/10 soir (Ethan : « passe en définitif ») — devenu l'onglet « Export » (src/doe.js) : carnet de soudage et manchonnage avec report sur plan, planches numérotées, photos par n° de soudure, plan interactif hors ligne, zip.
 // QSE : DÉFINITIF depuis le 07/10 (Ethan : « l'onglet qui était en test QSE, rends-le définitif ») — toujours présent, plus d'interrupteur.
 // Barre d'onglets allégée : DÉFINITIVE depuis le 07/10 (Catalogue et Liste par « ⋯ »).
 // TS / hors marché : DÉFINITIF depuis le 07/10 (tracé marché figé, écarts, marques par élément, extrusions, récap et export dans Récap) — nOn('ts') vaut toujours vrai.
@@ -29,7 +29,7 @@ export function nextBindHome(){const b=document.getElementById('nextBtn');if(b)b
   A.openModal(`<h3 style="margin-top:0">Nouveautés en attente</h3>
    <p class="hint" style="margin-top:0">Codées et testées, mais INACTIVES tant que tu ne les allumes pas. Active-les une par une, vérifie tranquillement, redis-moi. (L'appli se recharge à chaque bascule.)</p>
    ${FEATS.map(f=>`<label style="display:flex;gap:8px;align-items:flex-start;padding:8px;border:1.5px solid var(--line);border-radius:10px;margin:6px 0;cursor:pointer;${nOn(f[0])?'background:#f2fbf2;border-color:#9fd49f':''}"><input type="checkbox" data-nextf="${f[0]}" ${nOn(f[0])?'checked':''} style="margin-top:3px"><span><b>${f[1]}</b><br><span class="hint">${f[2]}</span></span></label>`).join('')}
-   <div style="margin:10px 0 4px;font-size:12.5px"><b>Rendu définitif :</b> QSE (07/10).</div>
+   <div style="margin:10px 0 4px;font-size:12.5px"><b>Rendu définitif :</b> QSE, Modifs / marché, barre d'onglets allégée, Export DOE (07/10).</div>
    <h4 style="margin:10px 0 4px">À concevoir (SCR interne, pas dans la version vendue)</h4>${BACKLOG.map(b=>`<div style="padding:8px;border:1.5px dashed var(--line);border-radius:10px;margin:6px 0"><b>${b[0]}</b><br><span class="hint">${b[1]}</span></div>`).join('')}
    <div class="actions"><button class="btn block" data-close>Fermer</button></div>`);
   document.querySelectorAll('#modal [data-nextf]').forEach(cb=>cb.onchange=()=>{const o={...NEXTF};if(cb.checked)o[cb.dataset.nextf]=1;else delete o[cb.dataset.nextf];try{localStorage.setItem('trace:next',JSON.stringify(o));}catch(e){}location.reload();});};}
@@ -160,9 +160,10 @@ function qseSign(d0,preset){const esc=A.esc;const others=A.users().map(u=>u.name
     const uid=preset?(A.userKey?A.userKey():undefined):(()=>{const u=A.users().find(x=>x.name===name);return u?'l:'+u.id:undefined;})();
     d0.sigs=d0.sigs||[];d0.sigs.push({name,uid,detail:'',at:new Date().toISOString(),img:cv.toDataURL('image/png')});
     A.saveNet('qse');A.closeModal();qseBadge();renderQse();qseOpen(d0.id);A.toast(name+' a émargé'+(preset?'':' — au suivant'));};}
-function qsePrint(d0){const esc=A.esc;const NET=A.net();
-  const w=window.open('','_blank');if(!w){A.toast('Autorise la fenêtre pop-up pour imprimer');return;}
-  w.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${esc(d0.title)}</title>
+function qsePrint(d0){const w=window.open('','_blank');if(!w){A.toast('Autorise la fenêtre pop-up pour imprimer');return;}w.document.write(qseSheetHTML(d0));w.document.close();}
+// feuille d'émargement (HTML autonome) — aussi dans le dossier DOE (onglet Export)
+export function qseSheetHTML(d0){const esc=A.esc;const NET=A.net();
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${esc(d0.title)}</title>
   <style>body{font-family:system-ui,sans-serif;margin:28px;color:#111}h1{font-size:18px;margin:0 0 2px}h2{font-size:13.5px;margin:16px 0 6px}table{border-collapse:collapse;width:100%;font-size:12.5px}th,td{border:1px solid #bbb;padding:6px 8px;text-align:left}th{background:#f2f1ec}li{margin:3px 0}img{height:34px}@media print{button{display:none}}</style></head><body>
   <button onclick="print()" style="float:right;padding:8px 14px">🖨 Imprimer / PDF</button>
   <h1>${esc(d0.title)}</h1><div style="color:#555;font-size:12.5px">${esc(NET.name||'')} · créé le ${dFR(d0.at)} par ${esc(d0.by||'')}</div>
@@ -173,12 +174,14 @@ function qsePrint(d0){const esc=A.esc;const NET=A.net();
   <h2>Émargements (${(d0.sigs||[]).length})</h2><table><tr><th>Nom</th><th>Date</th><th>Signature</th></tr>
   ${(d0.sigs||[]).map(s2=>`<tr><td>${esc(s2.name)}</td><td>${dhFR(s2.at)}</td><td>${s2.img?`<img src="${s2.img}">`:''}</td></tr>`).join('')}
   ${Array.from({length:Math.max(0,6-(d0.sigs||[]).length)}).map(()=>'<tr><td style="height:34px"></td><td></td><td></td></tr>').join('')}</table>
-  </body></html>`);w.document.close();}
+  </body></html>`;}
 // ---------- TS / hors marché : porté par app.js depuis le 07/10 (tracé marché figé, marques par élément, extrusions) — HM_ET gardé pour le traceur ----------
 export const HM_ET={propose:'TS proposé',commande:'TS commandé',forfait:'compris (global et forfaitaire)',marche:'conforme au marché'};
 // ---------- EXPORT DOE : carnet de soudage / manchonnage ----------
-export function nextDoeHTML(){if(!nOn('doe'))return '';return `<div class="card"><h3 style="margin-top:0">Export DOE</h3><div class="hint" style="margin-top:0">Le carnet de soudage / manchonnage : chaque soudure avec sa vue du plan, qui a soudé / manchonné quel jour, les photos, la DH.</div><button class="btn primary" id="doe-go" style="margin-top:6px">📕 Générer le carnet (imprimable)</button></div>`;}
-export function nextBindDoe(el){const b=el.querySelector('#doe-go');if(b)b.onclick=doeOpen;}
+export function nextDoeHTML(){return `<div class="card"><h3 style="margin-top:0">Export DOE</h3><div class="hint" style="margin-top:0">Carnet de soudage et manchonnage avec report sur plan, planches numérotées, photos classées par n° de soudure, plan interactif hors ligne, dossier zip complet : <b>onglet Export</b>.</div><button class="btn primary" id="doe-go" style="margin-top:6px">📁 Ouvrir l'onglet Export →</button></div>`;}
+export function nextBindDoe(el){const b=el.querySelector('#doe-go');if(b)b.onclick=()=>{A.state.tab='export';A.renderAll();};}
+// ancien carnet (07/10 matin, « pas trop dégueu » mais sans report sur plan) : gardé en secours, accessible par window.TRACE.doeOld()
+export function doeOldOpen(){doeOpen();}
 function miniPlan(all,l,p){ // vue du plan : réseau en gris, la position en rouge
   let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;all.forEach(L2=>(L2.pts||[]).forEach(q=>{x0=Math.min(x0,q.x);y0=Math.min(y0,q.y);x1=Math.max(x1,q.x);y1=Math.max(y1,q.y);}));
   if(x0>x1)return '';const pad=Math.max(6,(x1-x0)*.06);x0-=pad;y0-=pad;x1+=pad;y1+=pad;

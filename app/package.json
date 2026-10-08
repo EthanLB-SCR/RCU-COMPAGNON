@@ -14,11 +14,13 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "playwright": "^1.56.1",
     "vite": "^8.2.1",
     "vite-plugin-singlefile": "^2.3.3"
   },
   "private": true,
   "dependencies": {
-    "@supabase/supabase-js": "^2.112.3"
+    "@supabase/supabase-js": "^2.112.3",
+    "fflate": "^0.8.2"
   }
 }

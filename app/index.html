@@ -241,6 +241,7 @@
   .spin{width:34px;height:34px;border-radius:50%;border:3.5px solid #e1e0d9;border-top-color:#eb6834;animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
   .homeBanner{margin:0 14px 8px;background:#fff3d6;border:1px solid #f0c76a;color:#7a5200;border-radius:10px;padding:8px 10px;font-size:12px}
   .tabbar button{flex:1;border:0;background:transparent;padding:9px 4px 8px;font-size:12px;color:var(--muted)}.tabbar button.active{color:var(--ink);font-weight:600}
+  .doeParts{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:6px;margin:6px 0}.doeCk{display:flex;gap:8px;align-items:flex-start;padding:7px 9px;border:1.5px solid var(--line);border-radius:10px;cursor:pointer;background:var(--surface)}.doeCk input{margin-top:3px}.doeCk:has(input:checked){background:#f2fbf2;border-color:#9fd49f}.doeOpts{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:8px 0 4px}.doeOpts .f{min-width:120px}
   .backdrop{position:absolute;inset:0;background:rgba(0,0,0,.28);display:none;z-index:20}.backdrop.show{display:block}
   .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:18px 18px 0 0;max-height:82%;overflow:auto;transform:translateY(105%);transition:transform .22s ease;z-index:30;padding:6px 14px 20px;box-shadow:0 -6px 30px rgba(0,0,0,.15)}
   .sheet.show{transform:translateY(0)}.app.wide .sheet{left:auto;width:460px;top:0;max-height:100%;border-radius:0;transform:translateX(105%)}.app.wide .sheet.show{transform:translateX(0)}
@@ -328,8 +329,9 @@
     <section id="view-phasage" class="view"><div class="pad" id="phasage"></div></section>
     <section id="view-ts" class="view"><div class="pad" id="tsview"></div></section>
     <section id="view-catalogue" class="view"><div class="pad" id="catalogue"></div></section>
+    <section id="view-export" class="view"><div class="pad" id="exportview"></div></section>
   </main>
-  <nav class="tabbar" id="tabbar"><button data-tab="plan" class="active">Plan d'ensemble</button><button data-tab="bouclage">DH</button><button data-tab="hydro">Hydro</button><button data-tab="stock">Stock</button><button data-tab="phasage">Phasage</button><button data-tab="ts">Modifs</button><button data-tab="liste">Liste</button><button data-tab="recap">Récap</button><button data-tab="catalogue">Catalogue</button></nav>
+  <nav class="tabbar" id="tabbar"><button data-tab="plan" class="active">Plan d'ensemble</button><button data-tab="bouclage">DH</button><button data-tab="hydro">Hydro</button><button data-tab="stock">Stock</button><button data-tab="phasage">Phasage</button><button data-tab="ts">Modifs</button><button data-tab="liste">Liste</button><button data-tab="recap">Récap</button><button data-tab="catalogue">Catalogue</button><button data-tab="export">Export</button></nav>
   <div class="backdrop" id="backdrop"></div><div class="sheet" id="sheet"></div><div class="modal" id="modal"></div><div class="toast" id="toast"></div><div class="toolpanel" id="toolPanel" style="display:none"></div>
 </div>
 <script type="module" src="./src/app.js"></script>

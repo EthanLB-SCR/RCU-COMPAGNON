@@ -77,18 +77,20 @@ await page.evaluate(()=>{const m=document.querySelector('#modal [data-close]');i
 await page.evaluate(({PNG})=>{const T=window.TRACE;const L=Object.values(T.lines).find(l=>!l.parent);const j=L.cond.A.joints[1];
   j.status='soudee';j.events=[{type:'soudee',by:'karim',at:new Date(),data:{procede:'tig'},photos:[PNG]}];T.renderAll();},{PNG});
 await page.evaluate(()=>{window.TRACE.state.tab='recap';window.TRACE.renderAll();});await page.waitForTimeout(500); // Récap est derrière « ⋯ » (barre allégée)
-const [pop2]=await Promise.all([page.waitForEvent('popup'),page.evaluate(()=>document.getElementById('doe-go').click())]);
+const tabAfter=await page.evaluate(()=>{document.getElementById('doe-go').click();return window.TRACE.state.tab;}); // la carte du Récap ouvre l'onglet Export (07/10 soir)
+await page.waitForTimeout(300);
+const [pop2]=await Promise.all([page.waitForEvent('popup'),page.evaluate(()=>document.getElementById('doeCarnet').click())]);
 await pop2.waitForLoadState('domcontentloaded');
-out=await pop2.evaluate(()=>({t:/Carnet de soudage/.test(document.body.textContent),w:/S-\d{4}/.test(document.body.textContent),soudee:/Soudée \(TIG\)/.test(document.body.textContent),img:!!document.querySelector('img'),plan:!!document.querySelector('svg')}));
-await pop2.close();
-console.log('5) carnet DOE généré:',JSON.stringify(out));
-const c5=out.t&&out.w&&out.soudee&&out.img&&out.plan;
-// ── 6) le panneau « Nouveautés » existe sur la home (2/4 actives — QSE, TS et barre allégée définitifs hors liste ; pointage et profil ajoutés le 07/10, éteints ici)
+out=await pop2.evaluate(()=>({t:/Carnet de soudage et manchonnage/.test(document.body.textContent),w:/S-\d{4}/.test(document.body.textContent),soudee:/TIG/.test(document.body.textContent),img:!!document.querySelector('img'),plan:!!document.querySelector('svg.mini'),planche:/Planche/.test(document.body.textContent)}));
+await pop2.close();out.tabAfter=tabAfter;
+console.log('5) carnet DOE généré depuis l\'onglet Export:',JSON.stringify(out));
+const c5=out.t&&out.w&&out.soudee&&out.img&&out.plan&&out.planche&&tabAfter==='export';
+// ── 6) le panneau « Nouveautés » existe sur la home (1/3 actives — QSE, TS, barre allégée et Export DOE définitifs hors liste ; admin allumé ici, pointage et profil éteints)
 await page.evaluate(()=>{window.TRACE.showScreen&&window.TRACE.showScreen('home');window.TRACE.renderHome&&window.TRACE.renderHome();});
 await page.waitForTimeout(400);
 out=await page.evaluate(()=>{const b=document.getElementById('nextBtn');return {btn:!!b,txt:b?b.textContent:''};});
 console.log('6) bouton Nouveautés (home):',JSON.stringify(out));
-const c6=out.btn&&/2\/4/.test(out.txt);
+const c6=out.btn&&/1\/3/.test(out.txt);
 const ALL=c0&&c1&&c2a&&c2b&&c2c&&c3&&c4a&&c4b&&c4c&&c5&&c6;
 console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c0,c1,c2a,c2b,c2c,c3,c4a,c4b,c4c,c5,c6}));
 console.log(logs.length?logs:'[]');
