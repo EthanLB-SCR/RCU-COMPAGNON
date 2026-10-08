@@ -1,0 +1,120 @@
+Mathieu LE BIHAN ; mlebihan@scr-soudure.fr ; Gérant
+Céline ROGER ; croger@scr-soudure.fr ; Directrice adjointe
+Guillaume BOUISSIERE ; gbouissiere@scr-soudure.fr ; Directeur technique
+Teddy FIQUET ; tfiquet@scr-soudure.fr ; Responsable d'exploitation
+Thierry PETIT ; tpetit@scr-soudure.fr ; Responsable d'exploitation
+Edouard SIMON ; esimon@scr-soudure.fr ; Responsable d'exploitation
+Pierre-Antoine LESNE ; plesne@scr-soudure.fr ; Responsable des opérations
+Jean-Jacques ALVAREZ ; jalvarez@scr-soudure.fr ; Conducteur de travaux
+Nicolas BAUP ; nbaup@scr-soudure.fr ; Conducteur de travaux
+Joseph LAFARGE ; jlafarge@scr-soudure.fr ; Conducteur de travaux
+Daniel LOPES ; dlopes@scr-soudure.fr ; Conducteur de travaux
+Mokhles MEKHMOUKH ; mmekhmoukh@scr-soudure.fr ; Conducteur de travaux
+Mathieu NOYÉ ; mnoye@scr-soudure.fr ; Conducteur de travaux
+Alexandre BOINI ; aboini@scr-soudure.fr ; Chef de chantier
+Alexandre BOUTOUX ; aboutoux@scr-soudure.fr ; Chef de chantier
+Marc-Antoine CHARTON ; mcharton@scr-soudure.fr ; Chef de chantier
+Douglas DA CUNHA ; ddacunha@scr-soudure.fr ; Chef de chantier
+David DUFRENE ; ddufrene@scr-soudure.fr ; Chef de chantier
+Jérôme FERREIRA ; jferreira@scr-soudure.fr ; Chef de chantier
+Jonathan FOSSIER ; jfossier@scr-soudure.fr ; Chef de chantier
+Yannis GAUTREAU ; ygautreau@scr-soudure.fr ; Chef de chantier
+Grégoire GENDRE ; ggendre@scr-soudure.fr ; Chef de chantier
+Kelig GOURVENNEC ; kgourvennec@scr-soudure.fr ; Chef de chantier
+Eric HELLIO ; ehellio@scr-soudure.fr ; Chef de chantier
+Stéphane LEROUX ; sleroux@scr-soudure.fr ; Chef de chantier
+Kassian MAZERES ; kmazeres@scr-soudure.fr ; Chef de chantier
+Pierre REZE ; preze@scr-soudure.fr ; Chef de chantier
+Maxey SIMON ; msimon@scr-soudure.fr ; Chef de chantier
+Maud GALLERNE ; mgallerne@scr-soudure.fr ; Responsable administrative et financière
+Jerôme RICHARD ; jrichard@scr-soudure.fr ; Responsable commercial
+Betty ROINÉ ; broine@scr-soudure.fr ; Responsable RH
+Lisa BOUGET ; lbouget@scr-soudure.fr ; Assistante RH
+Virginie LEMAITRE ; vlemaitre@scr-soudure.fr ; Chargé d'affaires
+Camille MOULIN ; cmoulin@scr-soudure.fr ; Chargé d'affaires
+Corentin CABELLIC ; ccabellic@scr-soudure.fr ; Responsable flotte
+Alain GLO ; aglo@scr-soudure.fr ; Référent magasin
+Alexandre LUCAS ; alucas@scr-soudure.fr ; Référent magasin
+Suzon AUDEGON ; saudegon@scr-soudure.fr ; Soudeur
+Ismael AZIM ; iazim@scr-soudure.fr ; Soudeur
+Stephane BERARD ; sberard@scr-soudure.fr ; Soudeur
+Maxence BOISGERAULT ; mboisgerault@scr-soudure.fr ; Soudeur
+Mohamed Amine BOUABDELLI ; abouabdelli@scr-soudure.fr ; Soudeur
+Elias BOUMIA ; eboumia@scr-soudure.fr ; Soudeur
+Issihaka BOURAHIM ; ibourahim@scr-soudure.fr ; Soudeur
+Gary CHEVILLON ; gchevillon@scr-soudure.fr ; Soudeur
+Xavier CORPORAN ; xcorporan@scr-soudure.fr ; Soudeur
+Franck DAVID ; fdavid@scr-soudure.fr ; Soudeur
+David DE JESUS SANTOS ; ddejesus@scr-soudure.fr ; Soudeur
+Maicon DE JESUS SANTOS ; mdejesus@scr-soudure.fr ; Soudeur
+Charles DELEUZE ; cdeleuze@scr-soudure.fr ; Soudeur
+Théo DELEUZE ; tdeleuze@scr-soudure.fr ; Soudeur
+Pierre-Louis DEPREZ ; pdeprez@scr-soudure.fr ; Soudeur
+Nadir EL-OUARDY ; nelouardy@scr-soudure.fr ; Soudeur
+Gabriel FABIEN ; gfabien@scr-soudure.fr ; Soudeur
+Nicolas FACON ; nfacon@scr-soudure.fr ; Soudeur
+Leila FARMANE ; lfarmane@scr-soudure.fr ; Soudeur
+Maxime GARDAIS ; mgardais@scr-soudure.fr ; Soudeur
+Corentin GOURVENNEC ; cgourvennec@scr-soudure.fr ; Soudeur
+Virgil GRENOUILLEAU ; vgrenouilleau@scr-soudure.fr ; Soudeur
+Adrien GUERMONPREZ ; aguermonprez@scr-soudure.fr ; Soudeur
+Sebastien GUERVENOU ; sguervenou@scr-soudure.fr ; Soudeur
+Boh Ousmane KEITA ; bkeita@scr-soudure.fr ; Soudeur
+Luc M'BOMA BASOLA ; lmboma@scr-soudure.fr ; Soudeur
+Nolfin Lactus MABIKA ; lmabika@scr-soudure.fr ; Soudeur
+Corentin MELIN ; cmelin@scr-soudure.fr ; Soudeur
+Bastien PINEAU ; bpineau@scr-soudure.fr ; Soudeur
+Quentin PIRRINGUEL ; qpirringuel@scr-soudure.fr ; Soudeur
+Thomas ROBIN ; trobin@scr-soudure.fr ; Soudeur
+Aziz Rahman SHINWARI ; ashinwari@scr-soudure.fr ; Soudeur
+Jonathan SWIERCZYNSKI ; jswierczynski@scr-soudure.fr ; Soudeur
+Jean Paul THEBAUD ; jthebaud@scr-soudure.fr ; Soudeur
+David VITRY ; dvitry@scr-soudure.fr ; Soudeur
+Mourad AIT EL ASRI ; maitelasri@scr-soudure.fr ; Tuyauteur
+Anatole BOISGERAULT ; aboisgerault@scr-soudure.fr ; Tuyauteur
+Marcilio BUCKER NETO ; mbuckerneto@scr-soudure.fr ; Tuyauteur
+Elouan CHAUVEL ; echauvel@scr-soudure.fr ; Tuyauteur
+Nathan COFFIN ; ncoffin@scr-soudure.fr ; Tuyauteur
+Anderson Jose DA CUNHA ; adacunha@scr-soudure.fr ; Tuyauteur
+Thomas DOULET ; tdoulet@scr-soudure.fr ; Tuyauteur
+Hugo FORET ; hforet@scr-soudure.fr ; Tuyauteur
+Rizvan KAMILOV ; rkamilov@scr-soudure.fr ; Tuyauteur
+Faiz LAROUCI ; flarouci@scr-soudure.fr ; Tuyauteur
+Thomas LE MENN ; tlemenn@scr-soudure.fr ; Tuyauteur
+Laurent LEITE ; lleite@scr-soudure.fr ; Tuyauteur
+Christopher LEJUSTE ; clejuste@scr-soudure.fr ; Tuyauteur
+Jean-Baptiste LEMOUCHEUX ; jlemoucheux@scr-soudure.fr ; Tuyauteur
+Eliott LEPREVOST ; eleprevost@scr-soudure.fr ; Tuyauteur
+Erwan QUILLIO ; equillio@scr-soudure.fr ; Tuyauteur
+Theo RAVARY ; travary@scr-soudure.fr ; Tuyauteur
+Mederic RETIF ; mretif@scr-soudure.fr ; Tuyauteur
+Moulay-Driss TAARABTE ; mtaarabte@scr-soudure.fr ; Tuyauteur
+Maxime TALIGOT-JOUBERT ; mtaligot-joubert@scr-soudure.fr ; Tuyauteur
+Kévin VOYEUX ; kvoyeux@scr-soudure.fr ; Tuyauteur
+Gibilu BAH ; gbah@scr-soudure.fr ; Manchonneur
+Ousmane BALDE ; obalde@scr-soudure.fr ; Manchonneur
+Yaya BARRY ; ybarry@scr-soudure.fr ; Manchonneur
+Abdelkader BELLAHOUEL ; abellahouel@scr-soudure.fr ; Manchonneur
+Ghirmay BERHE ; gberhe@scr-soudure.fr ; Manchonneur
+Pathou BISE KASOTO MASAMBA ; pbise@scr-soudure.fr ; Manchonneur
+Titouan COLLET ; tcollet@scr-soudure.fr ; Manchonneur
+Flavien DESPLANCHES ; fdesplanches@scr-soudure.fr ; Manchonneur
+Seydou KEITA ; skeita@scr-soudure.fr ; Manchonneur
+Gokhan KORKMAZ ; gkorkmaz@scr-soudure.fr ; Manchonneur
+Julien LAMBRECQ ; jlambrecq@scr-soudure.fr ; Manchonneur
+Julia LEFEBVRE ; jlefebvre@scr-soudure.fr ; Manchonneur
+Marvin MAATA ; mmaata@scr-soudure.fr ; Manchonneur
+Joao Maico MARTINS LIMA ; jmartinslima@scr-soudure.fr ; Manchonneur
+Mickael MAURICE ; mmaurice@scr-soudure.fr ; Manchonneur
+Jeferson PEREIRA DOS SANTOS DE OLIVEI ; jpereira@scr-soudure.fr ; Manchonneur
+Thomas TAILLEFERT ; ttaillefert@scr-soudure.fr ; Manchonneur
+Mamadou Macky THIAM ; mthiam@scr-soudure.fr ; Manchonneur
+Francisco CASTELLO ; fcastello@scr-soudure.fr ; Chauffeur d'engin
+Mathis COULON ; mcoulon@scr-soudure.fr ; Chauffeur d'engin
+Lilian DEHAN ; ldehan@scr-soudure.fr ; Chauffeur d'engin
+Maxime HUBERT ; mhubert@scr-soudure.fr ; Chauffeur d'engin
+Morad IBRI ; mibri@scr-soudure.fr ; Chauffeur d'engin
+Hervé JOTTREAU ; hjottreau@scr-soudure.fr ; Chauffeur d'engin
+Sebastien MOREL ; smorel@scr-soudure.fr ; Aide de chantier
+Ermenilde VALENTIN ; evalentin@scr-soudure.fr ; Aide de chantier
+Sofian EL OUARDY ; selouardy@scr-soudure.fr ; 
