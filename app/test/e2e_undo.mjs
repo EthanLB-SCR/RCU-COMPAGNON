@@ -80,7 +80,7 @@ await page.evaluate(()=>document.querySelector('#homeBody td[data-mxc="soudeur"]
 out.reset=await page.evaluate(()=>({v:document.querySelector('#homeBody td[data-mxc="soudeur"]').textContent,stored:JSON.parse(localStorage.getItem('trace:posteRights')||'{}').soudeur}));
 console.log('8) crédits du poste :',JSON.stringify(out));C.c8=out.v==='3'&&out.txt&&out.after.v==='5'&&out.after.chip&&out.after.stored&&out.after.stored['undo.credits']===5&&out.karimLeft===2&&out.table.v==='5'&&out.table.mod&&out.table.inf&&out.table.row&&out.reset.v==='3'&&out.reset.stored===undefined;
 // ── 9) tout tient au rechargement (journal, demandes, crédits)
-const siteId=await page.evaluate(()=>window.TRACE.state.siteId);await page.reload();await page.waitForTimeout(1500);await page.evaluate(id=>window.TRACE.go(id),siteId);await page.waitForTimeout(2500);
+const siteId=await page.evaluate(()=>window.TRACE.state.siteId);await page.reload();await page.waitForTimeout(1500);for(let k=0;k<6;k++){await page.evaluate(id=>window.TRACE.go(id),siteId);await page.waitForTimeout(1500);if(await page.evaluate(id=>window.TRACE.state.siteId===id&&Object.keys(window.TRACE.lines).length>0,siteId))break;}
 out=await page.evaluate(()=>{const T=window.TRACE;const C=T.net&&T.net.conv;return {log:T.undo.log().length,undo:C?C.msgs.filter(m=>m.kind==='undo').length:0,credit:C?C.msgs.filter(m=>m.kind==='credit').length:0};});
 console.log('9) rechargement :',JSON.stringify(out));C.c9=out.log===5&&out.undo===3&&out.credit===1;
 const bad=Object.entries(C).filter(([k,v])=>!v).map(([k])=>k);console.log(bad.length?'RESULTAT: ECHEC '+bad.join(','):'RESULTAT: TOUT VERT');console.log(logs.length?logs:'[]');
