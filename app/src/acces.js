@@ -53,7 +53,7 @@ export const TYPE_CAP={
  interim:pick('plan.view','weld.steps','weld.extra','weld.transfer','dh.measure','conv.post','pointage.self','qse.sign'),
  visiteur:pick('plan.view','conv.post','export.doe'),
 };
-export const ADMIN_SEED=['lebihanethan@gmail.com']; // adresse d'Ethan : administrateur d'office (en plus de poste = admin côté serveur)
+export const ADMIN_SEED=['elebihan@scr-soudure.fr']; // adresse d'Ethan (08/10 : nouvelle adresse entreprise, l'ancienne gmail n'est plus administratrice) : administrateur d'office, en plus de poste = admin côté serveur
 // compte normalisé : {id,email,nom,prenom,name,poste,type,rights,sites,active,local}
 export function normAccount(p){if(!p)return null;const poste=p.poste||p.role||'soudeur';const email=(p.email||'').toLowerCase();const isSeed=ADMIN_SEED.includes(email);
   return {id:p.id,email,nom:p.nom||'',prenom:p.prenom||'',name:p.name||[p.prenom,p.nom].filter(Boolean).join(' ')||email,poste:isSeed?'admin':poste,role:p.role||poste,type:p.type||(poste==='visiteur'?'visiteur':'salarie'),rights:p.rights&&typeof p.rights==='object'?p.rights:{},sites:Array.isArray(p.sites)?p.sites:null,active:p.active!==false,local:!!p.local,created_at:p.created_at||null};}
