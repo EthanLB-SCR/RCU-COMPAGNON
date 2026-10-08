@@ -1,7 +1,9 @@
 // conv.js — CONVERSATION DU CHANTIER (Ethan 08/10 : « par chantier un onglet conversation : laisser une note géoréférencée sur le plan — vanne fermée avec la photo,
 // poubelle à ramasser — envoyée dans la conversation ; un chat propre au chantier ; des messages qui créent des tâches assignées à quelqu'un, l'opérateur voit
 // la tâche et la déclare faite avec photo à l'appui ; ex. sous-station : le chef note « vannes dans le conteneur à souder », l'opérateur la fait et prend en photo »).
-// Données : NET.conv = {msgs:[{id,at,by,text,photos,pos:[x,y]|null,line,pk,kind:'msg'|'note'|'task',task:{to,done,doneAt,doneBy,doneNote,donePhotos}}],seq} — saveNet('conv').
+// Données : NET.conv = {msgs:[{id,at,by,text,photos,pos:[x,y]|null,line,pk,kind:'msg'|'note'|'task'|'undo'|'credit',task:{to,done,doneAt,doneBy,doneNote,donePhotos},
+//   undo:{what:'etape'|'suppl',n,weldId,line,cond,status:'pending'|'done'|'refused',decidedBy,decidedAt,note,used,left,limit}, credit:{to,n}}],seq} — saveNet('conv').
+// Garde-fou des annulations (Ethan 08/10) : une demande d'annulation (kind 'undo') attend la validation d'un chef ; un chef peut aussi redonner des crédits (kind 'credit').
 let A=null;
 export function initConv(api){A=api;}
 const dhFR=x=>x?new Date(x).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})+' '+new Date(x).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):'';
@@ -23,12 +25,12 @@ const lineName=id=>{const l=A.lineOf(id);return l?(l.name||id):id;};
 /* ---------- rendu de l'onglet ---------- */
 export function renderConv(){const el=document.getElementById('convview');if(!el)return;const C=convOf();const esc=A.esc;const S=A.state;
   if(!C){el.innerHTML='<h2 class="vt">Conversation</h2><div class="card muted">Ouvre un chantier.</div>';return;}
-  const f=S.convFilter||'all';const msgs=C.msgs.filter(m=>f==='all'?true:f==='notes'?!!m.pos:f==='open'?(m.kind==='task'&&m.task&&!m.task.done):f==='done'?(m.kind==='task'&&m.task&&m.task.done):f==='mine'?(m.kind==='task'&&m.task&&!m.task.done&&isMine(m)):true);
-  const nOpen=C.msgs.filter(m=>m.kind==='task'&&m.task&&!m.task.done).length,nMine=openTasksForMe().length;
+  const f=S.convFilter||'all';const msgs=C.msgs.filter(m=>f==='all'?true:f==='notes'?!!m.pos:f==='open'?(m.kind==='task'&&m.task&&!m.task.done):f==='done'?(m.kind==='task'&&m.task&&m.task.done):f==='mine'?(m.kind==='task'&&m.task&&!m.task.done&&isMine(m)):f==='undo'?(m.kind==='undo'||m.kind==='credit'):true);
+  const nOpen=C.msgs.filter(m=>m.kind==='task'&&m.task&&!m.task.done).length,nMine=openTasksForMe().length;const pend=pendingUndos();const canVal=A.undo&&A.undo.canValidate();
   const chip=(k,l)=>`<button class="chip ${f===k?'active':''}" data-cvf="${k}">${l}</button>`;
   const d=draft();const canPost=A.can('conv.post'),canTask=A.can('conv.task');const people=[...new Set([me(),...(A.users()||[]).map(u=>u.name)])];
   el.innerHTML=`<h2 class="vt">Conversation — ${esc(A.net().name||'')}</h2>
-  <div class="cvFilters">${chip('all','Tout ('+C.msgs.length+')')}${chip('notes','📍 Sur le plan ('+C.msgs.filter(m=>m.pos).length+')')}${chip('open','☐ Tâches à faire ('+nOpen+')')}${chip('mine','👤 Mes tâches ('+nMine+')')}${chip('done','✓ Faites')}</div>
+  <div class="cvFilters">${chip('all','Tout ('+C.msgs.length+')')}${chip('notes','📍 Sur le plan ('+C.msgs.filter(m=>m.pos).length+')')}${chip('open','☐ Tâches à faire ('+nOpen+')')}${chip('mine','👤 Mes tâches ('+nMine+')')}${chip('done','✓ Faites')}${(pend.length||C.msgs.some(m=>m.kind==='undo'||m.kind==='credit'))?chip('undo','🛡 Annulations'+(pend.length?' <b>'+pend.length+' à valider</b>':'')):''}</div>${pend.length&&canVal?`<div class="card" style="background:#fff7ec;border-color:#f2c38a;padding:8px 10px;font-size:12.5px">🛡 <b>${pend.length} demande${pend.length>1?'s':''} d'annulation</b> attend${pend.length>1?'ent':''} ta validation — ${pend.map(m=>esc(m.by)).filter((v,i,a)=>a.indexOf(v)===i).join(', ')}.</div>`:''}
   <div class="cvList" id="cvList">${msgs.length?msgs.map(m=>msgHTML(m)).join(''):'<div class="card muted">Rien pour l\'instant. Une note, une photo, une tâche : tout ce qui se dit sur le chantier reste ici, daté et signé.</div>'}</div>
   ${canPost?`<div class="cvComposer card">
     <div class="cvChips">${d.pos?`<span class="pill hot" data-cvpos="x">📍 ${d.line?esc(lineName(d.line))+' · PK '+A.fmt(d.pk)+' m':'position libre'} <span class="x">✕</span></span>`:`<button class="btn sm" id="cvPose">📍 Placer sur le plan</button>`}
@@ -46,12 +48,25 @@ export function renderConv(){const el=document.getElementById('convview');if(!el
   const to=el.querySelector('#cvTo');if(to)to.onchange=()=>{d.to=to.value;};
   const send=el.querySelector('#cvSend');if(send)send.onclick=()=>post(ta?ta.value:d.text);
   el.querySelectorAll('[data-cvdone]').forEach(b=>b.onclick=()=>doneModal(b.dataset.cvdone));
+  el.querySelectorAll('[data-cvundo]').forEach(b=>b.onclick=()=>decideUndo(b.dataset.cvundo,b.dataset.cvact));
   el.querySelectorAll('[data-cvgo]').forEach(b=>b.onclick=()=>{const m=C.msgs.find(x=>x.id===b.dataset.cvgo);if(!m||!m.pos)return;S.tab='plan';A.renderAll();setTimeout(()=>A.centerOn&&A.centerOn(m.pos[0],m.pos[1],Math.max(S.view.k,6)),30);});
   el.querySelectorAll('[data-cvdel]').forEach(b=>b.onclick=()=>{if(!confirm('Supprimer ce message ?'))return;C.msgs=C.msgs.filter(x=>x.id!==b.dataset.cvdel);save();renderConv();convBadge();A.renderPlan();});
   el.querySelectorAll('[data-cvimg]').forEach(i=>i.onclick=()=>{const w=window.open('about:blank');if(w){w.document.write(`<img src="${i.dataset.cvimg}" style="max-width:100%">`);w.document.close();}});
   if(S.convFocus){const b=el.querySelector(`[data-cvid="${CSS.escape(S.convFocus)}"]`);if(b){b.scrollIntoView({block:'center'});b.classList.add('flash');}S.convFocus=null;}
   else{const L=el.querySelector('#cvList');if(L)L.scrollTop=L.scrollHeight;}}
-function msgHTML(m){const esc=A.esc;const t=m.task;const mine=m.by===me();const canClose=t&&!t.done&&(isMine(m)||A.can('conv.task'));
+function undoHTML(m){const esc=A.esc;const u=m.undo;const canVal=A.undo&&A.undo.canValidate();const what=u.what==='suppl'?'le retrait de la soudure ajoutée <b>'+esc(u.weldId)+'</b>':'l\'annulation de l\'étape <b>'+esc(String(u.n))+'</b> de <b>'+esc(u.weldId)+'</b>';
+  const st=u.status==='pending'?'<span class="tag" style="background:#eb6834">⏳ à valider</span>':u.status==='done'?'<span class="tag" style="background:#0ca30c">✓ validée</span>':u.status==='credited'?'<span class="tag" style="background:#2a9d5c">＋ crédit redonné</span>':'<span class="tag" style="background:#8a877f">✕ refusée</span>';
+  return `<div class="cvMsg undo" data-cvid="${esc(m.id)}"><div class="cvHead"><b>${esc(m.by||'')}</b> · ${dhFR(m.at)} · 🛡 demande d'annulation</div>
+   <div class="cvTask ${u.status!=='pending'?'done':''}">${st} ${esc(m.by)} demande ${what}${m.text?' — « '+esc(m.text)+' »':''}${u.limit?' <span style="color:#b8560f;font-weight:700">· limite d\'annulations atteinte cette semaine</span>':u.left!=null?' <span class="dim">· '+u.used+' annulation'+(u.used>1?'s':'')+' déjà cette semaine</span>':''}
+   ${u.status!=='pending'?`<br><span class="dim">${u.status==='done'?'validée et exécutée':u.status==='credited'?'crédit redonné (à lui de faire l\'annulation)':'refusée'} le ${dhFR(u.decidedAt)} par <b>${esc(u.decidedBy||'')}</b>${u.note?' : '+esc(u.note):''}</span>`:''}</div>
+   ${u.status==='pending'&&canVal?`<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm primary" data-cvundo="${esc(m.id)}" data-cvact="ok">✓ Valider : ${u.what==='suppl'?'retirer la soudure':'annuler l\'étape'}</button><button class="btn sm" data-cvundo="${esc(m.id)}" data-cvact="credit">＋ Redonner 1 crédit à ${esc(m.by)}</button><button class="btn sm" data-cvundo="${esc(m.id)}" data-cvact="no" style="color:#d03b3b">✕ Refuser</button></div>`:''}</div>`;}
+function creditHTML(m){const esc=A.esc;const c=m.credit||{};return `<div class="cvMsg credit" data-cvid="${esc(m.id)}"><div class="cvHead"><b>${esc(m.by||'')}</b> · ${dhFR(m.at)} · 🛡 crédits</div><div class="cvText">＋ ${c.n||1} crédit${(c.n||1)>1?'s':''} d'annulation redonné${(c.n||1)>1?'s':''} à <b>${esc(c.to||'')}</b>${m.text?' — '+esc(m.text):''}</div></div>`;}
+function pendingUndos(){const C=convOf();if(!C)return [];return C.msgs.filter(m=>m.kind==='undo'&&m.undo&&m.undo.status==='pending');}
+function decideUndo(id,act){const C=convOf();const m=C&&C.msgs.find(x=>x.id===id);if(!m||!m.undo||m.undo.status!=='pending')return;if(!(A.undo&&A.undo.canValidate())){A.toast('Réservé au chef');return;}
+  if(act==='credit'){const n=1;const cid='C'+(C.seq++).toString(36)+Date.now().toString(36).slice(-3);C.msgs.push({id:cid,at:new Date().toISOString(),by:me(),text:'',photos:[],pos:null,kind:'credit',credit:{to:m.by,n}});m.undo.status='credited';m.undo.decidedBy=me();m.undo.decidedAt=new Date().toISOString();save();renderConv();convBadge();A.toast(n+' crédit redonné à '+m.by+' — il peut annuler lui-même');return;}
+  if(act==='no'){const note=prompt('Motif du refus (facultatif)','');if(note===null)return;m.undo.status='refused';m.undo.decidedBy=me();m.undo.decidedAt=new Date().toISOString();m.undo.note=note.trim();save();renderConv();convBadge();A.toast('Demande refusée');return;}
+  const err=A.undo.apply(m,me());if(err){A.toast('Impossible : '+err);return;}m.undo.status='done';m.undo.decidedBy=me();m.undo.decidedAt=new Date().toISOString();save();renderConv();convBadge();A.toast((m.undo.what==='suppl'?'Soudure retirée':'Étape '+m.undo.n+' annulée')+' — demande de '+m.by+' validée');}
+function msgHTML(m){if(m.kind==='undo'&&m.undo)return undoHTML(m);if(m.kind==='credit')return creditHTML(m);const esc=A.esc;const t=m.task;const mine=m.by===me();const canClose=t&&!t.done&&(isMine(m)||A.can('conv.task'));
   return `<div class="cvMsg ${m.kind} ${mine?'mine':''}" data-cvid="${esc(m.id)}"><div class="cvHead"><b>${esc(m.by||'')}</b> · ${dhFR(m.at)}${m.pos?` · <button class="lnk" data-cvgo="${esc(m.id)}">📍 ${m.line?esc(lineName(m.line))+' · PK '+A.fmt(m.pk)+' m':'voir sur le plan'}</button>`:''}${(mine||A.can('conv.task'))?` <button class="lnk dim" data-cvdel="${esc(m.id)}" title="supprimer">✕</button>`:''}</div>
    ${m.kind==='task'?`<div class="cvTask ${t.done?'done':''}"><span class="tag">${t.done?'✓ fait':'☐ à faire'}</span> pour <b>${t.to===TOUS?'tout le monde':esc(t.to)}</b>${t.done?` — le ${dhFR(t.doneAt)} par <b>${esc(t.doneBy||'')}</b>${t.doneNote?' : '+esc(t.doneNote):''}`:''}</div>`:''}
    ${m.text?`<div class="cvText">${esc(m.text)}</div>`:''}
@@ -77,4 +92,4 @@ export function renderConvOverlay(){const g=document.getElementById('convG');if(
     s+=`<g data-conv="${esc(m.id)}" style="cursor:pointer"><circle cx="${x}" cy="${y}" r="${r*1.6}" fill="transparent"/><circle cx="${x}" cy="${y}" r="${r}" fill="${col}" stroke="#fff" stroke-width="${2/k}"/><text x="${x}" y="${y+r*.38}" font-size="${r*1.05}" text-anchor="middle" fill="#fff" font-weight="800" font-family="system-ui,sans-serif" style="pointer-events:none">${glyph}</text></g>`;});
   if(A.state.convPose){s+='';}g.innerHTML=s;}
 export function convOpen(id){const S=A.state;S.tab='conv';S.convFocus=id;S.convFilter='all';A.renderAll();}
-export function convBadge(){const b=document.querySelector('#tabbar [data-tab="conv"]');if(!b||!A)return;const n=openTasksForMe().length;let i=b.querySelector('.qseBadge');if(!n){if(i)i.remove();return;}if(!i){i=document.createElement('i');i.className='qseBadge';b.appendChild(i);}i.textContent=n;}
+export function convBadge(){const b=document.querySelector('#tabbar [data-tab="conv"]');if(!b||!A)return;const n=openTasksForMe().length+((A.undo&&A.undo.canValidate())?pendingUndos().length:0);let i=b.querySelector('.qseBadge');if(!n){if(i)i.remove();return;}if(!i){i=document.createElement('i');i.className='qseBadge';b.appendChild(i);}i.textContent=n;}

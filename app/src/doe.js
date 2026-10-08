@@ -14,7 +14,7 @@ const fmt=n=>Number(n||0).toLocaleString('fr-FR',{maximumFractionDigits:1});
 const STEP_NAME={1:'Soudure',2:'Fils + DH',3:'Manchon',4:'Moussage'};
 const STEP_TAG={1:'1-soudure',2:'2-fils-DH',3:'3-manchon',4:'4-moussage',0:'0-autre'};
 const PROC={tig:'TIG',cellulosique:'Cellulosique',cell:'Cellulosique'};
-const EV_LABEL={soudee:'Soudée',manchonnee:'Manchonnée',controlee:'Contrôlée',controle:'Contrôle',a_reprendre:'À reprendre'};
+const EV_LABEL={soudee:'Soudée',manchonnee:'Manchonnée',controlee:'Contrôlée',controle:'Contrôle',a_reprendre:'À reprendre',annulation:'Étape annulée'};
 const PAGES={A4:[210,297],A3:[297,420],A2:[420,594],A1:[594,841],A0:[841,1189]};
 const polyLen=pts=>{let L=0;for(let i=1;i<pts.length;i++)L+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);return L;};
 const pathD=pts=>pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(2)+' '+p[1].toFixed(2)).join(' ');
