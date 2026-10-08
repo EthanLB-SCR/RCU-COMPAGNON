@@ -142,8 +142,18 @@ const ORIGIN_LABEL={admin:'★ administrateur','perso+':'ajout personnel','perso
 export function roleFor(acc){const e=effectiveRights(acc);if(acc.admin||e['site.delete'])return 'chef';
   if(['site.tracer','site.versions','stock.edit','phasage.edit','ts.qualify','weld.admin','hydro','conv.task','qse.manage','dossier.edit','export.doe','pointage.validate'].some(k=>e[k]))return 'bureau';
   return acc.poste==='manchonneur'?'manchonneur':'soudeur';}
-// compte courant : profil serveur si connecté, sinon le personnage de démo (Ethan L. de la démo = administrateur, pour tester l'onglet hors connexion)
-export function currentAccount(){if(!A)return null;const S=A.state;if(S.profile)return normAccount(S.profile);const u=(A.users()||[]).find(x=>x.id===S.userId)||(A.users()||[])[0];if(!u)return null;return normAccount({id:'l:'+u.id,name:u.name,role:u.role,poste:u.role,admin:u.id==='ethan',type:'salarie',active:true,local:true});}
+// compte RÉEL (profil serveur), sans tenir compte d'un personnage de test
+export function realAccount(){if(!A||!A.state.profile)return null;return normAccount(A.state.profile);}
+const persona=u=>normAccount({id:'l:'+u.id,name:u.name,role:u.role,poste:u.role,admin:u.id==='ethan',type:'salarie',active:true,local:true});
+// compte courant : profil serveur si connecté — sauf 🧪 MODE TEST : un ADMINISTRATEUR connecté qui choisit un personnage (sélecteur du chantier) voit l'appli avec
+// les droits de ce personnage (Ethan 08/10 : « avec un profil soudeur j'ai pu en supprimer 4 sans parler de crédit » — le personnage changeait la signature, pas les droits).
+// Un compte non administrateur ne peut pas jouer un personnage (il resterait lui-même). Hors connexion : le personnage de démo (Ethan L. = administrateur).
+export function currentAccount(){if(!A)return null;const S=A.state;
+  if(S.profile){const real=normAccount(S.profile);if(S.userId==='__me'||!real.admin)return real;
+    if(String(S.userId).startsWith('acc:')){const id=String(S.userId).slice(4);const acc=(S.accounts||[]).find(a=>String(a.id)===id);if(!acc)return real;return {...acc,test:true};} // 🧪 tester comme une VRAIE personne (profil ou invitation)
+    const u=(A.users()||[]).find(x=>x.id===S.userId);if(!u)return real;const p=persona(u);p.test=true;return p;}
+  const u=(A.users()||[]).find(x=>x.id===S.userId)||(A.users()||[])[0];if(!u)return null;return persona(u);}
+export const isTesting=()=>{const a=currentAccount();return !!(a&&a.test);};
 let cache={key:'',rights:null};
 export function can(key){if(!A)return true;const acc=currentAccount();const ck=acc?acc.id+'|'+acc.poste+'|'+acc.type+'|'+acc.admin+'|'+JSON.stringify(acc.rights||{})+'|'+acc.active+'|'+prVer:'none';if(cache.key!==ck){cache={key:ck,rights:effectiveRights(acc)};}return !!cache.rights[key];}
 export const isAdmin=()=>{const a=currentAccount();return !!(a&&a.admin&&a.active!==false);};
@@ -156,7 +166,7 @@ function localList(){try{return JSON.parse(localStorage.getItem(LKEY)||'[]')||[]
 function localSave(list){try{localStorage.setItem(LKEY,JSON.stringify(list));}catch(e){}}
 export async function listAccounts(){let rows=[];let server=false;try{if(A.state.cloudUser){const r=await A.sync.listProfiles();if(r&&r.length){rows=r.map(normAccount);server=true;}
     if(server&&A.sync.listInvites){const inv=await A.sync.listInvites();(inv||[]).forEach(i=>{const em=(i.email||'').toLowerCase();if(!em||rows.some(r=>r.email===em))return;rows.push(normAccount({...i,invite:true,active:true}));});}}}catch(e){console.warn(e);} // invitation = accès créé, personne pas encore connectée (table invites) : elle doit se voir et se régler comme les autres
-  const loc=localList().map(x=>normAccount({...x,local:true}));return {rows:[...rows,...loc.filter(l=>!rows.some(r=>r.email&&r.email===l.email))],server};}
+  const loc=localList().map(x=>normAccount({...x,local:true}));const all=[...rows,...loc.filter(l=>!rows.some(r=>r.email&&r.email===l.email))];A.state.accounts=all;if(A.onAccounts)try{A.onAccounts(all);}catch(e){}return {rows:all,server};}
 export async function createAccess(o){const email=String(o.email||'').trim().toLowerCase();if(!email.includes('@')||/\s/.test(email))return {error:'adresse e-mail invalide'};if(!o.nom&&!o.prenom)return {error:'nom ou prénom manquant'};if(!POSTES[o.poste])return {error:'poste inconnu'};
   const acc={email,nom:o.nom||'',prenom:o.prenom||'',poste:o.poste,type:TYPES[o.type]?o.type:(o.poste==='visiteur'?'visiteur':'salarie'),rights:o.rights||{},sites:o.sites&&o.sites.length?o.sites:null,active:true,admin:false,created_at:new Date().toISOString(),created_by:A.userName()};
   acc.role=roleFor(normAccount(acc));

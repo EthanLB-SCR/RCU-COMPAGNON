@@ -8,8 +8,8 @@ const SB='https://pghftlepduvfazbiavhq.supabase.co';
 const UID='11111111-2222-4333-8444-555555555555';const EMAIL='elebihan@scr-soudure.fr';
 const b64u=o=>Buffer.from(JSON.stringify(o)).toString('base64').replace(/=+$/,'').replace(/\+/g,'-').replace(/\//g,'_');
 const now=()=>Math.floor(Date.now()/1000);
-const user=()=>({id:UID,aud:'authenticated',role:'authenticated',email:EMAIL,email_confirmed_at:'2026-10-08T09:00:00Z',confirmed_at:'2026-10-08T09:00:00Z',last_sign_in_at:new Date().toISOString(),app_metadata:{provider:'email',providers:['email']},user_metadata:{},identities:[],created_at:'2026-10-08T09:00:00Z',updated_at:new Date().toISOString(),is_anonymous:false});
-const session=()=>{const t=now();const jwt=b64u({alg:'HS256',typ:'JWT'})+'.'+b64u({iss:SB+'/auth/v1',sub:UID,aud:'authenticated',exp:t+3600,iat:t,email:EMAIL,role:'authenticated',session_id:'sess-1'})+'.sig';
+let CUR={id:UID,email:EMAIL};const user=()=>({id:CUR.id,aud:'authenticated',role:'authenticated',email:CUR.email,email_confirmed_at:'2026-10-08T09:00:00Z',confirmed_at:'2026-10-08T09:00:00Z',last_sign_in_at:new Date().toISOString(),app_metadata:{provider:'email',providers:['email']},user_metadata:{},identities:[],created_at:'2026-10-08T09:00:00Z',updated_at:new Date().toISOString(),is_anonymous:false});
+const session=()=>{const t=now();const jwt=b64u({alg:'HS256',typ:'JWT'})+'.'+b64u({iss:SB+'/auth/v1',sub:CUR.id,aud:'authenticated',exp:t+3600,iat:t,email:CUR.email,role:'authenticated',session_id:'sess-'+CUR.id.slice(0,4)})+'.sig';
   return {access_token:jwt,token_type:'bearer',expires_in:3600,expires_at:t+3600,refresh_token:'rt-'+t,user:user()};};
 const profile={id:UID,email:EMAIL,name:'Ethan LE BIHAN',role:'chef',active:true,poste:'resp_exploitation',admin:true,type:'salarie',rights:{},sites:null,prenom:'Ethan',nom:'LE BIHAN',created_at:'2026-10-08T09:00:00Z'}; // comptes v2 : poste réel + drapeau admin
 const calls=[];let loggedOut=0;const paul={id:'u-2',email:'paul.durand@scr-soudure.fr',name:'Paul DURAND',nom:'DURAND',prenom:'Paul',role:'soudeur',active:true,poste:'soudeur',admin:false,type:'salarie',rights:{},sites:null,created_at:'2026-10-08T09:30:00Z'};const profiles=[profile,paul];const invites=[];const settings={};const rpcs=[];
@@ -17,7 +17,7 @@ const browser=await chromium.launch({headless:true, executablePath: process.env.
 const ctx=await browser.newContext({viewport:{width:440,height:900}});
 await ctx.route(u=>u.href.startsWith(SB),async route=>{const req=route.request();const u=new URL(req.url());const p=u.pathname;const acc=req.headers()['accept']||'';calls.push(req.method()+' '+p+(u.search?u.search.slice(0,40):''));
   const json=(o,status=200)=>route.fulfill({status,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(o)});
-  if(p==='/auth/v1/token')return json(session());
+  if(p==='/auth/v1/token'){let b={};try{b=JSON.parse(req.postData()||'{}');}catch(e){}if(b.email){const pr=profiles.find(x=>x.email===String(b.email).toLowerCase());if(pr)CUR={id:pr.id,email:pr.email};}return json(session());}
   if(p==='/auth/v1/user')return json(user());
   if(p==='/auth/v1/logout'){loggedOut++;return route.fulfill({status:204,headers:{'access-control-allow-origin':'*'},body:''});}
   if(p.startsWith('/auth/v1/'))return json({});
@@ -103,6 +103,22 @@ out={set:rpcs.filter(r=>/^admin_set_setting/.test(r)).length,stored:settings.pos
 await page.evaluate(()=>localStorage.removeItem('trace:posteRights'));await page.reload();await page.waitForTimeout(1800);
 out.reloaded=await page.evaluate(()=>({sou:window.TRACE.acces.posteRights('soudeur')['stock.edit'],mirror:JSON.parse(localStorage.getItem('trace:posteRights')||'{}')}));
 console.log('7c) droit de poste sur le serveur :',JSON.stringify(out));C.c7c=out.set===1&&out.stored&&out.stored.soudeur&&out.stored.soudeur['stock.edit']===true&&out.karimRole==='bureau'&&/serveur/.test(out.toast)&&out.reloaded.sou===true&&out.reloaded.mirror.soudeur;
+// ── 8) 🧪 MODE TEST : le sélecteur du chantier liste les VRAIES personnes (profils + invitations, pas les personnages de démo) ; en choisir une donne ses droits et crédits,
+//        la signature reste la mienne ; bandeau sur l'accueil + retour ; un compte non administrateur (Paul) n'a que « moi »
+await page.click('#htAdmin');await page.waitForTimeout(800);await page.click('#admNew');await page.waitForTimeout(200);await page.fill('#an-prenom','Karim');await page.fill('#an-nom','BENALI');await page.fill('#an-email','karim.benali@scr-soudure.fr');await page.selectOption('#an-poste','soudeur');await page.click('#an-ok');await page.waitForTimeout(800);
+out=await page.evaluate(()=>{const o=[...document.querySelectorAll('#roleSel option')];const g=[...document.querySelectorAll('#roleSel optgroup')].map(x=>x.label);return {opts:o.map(x=>x.textContent),groups:g,me:o[0].value,demo:o.some(x=>/Karim B\. — Soudeur|Julien R\.|Sophie M\./.test(x.textContent))};});
+const paulOpt=out.opts.find(t=>/Paul DURAND — Soudeur/.test(t));const karimOpt=out.opts.find(t=>/Karim BENALI — Soudeur · invité/.test(t));
+await page.selectOption('#roleSel',{label:paulOpt});await page.waitForTimeout(400);
+out.test=await page.evaluate(()=>{const T=window.TRACE;const Ac=T.acces;const a=Ac.current();T.showScreen('home');T.renderHome();return {poste:a.poste,test:!!a.test,isAdmin:Ac.isAdmin(),credits:Ac.credits(a)===Infinity?'inf':Ac.credits(a),left:T.undo.left()===Infinity?'inf':T.undo.left(),sign:T.state.profile.name,admTab:document.querySelector('#htAdmin').style.display!=='none',banner:document.querySelector('#homeBanner').textContent,cloud:(document.querySelector('#cloudBox')||{}).textContent||''};});
+await page.click('#hbMe');await page.waitForTimeout(300);
+out.back=await page.evaluate(()=>{const Ac=window.TRACE.acces;return {admin:Ac.isAdmin(),poste:Ac.current().poste,sel:document.querySelector('#roleSel').value,banner:document.querySelector('#homeBanner').style.display};});
+console.log('8a) tester comme une vraie personne :',JSON.stringify({opts:out.opts.length,groups:out.groups,me:out.me,demo:out.demo,paul:!!paulOpt,karim:!!karimOpt,test:out.test,back:out.back}));
+C.c8a=out.opts.length===3&&out.groups.length===1&&/Terrain/.test(out.groups[0])&&out.me==='__me'&&!out.demo&&paulOpt&&karimOpt&&out.test.poste==='soudeur'&&out.test.test&&!out.test.isAdmin&&out.test.credits===3&&out.test.left===3&&out.test.sign==='Ethan LE BIHAN'&&!out.test.admTab&&/Mode test/.test(out.test.banner)&&/Paul DURAND/.test(out.test.banner)&&/signé Ethan LE BIHAN/.test(out.test.banner)&&/mode test/.test(out.test.cloud)&&out.back.admin&&out.back.poste==='resp_exploitation'&&out.back.sel==='__me'&&out.back.banner==='none';
+// Paul (soudeur, pas admin) se connecte : un seul choix, lui-même
+await page.click('#homeAva');await page.waitForTimeout(200);await page.click('#accOut');await page.waitForTimeout(700);
+await page.fill('#loginEmail','paul.durand@scr-soudure.fr');await page.fill('#loginPwd','Soudure-2026!');await page.click('#loginGo');await page.waitForTimeout(1500);
+out=await page.evaluate(()=>{const Ac=window.TRACE.acces;const o=[...document.querySelectorAll('#roleSel option')];return {n:o.length,txt:o[0].textContent,poste:Ac.current().poste,admin:Ac.isAdmin(),admTab:document.querySelector('#htAdmin').style.display==='none',home:document.querySelector('#homeView').classList.contains('show'),credits:Ac.credits(Ac.current())};});
+console.log('8b) Paul (soudeur) : lui-même seulement :',JSON.stringify(out));C.c8b=out.n===1&&/Paul DURAND — Soudeur/.test(out.txt)&&out.poste==='soudeur'&&!out.admin&&out.admTab&&out.home&&out.credits===3;
 console.log('erreurs de page :',logs.length?logs:'aucune');
 const ko=Object.entries(C).filter(([k,v])=>!v).map(([k])=>k);
 console.log(ko.length||logs.length?'RESULTAT: ECHEC '+ko.join(',')+(logs.length?' + erreurs':''):'RESULTAT: TOUT VERT');
