@@ -57,7 +57,7 @@ const dhFR=x=>x?new Date(x).toLocaleDateString('fr-FR')+' '+new Date(x).toLocale
 export const ADMIN_CATS=[['dt','DT / DICT'],['exe','Plans d’exécution'],['plans','Plans'],['qualif','Qualifications (soudeurs / manchonneurs)'],['pgc','PGC'],['ppsps','PPSPS'],['planning','Planning d’exécution'],['habil','Habilitations / procédures'],['bl','Bons de livraison'],['accueil','Accueil chantier'],['autre','Autre']];
 function renderAdmin(){const el=document.getElementById('admin');if(!el)return;const ad=adminOf();const esc=A.esc;
   if(!ad){el.innerHTML='<h2 class="vt">Dossier administratif</h2><div class="card muted">Aucun chantier.</div>';return;}
-  const canEd=A.role()==='chef'||A.role()==='bureau';
+  const canEd=A.can?A.can('dossier.edit'):(A.role()==='chef'||A.role()==='bureau');
   el.innerHTML=`<h2 class="vt">Dossier administratif — ${esc(A.net().name||'')}</h2>
    <div class="hint" style="margin-bottom:8px">Les fichiers partent au SERVEUR (l'appli ne garde que la fiche : nom, date, qui). Hors connexion, un petit fichier (&lt; 1,5 Mo) peut être gardé dans l'appli en dépannage — évite pour les gros plans.</div>
    ${canEd?`<div class="card" style="display:flex;gap:6px;flex-wrap:wrap;align-items:end"><div><label class="f">Catégorie</label><select class="f" id="adm-cat">${ADMIN_CATS.map(c2=>`<option value="${c2[0]}">${c2[1]}</option>`).join('')}</select></div><label class="btn primary" style="margin-bottom:2px">📎 Déposer un fichier (PDF, photo…)<input type="file" id="adm-file" accept="application/pdf,image/*" style="display:none" multiple></label></div>`:''}
@@ -96,7 +96,7 @@ function qseBadge(){const b=document.querySelector('#tabbar [data-tab="qse"]');i
 let qseNudged={};export function qseNudge(){const n=qseTodo().length;const NET=A.net();if(!NET||!n||qseNudged[NET.id+'|'+A.userName()])return;qseNudged[NET.id+'|'+A.userName()]=1;A.toast('QSE : '+n+' document'+(n>1?'s':'')+' à émarger sur ce chantier');}
 function renderQse(){const el=document.getElementById('qse');if(!el)return;const q=qseOf();const esc=A.esc;qseBadge();
   if(!q){el.innerHTML='<h2 class="vt">QSE</h2><div class="card muted">Aucun chantier.</div>';return;}
-  const canEd=A.role()==='chef'||A.role()==='bureau';const todo=qseTodo();const me=A.userName();
+  const canEd=A.can?A.can('qse.manage'):(A.role()==='chef'||A.role()==='bureau');const todo=qseTodo();const me=A.userName();
   const T={accueil:'Accueil chantier',quart:'Quart d’heure sécurité',pdf:'Document à émarger'};
   el.innerHTML=`<h2 class="vt">QSE — ${esc(A.net().name||'')}</h2>
    ${todo.length?`<div class="card" style="border-color:#d03b3b;background:#fdecec"><b style="color:#a01212">✍️ ${esc(me)}, il te reste ${todo.length} document${todo.length>1?'s':''} à émarger sur ce chantier</b><div class="hint" style="margin:4px 0 6px">Lis-les et signe au doigt : l'émargement vaut « j'ai pris connaissance ».</div>${todo.map(d0=>`<button class="btn block" data-qsignme="${d0.id}" style="margin-top:4px;justify-content:space-between"><span>${esc(d0.title||T[d0.type])}</span><span style="color:#d03b3b;font-weight:700">à émarger →</span></button>`).join('')}</div>`:q.docs.some(qseRequired)?`<div class="okbox" style="margin-bottom:8px">✓ ${esc(me)} : tout est émargé sur ce chantier.</div>`:''}
@@ -119,7 +119,7 @@ function qseNew(type){const q=qseOf();if(!q)return;
   else{q.docs.push({id:qid(),type,title:'Quart d’heure sécurité du '+dFR(new Date()),by:A.userName(),at:new Date().toISOString(),theme:'',points:'',qs:QUART_Q.slice(),sigs:[]});}
   A.saveNet('qse');renderQse();qseOpen(q.docs[q.docs.length-1].id);}
 function qseOpen(id){const q=qseOf();const d0=q&&q.docs.find(x=>x.id===id);if(!d0)return;const esc=A.esc;
-  const canEd=A.role()==='chef'||A.role()==='bureau';
+  const canEd=A.can?A.can('qse.manage'):(A.role()==='chef'||A.role()==='bureau');
   const body=d0.type==='pdf'
     ?`<div class="card"><a href="${d0.url||d0.data||'#'}" target="_blank" rel="noopener" class="btn block">📄 Ouvrir le document (lecture ensemble)</a><div class="hint" style="margin-top:4px">L'émargement vaut « j'ai pris connaissance de ce document ».</div></div>`
     :d0.type==='accueil'

@@ -241,6 +241,8 @@
   .spin{width:34px;height:34px;border-radius:50%;border:3.5px solid #e1e0d9;border-top-color:#eb6834;animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
   .homeBanner{margin:0 14px 8px;background:#fff3d6;border:1px solid #f0c76a;color:#7a5200;border-radius:10px;padding:8px 10px;font-size:12px}
   .tabbar button{flex:1;border:0;background:transparent;padding:9px 4px 8px;font-size:12px;color:var(--muted)}.tabbar button.active{color:var(--ink);font-weight:600}
+  .cvFilters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.cvList{display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow:auto;padding:2px}.cvMsg{background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:8px 10px;font-size:13px;max-width:92%}.cvMsg.mine{align-self:flex-end;background:#eef3fb;border-color:#c7d6ee}.cvMsg.task{border-left:5px solid #eb6834}.cvMsg.note{border-left:5px solid #1c3d6b}.cvMsg.flash{animation:cvFlash 1.6s}@keyframes cvFlash{0%{background:#fff3c4}100%{background:var(--surface)}}.cvHead{font-size:11.5px;color:var(--ink2);margin-bottom:3px}.cvText{white-space:pre-wrap;line-height:1.35}.cvPh{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.cvPh img{width:88px;height:66px;object-fit:cover;border-radius:6px;border:1px solid var(--line);cursor:zoom-in}.cvTask{font-size:12.5px;margin-bottom:4px}.cvTask .tag{display:inline-block;background:#eb6834;color:#fff;border-radius:999px;padding:1px 8px;font-weight:700;font-size:11px}.cvTask.done .tag{background:#0ca30c}.cvComposer{margin-top:8px}.cvChips{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px}.lnk{border:0;background:none;color:#1c3d6b;cursor:pointer;font-size:inherit;padding:0}.lnk.dim{color:var(--muted)}
+  .admHead{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:6px 2px 8px;flex-wrap:wrap}.admAcc{border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;margin:6px 0;background:var(--surface)}.admAcc.off{opacity:.65}.admWho{font-size:13px;margin-bottom:6px}.admRow{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px;font-size:12px}.admRow label{display:inline-flex;align-items:center;gap:4px}.admRow select.f{padding:4px 6px;font-size:12px;width:auto;min-width:120px}.admM td,.admM th{font-size:11.5px;padding:3px 5px}.admM .ok{color:#0ca30c;font-weight:800}.admM .ko{color:#d03b3b}
   .doeParts{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:6px;margin:6px 0}.doeCk{display:flex;gap:8px;align-items:flex-start;padding:7px 9px;border:1.5px solid var(--line);border-radius:10px;cursor:pointer;background:var(--surface)}.doeCk input{margin-top:3px}.doeCk:has(input:checked){background:#f2fbf2;border-color:#9fd49f}.doeOpts{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:8px 0 4px}.doeOpts .f{min-width:120px}
   .backdrop{position:absolute;inset:0;background:rgba(0,0,0,.28);display:none;z-index:20}.backdrop.show{display:block}
   .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:18px 18px 0 0;max-height:82%;overflow:auto;transform:translateY(105%);transition:transform .22s ease;z-index:30;padding:6px 14px 20px;box-shadow:0 -6px 30px rgba(0,0,0,.15)}
@@ -272,9 +274,11 @@
       <div class="base">Suivi de soudage & manchonnage<br>des réseaux de chaleur</div>
       <div class="loginCard">
         <label>CONNEXION</label>
-        <input id="loginEmail" type="email" inputmode="email" autocomplete="email" placeholder="prenom@entreprise.fr">
-        <button class="go" id="loginGo">Recevoir le lien de connexion</button>
-        <div class="hint2" id="loginHint">Pas de mot de passe : un lien sécurisé arrive par e-mail.<br>Compte activé par le chef de chantier.</div>
+        <input id="loginEmail" type="email" inputmode="email" autocomplete="username" placeholder="prenom.nom@scr.fr">
+        <input id="loginPwd" type="password" autocomplete="current-password" placeholder="mot de passe" style="margin-top:6px">
+        <button class="go" id="loginGo">Se connecter</button>
+        <div style="display:flex;gap:6px;margin-top:6px"><button class="btn sm" id="loginFirst" style="flex:1">Première connexion : créer mon mot de passe</button><button class="btn sm" id="loginOtp" style="flex:1">Code par e-mail</button></div>
+        <div class="hint2" id="loginHint">Ton accès a été créé par l'administrateur avec ton e-mail. Première fois : choisis ton mot de passe. Sans mot de passe : un code arrive par e-mail.</div>
       </div>
       <a href="#" id="loginSkip" style="font-size:12px;color:var(--ink2);margin-top:6px">Continuer hors connexion (chantiers de cet appareil)</a>
       <div class="loginFoot">SCR — Soudure Construction Réseaux</div>
@@ -284,7 +288,7 @@
     <div class="homeHead"><span id="homeLogo"></span><b>TRACÉ</b><div class="who" id="homeWho"></div><button class="ava" id="homeAva">?</button></div>
     <div class="homeSub"><div class="t">Mes chantiers</div><div class="s" id="homeCount"></div></div>
     <div id="homeBanner" class="homeBanner" style="display:none"></div>
-    <div class="homeTabs"><button id="htMap">🗺 Carte</button><button id="htList">☰ Liste</button></div>
+    <div class="homeTabs"><button id="htMap">🗺 Carte</button><button id="htList">☰ Liste</button><button id="htAdmin" style="display:none">⚙ Administrateur</button></div>
     <div class="homeBody" id="homeBody"></div>
     <div class="resume" id="homeResume" style="display:none"></div>
     <div class="homeWait" id="homeWait"><div class="spin"></div><div id="homeWaitTxt">Chargement du chantier…</div><button class="btn" id="homeWaitCancel" style="margin-top:4px;padding:8px 18px">Annuler</button></div>
@@ -306,7 +310,7 @@
     <section id="view-plan" class="view active">
       <div class="plan-top" id="planPills" style="display:none"></div>
       <div class="canvas" id="canvas">
-        <svg id="svg" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="gSleeve" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6b6f76"/><stop offset=".35" stop-color="#3a3d42"/><stop offset="1" stop-color="#212327"/></linearGradient></defs><g id="world"><g id="map"></g><g id="bg"></g><g id="marG"></g><g id="net"></g><g id="markers"></g><g id="hydroG"></g><g id="tsG"></g><g id="dhG"></g><g id="stockG"></g><g id="phG"></g><g id="gps"></g></g></svg>
+        <svg id="svg" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="gSleeve" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6b6f76"/><stop offset=".35" stop-color="#3a3d42"/><stop offset="1" stop-color="#212327"/></linearGradient></defs><g id="world"><g id="map"></g><g id="bg"></g><g id="marG"></g><g id="net"></g><g id="markers"></g><g id="hydroG"></g><g id="tsG"></g><g id="dhG"></g><g id="stockG"></g><g id="convG"></g><g id="phG"></g><g id="gps"></g></g></svg>
         <div class="legend" id="legend"></div>
         <div class="zoominfo" id="zoominfo"></div>
         <div class="disp" id="disp"></div><div class="mapcredit" id="mapcredit">© IGN — Géoplateforme</div>
@@ -330,8 +334,9 @@
     <section id="view-ts" class="view"><div class="pad" id="tsview"></div></section>
     <section id="view-catalogue" class="view"><div class="pad" id="catalogue"></div></section>
     <section id="view-export" class="view"><div class="pad" id="exportview"></div></section>
+    <section id="view-conv" class="view"><div class="pad" id="convview"></div></section>
   </main>
-  <nav class="tabbar" id="tabbar"><button data-tab="plan" class="active">Plan d'ensemble</button><button data-tab="bouclage">DH</button><button data-tab="hydro">Hydro</button><button data-tab="stock">Stock</button><button data-tab="phasage">Phasage</button><button data-tab="ts">Modifs</button><button data-tab="liste">Liste</button><button data-tab="recap">Récap</button><button data-tab="catalogue">Catalogue</button><button data-tab="export">Export</button></nav>
+  <nav class="tabbar" id="tabbar"><button data-tab="plan" class="active">Plan d'ensemble</button><button data-tab="bouclage">DH</button><button data-tab="hydro">Hydro</button><button data-tab="stock">Stock</button><button data-tab="phasage">Phasage</button><button data-tab="ts">Modifs</button><button data-tab="conv">Conversation</button><button data-tab="liste">Liste</button><button data-tab="recap">Récap</button><button data-tab="catalogue">Catalogue</button><button data-tab="export">Export</button></nav>
   <div class="backdrop" id="backdrop"></div><div class="sheet" id="sheet"></div><div class="modal" id="modal"></div><div class="toast" id="toast"></div><div class="toolpanel" id="toolPanel" style="display:none"></div>
 </div>
 <script type="module" src="./src/app.js"></script>
