@@ -1,0 +1,31 @@
+// captures : onglet Administrateur v2 (Personnes / Postes par poste / Tableau / Qui peut quoi / Plusieurs d'un coup) — téléphone (430) et ordinateur large (1200)
+import { chromium } from 'playwright';
+const BASE=process.env.BASE||'http://localhost:8765';
+const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
+const ctx=await browser.newContext({viewport:{width:430,height:900}});const page=await ctx.newPage();page.on('dialog',d=>d.accept().catch(()=>{}));
+await page.goto(BASE+'/traceur.html');await page.waitForTimeout(500);await page.evaluate(()=>{localStorage.clear();});await page.reload();await page.waitForTimeout(500);
+await page.evaluate(()=>{const S=window.MAQ.state;S.supplier='RENALIA';S.lines=[{id:'L1',name:'Rue de la Gare',dn:150,bar:12,pts:[[10,50],[130,50]],specials:[{id:'v1',type:'valve',m:40}],parent:null}];S.seq=2;window.MAQ.setMode('select');window.MAQ.rebuild();});
+await page.click('#bSave');await page.waitForTimeout(200);await page.fill('#svName','Sous-station Mairie');await page.click('#svOk');await page.waitForTimeout(700);await page.click('#svGo');await page.waitForTimeout(1500);await page.selectOption('#roleSel','ethan');await page.waitForTimeout(300);
+await page.evaluate(async()=>{const A=window.TRACE.acces;const L=[['Karim','BENALI','karim.benali@scr-soudure.fr','soudeur'],['Julien','ROUX','julien.roux@scr-soudure.fr','manchonneur'],['Sophie','MARTIN','sophie.martin@scr-soudure.fr','charge_affaires'],['Nadia','KHELIFI','nadia.khelifi@scr-soudure.fr','assist_rh'],['Marc','DUPONT','marc.dupont@scr-soudure.fr','conducteur'],['Léa','BERNARD','lea.bernard@scr-soudure.fr','referent_magasin'],['Yann','LE GALL','yann.legall@scr-soudure.fr','dir_technique']];
+  for(const [prenom,nom,email,poste] of L)await A.create({prenom,nom,email,poste});
+  await A.create({prenom:'Mehdi',nom:'Interim',email:'mehdi.interim@gmail.com',poste:'soudeur',type:'interim',sites:[window.TRACE.state.siteId]});await A.create({prenom:'Claire',nom:'Dupont',email:'c.dupont@moe-client.fr',poste:'visiteur'});
+  const r=await A.list();const m=r.rows.find(x=>x.email==='mehdi.interim@gmail.com');await A.update(m,{rights:{'export.doe':true}});});
+await page.evaluate(()=>{window.TRACE.showScreen('home');window.TRACE.state.homeTab='admin';window.TRACE.renderHome();});await page.waitForTimeout(700);
+await page.screenshot({path:'shot_acces2_people.png'});
+await page.evaluate(()=>[...document.querySelectorAll('#homeBody [data-av]')].find(b=>b.dataset.av==='postes').click());await page.waitForTimeout(300);
+await page.screenshot({path:'shot_acces2_postes.png'});
+await page.evaluate(()=>[...document.querySelectorAll('#homeBody [data-av]')].find(b=>b.dataset.av==='who').click());await page.waitForTimeout(300);
+await page.screenshot({path:'shot_acces2_who.png'});
+// ordinateur large
+await page.setViewportSize({width:1200,height:900});await page.evaluate(()=>{window.TRACE.showScreen('home');window.TRACE.renderHome();});await page.waitForTimeout(300);await page.click('#homeWide');await page.waitForTimeout(400);
+await page.evaluate(()=>{window.TRACE.state.homeTab='admin';window.TRACE.renderHome();});await page.waitForTimeout(700);await page.evaluate(()=>[...document.querySelectorAll('#homeBody [data-av]')].find(b=>b.dataset.av==='people').click());await page.waitForTimeout(300);
+await page.screenshot({path:'shot_acces2_wide_people.png'});
+await page.evaluate(()=>[...document.querySelectorAll('#homeBody [data-av]')].find(b=>b.dataset.av==='postes').click());await page.waitForTimeout(300);
+await page.evaluate(()=>[...document.querySelectorAll('#homeBody [data-pv]')].find(b=>b.dataset.pv==='table').click());await page.waitForTimeout(300);
+await page.screenshot({path:'shot_acces2_wide_table.png'});
+await page.evaluate(()=>[...document.querySelectorAll('#homeBody [data-av]')].find(b=>b.dataset.av==='people').click());await page.waitForTimeout(300);
+await page.click('#admBulk');await page.waitForTimeout(200);
+await page.fill('#ab-txt',"Karim BENALI ; karim.benali@scr-soudure.fr ; soudeur\nAmine SAIDI\tamine.saidi@gmail.com\tmanchonneur intérimaire\nPaul DURAND ; paul.durand@scr-soudure.fr ; Responsable flotte\nLucie ; lucie@scr-soudure.fr");
+await page.click('#ab-parse');await page.waitForTimeout(300);
+await page.screenshot({path:'shot_acces2_wide_bulk.png'});
+await browser.close();console.log('ok');
