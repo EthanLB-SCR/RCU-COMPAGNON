@@ -2582,6 +2582,7 @@ async function openUsersModal(){const rows=await sync.listProfiles();if(!rows.le
    <div class="actions" style="margin-top:8px"><button class="btn block" data-close>Fermer</button></div>`);
   $('#modal').querySelectorAll('[data-uid]').forEach(el=>{el.addEventListener('change',async()=>{const uid=el.dataset.uid;const row=rows.find(r=>r.id===uid);if(!row)return;const role=$('#modal').querySelector(`select[data-uid="${uid}"]`).value;const active=$('#modal').querySelector(`input[data-uid="${uid}"]`).checked;const err=await sync.adminSetUser(uid,role,active);toast(err?('Refusé : '+err):'Compte mis à jour');});});}
 sync.onAuth(async u=>{state.cloudUser=u;if(u){state.profile=await sync.profile();if(state.profile){state.userId='__me';}}else{state.profile=null;if(state.userId==='__me')state.userId=USERS[0].id;}syncRoleSel();renderCloud();
+  if(u&&state.screen==='login'){showScreen('home');renderHome();} // connexion par mot de passe (08/10) : pas de rechargement de page comme avec le lien e-mail → on quitte l'écran de connexion ici
   if(u){rtSubscribe(state.siteId);pullRemote(state.siteId);
     // liste LÉGÈRE des chantiers du serveur (métas) — les plans complets ne sont chargés qu'à l'ouverture
     let metas=null;try{metas=await sync.listSiteMeta();}catch(e){console.warn(e);}
@@ -2789,12 +2790,12 @@ const loginEm=()=>{const em=($('#loginEmail').value||'').trim();if(!em||!em.incl
 const loginErr=e=>{const m=String(e&&e.message||e||'');return /invalid login/i.test(m)?'E-mail ou mot de passe incorrect.':/email not confirmed/i.test(m)?'Adresse pas encore confirmée : ouvre le mail reçu, puis reconnecte-toi.':/already registered/i.test(m)?'Un compte existe déjà avec cet e-mail : connecte-toi avec ton mot de passe (ou « Code par e-mail »).':/password/i.test(m)&&/6|short|weak/i.test(m)?'Mot de passe trop court (6 caractères minimum).':m||'Impossible (hors ligne ?)';};
 $('#loginGo').addEventListener('click',async()=>{const em=loginEm();if(!em)return;const pw=$('#loginPwd').value||'';if(!pw){$('#loginHint').innerHTML='<b>Mot de passe manquant.</b> Première fois ? « Créer mon mot de passe ». Sans mot de passe : « Code par e-mail ».';return;}
   $('#loginGo').disabled=true;$('#loginHint').textContent='Connexion…';
-  try{await sync.loginPassword(em,pw);$('#loginHint').innerHTML='<b>Connecté ✓</b>';}
+  try{await sync.loginPassword(em,pw);$('#loginHint').innerHTML='<b>Connecté ✓</b>';showScreen('home');renderHome();}
   catch(e){$('#loginHint').innerHTML='<b>'+esc(loginErr(e))+'</b>';}
   $('#loginGo').disabled=false;});
 $('#loginFirst').addEventListener('click',async()=>{const em=loginEm();if(!em)return;const pw=$('#loginPwd').value||'';if(pw.length<6){$('#loginHint').innerHTML='<b>Choisis un mot de passe</b> (6 caractères minimum) dans la case, puis retouche ce bouton.';$('#loginPwd').focus();return;}
   $('#loginFirst').disabled=true;$('#loginHint').textContent='Création du compte…';
-  try{const r=await sync.signUp(em,pw);$('#loginHint').innerHTML=r&&r.needsConfirm?'<b>Compte créé ✓</b><br>Un e-mail de confirmation vient de partir : ouvre-le, puis connecte-toi avec ton mot de passe.':'<b>Compte créé ✓</b> — connecté.';}
+  try{const r=await sync.signUp(em,pw);$('#loginHint').innerHTML=r&&r.needsConfirm?'<b>Compte créé ✓</b><br>Un e-mail de confirmation vient de partir : ouvre-le, puis connecte-toi avec ton mot de passe.':'<b>Compte créé ✓</b> — connecté.';if(r&&!r.needsConfirm){showScreen('home');renderHome();}}
   catch(e){$('#loginHint').innerHTML='<b>'+esc(loginErr(e))+'</b>';}
   $('#loginFirst').disabled=false;});
 $('#loginOtp').addEventListener('click',async()=>{const em=loginEm();if(!em)return;$('#loginOtp').disabled=true;$('#loginHint').textContent='Envoi du lien…';
