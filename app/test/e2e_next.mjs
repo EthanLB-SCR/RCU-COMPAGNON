@@ -81,10 +81,10 @@ const tabAfter=await page.evaluate(()=>{document.getElementById('doe-go').click(
 await page.waitForTimeout(300);
 const [pop2]=await Promise.all([page.waitForEvent('popup'),page.evaluate(()=>document.getElementById('doeCarnet').click())]);
 await pop2.waitForLoadState('domcontentloaded');
-out=await pop2.evaluate(()=>({t:/Carnet de soudage et manchonnage/.test(document.body.textContent),w:/S-\d{4}/.test(document.body.textContent),soudee:/TIG/.test(document.body.textContent),img:!!document.querySelector('img'),plan:!!document.querySelector('svg.mini'),planche:/Planche/.test(document.body.textContent)}));
+out=await pop2.evaluate(()=>({t:/Carnet de soudage et manchonnage/.test(document.body.textContent),w:/S-\d{4}/.test(document.body.textContent),soudee:/TIG/.test(document.body.textContent),noImg:!document.querySelector('img'),table:document.querySelectorAll('tbody tr').length>0,planche:/Planche/.test(document.body.textContent)})); // 08/10 : carnet = une table par n°, sans photos (elles sont dans le dossier Photos)
 await pop2.close();out.tabAfter=tabAfter;
 console.log('5) carnet DOE généré depuis l\'onglet Export:',JSON.stringify(out));
-const c5=out.t&&out.w&&out.soudee&&out.img&&out.plan&&out.planche&&tabAfter==='export';
+const c5=out.t&&out.w&&out.soudee&&out.noImg&&out.table&&out.planche&&tabAfter==='export';
 // ── 6) le panneau « Nouveautés » existe sur la home (1/3 actives — QSE, TS, barre allégée et Export DOE définitifs hors liste ; admin allumé ici, pointage et profil éteints)
 await page.evaluate(()=>{window.TRACE.showScreen&&window.TRACE.showScreen('home');window.TRACE.renderHome&&window.TRACE.renderHome();});
 await page.waitForTimeout(400);

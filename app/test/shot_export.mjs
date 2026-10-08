@@ -39,6 +39,9 @@ const vp=await ctx.newPage();await vp.setViewportSize({width:1300,height:850});a
 await vp.screenshot({path:'shot_export_viewer_home.png'});
 await vp.evaluate(()=>{const w=window.VIEW.data.welds.find(x=>x.extru)||window.VIEW.data.welds.find(x=>x.doc);window.VIEW.select(w.id);});await vp.waitForTimeout(500);
 await vp.screenshot({path:'shot_export_viewer_weld.png'});
+await vp.evaluate(()=>window.VIEW.showView('fils'));await vp.waitForTimeout(400);await vp.screenshot({path:'shot_export_viewer_fils.png'});
+await vp.evaluate(()=>window.VIEW.showView('carnet'));await vp.waitForTimeout(400);await vp.screenshot({path:'shot_export_viewer_carnet.png'});
 await vp.close();
+const bou=await page.evaluate(()=>window.TRACE.doe.fils(window.TRACE.doe.data()).html);fs.writeFileSync('/tmp/site/_fils.html',bou);const bp=await ctx.newPage();await bp.setViewportSize({width:1587,height:1123});await bp.goto(BASE+'/_fils.html');await bp.waitForTimeout(600);await bp.screenshot({path:'shot_export_fils.png'});await bp.pdf({path:'shot_export_fils.pdf',preferCSSPageSize:true,printBackground:true}).catch(()=>{});await bp.close();
 console.log('viewer bytes:',viewer.length,'carnet bytes:',carnet.length,'plan bytes:',plan.html.length);
 console.log(logs.length?logs:'[]');await browser.close();
