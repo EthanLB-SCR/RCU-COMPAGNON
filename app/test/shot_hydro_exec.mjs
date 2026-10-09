@@ -9,11 +9,14 @@ await page.click('#bSave');await page.waitForTimeout(200);await page.fill('#svNa
 const ph=(txt,c)=>`data:image/svg+xml;utf8,`+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240"><rect width="320" height="240" fill="${c}"/><circle cx="160" cy="120" r="80" fill="#fff"/><text x="100" y="128" font-size="24" font-family="sans-serif">${txt}</text></svg>`);
 const photos=[ph('20,8 bar','#2f3b4a'),ph('20,7 bar','#2f3b4a')];
 await page.evaluate((photos)=>{const T=window.TRACE;T.state.tab='hydro';T.renderAll();const h=T.net.hydro;h.prest.rincage=true;
-  h.exec={0:{epreuve:{date:'2026-10-08',debut:'08:30',fin:'09:45',equipe:'Karim B., Sofiane K.',chef:'Ethan L.',temoin:'M. Durand (MOE)',ps:'16',pe:'20,8',pDebut:'20,8',pFin:'20,7',duree:'60',chuteAdm:'0,2',tEau:'12',mano:'MN-07 étal. 03/2026',obs:'RAS',photos,result:'',operateur:'Ethan L.',at:new Date().toISOString()}}};
+  h.exec={0:{epreuve:{date:'2026-10-08',equipe:'Karim B., Sofiane K.',chef:'Ethan L.',temoin:'M. Durand (MOE)',pe:'20,8',chuteAdm:'0,2',dureeReq:'2',debut:{h:'08:30',p:'20,8',tEau:'12',tAmb:'15',photos:[photos[0]]},fin:{h:'10:30',p:'20,7',tEau:'12',tAmb:'17',photos:[photos[1]]},dureeH:'2',obs:'RAS',photos:[],result:'',operateur:'Ethan L.',at:new Date().toISOString()}}};
+  T.net.admin={docs:[{id:'D1',cat:'epreuves',name:'courbe_mano_T1.pdf',size:1200,data:'data:application/pdf;base64,JVBERi0xLjQ=',by:'Ethan L.',at:new Date().toISOString(),hydro:{t:0,kind:'epreuve'},note:'Export manomètre — Épreuve hydraulique — tronçon 1'}]};
   T.renderAll();const sec=[...document.querySelectorAll('#hydro h3')].find(x=>/Exécution/.test(x.textContent));sec.scrollIntoView();},photos);
 await page.waitForTimeout(400);await page.screenshot({path:'shot_hydro_exec_section.png'});
-await page.evaluate(()=>document.querySelector('#hydro [data-hxedit="0"][data-hxkind=rincage]').click());await page.waitForTimeout(400);
+await page.evaluate(()=>document.querySelector('#hydro [data-hxedit="0"][data-hxkind=epreuve]').click());await page.waitForTimeout(400);
 await page.screenshot({path:'shot_hydro_exec_modal.png'});
+await page.evaluate(()=>{const b=document.querySelector('#modal .box');b.scrollTop=b.scrollHeight*.45;});await page.waitForTimeout(200);await page.screenshot({path:'shot_hydro_exec_modal2.png'});
+await page.evaluate(()=>{const b=document.querySelector('#modal .box');b.scrollTop=b.scrollHeight;});await page.waitForTimeout(200);await page.screenshot({path:'shot_hydro_exec_modal3.png'});
 await page.evaluate(()=>document.getElementById('modal').classList.remove('show'));
 const popup=page.waitForEvent('popup');await page.evaluate(()=>document.querySelector('#hyExecReport').click());const pop=await popup;await pop.waitForLoadState('domcontentloaded');await pop.setViewportSize({width:900,height:1200});await page.waitForTimeout(500);
 await pop.screenshot({path:'shot_hydro_exec_pv.png',fullPage:true});await pop.close();

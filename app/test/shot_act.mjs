@@ -19,4 +19,9 @@ await page.evaluate(()=>{document.querySelector('.zoomctl [data-z=act]').click()
 await page.screenshot({path:'shot_act_panel.png'});
 await page.evaluate(()=>{document.querySelector('#actWho').value='Karim B.';document.querySelector('#actWho').dispatchEvent(new Event('change'));window.TRACE.act.toggle(false);});await page.waitForTimeout(400);
 await page.screenshot({path:'shot_act_plan.png'});
+// dézoomé (vue d'ensemble, aucune pastille) : bandes des zones travaillées + points sur les soudures (Ethan 09/10 : « dézoomé on voit pas »)
+await page.evaluate(()=>{const T=window.TRACE;document.querySelector('#actWho').value='';document.querySelector('#actWho').dispatchEvent(new Event('change'));T.act.toggle(false);T.state.view.k=2.6;T.centerOn(70,68);});await page.waitForTimeout(400);
+await page.screenshot({path:'shot_act_far.png'});
+await page.evaluate(()=>{const T=window.TRACE;T.state.view.k=7;T.centerOn(60,60);});await page.waitForTimeout(400);
+await page.screenshot({path:'shot_act_mid.png'});
 await browser.close();console.log('ok');
