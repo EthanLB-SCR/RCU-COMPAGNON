@@ -74,7 +74,7 @@ export const PERMS=[
  ['team.view','Voir l\'équipe (noms, postes)','Équipe'],
 ];
 export const STEP_PERMS=['weld.step1','weld.step2','weld.step3','weld.step4'];
-export const PENDING=new Set(['plan.view','dh.measure','pointage.self','pointage.validate','qse.sign','team.view']); // déclarés, pas encore vérifiés par l'appli (prévus) — dit tel quel dans l'onglet
+export const PENDING=new Set([]); // 09/10 : tous les droits déclarés sont appliqués (plan.view à l'ouverture, dh.measure sur les états DH, pointage.*, qse.sign / manage, team.view sur la liste des personnes)
 const GROUPS=[...new Set(PERMS.map(p=>p[2]))];
 const ALL=Object.fromEntries(PERMS.map(([k])=>[k,true]));
 const pick=(...ks)=>Object.fromEntries(PERMS.map(([k])=>[k,ks.includes(k)]));

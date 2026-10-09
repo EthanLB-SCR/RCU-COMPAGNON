@@ -167,8 +167,21 @@ const c15c=out.ok&&cut2.imp&&cut2.h10;
 await mkSite('LOGSTOR','Tee LOGSTOR y-',-1);
 out=await sideChk();console.log('15d) LOGSTOR, antenne y− : c\'est l\'ÉTAMÉ qui est côté branche et plonge:',JSON.stringify(out));
 const c15d=out.ok&&[...await page.evaluate(()=>[...document.querySelectorAll('[data-wtee]')].map(p2=>p2.getAttribute('stroke')))].every(s2=>s2==='#dfe4ea');
-const ALL=c1&&c2&&c3&&c4&&c5&&c6&&c7&&c8&&c9&&c10&&c11&&c12&&c13&&c14&&c15a&&c15b&&c15c&&c15d;
-console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15a,c15b,c15c,c15d}));
+// ── 16) DOE (09/10, Ethan : « fais comme sur le plan d'ensemble pour les fils dans les tés, exactement la même logique ») : dans le plan DOE le fil qui plonge (étamé chez LOGSTOR) est coupé au pied de la branche,
+//        raccords « wteec » et brins le long de la branche, l'autre fil traverse ; antenne bouclée à sa tête → U « wteeu » ; le té tourné ⤓ → fils en pointillé
+out=await page.evaluate(()=>{const T=window.TRACE;const D=T.doe.data();const sh=D.sheets[0];const w=T.doe.world(D,sh.id,{s:.2,wires:true});const g=w.svg;const wires=(g.match(/<g class="wires">([\s\S]*?)<\/g>/)||['',''])[1];
+  const tee=D.lines.flatMap(l=>Object.values(l.conds).flatMap(cd=>cd.els)).find(e=>e.kind==='tee'&&e.branch);
+  const planC=document.querySelectorAll('[data-wteec]').length;
+  return {tee:!!tee,teeWire:tee&&tee.tee&&tee.tee.wire,mode:tee&&tee.tee&&tee.tee.mode,wteec:(wires.match(/class="wteec"/g)||[]).length,wteeu:(wires.match(/class="wteeu"/g)||[]).length,planC,colors:[...new Set((wires.match(/stroke="#[0-9a-f]{6}"/g)||[]))].length};});
+console.log('16) DOE : fils dans les tés comme le plan :',JSON.stringify(out));
+const c16=out.tee&&out.teeWire==='E'&&out.wteec>=2&&out.planC>=2&&out.colors>=2; /* étamé + cuivré (le liseré #111 est en 3 chiffres) */
+// la même chose en antenne BOUCLÉE à sa tête (cas S-2505) : le DOE dessine le U au manchon de sortie
+await page.evaluate(()=>{const T=window.TRACE;const ant=Object.values(T.lines).find(l=>l.parent);const j=ant&&ant.cond.A.joints[0];if(j){j.loopA=true;j.status='manchonnee';}T.renderAll();});await page.waitForTimeout(300);
+out=await page.evaluate(()=>{const T=window.TRACE;const D=T.doe.data();const w=T.doe.world(D,D.sheets[0].id,{s:.2,wires:true});const wires=(w.svg.match(/<g class="wires">([\s\S]*?)<\/g>/)||['',''])[1];const ant=D.lines.find(l=>l.parent);return {mode:ant&&ant.antMode&&ant.antMode.A,wteeu:(wires.match(/class="wteeu"/g)||[]).length,planU:document.querySelectorAll('[data-wteeu]').length};});
+console.log('16b) antenne bouclée : U dans le DOE comme sur le plan :',JSON.stringify(out));
+const c16b=out.mode==='boucle'&&out.wteeu>=1&&out.planU>=1;
+const ALL=c1&&c2&&c3&&c4&&c5&&c6&&c7&&c8&&c9&&c10&&c11&&c12&&c13&&c14&&c15a&&c15b&&c15c&&c15d&&c16&&c16b;
+console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15a,c15b,c15c,c15d,c16,c16b}));
 console.log(logs.length?logs:'[]');
 await browser.close();
 process.exit(ALL?0:1);

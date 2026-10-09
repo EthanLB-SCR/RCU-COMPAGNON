@@ -38,8 +38,8 @@ export function ptProd(name,day,lines){const out={soud:0,fils:0,manch:0,mousse:0
     if(st[2]&&st[2].done&&by(st[2].by)&&sameDay(st[2].at))out.fils++;if(st[3]&&st[3].done&&by(st[3].by)&&sameDay(st[3].at))out.manch++;if(st[4]&&st[4].done&&by(st[4].by)&&sameDay(st[4].at))out.mousse++;
     (j.events||[]).forEach(ev=>{if(ev.type==='controle'&&by(ev.by)&&sameDay(ev.at))out.ctrl++;});});}));return out;}
 const prodTxt=p=>[p.soud?p.soud+' soudure'+(p.soud>1?'s':''):'',p.fils?p.fils+' fils':'',p.manch?p.manch+' manchon'+(p.manch>1?'s':''):'',p.mousse?p.mousse+' moussage'+(p.mousse>1?'s':''):'',p.ctrl?p.ctrl+' contrôle'+(p.ctrl>1?'s':''):''].filter(Boolean).join(' · ')||'—';
-const isMgr=()=>{const r=A.role();return r==='chef'||r==='bureau'||r==='conducteur';};
-const isLvl2=()=>{const r=A.role();return r==='conducteur'||r==='bureau';};
+const isMgr=()=>{if(A.can&&!A.can('pointage.validate'))return false;const r=A.role();return r==='chef'||r==='bureau'||r==='conducteur';}; // 09/10 : droit « valider les pointages » appliqué (plus seulement le rôle)
+const isLvl2=()=>{if(A.can&&!A.can('pointage.validate'))return false;const r=A.role();return r==='conducteur'||r==='bureau';};
 const ST_LAB={declare:['Déclaré','#8a6d1f','#fff3d6'],chef:['Validé chef','#1c3d6b','#eef3fb'],valide:['Validé','#1d5c1d','#e6f6e6'],refuse:['Refusé — corrigé','#a01212','#fdecec']};
 export function renderPointage(){const el=document.getElementById('pointage');if(!el)return;const P=ptOf();const esc=A.esc;const me=A.userName();
   if(!P){el.innerHTML='<h2 class="vt">Pointage</h2><div class="card muted">Ouvre un chantier.</div>';return;}
@@ -47,7 +47,8 @@ export function renderPointage(){const el=document.getElementById('pointage');if
   const locTxt=l=>l?`📍 ${l.lat}, ${l.lon} (± ${l.acc} m)`:'📍 sans position';
   const BTN=(t,lab,cls)=>`<button class="btn ${cls||''}" data-pt="${t}" style="flex:1;min-width:140px;padding:12px 10px;font-size:14px">${lab}</button>`;
   let acts='';
-  if(day!==today())acts='<p class="hint">Les boutons ne servent que pour aujourd\'hui — pour une autre date, le chef déclare après coup.</p>';
+  if(A.can&&!A.can('pointage.self'))acts='<p class="hint">Ton compte ne pointe pas (droit « pointer sa journée » non donné).</p>'; /* 09/10 : droit appliqué */
+  else if(day!==today())acts='<p class="hint">Les boutons ne servent que pour aujourd\'hui — pour une autre date, le chef déclare après coup.</p>';
   else if(st==='off')acts=BTN('start','▶ Début de journée','primary')+(A.state.ptAwayFrom?BTN('arrive','📍 Arrivée sur ce chantier','primary'):'');
   else if(st==='work')acts=BTN('pause','⏸ Pause')+BTN('leave','🚚 Départ du chantier')+BTN('end','⏹ Fin de journée','primary');
   else if(st==='pause')acts=BTN('resume','▶ Reprise','primary')+BTN('end','⏹ Fin de journée');

@@ -150,5 +150,19 @@ console.log('9) affichage large depuis l\'accueil :',JSON.stringify(out));C.c9=o
 // ── 10) tout est gardé sur l'appareil après rechargement (démo) : comptes, ajustements, ★
 out=await page.evaluate(async()=>{const r=await window.TRACE.acces.list();return {n:r.rows.length,mehdi:r.rows.some(x=>x.email==='mehdi.interim@gmail.com'&&x.rights&&x.rights['export.doe']===true),julieAdmin:r.rows.some(x=>x.email==='julie.martin@scr-soudure.fr'&&x.admin),moeOff:r.rows.some(x=>x.email==='moe@client.fr'&&!x.active)};});
 console.log('10) après rechargement :',JSON.stringify(out));C.c10=out.n===8&&out.mehdi&&out.julieAdmin&&out.moeOff;
+// ── 11) droits appliqués (09/10, plus de « prévus ◌ ») : écarts de poste posés sur l'appareil (miroir trace:posteRights) → soudeur sans dh.measure / qse.sign, chef sans team.view
+const SID11=await page.evaluate(()=>window.TRACE.state.siteId||localStorage.getItem('trace:lastSite'));
+await page.evaluate(()=>{localStorage.setItem('trace:posteRights',JSON.stringify({soudeur:{'dh.measure':false,'qse.sign':false},charge_affaires:{'team.view':false}}));}); /* Ethan L. (démo) est administrateur → tous les droits ; Sophie M. = chargée d'affaires */
+await page.reload();await page.waitForTimeout(1200);
+for(let i=0;i<6;i++){await page.evaluate(id=>window.TRACE.go(id),SID11);try{await page.waitForFunction(()=>window.TRACE.state.siteId&&window.TRACE.state.screen==='site'&&Object.keys(window.TRACE.lines).length>0,null,{timeout:4000});break;}catch(e){}}
+await page.selectOption('#roleSel','ethan');await page.waitForTimeout(200);
+out=await page.evaluate(()=>{const T=window.TRACE;const L=Object.values(T.lines)[0];const cd=L.cond.A;const i=cd.els.findIndex(e=>e.kind==='endcap'||e.kind==='endpoint');const r={pending:T.acces.PERMS.length,ei:i};if(i>=0){T.openEl(L.id,'A',i);r.dhBtnsChef=document.querySelectorAll('#sheet [data-dhend]').length;}
+  return r;});
+await page.selectOption('#roleSel','sophie');await page.waitForTimeout(200);
+out.s=await page.evaluate(()=>{const T=window.TRACE;T.state.tab='conv';T.renderAll();const tk=document.querySelector('#cvTask');if(tk&&!tk.checked)tk.click();return {to:document.querySelector('#cvTo')?document.querySelectorAll('#cvTo option').length:null,team:T.acces.can('team.view'),task:T.acces.can('conv.task')};});
+await page.selectOption('#roleSel','karim');await page.waitForTimeout(200);
+out.k=await page.evaluate(()=>{const T=window.TRACE;const L=Object.values(T.lines)[0];const cd=L.cond.A;const i=cd.els.findIndex(e=>e.kind==='endcap'||e.kind==='endpoint');const r={dh:T.acces.can('dh.measure'),qse:T.acces.can('qse.sign'),qseTab:T.tabAllowed('qse'),dhTab:T.tabAllowed('bouclage'),plan:T.acces.can('plan.view'),todo:T.qseTodo().length};if(i>=0){T.openEl(L.id,'A',i);r.dhBtns=document.querySelectorAll('#sheet [data-dhend]').length;}return r;});
+await page.evaluate(()=>localStorage.removeItem('trace:posteRights'));
+console.log('11) droits appliqués :',JSON.stringify(out));C.c11=out.ei>=0&&out.dhBtnsChef===3&&out.s.task&&out.s.to===1&&out.s.team===false&&out.k.dh===false&&out.k.qse===false&&out.k.qseTab===false&&out.k.dhTab===false&&out.k.plan===true&&out.k.todo===0&&out.k.dhBtns===0;
 const bad=Object.entries(C).filter(([k,v])=>!v).map(([k])=>k);console.log(bad.length?'RESULTAT: ECHEC '+bad.join(','):'RESULTAT: TOUT VERT');console.log(logs.length?logs:'[]');
 await browser.close();

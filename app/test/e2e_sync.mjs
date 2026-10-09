@@ -19,7 +19,14 @@ await ctx.route(u=>u.href.startsWith(SB),async route=>{const req=route.request()
   if(p==='/rest/v1/rpc/site_set_part'){let b={};try{b=JSON.parse(req.postData()||'{}');}catch(e){}rpcs.push('site_set_part '+b.p_key);
     if(V3==='absent')return json({code:'PGRST202',message:'Could not find the function public.site_set_part(p_key, p_site, p_value) in the schema cache',details:null,hint:null},404);
     if(V3==='refuse')return json({code:'P0001',message:'réservé au chef / bureau',details:null,hint:null},400);
-    const row=sites[b.p_site];if(!row)return json(null);row.data={...row.data,[b.p_key]:b.p_key==='elPos'?{...(row.data.elPos||{}),...(b.p_value||{})}:b.p_value};row.updated_at=new Date().toISOString();return json(row.updated_at);} /* comme le SQL v3 : elPos fusionné */
+    const row=sites[b.p_site];if(!row)return json(null);const old=row.data[b.p_key];let v=b.p_value;
+    /* comme le SQL v4 : fusion conv (par id, upd le plus récent), qse (docs par id + signatures réunies), undoLog (par id), elPos (||) ; renvoie {at,value} */
+    const newest=(a,c)=>((c.upd||c.at||'')>=(a.upd||a.at||''))?c:a;const byId=(A,B,pick)=>{const m=new Map();(A||[]).forEach(e=>e&&e.id&&m.set(e.id,e));(B||[]).forEach(e=>{if(!e||!e.id)return;m.set(e.id,m.has(e.id)?pick(m.get(e.id),e):e);});return [...m.values()].sort((x,y)=>String(x.at||'').localeCompare(String(y.at||''))||String(x.id).localeCompare(String(y.id)));};
+    if(b.p_key==='elPos')v={...(old||{}),...(b.p_value||{})};
+    else if(b.p_key==='conv')v={msgs:byId(old&&old.msgs,b.p_value&&b.p_value.msgs,newest),seq:Math.max(+(old&&old.seq)||1,+(b.p_value&&b.p_value.seq)||1)};
+    else if(b.p_key==='qse'){const docs=byId(old&&old.docs,b.p_value&&b.p_value.docs,(a,c)=>{const d={...newest(a,c)};const sg=new Map();[...(a.sigs||[]),...(c.sigs||[])].forEach(x=>sg.set(x.name+'|'+x.at,x));d.sigs=[...sg.values()].sort((x,y)=>String(x.at).localeCompare(String(y.at)));return d;});v={...(b.p_value||old||{}),docs};}
+    else if(b.p_key==='undoLog')v=byId(old,b.p_value,(a,c)=>c);
+    row.data={...row.data,[b.p_key]:v};row.updated_at=new Date().toISOString();return json({at:row.updated_at,value:v});}
   if(p.startsWith('/rest/v1/rpc/'))return json(null);
   if(p==='/rest/v1/sites'){const sel=u.searchParams.get('select')||'';const m=/id=eq\.([^&]+)/.exec(u.search);const id=m?decodeURIComponent(m[1]):null;
     if(req.method()==='POST'){let b={};try{b=JSON.parse(req.postData()||'{}');}catch(e){}const rows=Array.isArray(b)?b:[b];const prefer=req.headers()['prefer']||'';
@@ -96,5 +103,18 @@ try{await page.waitForFunction(()=>window.TRACE&&window.TRACE.state.cloudUser&&w
 await page.waitForTimeout(2500);
 out={rots:await rotOf(),srv:srvElPos(),srvConv:((sites[SID].data.conv||{}).msgs||[]).map(m=>m.id).join(','),local:await page.evaluate(()=>{const T=window.TRACE;return {conv:((T.net.conv||{}).msgs||[]).map(m=>m.id).join(','),elPos:Object.keys(T.net.elPos||{}).length,pending:T.syncPending()};}),posts:calls.filter(c=>/^POST \/rest\/v1\/sites/.test(c)).length-posts0,sent:!!(sites[SID].data.traceur&&sites[SID].data.traceur.savedAt)};
 console.log('6) reprise du traceur :',JSON.stringify(out));C.c6=out.rots[1]===90&&out.rots[6]===180&&out.rots[7]===45&&out.rots[8]===90&&out.srv===7&&out.srvConv==='X1,X2'&&out.local.conv==='X1,X2'&&out.local.elPos===7&&out.posts>=1&&out.sent;
+// ── 7) conversation à plusieurs (SQL v4) : Paul poste depuis son téléphone pendant que notre copie est périmée → nos deux messages ET le sien sont sur le serveur, et le sien apparaît chez nous tout de suite (valeur fusionnée reprise)
+{const r=sites[SID];const at=new Date().toISOString();r.data.conv={...r.data.conv,msgs:[...r.data.conv.msgs,{id:'X3',at,upd:at,by:'Paul D.',text:'Nacelle réservée pour jeudi',photos:[],pos:null,kind:'msg',cat:'materiel'}],seq:4};}
+await page.evaluate(()=>{const T=window.TRACE;T.state.tab='conv';T.renderAll();T.state.convDraft={text:'Barrières remises côté école',photos:[],pos:null,line:null,pk:null,near:null,task:null,to:'tous',cat:'balisage'};T.conv.render();document.querySelector('#cvSend').click();});await page.waitForTimeout(2600);
+out=await page.evaluate(()=>{const T=window.TRACE;const C=T.net.conv;const ids=C.msgs.map(m=>m.id);const mine=C.msgs.find(m=>/Barrières remises/.test(m.text));return {ids,hasX3:ids.includes('X3'),mineUpd:!!(mine&&mine.upd),idLen:mine&&mine.id.length,listed:[...document.querySelectorAll('#cvList .cvMsg')].some(c=>/Nacelle réservée/.test(c.textContent)),pending:T.syncPending()};});
+out.srvIds=((sites[SID].data.conv||{}).msgs||[]).map(m=>m.id);
+console.log('7) conversation fusionnée :',JSON.stringify(out));C.c7=out.hasX3&&out.mineUpd&&out.idLen>=7&&out.listed&&!out.pending.length&&out.srvIds.includes('X3')&&out.srvIds.length===out.ids.length&&out.srvIds.length===4;
+// ── 8) suppression douce : le message supprimé ici disparaît de la liste et du plan, reste marqué deleted sur le serveur (une autre copie ne le ressuscite pas)
+await page.evaluate(()=>{const T=window.TRACE;const C=T.net.conv;const m=C.msgs.find(x=>x.id==='X1');window.confirm=()=>true;T.state.tab='conv';T.renderAll();const b=document.querySelector('[data-cvdel="X1"]');if(b)b.click();});await page.waitForTimeout(2600);
+{const r=sites[SID];const srv=(r.data.conv.msgs||[]).find(m=>m.id==='X1');out={srvDeleted:!!(srv&&srv.deleted),srvUpd:!!(srv&&srv.upd),listed:await page.evaluate(()=>[...document.querySelectorAll('#cvList .cvMsg')].some(c=>/Barrières posées côté mairie/.test(c.textContent))),count:await page.evaluate(()=>document.querySelectorAll('#cvList .cvMsg').length),chipAll:await page.evaluate(()=>(document.querySelector('#convview [data-cvf=all]')||{}).textContent)};
+ /* une vieille copie (sans deleted) renvoyée par un autre appareil : le serveur garde la version supprimée (upd plus récent) */
+ const stale={...srv,deleted:undefined,upd:'2026-10-09T00:00:00.000Z'};delete stale.deleted;const t0=new Date().toISOString();const res=await page.evaluate(async()=>null);r.data.conv.msgs=r.data.conv.msgs.map(m=>m.id==='X1'?m:m); // (le serveur simulé fusionne à la prochaine écriture)
+ out.staleKeptDeleted=(()=>{const m=new Map();r.data.conv.msgs.forEach(e=>m.set(e.id,e));const c=stale;const a=m.get('X1');return ((c.upd||c.at)>=(a.upd||a.at))?false:true;})();}
+console.log('8) suppression douce :',JSON.stringify(out));C.c8=out.srvDeleted&&out.srvUpd&&!out.listed&&out.count===3&&/Tout \(3\)/.test(out.chipAll||'')&&out.staleKeptDeleted;
 const bad=Object.entries(C).filter(([k,v])=>!v).map(([k])=>k);console.log(bad.length?'RESULTAT: ECHEC '+bad.join(','):'RESULTAT: TOUT VERT');console.log(logs.length?logs:'[]');
 await browser.close();
