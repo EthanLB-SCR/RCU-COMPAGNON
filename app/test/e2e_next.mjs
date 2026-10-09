@@ -81,7 +81,7 @@ const tabAfter=await page.evaluate(()=>{document.getElementById('doe-go').click(
 await page.waitForTimeout(300);
 const [pop2]=await Promise.all([page.waitForEvent('popup'),page.evaluate(()=>document.getElementById('doeCarnet').click())]);
 await pop2.waitForLoadState('domcontentloaded');
-out=await pop2.evaluate(()=>({t:/Carnet de soudage et manchonnage/.test(document.body.textContent),w:/S-\d{4}/.test(document.body.textContent),soudee:/TIG/.test(document.body.textContent),noImg:!document.querySelector('img'),table:document.querySelectorAll('tbody tr').length>0,planche:/Planche/.test(document.body.textContent)})); // 08/10 : carnet = une table par n°, sans photos (elles sont dans le dossier Photos)
+out=await pop2.evaluate(()=>({t:/Carnet de soudage et manchonnage/.test(document.body.textContent),w:/S-\d{4}/.test(document.body.textContent),soudee:/TIG/.test(document.body.textContent),noImg:!document.querySelector('img:not(.logo)'), /* le logo SCR de l'en-tête (charte 09/10) n'est pas une photo */table:document.querySelectorAll('tbody tr').length>0,planche:/Planche/.test(document.body.textContent)})); // 08/10 : carnet = une table par n°, sans photos (elles sont dans le dossier Photos)
 await pop2.close();out.tabAfter=tabAfter;
 console.log('5) carnet DOE généré depuis l\'onglet Export:',JSON.stringify(out));
 const c5=out.t&&out.w&&out.soudee&&out.noImg&&out.table&&out.planche&&tabAfter==='export';

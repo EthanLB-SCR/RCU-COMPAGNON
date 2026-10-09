@@ -1,0 +1,1012 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Éditeur d'avatar SCR</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#EEF1F5;font-family:Barlow,"Segoe UI",system-ui,sans-serif;color:#1E2A44}
+.page{max-width:1240px;margin:0 auto;padding:28px 16px 48px;display:flex;flex-direction:column;gap:20px}
+header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px}
+.brand{display:flex;align-items:center;gap:14px}
+.logo{padding:6px 12px;border-radius:8px;background:#1E2A44;font-weight:800;font-size:22px;color:#fff}
+.logo b{color:#FF7A66}
+h1{margin:0;font-size:30px;line-height:1.1}
+.sub{font-size:15px;color:#4D586B;line-height:1.4}
+.actions{display:flex;flex-wrap:wrap;gap:10px}
+button{font-family:inherit;color:#1E2A44;cursor:pointer}
+.act{min-height:44px;padding:0 18px;border:2px solid #C4CCD8;border-radius:10px;background:#fff;font-weight:600;font-size:15px}
+.act.primary{background:#1E2A44;border-color:#1E2A44;color:#fff}
+.cols{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+.card{background:#fff;border-radius:16px;padding:20px}
+.preview{flex:1 1 320px;display:flex;flex-direction:column;align-items:center;gap:16px}
+.stage{position:relative;width:300px;height:512px}
+.stage .disc{position:absolute;left:10px;top:24px;width:280px;height:280px;border-radius:50%}
+.stage .shadow{position:absolute;left:60px;top:488px;width:180px;height:16px;border-radius:50%;background:#1E2A44;opacity:.12}
+.stage .fig{position:absolute;left:10px;top:14px}
+.pill{padding:8px 20px;border-radius:10px;background:#1E2A44;color:#fff;font-weight:600;font-size:17px;text-align:center}
+.famille{font-size:14px;color:#4D586B;text-align:center;margin-top:4px}
+.box{width:100%;padding:16px;border-radius:12px;background:#F4F6F9;display:flex;flex-direction:column;gap:10px}
+.box strong{font-size:16px}
+.lab{font-weight:700;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#4D586B}
+.meds{display:flex;align-items:center;gap:18px;padding:6px}
+pre{margin:0;font-size:12.5px;line-height:1.45;white-space:pre-wrap;word-break:break-word;color:#1E2A44}
+.side{flex:999 1 560px;min-width:0;display:flex;flex-direction:column;gap:16px}
+.card h2{margin:0;font-size:21px}
+.card.sec{display:flex;flex-direction:column;gap:18px}
+.head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+.grp{display:flex;flex-direction:column;gap:8px}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+.two{display:flex;flex-wrap:wrap;gap:18px 40px}
+.opt{border:2px solid #D5DBE4;background:#fff;transition:border-color .12s,box-shadow .12s}
+.opt:hover{border-color:#8C98AC}
+.opt[aria-pressed="true"]{border-color:#F26A1B;box-shadow:0 0 0 2px #F26A1B;background:#FFF4EC}
+.opt:disabled{opacity:.5;cursor:not-allowed}
+button:focus-visible,input:focus-visible{outline:3px solid #1E2A44;outline-offset:2px}
+.chip{min-height:44px;padding:0 14px;border-radius:10px;font-weight:600;font-size:15px;display:flex;align-items:center;gap:8px}
+.sw{width:44px;height:44px;padding:4px;border-radius:50%}
+.sw i{display:block;width:100%;height:100%;border-radius:50%;border:1px solid #C4CCD8}
+.th{display:flex;flex-direction:column;align-items:center;gap:6px;width:80px;padding:8px 3px 6px;border-radius:12px;font-weight:600;font-size:13px;line-height:1.2}
+.th.large{width:88px}
+.th.xl{width:96px}
+.th.s{width:70px}
+.tri{width:56px;height:44px;padding:5px;border-radius:10px}
+.tri span{display:flex;width:100%;height:100%;border-radius:5px;overflow:hidden;border:1px solid #C4CCD8}
+.tri i{flex:1}
+.pays{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-weight:600;font-size:15px}
+.pays select{min-height:44px;min-width:240px;padding:0 12px;border:2px solid #D5DBE4;border-radius:10px;background:#fff;font:inherit;color:inherit}
+.niv{display:flex;flex-direction:column;align-items:center;gap:6px;width:104px;padding:8px 4px 6px;border:2px solid #D5DBE4;border-radius:12px;background:#fff;font-weight:600;font-size:13px;line-height:1.2;text-align:center}
+.niv small{font-size:13px;font-weight:500;color:#4D586B}
+.niv[aria-current="true"]{border-color:#F26A1B;box-shadow:0 0 0 2px #F26A1B;background:#FFF4EC}
+.med{display:flex;align-items:center;gap:10px;width:250px;min-height:60px;padding:6px 12px 6px 8px;border-radius:10px;font-weight:600;font-size:15px;text-align:left}
+.med svg{flex:none;width:30px;height:45px}
+.med small{display:block;font-size:13px;font-weight:500;line-height:1.25;color:#4D586B}
+.crop{display:block;position:relative;overflow:hidden;background:#E3E8EF}
+.crop>span{position:absolute;display:block}
+.pal{display:flex;align-items:center;gap:10px;min-height:52px;padding:6px 14px 6px 10px;border-radius:10px;font-weight:600;font-size:15px;text-align:left}
+.pal i{flex:none;width:26px;height:26px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #9AA6B8}
+.pal small{display:block;font-size:13px;font-weight:500;color:#4D586B}
+.demo{border:2px dashed #C4CCD8;background:#FBFCFD}
+.demo label{display:flex;flex-direction:column;gap:6px;font-weight:600;font-size:15px;flex:1 1 240px}
+.demo input[type=range]{width:100%;accent-color:#F26A1B;height:28px}
+</style>
+</head>
+<body>
+<div class="page">
+<header>
+<div class="brand"><div class="logo">S<b>C</b>R</div><div><h1>Mon avatar</h1><div class="sub">Mon compte · Profil</div></div></div>
+<div class="actions">
+<button type="button" class="act" id="hasard">Au hasard</button>
+<button type="button" class="act" id="reinit">Réinitialiser</button>
+<button type="button" class="act primary" id="copier">Copier la configuration</button>
+</div>
+</header>
+<div class="cols">
+<section class="card preview" id="preview"></section>
+<div class="side">
+<section class="card sec demo">
+<div class="head"><h2>Simulation</h2><div class="sub">Ces valeurs viendront de l'appli : pointage, météo, compteurs de tâches</div></div>
+<div class="grp"><div class="lab">Météo du jour</div><div class="row" id="meteo"></div></div>
+<div class="two">
+<label>Compteur de production : <span id="vReal"></span><input type="range" id="real" min="0" max="12000" step="50" value="25000"></label>
+<label>Années sans accident : <span id="vJours"></span><input type="range" id="jours" min="0" max="12" step="1" value="2"></label>
+<label>Qualité : <span id="vQual"></span><input type="range" id="qual" min="0" max="2000" step="5" value="400"></label>
+<label>Qualité, radios conformes (soudeur) : <span id="vRadio"></span><input type="range" id="radio" min="80" max="100" step="1" value="96"></label>
+<label>Série de cadence : <span id="vCad"></span><input type="range" id="cad" min="0" max="40" step="1" value="3"></label>
+</div>
+<div class="two">
+<label>Ancienneté : <span id="vAnc"></span><input type="range" id="anc" min="0" max="30" step="1" value="7"></label>
+</div>
+</div>
+</section>
+<div id="side" style="display:flex;flex-direction:column;gap:16px"></div>
+</div>
+</div>
+</div>
+<script>
+/*
+ * Kit avatar SCR - a integrer dans l'appli.
+ *
+ * avatarModele(profil, contexte) -> tout ce qu'un ecran doit afficher (cfg de l'avatar, listes d'options, paliers, textes)
+ * avatarConfig(profil, contexte) -> cfg de l'avatar a dessiner maintenant
+ * avatarSVG(cfg, taille)         -> chaine SVG du personnage en pied (ratio 240 x 420)
+ * avatarMedaillon(cfg, diametre, fond, cadre) -> photo de profil ronde
+ * AVATAR_CATALOGUE               -> postes, options, paliers, seuils (id + libelle)
+ *
+ * PROFIL = ce que l'appli stocke par utilisateur (voir EditorLogic.profilInitial) :
+ *   poste, genre, peau, cheveux, couleur, barbe, lunettes, casque (null = defaut du poste | true | false),
+ *   bouche ('rien' | 'cigarette' | 'chewing' = bulle de chewing-gum),
+ *   haut, hautCouleur, bas, basCouleur, chaussures, chaussuresCouleur, accessoire, bandana
+ *        -> tenue AU TRAVAIL. Une piece = un TYPE (hautTypes, basTypes, chaussuresTypes) + une TEINTE (teintes).
+ *           null = tenue du poste / teinte par defaut. Ignores sur les postes terrain (EPI impose), sauf bandana.
+ *   pHaut, pHautCouleur, pBas, pBasCouleur, pChaussures, pChaussuresCouleur, pAccessoire, pCoiffe, pBandana
+ *        -> tenue HORS TRAVAIL (libre pour tous)
+ *   bandana / pBandana : id de AVATAR_CATALOGUE.bandanas (unis, pois, techno, pays = 3 couleurs). Pour couvrir
+ *        tous les pays : ajouter une ligne par pays, ou brancher une bibliotheque de drapeaux SVG comme motif.
+ *   palier (palier d'outil equipe, null = le plus haut debloque), palierGants (idem pour les gants),
+ *   medaille (true / false : porter ou non sa medaille d'anciennete), fond (fond du medaillon)
+ *
+ * CONTEXTE = ce que l'appli calcule a l'affichage, jamais saisi par le salarie :
+ *   vue: 'travail' | 'perso'      -> selon le pointage / les horaires : EPI en heures de travail, tenue perso sinon
+ *   meteo: 'chaud' | 'frais' | 'froid' | 'pluie' -> couche de la tenue terrain :
+ *          chaud = t-shirt HV manches longues, frais = sweat HV, froid = veste HV, pluie = tenue de pluie verte haut + bas.
+ *          Sous forte pluie : chasuble orange par-dessus la veste de pluie. T-shirt et tenue de pluie sans bandes reflechissantes.
+ *          Le soudeur garde toujours sa veste en cuir (risque de feu) : sous forte pluie, seul le pantalon de pluie s'ajoute. Bas de travail unique : jean technique marine.
+ *          Casque impose en tenue de travail pour les postes terrain ; au choix pour l'encadrement et le bureau.
+ *   realisations: compteur de production du poste (pouces soudes, pouces manchonnes, heures d'engin) -> paliers Bronze / Argent / Or / Diamant,
+ *          seuils par poste dans AVATAR_CATALOGUE.postes[].seuils : outil recolore (porte-electrode, meuleuse, chalumeau, talkie) + cadre du medaillon.
+ *   jours: jours sans accident -> une etoile sur le casque par annee pleine (365 jours), 10 etoiles au maximum.
+ *   qualite: jours de qualite d'affilee (voir postes[].qualite) -> couleur des gants.
+ *          Manchonneur, jours DH OK : Bronze 6 mois (182 j) / Argent 1 an (365 j) / Or 2 ans (730 j) / Diamant 3 ans (1 095 j), en jours calendaires.
+ *          Tuyauteur, jours "fils sur le dessus" : Bronze 2 mois (61 j) / Argent 4 mois (122 j) / Or 7 mois (213 j) / Diamant 1 an (365 j).
+ *            Regles a coder : la chaine casse des qu'un fil est pose sur le cote a plus de 45 degres (45 exclu : pile 45 ne casse pas).
+ *            Seuls les assemblages tube sur tube comptent ; les assemblages piece sur tube sont ignores.
+ *            Perimetre : uniquement les tubes soudes par le soudeur auquel le tuyauteur est rattache (meme rattachement que ses pouces),
+ *            et uniquement quand le tube pose est NEUF, c'est-a-dire pas encore soude a son autre extremite
+ *            (un tube deja soude de l'autre bout ne peut plus etre tourne : il ne compte pas, ni en bien ni en mal).
+ *          Pour le soudeur, la qualite se mesure par les radios (voir radio), pas par ce compteur.
+ *   Soudeur : pas de casque sur la tete en tenue de travail, masque de soudage releve a la place, casque pose a ses pieds
+ *          (les etoiles de securite restent sur ce casque). Sous forte pluie il garde son cuir, seul le pantalon de pluie s'ajoute.
+ *   realisations (soudeur) : pouces soudes declares -> couleur du porte-electrode.
+ *          Seuils : Bronze 11 000 / Argent 22 500 / Or 34 000 / Diamant 56 000, soit 1, 2, 3 et 5 ans d'activite
+ *          a 60 pouces par jour, semaines de 4 jours, 47 semaines travaillees par an (188 jours, 11 280 pouces par an).
+ *   realisations (manchonneur, tuyauteur) : meme unite et meme bareme que le soudeur, le pouce.
+ *          - Manchonneur : il pointe ce qu'il a manchonne ; chaque manchon compte pour les pouces du DN de la soudure manchonnee.
+ *          - Tuyauteur : il n'a pas de pointage propre ; il recoit les pouces soudes par le soudeur avec qui il fait equipe.
+ *            L'appli doit donc enregistrer la composition des equipes (quel tuyauteur travaille avec quel soudeur, jour par jour)
+ *            et crediter le tuyauteur des pouces de son soudeur sur les jours travailles ensemble.
+ *            S'il travaille avec deux soudeurs, on CUMULE les pouces des deux.
+ *   radio (soudeur) : c'est l'indicateur QUALITE du soudeur. % de radios conformes sur les 50 dernieres soudures tirees -> teinte du masque de soudage
+ *          (Bronze 90 / Argent 95 / Or 98 / Diamant 100). C'est un taux : le masque peut redescendre.
+ *   cadence (soudeur) : record de semaines d'affilee au-dessus de la cadence moyenne (semaines de 4 jours, moyenne a la semaine)
+ *          -> une etincelle au bout de l'electrode par semaine du record : 40 dessinees au maximum (trois couronnes de 12, puis 4 en diagonale) ;
+ *             le compteur n'a pas de plafond. Couleur : Bronze des 1 semaine, Argent 3, Or 4, Diamant 8. C'est un record : il reste acquis.
+ *   cadence (manchonneur) : meme compteur et memes paliers -> une flamme au bout du flambard, qui s'epaissit chaque semaine
+ *          du record jusqu'a 12, puis une braise ou une etincelle s'ajoute chaque semaine jusqu'a 40, avec un halo a 13, 25 et 37
+ *          et deux flammeches laterales a 25 et 31. Couleur selon le palier (bleue au Diamant). Voir postes[].cadence.
+ *   Tuyauteur : casque sur la tete, et une cagoule de soudure noire posee a ses pieds (postes[].cagouleSol).
+ *   cadence (tuyauteur) : une semaine compte quand le CUMUL des pouces de ses soudeurs (un ou deux) depasse la cadence moyenne
+ *          d'UN soudeur (meme moyenne de reference que pour le soudeur, a la semaine de 4 jours)
+ *          -> une gerbe d'etincelles sort du disque de la meuleuse : une etincelle par semaine du record, 40 dessinees au maximum.
+ *   Chauffeur d'engin : meme veste HV que les autres, un talkie-walkie glisse dans la poche de cuisse du pantalon (plus en main).
+ *          realisations = heures d'engin -> couleur du talkie. Seuils 1 900 / 3 800 / 5 600 / 9 400, soit 1, 2, 3 et 5 ans
+ *          a 10 heures d'engin par jour, semaines de 4 jours, 47 semaines travaillees par an (188 jours, 1 880 heures par an).
+ *          qualite = jours sans sinistre -> gants : Bronze 1 an (365 j) / Argent 2 ans (730 j) / Or 3 ans (1 095 j) / Diamant 5 ans (1 825 j).
+ *          Pas de recompense de cadence pour le chauffeur (les calques d'ondes du talkie existent mais ne sont pas utilises).
+ *   Plus aucun effet brillant autour des outils ni des gants : seule la couleur indique le palier.
+ *   Recompenses de production reservees aux operateurs (soudeur, tuyauteur, manchonneur, chauffeur d'engin) :
+ *          rien pour le chef de chantier (postes[].sansRecompense), l'encadrement et le bureau, hors medaille d'anciennete.
+ *   anciennete: annees pleines depuis la date d'entree -> medaille d'anciennete, pour tous les postes, portee au choix du salarie.
+ *          Le disque affiche le nombre d'annees. Niveaux : 1 an bronze, 3 argent, 5 or, 7 barrette, 10 rayons, 12 rayons et barrette, 15 lauriers, 20 diamant couronne.
+ *          Portee par defaut (medaille: true), le salarie peut l'enlever.
+ *   Seuils et unites sont dans AVATAR_CATALOGUE (paliers, etoiles, postes[].unite) : a ajuster.
+ *
+ * Logo : texte "SCR" provisoire, a remplacer par le vrai logo vectoriel.
+ */
+class DCLogic { setState() {} }
+class AvatarLogic extends DCLogic {
+  resolve(c) {
+    var SKIN = { p1: '#FBD9BF', p2: '#F1C39F', p3: '#DDA57A', p4: '#B9794E', p5: '#8D5637', p6: '#5E3A26' };
+    var HAIR = { noir: '#1E1B1A', brun: '#4A3020', chatain: '#7A4E2B', blond: '#D8B25A', roux: '#B5532A', gris: '#9A9A9A', blanc: '#E5E3DE' };
+    var TOPS = {
+      hv: { fill: '#F26A1B', line: '#C9520E', cut: 'long', ov: ['hv'] },
+      hvbi: { fill: '#F26A1B', line: '#C9520E', cut: 'long', ov: ['hv', 'bi'] },
+      soudeur: { fill: '#CDAA7D', line: '#9C7A4E', cut: 'long', ov: ['soudeur'] },
+      gilet: { fill: '#23262D', line: '#111318', cut: 'long', ov: ['gilet'] },
+      softshell: { fill: '#1E2A44', cut: 'long', ov: ['soft'], teint: true },
+      chemise_blanche: { fill: '#FFFFFF', line: '#BCC4CF', cut: 'long', ov: ['chemise'] },
+      chemise_bleue: { fill: '#C3D7F0', line: '#8FA9CF', cut: 'long', ov: ['chemise'] },
+      chemisier_blanc: { fill: '#FFFFFF', line: '#BCC4CF', cut: 'long', ov: ['chemisier'] },
+      chemisier_rose: { fill: '#F2C6C0', line: '#CC958E', cut: 'long', ov: ['chemisier'] },
+      blazer_marine: { fill: '#1E2A44', line: '#121A2E', cut: 'long', ov: ['blazer'] },
+      tshirt_hv: { fill: '#F26A1B', line: '#C9520E', cut: 'long', ov: ['tee'] },
+      sweat_hv: { fill: '#F26A1B', line: '#C9520E', cut: 'long', ov: ['sweat'] },
+      pluie: { fill: '#2E7D55', line: '#1B5639', cut: 'long', ov: ['pluie', 'chasuble'] },
+      tshirt: { fill: '#23262D', cut: 'short', ov: ['tee'], teint: true },
+      polo: { fill: '#1E2A44', cut: 'short', ov: ['polo'], teint: true },
+      chemise: { fill: '#FFFFFF', cut: 'long', ov: ['chemise'], teint: true },
+      chemisier: { fill: '#FFFFFF', cut: 'long', ov: ['chemisier'], teint: true },
+      sweat: { fill: '#8E96A3', cut: 'long', ov: ['sweat'], teint: true },
+      hoodie: { fill: '#8E96A3', cut: 'long', ov: ['hoodie'], teint: true },
+      blazer: { fill: '#1E2A44', cut: 'long', ov: ['blazer'], teint: true },
+      hoodie_gris: { fill: '#8E96A3', line: '#636D7C', cut: 'long', ov: ['hoodie'] },
+      hoodie_noir: { fill: '#23262D', line: '#111318', cut: 'long', ov: ['hoodie'] },
+      polo_marine: { fill: '#1E2A44', line: '#121A2E', cut: 'short', ov: ['polo'] },
+      polo_blanc: { fill: '#FFFFFF', line: '#BCC4CF', cut: 'short', ov: ['polo'] },
+      tshirt_noir: { fill: '#23262D', line: '#111318', cut: 'short', ov: ['tee'] },
+      tshirt_blanc: { fill: '#FFFFFF', line: '#BCC4CF', cut: 'short', ov: ['tee'] }
+    };
+    var BAS = {
+      pantalon: { fill: '#1E2A44', teint: true },
+      short: { fill: '#CDB391', shape: 'bermuda', teint: true },
+      pantalon_78: { fill: '#1E2A44', shape: 'pant78', teint: true },
+      jupe: { fill: '#1E2A44', shape: 'jupe', teint: true },
+      pluie_bas: { fill: '#2E7D55', line: '#1B5639' },
+      travail: { fill: '#1E2A44', line: '#121A2E', ov: 'cargo' },
+      travail_noir: { fill: '#34363C', line: '#1D1E22', ov: 'cargo' },
+      marine: { fill: '#1E2A44', line: '#121A2E' },
+      chino: { fill: '#CDB391', line: '#A38A68' },
+      jean: { fill: '#4F77A8', ov: 'jean', teint: true }
+    };
+    var SHOES = {
+      ville: { fill: '#6B3A22', sole: '#2A1710', teint: true },
+      escarpins: { fill: '#23262D', sole: '#000000', shape: 'shoeFin', teint: true },
+      ballerines: { fill: '#C4816F', sole: '#000000', shape: 'shoeFin', teint: true },
+      secu: { fill: '#B07A45', sole: '#3A2A1C', teint: true },
+      cuir: { fill: '#6B3A22', line: '#4A2614', sole: '#2A1710' },
+      baskets: { fill: '#FFFFFF', sole: '#AEB7C4', teint: true },
+      noires: { fill: '#23262D', line: '#111318', sole: '#000000' }
+    };
+    var GLOVES = {
+      travail: { fill: '#C9A46A', line: '#9C7A44', flag: 'gants' },
+      soudeur: { fill: '#B9B2A4', line: '#8C8576', flag: 'gantsLongs' }
+    };
+    var HAIRF = {
+      chauve: [], degarni: ['h_degarni'], court: ['h_court'], brosse: ['h_brosse'], meche: ['h_meche'], milong: ['h_milong'],
+      long: ['b_long', 'h_long'], chignon: ['h_raie', 'v_chignon'], queue: ['b_queue', 'h_raie'], boucle: ['h_court', 'v_boucle']
+    };
+    var f = {};
+    function fonce(hex, k) {
+      var n = parseInt(String(hex).slice(1), 16);
+      var r = Math.round(((n >> 16) & 255) * k), g = Math.round(((n >> 8) & 255) * k), b = Math.round((n & 255) * k);
+      return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+    }
+    function teinte(base, couleur, sombre) {
+      if (!base.teint || !couleur) return base.line ? base : Object.assign({}, base, { line: fonce(base.fill, 0.72) });
+      return Object.assign({}, base, { fill: couleur, line: fonce(couleur, 0.72), sole: sombre ? fonce(couleur, 0.45) : base.sole });
+    }
+    var top = teinte(TOPS[c.haut] || TOPS.hv, c.hautCouleur);
+    var bas = teinte(BAS[c.bas] || BAS.travail, c.basCouleur);
+    var shoeBase = SHOES[c.chaussures] || SHOES.secu;
+    var shoe = teinte(shoeBase, c.chaussuresCouleur, c.chaussures !== 'baskets');
+    var glove = GLOVES[c.gants];
+    var casque = c.casque === true || c.casque === 'true';
+    f[top.cut] = true;
+    top.ov.forEach(function (k) { f[k] = true; });
+    if (bas.ov) f[bas.ov] = true;
+    f[bas.shape || 'pant'] = true;
+    f[shoe.shape || 'shoeStd'] = true;
+    var coiffe = !casque && (c.coiffe === 'casquette' || c.coiffe === 'bonnet') ? c.coiffe : null;
+    if (coiffe) f[coiffe] = true;
+    (HAIRF[c.cheveux] || []).forEach(function (k) {
+      if ((casque || coiffe || c.masque) && k.indexOf('v_') === 0) return;
+      f[k] = true;
+    });
+    f['barbe_' + c.barbe] = true;
+    f['lun_' + c.lunettes] = true;
+    f['acc_' + c.accessoire] = true;
+    f['bouche_' + c.bouche] = true;
+    f.casque = casque;
+    var casqueSol = !casque && (c.casqueSol === true || c.casqueSol === 'true');
+    if (casqueSol) f.casqueSol = true;
+    if (c.cagouleSol === true || c.cagouleSol === 'true') f.cagouleSol = true;
+    var nEt = Math.min(10, Number(c.etoiles) || 0);
+    for (var iEt = 1; iEt <= nEt; iEt++) {
+      if (casque) f['etoile' + iEt] = true;
+      if (casqueSol) f['solEtoile' + iEt] = true;
+    }
+    var OUTIL = {
+      meuleuse: { fill: '#178F8F', line: '#0F6B6B', light: '#3A404B', dark: '#0F6B6B' },
+      torche: { fill: '#D4261C', line: '#8F1A12', light: '#E8584F', dark: '#2A2E36' },
+      chalumeau: { fill: '#B5882C', line: '#8D96A3', light: '#C3CAD3', dark: '#8D96A3' },
+      talkie: { fill: '#2A2E36', line: '#0F1115', light: '#4A515D', dark: '#0F1115' }
+    };
+    var METAL = {
+      bronze: { fill: '#C4803F', line: '#8C5522', light: '#E3AE78', dark: '#8C5522' },
+      argent: { fill: '#CDD2DA', line: '#858E9C', light: '#EEF1F5', dark: '#858E9C' },
+      or: { fill: '#EBBB1F', line: '#A87C08', light: '#F9E28A', dark: '#A87C08' },
+      diamant: { fill: '#9EE7F2', line: '#3FA3BA', light: '#E6FBFD', dark: '#3FA3BA' }
+    };
+    var gm = glove ? METAL[c.gantsPalier] : null;
+    if (gm) {
+      glove = { fill: gm.fill, line: gm.line, flag: glove.flag };
+    }
+    var bd = c.bandana && c.bandana.length >= 3 && !coiffe ? c.bandana : null;
+    if (bd) {
+      f.bandana = true;
+      if (bd[3] === 'pois') f.band_pois = true;
+      if (bd[3] === 'zig') f.band_zig = true;
+    }
+    var OR = { r1: '#1E2A44', r2: '#F26A1B', d: '#EBBB1F', l: '#8A6500', t: '#4A3600' };
+    var NIV = [null,
+      { r1: '#1E2A44', r2: '#1E2A44', d: '#C98A4B', l: '#6E3F12', t: '#3A1F06' },
+      { r1: '#1E2A44', r2: '#FFFFFF', d: '#D9DEE5', l: '#5F6875', t: '#2A303A' },
+      OR, OR, OR, OR,
+      { r1: '#B3261E', r2: '#EBBB1F', d: '#EBBB1F', l: '#8A6500', t: '#4A3600' },
+      { r1: '#1E2A44', r2: '#9EE7F2', d: '#A6ECF5', l: '#17667A', t: '#0E3F4C' }
+    ];
+    var ans = Math.floor(Number(c.medailleAns) || 0);
+    var niv = Math.max(0, Math.min(8, Number(c.medailleNiveau) || 0));
+    var mv = {};
+    if (ans >= 1 && niv >= 1) {
+      var nv = NIV[niv];
+      f.medaille = true;
+      if (niv >= 5) f.medRayons = true;
+      if (niv === 4 || niv >= 6) f.medBarrette = true;
+      if (niv >= 7) f.medLauriers = true;
+      if (niv >= 8) f.medCouronne = true;
+      mv = { medR1: nv.r1, medR2: nv.r2, medRL: '#0F1626', medD: nv.d, medL: nv.l, medT: nv.t, medN: String(ans) };
+    }
+    var tool = METAL[c.palier] || OUTIL[c.accessoire] || OUTIL.meuleuse;
+    var mk = !casque && !coiffe && c.masque ? (METAL[c.masque] || { fill: '#2A2E36', line: '#16181D' }) : null;
+    if (mk) f.masque = true;
+    var ETINC = {
+      bronze: { fill: '#FF9A3D', line: '#8A3E00' }, argent: { fill: '#FFD23D', line: '#8A5A00' },
+      or: { fill: '#FFF08A', line: '#9A6A00' }, diamant: { fill: '#C4F5FF', line: '#1B6F86' }
+    };
+    var sp = ETINC[c.etincellesPalier] || ETINC.bronze;
+    var nSp = c.accessoire === 'torche' ? Math.max(0, Math.round(Number(c.etincelles) || 0)) : 0;
+    if (nSp >= 1) f.arc = true;
+    if (nSp > 12) f.arc2 = true;
+    if (nSp > 24) f.arc3 = true;
+    for (var iSp = 1; iSp <= Math.min(40, nSp); iSp++) f['etinc' + iSp] = true;
+    var nGe = c.accessoire === 'meuleuse' ? Math.max(0, Math.round(Number(c.gerbe) || 0)) : 0;
+    if (nGe >= 1) f.gerbeHalo = true;
+    for (var iGe = 1; iGe <= Math.min(40, nGe); iGe++) f['gerbe' + iGe] = true;
+    var nOn = c.accessoire === 'talkie' ? Math.max(0, Math.round(Number(c.ondes) || 0)) : 0;
+    for (var iOn = 1; iOn <= Math.min(40, nOn); iOn++) f['onde' + iOn] = true;
+    var FEU = {
+      bronze: { c1: '#D9481C', c2: '#F58A1F', c3: '#FFD24A', l: '#7A2408' }, argent: { c1: '#E4571B', c2: '#FF9A2E', c3: '#FFE066', l: '#7A2408' },
+      or: { c1: '#F26A1B', c2: '#FFB52E', c3: '#FFF3A8', l: '#8A3E00' }, diamant: { c1: '#1F7FD6', c2: '#5CC4F2', c3: '#E6FBFF', l: '#0E3F6B' }
+    };
+    var feu = FEU[c.etincellesPalier] || FEU.bronze;
+    var nFl = c.accessoire === 'chalumeau' ? Math.max(0, Math.round(Number(c.flamme) || 0)) : 0;
+    if (nFl >= 1) f.flamme = true;
+    var plus = 0.01 * Math.max(0, Math.min(40, nFl) - 12);
+    var kFx = 0.6 + 0.11 * Math.min(12, nFl) + plus, kFy = 0.9 + 0.035 * Math.min(12, nFl) + plus;
+    if (nFl >= 13) f.halo1 = true;
+    if (nFl >= 25) { f.halo2 = true; f.flamme2 = true; }
+    if (nFl >= 31) f.flamme3 = true;
+    if (nFl >= 37) f.halo3 = true;
+    for (var iBr = 1; iBr <= Math.min(28, nFl - 12); iBr++) f['braise' + iBr] = true;
+    var femme = c.genre === 'femme';
+    f.femme = femme;
+    f.homme = !femme;
+    if (glove) { f.gants = true; f[glove.flag] = true; }
+    var skin = SKIN[c.peau] || SKIN.p2;
+    var hair = HAIR[c.couleur] || HAIR.brun;
+    return Object.assign(mv, {
+      f: f, skin: skin, hair: hair, brow: hair,
+      band1: bd ? bd[0] : '#000000', band2: bd ? bd[1] : '#000000', band3: bd ? bd[2] : '#000000', bandLine: bd ? fonce(bd[1] === '#FFFFFF' ? '#9AA3B0' : bd[0], 0.6) : '#000000',
+      bandT: casque ? 'translate(0 57.8) scale(1 0.222)' : 'translate(0 0)',
+      bandT2: casque ? 'translate(0 6)' : 'translate(0 0)',
+      browT: casque && bd ? 'translate(0 3)' : 'translate(0 0)',
+      sparkFill: sp.fill, sparkLine: sp.line,
+      feu1: feu.c1, feu2: feu.c2, feu3: feu.c3, feuL: feu.l, flammeT: 'translate(32.9 369.6) rotate(193) scale(' + kFx.toFixed(2) + ' ' + kFy.toFixed(2) + ')',
+      flammeT2: 'translate(30 369) rotate(232) scale(' + (kFx * 0.6).toFixed(2) + ' ' + (kFy * 0.72).toFixed(2) + ')',
+      flammeT3: 'translate(36 370) rotate(158) scale(' + (kFx * 0.6).toFixed(2) + ' ' + (kFy * 0.72).toFixed(2) + ')',
+      maskFill: mk ? mk.fill : '#000000', maskLine: mk ? mk.line : '#000000',
+      toolFill: tool.fill, toolLine: tool.line, toolLight: tool.light, toolDark: tool.dark,
+      bodyT: femme ? 'translate(14.4 15.68) scale(0.88 0.96)' : 'translate(0 0)',
+      headT: femme ? 'translate(0 10)' : 'translate(0 0)',
+      topFill: top.fill, topLine: top.line,
+      pantFill: bas.fill, pantLine: bas.line,
+      shoeFill: shoe.fill, shoeLine: shoe.line, shoeSole: shoe.sole,
+      gloveFill: glove ? glove.fill : skin, gloveLine: glove ? glove.line : skin,
+      handFill: glove ? glove.fill : skin, handLine: glove ? glove.line : skin
+    });
+  }
+  renderVals() {
+    var p = this.props || {};
+    var D = { medailleAns: 0, medailleNiveau: 0, masque: null, casqueSol: false, cagouleSol: false, etincelles: 0, flamme: 0, gerbe: 0, ondes: 0, etincellesPalier: 'bronze', hautCouleur: null, basCouleur: null, chaussuresCouleur: null, bandana: null, bouche: 'rien', gantsPalier: 'standard', coiffe: 'aucune', palier: 'standard', etoiles: 0, genre: 'homme', peau: 'p2', cheveux: 'court', couleur: 'brun', barbe: 'aucune', lunettes: 'aucune', haut: 'hv', bas: 'travail', chaussures: 'secu', casque: true, gants: 'travail', accessoire: 'aucun' };
+    var c = {};
+    Object.keys(D).forEach(function (k) {
+      if (p.cfg && p.cfg[k] != null) c[k] = p.cfg[k];
+      else if (p[k] != null) c[k] = p[k];
+      else c[k] = D[k];
+    });
+    var t = Number(p.taille) || 240;
+    var v = this.resolve(c);
+    v.w = t + 'px';
+    v.h = Math.round(t * 1.75) + 'px';
+    return v;
+  }
+}
+class EditorLogic extends DCLogic {
+  state = this.profilInitial();
+
+  profilInitial() {
+    return {
+      poste: 'soudeur', genre: 'homme', peau: 'p2', cheveux: 'court', couleur: 'brun', barbe: 'courte', lunettes: 'aucune', bouche: 'rien',
+      casque: null, vue: 'travail',
+      haut: null, hautCouleur: null, bas: null, basCouleur: null, chaussures: null, chaussuresCouleur: null, accessoire: null, bandana: null,
+      pHaut: null, pHautCouleur: null, pBas: null, pBasCouleur: null, pChaussures: null, pChaussuresCouleur: null, pAccessoire: null, pCoiffe: null, pBandana: null,
+      palier: null, palierGants: null, medaille: true, fond: 'gris'
+    };
+  }
+
+  catalogue() {
+    return {
+      postes: [
+        { id: 'manchonneur', label: 'Manchonneur', famille: 'Terrain', unite: 'pouces manchonnés', seuils: [0, 11000, 22500, 34000, 56000], qualite: 'jours DH OK', seuilsQualite: [0, 182, 365, 730, 1095], dureesQualite: ['', '6 mois', '1 an', '2 ans', '3 ans'], cadence: 'flamme', haut: 'hv', bas: 'travail', chaussures: 'secu', casque: true, gants: 'travail', accessoire: 'chalumeau' },
+        { id: 'tuyauteur', label: 'Tuyauteur', famille: 'Terrain', unite: 'pouces soudés par son soudeur', seuils: [0, 11000, 22500, 34000, 56000], qualite: 'jours fils sur le dessus', seuilsQualite: [0, 61, 122, 213, 365], dureesQualite: ['', '2 mois', '4 mois', '7 mois', '1 an'], cadence: 'gerbe', cagouleSol: true, haut: 'hv', bas: 'travail', chaussures: 'secu', casque: true, gants: 'travail', accessoire: 'meuleuse' },
+        { id: 'soudeur', label: 'Soudeur', famille: 'Terrain', unite: 'pouces soudés', seuils: [0, 11000, 22500, 34000, 56000], masque: true, cadence: 'etincelles', haut: 'soudeur', bas: 'travail', chaussures: 'secu', casque: true, gants: 'soudeur', accessoire: 'torche' },
+        { id: 'chauffeur', label: 'Chauffeur d’engin', famille: 'Terrain', unite: 'heures d’engin', seuils: [0, 1900, 3800, 5600, 9400], qualite: 'jours sans sinistre', seuilsQualite: [0, 365, 730, 1095, 1825], dureesQualite: ['', '1 an', '2 ans', '3 ans', '5 ans'], haut: 'hv', bas: 'travail', chaussures: 'secu', casque: true, gants: 'travail', accessoire: 'talkie' },
+        { id: 'chef', label: 'Chef de chantier', famille: 'Terrain', sansRecompense: true, haut: 'hvbi', bas: 'travail', chaussures: 'secu', casque: true, gants: 'aucun', accessoire: 'plans' },
+        { id: 'conducteur', label: 'Conducteur de travaux', famille: 'Encadrement', unite: 'chantiers livrés', libre: true, haut: 'gilet', bas: 'pantalon', basCouleur: 'beige', chaussures: 'secu', chaussuresCouleur: 'camel', casque: true, gants: 'aucun', accessoire: 'tablette' },
+        { id: 'responsable', label: 'Responsable d’exploitation', famille: 'Encadrement', unite: 'chantiers livrés', libre: true, haut: 'softshell', hautCouleur: 'marine', bas: 'pantalon', basCouleur: 'marine', chaussures: 'ville', chaussuresCouleur: 'marron', casque: false, gants: 'aucun', accessoire: 'portable' },
+        { id: 'bureau', label: 'Bureau', famille: 'Administratif', unite: 'dossiers traités', libre: true, haut: 'chemise', hautCouleur: 'blanc', bas: 'pantalon', basCouleur: 'marine', chaussures: 'ville', chaussuresCouleur: 'marron', casque: false, gants: 'aucun', accessoire: 'aucun', femme: { haut: 'chemisier', hautCouleur: 'blanc', bas: 'pantalon_78', basCouleur: 'marine', chaussures: 'escarpins', chaussuresCouleur: 'noir' } }
+      ],
+      genres: [{ id: 'homme', label: 'Homme' }, { id: 'femme', label: 'Femme' }],
+      peaux: [
+        { id: 'p1', label: 'Teint très clair', hex: '#FBD9BF' }, { id: 'p2', label: 'Teint clair', hex: '#F1C39F' }, { id: 'p3', label: 'Teint hâlé', hex: '#DDA57A' },
+        { id: 'p4', label: 'Teint mat', hex: '#B9794E' }, { id: 'p5', label: 'Teint foncé', hex: '#8D5637' }, { id: 'p6', label: 'Teint très foncé', hex: '#5E3A26' }
+      ],
+      couleurs: [
+        { id: 'noir', label: 'Noir', hex: '#1E1B1A' }, { id: 'brun', label: 'Brun', hex: '#4A3020' }, { id: 'chatain', label: 'Châtain', hex: '#7A4E2B' }, { id: 'blond', label: 'Blond', hex: '#D8B25A' },
+        { id: 'roux', label: 'Roux', hex: '#B5532A' }, { id: 'gris', label: 'Gris', hex: '#9A9A9A' }, { id: 'blanc', label: 'Blanc', hex: '#E5E3DE' }
+      ],
+      coiffures: [
+        { id: 'chauve', label: 'Chauve' }, { id: 'degarni', label: 'Dégarni' }, { id: 'court', label: 'Court' }, { id: 'brosse', label: 'Dégradé' }, { id: 'meche', label: 'Mèche' }, { id: 'boucle', label: 'Bouclé' },
+        { id: 'milong', label: 'Carré' }, { id: 'long', label: 'Long' }, { id: 'chignon', label: 'Chignon' }, { id: 'queue', label: 'Queue' }
+      ],
+      barbes: [
+        { id: 'aucune', label: 'Rasé' }, { id: '3j', label: '3 jours' }, { id: 'courte', label: 'Courte' }, { id: 'longue', label: 'Longue' }, { id: 'bouc', label: 'Bouc' }, { id: 'moustache', label: 'Moustache' }
+      ],
+      lunettes: [
+        { id: 'aucune', label: 'Sans' }, { id: 'rondes', label: 'Rondes' }, { id: 'rect', label: 'Rectangles' }, { id: 'soleil', label: 'Soleil' }
+      ],
+      bouches: [{ id: 'rien', label: 'Rien' }, { id: 'cigarette', label: 'Cigarette' }, { id: 'chewing', label: 'Chewing-gum' }],
+      /* Toutes les teintes proposées pour les hauts, bas et chaussures au choix. */
+      teintes: [
+        { id: 'blanc', label: 'Blanc', hex: '#FFFFFF' }, { id: 'creme', label: 'Crème', hex: '#F1E6D0' }, { id: 'beige', label: 'Beige', hex: '#CDB391' }, { id: 'camel', label: 'Camel', hex: '#B07A45' },
+        { id: 'marron', label: 'Marron', hex: '#6B3A22' }, { id: 'noir', label: 'Noir', hex: '#23262D' }, { id: 'anthracite', label: 'Anthracite', hex: '#3A404B' }, { id: 'gris', label: 'Gris', hex: '#8E96A3' },
+        { id: 'marine', label: 'Marine', hex: '#1E2A44' }, { id: 'roi', label: 'Bleu roi', hex: '#2456C8' }, { id: 'jean', label: 'Bleu jean', hex: '#4F77A8' }, { id: 'ciel', label: 'Bleu ciel', hex: '#C3D7F0' },
+        { id: 'turquoise', label: 'Turquoise', hex: '#1F9FA8' }, { id: 'vert', label: 'Vert', hex: '#2E7D55' }, { id: 'kaki', label: 'Kaki', hex: '#6B7347' }, { id: 'jaune', label: 'Jaune', hex: '#F2C230' },
+        { id: 'orange', label: 'Orange', hex: '#F26A1B' }, { id: 'rouge', label: 'Rouge', hex: '#C9241C' }, { id: 'bordeaux', label: 'Bordeaux', hex: '#7A1F2B' }, { id: 'rose', label: 'Rose', hex: '#F2C6C0' },
+        { id: 'fuchsia', label: 'Fuchsia', hex: '#D43D6B' }, { id: 'violet', label: 'Violet', hex: '#6B4BB8' }
+      ],
+      /* Pièces au choix : un type, puis une teinte. "defaut" = teinte proposée d'office. */
+      hautTypes: [
+        { id: 'tshirt', label: 'T-shirt', defaut: 'noir' }, { id: 'polo', label: 'Polo', defaut: 'marine' }, { id: 'chemise', label: 'Chemise', defaut: 'blanc' }, { id: 'chemisier', label: 'Chemisier', defaut: 'blanc' },
+        { id: 'sweat', label: 'Sweat', defaut: 'gris' }, { id: 'hoodie', label: 'Sweat capuche', defaut: 'gris' }, { id: 'blazer', label: 'Blazer', defaut: 'marine' }, { id: 'softshell', label: 'Softshell', defaut: 'marine' }
+      ],
+      basTypes: [
+        { id: 'pantalon', label: 'Pantalon', defaut: 'marine' }, { id: 'jean', label: 'Jean', defaut: 'jean' }, { id: 'pantalon_78', label: 'Pantalon 7/8', defaut: 'marine' }, { id: 'short', label: 'Short', defaut: 'beige' }, { id: 'jupe', label: 'Jupe', defaut: 'marine' }
+      ],
+      chaussuresTypes: [
+        { id: 'ville', label: 'Ville', defaut: 'marron' }, { id: 'baskets', label: 'Baskets', defaut: 'blanc' }, { id: 'secu', label: 'Sécurité', defaut: 'camel' }, { id: 'escarpins', label: 'Escarpins', defaut: 'noir' }, { id: 'ballerines', label: 'Ballerines', defaut: 'rose' }
+      ],
+      /* Pièces imposées (EPI, tenue de poste) : pas de teinte au choix. */
+      hautsPoste: [
+        { id: 'hv', label: 'Veste HV' }, { id: 'hvbi', label: 'Veste HV bicolore' }, { id: 'soudeur', label: 'Veste de soudeur' }, { id: 'gilet', label: 'Gilet HV' },
+        { id: 'tshirt_hv', label: 'T-shirt orange manches longues' }, { id: 'sweat_hv', label: 'Sweat orange' }, { id: 'pluie', label: 'Veste de pluie et chasuble' }
+      ],
+      basTravail: [{ id: 'travail', label: 'Jean technique marine' }, { id: 'pluie_bas', label: 'Pantalon de pluie' }],
+      accessoires: [
+        { id: 'aucun', label: 'Aucun' }, { id: 'tablette', label: 'Tablette' }, { id: 'portable', label: 'Ordinateur' }, { id: 'plans', label: 'Plans' }, { id: 'mug', label: 'Mug' }
+      ],
+      coiffes: [{ id: 'aucune', label: 'Rien' }, { id: 'casquette', label: 'Casquette' }, { id: 'bonnet', label: 'Bonnet' }],
+      /* Bandanas : c = trois couleurs de gauche à droite. Pour ajouter un pays, une ligne suffit. */
+      bandanas: [
+        { id: 'aucun', label: 'Aucun' },
+        { id: 'noir', label: 'Noir', c: ['#23262D', '#23262D', '#23262D'] }, { id: 'rouge', label: 'Rouge', c: ['#C9241C', '#C9241C', '#C9241C'] },
+        { id: 'marine', label: 'Marine', c: ['#1E2A44', '#1E2A44', '#1E2A44'] }, { id: 'orange', label: 'Orange', c: ['#F26A1B', '#F26A1B', '#F26A1B'] },
+        { id: 'pois', label: 'Rouge à pois', c: ['#C9241C', '#C9241C', '#C9241C'], motif: 'pois' }, { id: 'poisMarine', label: 'Marine à pois', c: ['#1E2A44', '#1E2A44', '#1E2A44'], motif: 'pois' },
+        { id: 'techno', label: 'Techno', c: ['#16181D', '#16181D', '#16181D'], motif: 'zig' }, { id: 'technoViolet', label: 'Techno violet', c: ['#3B1F6B', '#3B1F6B', '#3B1F6B'], motif: 'zig' }
+      ],
+      /* Pays : trois couleurs de gauche à droite. Une ligne par pays. */
+      drapeaux: [
+        { id: 'fr', label: 'France', c: ['#0055A4', '#FFFFFF', '#EF4135'] }, { id: 'bzh', label: 'Bretagne', c: ['#000000', '#FFFFFF', '#000000'] },
+        { id: 'pt', label: 'Portugal', c: ['#006600', '#FFCC00', '#FF0000'] }, { id: 'es', label: 'Espagne', c: ['#AA151B', '#F1BF00', '#AA151B'] },
+        { id: 'it', label: 'Italie', c: ['#009246', '#FFFFFF', '#CE2B37'] }, { id: 'be', label: 'Belgique', c: ['#000000', '#FDDA24', '#EF3340'] },
+        { id: 'de', label: 'Allemagne', c: ['#000000', '#DD0000', '#FFCE00'] }, { id: 'nl', label: 'Pays-Bas', c: ['#AE1C28', '#FFFFFF', '#21468B'] },
+        { id: 'gb', label: 'Royaume-Uni', c: ['#012169', '#FFFFFF', '#C8102E'] }, { id: 'ie', label: 'Irlande', c: ['#169B62', '#FFFFFF', '#FF883E'] },
+        { id: 'pl', label: 'Pologne', c: ['#FFFFFF', '#DC143C', '#DC143C'] }, { id: 'ro', label: 'Roumanie', c: ['#002B7F', '#FCD116', '#CE1126'] },
+        { id: 'ua', label: 'Ukraine', c: ['#0057B7', '#FFD700', '#FFD700'] }, { id: 'bg', label: 'Bulgarie', c: ['#FFFFFF', '#00966E', '#D62612'] },
+        { id: 'rs', label: 'Serbie', c: ['#C6363C', '#0C4076', '#FFFFFF'] }, { id: 'hr', label: 'Croatie', c: ['#FF0000', '#FFFFFF', '#171796'] },
+        { id: 'al', label: 'Albanie', c: ['#E41E20', '#000000', '#E41E20'] }, { id: 'tr', label: 'Turquie', c: ['#E30A17', '#FFFFFF', '#E30A17'] },
+        { id: 'ma', label: 'Maroc', c: ['#C1272D', '#006233', '#C1272D'] }, { id: 'dz', label: 'Algérie', c: ['#006233', '#FFFFFF', '#D21034'] },
+        { id: 'tn', label: 'Tunisie', c: ['#E70013', '#FFFFFF', '#E70013'] }, { id: 'sn', label: 'Sénégal', c: ['#00853F', '#FDEF42', '#E31B23'] },
+        { id: 'ml', label: 'Mali', c: ['#14B53A', '#FCD116', '#CE1126'] }, { id: 'ci', label: 'Côte d’Ivoire', c: ['#F77F00', '#FFFFFF', '#009E60'] },
+        { id: 'gn', label: 'Guinée', c: ['#CE1126', '#FCD116', '#009460'] }, { id: 'cm', label: 'Cameroun', c: ['#007A5E', '#CE1126', '#FCD116'] },
+        { id: 'cd', label: 'RD Congo', c: ['#007FFF', '#F7D618', '#CE1021'] }, { id: 'cv', label: 'Cap-Vert', c: ['#003893', '#FFFFFF', '#CF2027'] },
+        { id: 'ao', label: 'Angola', c: ['#CC092F', '#FFCB00', '#000000'] }, { id: 'mg', label: 'Madagascar', c: ['#FFFFFF', '#FC3D32', '#007E3A'] },
+        { id: 'br', label: 'Brésil', c: ['#009C3B', '#FFDF00', '#002776'] }, { id: 'ar', label: 'Argentine', c: ['#74ACDF', '#FFFFFF', '#74ACDF'] },
+        { id: 'co', label: 'Colombie', c: ['#FCD116', '#003893', '#CE1126'] }, { id: 'ht', label: 'Haïti', c: ['#00209F', '#D21034', '#D21034'] },
+        { id: 'us', label: 'États-Unis', c: ['#B22234', '#FFFFFF', '#3C3B6E'] }, { id: 'ca', label: 'Canada', c: ['#FF0000', '#FFFFFF', '#FF0000'] },
+        { id: 'in', label: 'Inde', c: ['#FF9933', '#FFFFFF', '#138808'] }, { id: 'vn', label: 'Vietnam', c: ['#DA251D', '#FFFF00', '#DA251D'] },
+        { id: 'cn', label: 'Chine', c: ['#DE2910', '#FFDE00', '#DE2910'] },
+        { id: 'ch', label: 'Suisse', c: ['#D52B1E', '#FFFFFF', '#D52B1E'] }, { id: 'at', label: 'Autriche', c: ['#ED2939', '#FFFFFF', '#ED2939'] },
+        { id: 'lu', label: 'Luxembourg', c: ['#ED2939', '#FFFFFF', '#00A1DE'] }, { id: 'dk', label: 'Danemark', c: ['#C60C30', '#FFFFFF', '#C60C30'] },
+        { id: 'se', label: 'Suède', c: ['#006AA7', '#FECC00', '#006AA7'] }, { id: 'no', label: 'Norvège', c: ['#BA0C2F', '#FFFFFF', '#00205B'] },
+        { id: 'fi', label: 'Finlande', c: ['#FFFFFF', '#003580', '#FFFFFF'] }, { id: 'is', label: 'Islande', c: ['#02529C', '#FFFFFF', '#DC1E35'] },
+        { id: 'gr', label: 'Grèce', c: ['#0D5EAF', '#FFFFFF', '#0D5EAF'] }, { id: 'cz', label: 'Tchéquie', c: ['#11457E', '#FFFFFF', '#D7141A'] },
+        { id: 'sk', label: 'Slovaquie', c: ['#FFFFFF', '#0B4EA2', '#EE1C25'] }, { id: 'hu', label: 'Hongrie', c: ['#CE2939', '#FFFFFF', '#477050'] },
+        { id: 'si', label: 'Slovénie', c: ['#FFFFFF', '#0057B8', '#ED1C24'] }, { id: 'ba', label: 'Bosnie-Herzégovine', c: ['#002395', '#FECB00', '#002395'] },
+        { id: 'mk', label: 'Macédoine du Nord', c: ['#D20000', '#FFE600', '#D20000'] }, { id: 'me', label: 'Monténégro', c: ['#C40308', '#D4AF3A', '#C40308'] },
+        { id: 'xk', label: 'Kosovo', c: ['#244AA5', '#D0A650', '#244AA5'] }, { id: 'md', label: 'Moldavie', c: ['#0046AE', '#FFD200', '#CC092F'] },
+        { id: 'lt', label: 'Lituanie', c: ['#FDB913', '#006A44', '#C1272D'] }, { id: 'lv', label: 'Lettonie', c: ['#9E3039', '#FFFFFF', '#9E3039'] },
+        { id: 'ee', label: 'Estonie', c: ['#0072CE', '#000000', '#FFFFFF'] }, { id: 'ru', label: 'Russie', c: ['#FFFFFF', '#0039A6', '#D52B1E'] },
+        { id: 'ge', label: 'Géorgie', c: ['#FFFFFF', '#FF0000', '#FFFFFF'] }, { id: 'am', label: 'Arménie', c: ['#D90012', '#0033A0', '#F2A800'] },
+        { id: 'sco', label: 'Écosse', c: ['#005EB8', '#FFFFFF', '#005EB8'] }, { id: 'cor', label: 'Corse', c: ['#FFFFFF', '#000000', '#FFFFFF'] },
+        { id: 'eus', label: 'Pays basque', c: ['#D52B1E', '#009B48', '#FFFFFF'] },
+        { id: 'eg', label: 'Égypte', c: ['#CE1126', '#FFFFFF', '#000000'] }, { id: 'mr', label: 'Mauritanie', c: ['#D01C1F', '#006233', '#FFC400'] },
+        { id: 'bf', label: 'Burkina Faso', c: ['#EF2B2D', '#FCD116', '#009E49'] }, { id: 'ne', label: 'Niger', c: ['#E05206', '#FFFFFF', '#0DB02B'] },
+        { id: 'tg', label: 'Togo', c: ['#006A4E', '#FFCE00', '#D21034'] }, { id: 'bj', label: 'Bénin', c: ['#008751', '#FCD116', '#E8112D'] },
+        { id: 'gh', label: 'Ghana', c: ['#CE1126', '#FCD116', '#006B3F'] }, { id: 'ng', label: 'Nigeria', c: ['#008751', '#FFFFFF', '#008751'] },
+        { id: 'ga', label: 'Gabon', c: ['#009E60', '#FCD116', '#3A75C4'] }, { id: 'cg', label: 'Congo', c: ['#009543', '#FBDE4A', '#DC241F'] },
+        { id: 'td', label: 'Tchad', c: ['#002664', '#FECB00', '#C60C30'] }, { id: 'cf', label: 'Centrafrique', c: ['#003082', '#FFFFFF', '#289728'] },
+        { id: 'gw', label: 'Guinée-Bissau', c: ['#CE1126', '#FCD116', '#009E49'] }, { id: 'gm', label: 'Gambie', c: ['#CE1126', '#0C1C8C', '#3A7728'] },
+        { id: 'mz', label: 'Mozambique', c: ['#007168', '#000000', '#FCE100'] }, { id: 'za', label: 'Afrique du Sud', c: ['#007A4D', '#FFB612', '#DE3831'] },
+        { id: 'et', label: 'Éthiopie', c: ['#078930', '#FCDD09', '#DA121A'] }, { id: 'ke', label: 'Kenya', c: ['#000000', '#BB0000', '#006600'] },
+        { id: 'rw', label: 'Rwanda', c: ['#00A1DE', '#FAD201', '#20603D'] }, { id: 'km', label: 'Comores', c: ['#FFC61E', '#FFFFFF', '#3A75C4'] },
+        { id: 'mu', label: 'Maurice', c: ['#EA2839', '#1A206D', '#FFD500'] },
+        { id: 'mx', label: 'Mexique', c: ['#006847', '#FFFFFF', '#CE1126'] }, { id: 'pe', label: 'Pérou', c: ['#D91023', '#FFFFFF', '#D91023'] },
+        { id: 'cl', label: 'Chili', c: ['#0039A6', '#FFFFFF', '#D52B1E'] }, { id: 'uy', label: 'Uruguay', c: ['#FFFFFF', '#0038A8', '#FFFFFF'] },
+        { id: 've', label: 'Venezuela', c: ['#FFCC00', '#00247D', '#CF142B'] }, { id: 'ec', label: 'Équateur', c: ['#FFDD00', '#034EA2', '#ED1C24'] },
+        { id: 'bo', label: 'Bolivie', c: ['#D52B1E', '#F9E300', '#007934'] }, { id: 'cu', label: 'Cuba', c: ['#002A8F', '#FFFFFF', '#CB1515'] },
+        { id: 'do', label: 'République dominicaine', c: ['#002D62', '#FFFFFF', '#CE1126'] }, { id: 'jm', label: 'Jamaïque', c: ['#009B3A', '#FED100', '#000000'] },
+        { id: 'jp', label: 'Japon', c: ['#FFFFFF', '#BC002D', '#FFFFFF'] }, { id: 'kr', label: 'Corée du Sud', c: ['#FFFFFF', '#CD2E3A', '#0047A0'] },
+        { id: 'th', label: 'Thaïlande', c: ['#A51931', '#F4F5F8', '#2D2A4A'] }, { id: 'ph', label: 'Philippines', c: ['#0038A8', '#FFFFFF', '#CE1126'] },
+        { id: 'id', label: 'Indonésie', c: ['#FF0000', '#FF0000', '#FFFFFF'] }, { id: 'pk', label: 'Pakistan', c: ['#FFFFFF', '#01411C', '#01411C'] },
+        { id: 'bd', label: 'Bangladesh', c: ['#006A4E', '#F42A41', '#006A4E'] }, { id: 'lk', label: 'Sri Lanka', c: ['#FFBE29', '#8D153A', '#EB7400'] },
+        { id: 'af', label: 'Afghanistan', c: ['#000000', '#D32011', '#007A36'] }, { id: 'ir', label: 'Iran', c: ['#239F40', '#FFFFFF', '#DA0000'] },
+        { id: 'iq', label: 'Irak', c: ['#CE1126', '#FFFFFF', '#000000'] }, { id: 'lb', label: 'Liban', c: ['#ED1C24', '#FFFFFF', '#ED1C24'] },
+        { id: 'il', label: 'Israël', c: ['#FFFFFF', '#0038B8', '#FFFFFF'] }, { id: 'sa', label: 'Arabie saoudite', c: ['#006C35', '#FFFFFF', '#006C35'] },
+        { id: 'ae', label: 'Émirats arabes unis', c: ['#00732F', '#FFFFFF', '#000000'] }, { id: 'kz', label: 'Kazakhstan', c: ['#00AFCA', '#FEC50C', '#00AFCA'] },
+        { id: 'au', label: 'Australie', c: ['#00008B', '#FFFFFF', '#FF0000'] }
+      ],
+      outils: { chalumeau: 'Chalumeau', meuleuse: 'Meuleuse', torche: 'Porte-électrode', talkie: 'Talkie-walkie' },
+      paliers: [
+        { id: 'standard', label: 'Standard', seuil: 0, hex: '#6B7585', cadre: '#F26A1B' },
+        { id: 'bronze', label: 'Bronze', seuil: 250, hex: '#C4803F', cadre: '#C4803F' },
+        { id: 'argent', label: 'Argent', seuil: 1000, hex: '#CDD2DA', cadre: '#9AA3B0' },
+        { id: 'or', label: 'Or', seuil: 5000, hex: '#EBBB1F', cadre: '#EBBB1F' },
+        { id: 'diamant', label: 'Diamant', seuil: 10000, hex: '#9EE7F2', cadre: '#4FB8CC' }
+      ],
+      paliersQualite: [
+        { id: 'standard', label: 'Standard', seuil: 0, hex: '#C9A46A' },
+        { id: 'bronze', label: 'Bronze', seuil: 30, hex: '#C4803F' },
+        { id: 'argent', label: 'Argent', seuil: 90, hex: '#CDD2DA' },
+        { id: 'or', label: 'Or', seuil: 180, hex: '#EBBB1F' },
+        { id: 'diamant', label: 'Diamant', seuil: 365, hex: '#9EE7F2' }
+      ],
+      /* Soudeur : taux de radios conformes sur les 50 dernières soudures tirées -> masque de soudage. */
+      paliersRadio: [
+        { id: 'standard', label: 'Standard', seuil: 0, hex: '#2A2E36' }, { id: 'bronze', label: 'Bronze', seuil: 90, hex: '#C4803F' },
+        { id: 'argent', label: 'Argent', seuil: 95, hex: '#CDD2DA' }, { id: 'or', label: 'Or', seuil: 98, hex: '#EBBB1F' }, { id: 'diamant', label: 'Diamant', seuil: 100, hex: '#9EE7F2' }
+      ],
+      /* Soudeur : record de semaines d'affilée au-dessus de la cadence moyenne (semaines de 4 jours) -> étincelles au bout de l'électrode, couleur selon le palier. */
+      paliersCadence: [
+        { id: 'bronze', label: 'Bronze', seuil: 1, hex: '#FF9A3D' }, { id: 'argent', label: 'Argent', seuil: 3, hex: '#FFD23D' },
+        { id: 'or', label: 'Or', seuil: 4, hex: '#FFF08A' }, { id: 'diamant', label: 'Diamant', seuil: 8, hex: '#C4F5FF' }
+      ],
+      /* Médaille d'ancienneté : une seule, au choix du salarié, de plus en plus travaillée. Le disque affiche le nombre d'années. */
+      medaillesAnciennete: [
+        { niveau: 1, seuil: 1, label: 'Bronze' }, { niveau: 2, seuil: 3, label: 'Argent' }, { niveau: 3, seuil: 5, label: 'Or' },
+        { niveau: 4, seuil: 7, label: 'Or à barrette' }, { niveau: 5, seuil: 10, label: 'Or rayonnant' }, { niveau: 6, seuil: 12, label: 'Or rayonnant à barrette' },
+        { niveau: 7, seuil: 15, label: 'Or et lauriers' }, { niveau: 8, seuil: 20, label: 'Diamant couronné' }
+      ],
+      /* Sécurité : une étoile sur le casque par année sans accident, 10 au maximum. */
+      etoileJours: 365, etoilesMax: 10,
+      meteos: [{ id: 'chaud', label: 'Chaud' }, { id: 'frais', label: 'Frais' }, { id: 'froid', label: 'Froid' }, { id: 'pluie', label: 'Forte pluie' }],
+      fonds: [
+        { id: 'gris', label: 'Fond gris', hex: '#E3E8EF' }, { id: 'bleu', label: 'Fond bleu', hex: '#CFE0F5' }, { id: 'vert', label: 'Fond vert', hex: '#D3EADB' },
+        { id: 'sable', label: 'Fond sable', hex: '#F1E3CB' }, { id: 'orange', label: 'Fond orange', hex: '#FBD6BE' }, { id: 'nuit', label: 'Fond nuit', hex: '#2B3A5C' }
+      ]
+    };
+  }
+
+  /* Profil + contexte (vue, meteo, realisations, jours, qualite, radio, cadence, anciennete) -> tout ce que l'ecran affiche. Aucune dependance a l'interface. */
+  modele(s) {
+    var K = this.catalogue();
+    function trouve(list, id) { return list.filter(function (x) { return x.id === id; })[0]; }
+    function nombre(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+    function hex(id) { var t = trouve(K.teintes, id); return t ? t.hex : null; }
+    var P0 = trouve(K.postes, s.poste) || K.postes[0];
+    var P = Object.assign({}, P0, s.genre === 'femme' && P0.femme ? P0.femme : {});
+    var libre = !!P.libre;
+    var perso = s.vue === 'perso';
+    var meteo = trouve(K.meteos, s.meteo) || K.meteos[2];
+    var real = Number(s.realisations) || 0;
+    var jours = Number(s.jours) || 0;
+    var qualite = Number(s.qualite) || 0;
+    var anciennete = Math.floor(Number(s.anciennete) || 0);
+    var iAnc = -1;
+    K.medaillesAnciennete.forEach(function (md, i) { if (anciennete >= md.seuil) iAnc = i; });
+    var niveauAnc = iAnc >= 0 ? K.medaillesAnciennete[iAnc].niveau : 0;
+    var medPortee = !!s.medaille && niveauAnc > 0;
+
+    var terrain = !libre;
+    /* Recompenses de production : postes terrain sauf ceux marques sansRecompense (chef de chantier). */
+    var recomp = terrain && !P.sansRecompense;
+    var PAL = K.paliers.map(function (p, i) { return P.seuils ? Object.assign({}, p, { seuil: P.seuils[i] }) : p; });
+    var radio = Number(s.radio) || 0;
+    var cadence = Number(s.cadence) || 0;
+    var iRadio = 0;
+    K.paliersRadio.forEach(function (p, i) { if (radio >= p.seuil) iRadio = i; });
+    var nChevrons = Math.max(0, Math.round(cadence));
+    var iCad = -1;
+    K.paliersCadence.forEach(function (p, i) { if (cadence >= p.seuil) iCad = i; });
+    var deb = 0;
+    PAL.forEach(function (p, i) { if (real >= p.seuil) deb = i; });
+    var eq = deb;
+    PAL.forEach(function (p, i) { if (p.id === s.palier && i <= deb) eq = i; });
+    var palier = PAL[eq];
+    var PALQ = K.paliersQualite.map(function (p, i) { return P.seuilsQualite ? Object.assign({}, p, { seuil: P.seuilsQualite[i], duree: (P.dureesQualite || [])[i] }) : p; });
+    var debQ = 0;
+    PALQ.forEach(function (p, i) { if (qualite >= p.seuil) debQ = i; });
+    var eqQ = debQ;
+    PALQ.forEach(function (p, i) { if (p.id === s.palierGants && i <= debQ) eqQ = i; });
+    var etoiles = Math.min(K.etoilesMax, Math.floor(jours / K.etoileJours));
+
+    /* Une pièce au choix = un type + une teinte. Retourne la sélection courante. */
+    function piece(types, typeChoisi, teinteChoisie, typePoste, teintePoste, typeDefaut) {
+      var type = typeChoisi || typePoste || typeDefaut;
+      var def = trouve(types, type);
+      var teinteId = teinteChoisie || (type === typePoste && teintePoste ? teintePoste : def ? def.defaut : null);
+      return { type: type, teinte: def ? teinteId : null, hex: def ? hex(teinteId) : null };
+    }
+    function bandeau(id) { var b = trouve(K.bandanas, id) || trouve(K.drapeaux, id); return b && b.c ? b.c.concat([b.motif || '']) : null; }
+
+    var visage = { genre: s.genre, peau: s.peau, cheveux: s.cheveux, couleur: s.couleur, barbe: s.barbe, lunettes: s.lunettes, bouche: s.bouche || 'rien' };
+    var tH, tB, tC, tenuePoste;
+    if (libre) {
+      tH = piece(K.hautTypes, s.haut, s.hautCouleur, P.haut, P.hautCouleur);
+      tB = piece(K.basTypes, s.bas, s.basCouleur, P.bas, P.basCouleur);
+      tC = piece(K.chaussuresTypes, s.chaussures, s.chaussuresCouleur, P.chaussures, P.chaussuresCouleur);
+      tenuePoste = tH.type === P.haut;
+    } else {
+      tenuePoste = true;
+      var hautJour = P.haut, basJour = P.bas;
+      if (P.haut === 'soudeur') { hautJour = 'soudeur'; if (meteo.id === 'pluie') basJour = 'pluie_bas'; }
+      else if (meteo.id === 'pluie') { hautJour = 'pluie'; basJour = 'pluie_bas'; }
+      else if (meteo.id === 'chaud') hautJour = 'tshirt_hv';
+      else if (meteo.id === 'frais') hautJour = 'sweat_hv';
+      tH = { type: hautJour, hex: null };
+      tB = { type: basJour, hex: null };
+      tC = { type: P.chaussures, hex: null };
+    }
+    var cfgT = Object.assign({}, visage, {
+      haut: tH.type, hautCouleur: tH.hex, bas: tB.type, basCouleur: tB.hex, chaussures: tC.type, chaussuresCouleur: tC.hex,
+      casque: P.masque ? false : !libre ? true : s.casque != null ? s.casque : (!!P.casque && tenuePoste),
+      casqueSol: !!P.masque, cagouleSol: !!P.cagouleSol,
+      coiffe: 'aucune', bandana: bandeau(s.bandana),
+      gants: tenuePoste ? P.gants : 'aucun',
+      accessoire: libre && s.accessoire ? s.accessoire : P.accessoire,
+      palier: recomp ? palier.id : 'standard', etoiles: recomp ? etoiles : 0, medailleAns: medPortee ? anciennete : 0, medailleNiveau: medPortee ? niveauAnc : 0,
+      masque: P.masque ? K.paliersRadio[iRadio].id : null, etincelles: P.cadence === 'etincelles' ? nChevrons : 0, flamme: P.cadence === 'flamme' ? nChevrons : 0, gerbe: P.cadence === 'gerbe' ? nChevrons : 0, ondes: P.cadence === 'ondes' ? nChevrons : 0, etincellesPalier: iCad >= 0 ? K.paliersCadence[iCad].id : 'bronze'
+    });
+    var aGants = !!P.qualite && cfgT.gants !== 'aucun';
+    cfgT.gantsPalier = aGants ? PALQ[eqQ].id : 'standard';
+    var pH = piece(K.hautTypes, s.pHaut, s.pHautCouleur, null, null, 'tshirt');
+    var pB = piece(K.basTypes, s.pBas, s.pBasCouleur, null, null, 'jean');
+    var pC = piece(K.chaussuresTypes, s.pChaussures, s.pChaussuresCouleur, null, null, 'baskets');
+    var cfgP = Object.assign({}, visage, {
+      haut: pH.type, hautCouleur: pH.hex, bas: pB.type, basCouleur: pB.hex, chaussures: pC.type, chaussuresCouleur: pC.hex,
+      casque: false, coiffe: s.pCoiffe || 'aucune', bandana: bandeau(s.pBandana), gants: 'aucun', accessoire: s.pAccessoire || 'aucun',
+      palier: 'standard', etoiles: 0, gantsPalier: 'standard', medailleAns: medPortee ? anciennete : 0, medailleNiveau: medPortee ? niveauAnc : 0
+    });
+    var cfg = perso ? cfgP : cfgT;
+    var cH = perso ? pH : tH, cB = perso ? pB : tB, cC = perso ? pC : tC;
+
+    function opts(list, cle, cleCfg, mini) {
+      return list.map(function (o) {
+        var c2 = Object.assign({}, cfg, mini || {});
+        c2[cleCfg] = o.id;
+        var patch = {};
+        patch[cle] = o.id;
+        return { id: o.id, label: o.label, hex: o.hex, sel: cfg[cleCfg] === o.id, cfg: c2, patch: patch };
+      });
+    }
+    var tete = { casque: false, coiffe: 'aucune', accessoire: 'aucun' };
+    var buste = { casque: false, coiffe: 'aucune', gants: 'aucun', accessoire: 'aucun' };
+    var tenueVisible = perso || libre;
+    var prefixe = perso ? 'p' : '';
+    function cleDe(nom) { return perso ? 'p' + nom.charAt(0).toUpperCase() + nom.slice(1) : nom; }
+
+    /* Vignettes des types d'une pièce, puis pastilles de teintes pour le type sélectionné. */
+    function types(nom, liste, courant, typePoste, teintePoste) {
+      if (!tenueVisible) return [];
+      var items = liste.slice();
+      if (!perso && typePoste && !trouve(liste, typePoste)) items.unshift({ id: typePoste, label: (trouve(K.hautsPoste, typePoste) || {}).label || 'Tenue du poste' });
+      return items.map(function (o) {
+        var sel = o.id === courant.type;
+        var teinteId = sel ? courant.teinte : (!perso && o.id === typePoste && teintePoste ? teintePoste : o.defaut);
+        var c2 = Object.assign({}, cfg, buste);
+        c2[nom] = o.id;
+        c2[nom + 'Couleur'] = o.defaut ? hex(teinteId) : null;
+        var patch = {};
+        patch[cleDe(nom)] = o.id;
+        patch[cleDe(nom) + 'Couleur'] = null;
+        return { id: o.id, label: o.label, sel: sel, cfg: c2, patch: patch };
+      });
+    }
+    function teintes(nom, courant) {
+      if (!tenueVisible || !courant.teinte) return [];
+      return K.teintes.map(function (t) {
+        var patch = {};
+        patch[cleDe(nom) + 'Couleur'] = t.id;
+        return { id: t.id, label: t.label, hex: t.hex, sel: t.id === courant.teinte, patch: patch };
+      });
+    }
+    var outil = K.outils[cfgT.accessoire];
+    var suivant = PAL[deb + 1];
+    var bandanaCourant = (perso ? s.pBandana : s.bandana) || 'aucun';
+
+    var groupes = {
+      postes: K.postes.map(function (o) {
+        return { id: o.id, label: o.label, sel: o.id === P0.id, patch: { poste: o.id, casque: null, haut: null, hautCouleur: null, bas: null, basCouleur: null, chaussures: null, chaussuresCouleur: null, accessoire: null, palier: null, palierGants: null } };
+      }),
+      genres: opts(K.genres, 'genre', 'genre'),
+      peaux: opts(K.peaux, 'peau', 'peau'),
+      couleurs: opts(K.couleurs, 'couleur', 'couleur'),
+      coiffures: opts(K.coiffures, 'cheveux', 'cheveux', tete),
+      barbes: opts(K.barbes, 'barbe', 'barbe', tete),
+      lunettes: opts(K.lunettes, 'lunettes', 'lunettes', tete),
+      bouches: opts(K.bouches, 'bouche', 'bouche', tete),
+      vues: [
+        { id: 'travail', label: 'Au travail', sel: !perso, patch: { vue: 'travail' } },
+        { id: 'perso', label: 'Hors travail', sel: perso, patch: { vue: 'perso' } }
+      ],
+      hauts: types('haut', K.hautTypes, cH, P.haut, P.hautCouleur),
+      hautTeintes: teintes('haut', cH),
+      bas: types('bas', K.basTypes, cB, P.bas, P.basCouleur),
+      basTeintes: teintes('bas', cB),
+      chaussures: types('chaussures', K.chaussuresTypes, cC, P.chaussures, P.chaussuresCouleur),
+      chaussuresTeintes: teintes('chaussures', cC),
+      accessoires: !tenueVisible ? [] : perso ? opts(K.accessoires, 'pAccessoire', 'accessoire', { coiffe: 'aucune' }) : opts(K.accessoires, 'accessoire', 'accessoire'),
+      casques: perso || !libre ? [] : [
+        { id: 'oui', label: 'Avec casque', sel: cfg.casque === true, patch: { casque: true }, cfg: Object.assign({}, cfg, { accessoire: 'aucun', casque: true }) },
+        { id: 'non', label: 'Sans casque', sel: cfg.casque === false, patch: { casque: false }, cfg: Object.assign({}, cfg, { accessoire: 'aucun', casque: false }) }
+      ],
+      coiffes: perso ? opts(K.coiffes, 'pCoiffe', 'coiffe', { accessoire: 'aucun' }) : [],
+      bandanaBascule: [
+        { id: 'non', label: 'Sans bandana', sel: bandanaCourant === 'aucun', patch: perso ? { pBandana: null } : { bandana: null } },
+        { id: 'oui', label: 'Avec bandana', sel: bandanaCourant !== 'aucun', patch: bandanaCourant !== 'aucun' ? {} : perso ? { pBandana: 'noir' } : { bandana: 'noir' } }
+      ],
+      bandanas: bandanaCourant === 'aucun' ? [] : K.bandanas.filter(function (b) { return !!b.c; }).map(function (b) {
+        var patch = {};
+        patch[perso ? 'pBandana' : 'bandana'] = b.id === 'aucun' ? null : b.id;
+        var c = b.c || ['#FFFFFF', '#FFFFFF', '#FFFFFF'];
+        return { id: b.id, label: b.label, c1: c[0], c2: c[1], c3: c[2], motif: b.motif || '', sel: b.id === bandanaCourant, patch: patch };
+      }),
+      bandanaPays: bandanaCourant === 'aucun' ? [] : K.drapeaux.slice().sort(function (x, y) { return x.label.localeCompare(y.label, 'fr'); }).map(function (b) {
+        var patch = {};
+        patch[perso ? 'pBandana' : 'bandana'] = b.id;
+        return { id: b.id, label: b.label, sel: b.id === bandanaCourant, patch: patch };
+      }),
+      paliers: !recomp ? [] : PAL.map(function (p, i) {
+        return { id: p.id, label: p.label, hex: p.hex, sel: i === eq, bloque: i > deb, info: i === 0 ? 'De base' : nombre(p.seuil) + ' ' + P.unite, patch: { palier: p.id } };
+      }),
+      paliersGants: !aGants ? [] : PALQ.map(function (p, i) {
+        return { id: p.id, label: p.label, hex: p.hex, sel: i === eqQ, bloque: i > debQ, info: i === 0 ? 'De base' : (p.duree ? p.duree + ' · ' : '') + nombre(p.seuil) + ' ' + P.qualite, patch: { palierGants: p.id } };
+      }),
+      paliersRadio: !P.masque ? [] : K.paliersRadio.map(function (p, i) {
+        return { id: p.id, label: p.label, hex: p.hex, sel: i === iRadio, bloque: false, info: i === 0 ? 'Moins de 90 %' : (p.seuil === 100 ? '100 %' : p.seuil + ' % et plus'), patch: {} };
+      }),
+      paliersCadence: !P.cadence ? [] : K.paliersCadence.map(function (p, i) {
+        return { id: p.id, label: p.label, hex: p.hex, sel: i === iCad, bloque: false, info: p.seuil + ' semaine' + (p.seuil > 1 ? 's' : '') + ' d’affilée', patch: {} };
+      }),
+      medailleBascule: [
+        { id: 'non', label: 'Sans médaille', sel: !medPortee, patch: { medaille: false } },
+        { id: 'oui', label: 'Porter ma médaille', sel: medPortee, bloque: niveauAnc === 0, patch: { medaille: true } }
+      ],
+      medailleNiveaux: K.medaillesAnciennete.map(function (md, i) {
+        var c2 = Object.assign({}, cfg, { accessoire: 'aucun', gants: 'aucun', bandana: null, medailleAns: i === iAnc ? anciennete : md.seuil, medailleNiveau: md.niveau });
+        return { id: 'n' + md.niveau, label: md.label, info: 'Dès ' + md.seuil + ' an' + (md.seuil > 1 ? 's' : ''), sel: i === iAnc, bloque: false, atteint: i <= iAnc, cfg: c2, patch: {} };
+      }),
+      fonds: K.fonds.map(function (o) { return { id: o.id, label: o.label, hex: o.hex, sel: o.id === (s.fond || 'gris'), patch: { fond: o.id } }; }),
+      meteos: K.meteos.map(function (o) { return { id: o.id, label: o.label, sel: o.id === meteo.id, patch: { meteo: o.id } }; })
+    };
+
+    var basJourLabel = (trouve(K.basTravail, tB.type) || {}).label || '';
+    return {
+      poste: P, libre: libre, perso: perso, verrou: !perso && !libre, tenueVisible: tenueVisible,
+      cfg: cfg, cfgTravail: cfgT, cfgPerso: cfgP,
+      palier: palier, etoiles: etoiles,
+      fond: (trouve(K.fonds, s.fond) || K.fonds[0]).hex,
+      cadre: recomp ? palier.cadre : '#F26A1B',
+      aRecompenses: recomp, aRadio: !!P.masque, aCadence: !!P.cadence,
+      cadenceTitre: P.cadence === 'flamme' ? 'Flamme du flambard · elle s’épaissit avec la série' : P.cadence === 'gerbe' ? 'Gerbe d’étincelles de la meuleuse · cadence de son soudeur' : P.cadence === 'ondes' ? 'Ondes du talkie · une par semaine de série' : 'Étincelles de l’électrode · une par semaine de série',
+      radioTexte: P.masque ? radio + ' % de radios conformes sur les 50 dernières soudures tirées · masque ' + K.paliersRadio[iRadio].label.toLowerCase() : '',
+      cadenceTexte: !P.cadence ? '' : 'Record : ' + cadence + ' semaine' + (cadence > 1 ? 's' : '') + ' d’affilée au-dessus de la cadence moyenne · ' + (P.cadence === 'flamme' ? (cadence < 1 ? 'flambard éteint' : 'la flamme s’épaissit jusqu’à 12 semaines, puis braises, halo et flammèches s’ajoutent chaque semaine jusqu’à 40') : P.cadence === 'ondes' ? nChevrons + ' onde' + (nChevrons > 1 ? 's' : '') + ' autour de l’antenne du talkie' + (nChevrons > 40 ? ' (40 dessinées au maximum)' : '') : P.cadence === 'gerbe' ? nChevrons + ' étincelle' + (nChevrons > 1 ? 's' : '') + ' dans la gerbe de la meuleuse' + (nChevrons > 40 ? ' (40 dessinées au maximum)' : '') : nChevrons + ' étincelle' + (nChevrons > 1 ? 's' : '') + ' au bout de l’électrode' + (nChevrons > 40 ? ' (40 dessinées au maximum)' : '')),
+      realMax: Math.round(PAL[PAL.length - 1].seuil * 1.1),
+      groupes: groupes,
+      vueTexte: perso ? 'Hors heures de travail : tenue personnelle' : 'En heures de travail : ' + (libre ? 'tenue du poste' : 'EPI, météo ' + meteo.label.toLowerCase()),
+      epi: libre ? '' : 'Aujourd’hui (' + meteo.label.toLowerCase() + ') : ' + ((trouve(K.hautsPoste, tH.type) || {}).label || '').toLowerCase() + ', ' + basJourLabel.toLowerCase() + ', chaussures de sécurité, ' + (P.masque ? 'masque de soudage, casque posé à ses pieds.' : P.cagouleSol ? 'casque, cagoule de soudure posée à ses pieds.' : 'casque.'),
+      progression: nombre(real) + ' ' + P.unite + ' · palier ' + PAL[deb].label + ' atteint',
+      prochain: suivant ? 'Prochain palier : ' + suivant.label + ' à ' + nombre(suivant.seuil) + ' ' + P.unite + '.' : 'Tous les paliers sont débloqués.',
+      etoilesTexte: Math.floor(jours / 365) + ' an' + (jours >= 730 ? 's' : '') + ' sans accident (' + nombre(jours) + ' jours) · ' + etoiles + ' étoile' + (etoiles > 1 ? 's' : '') + ' sur le casque : une par année sans accident, ' + K.etoilesMax + ' au maximum.',
+      aGants: aGants, aCasque: !perso && libre,
+      qualiteTexte: aGants ? nombre(qualite) + ' ' + P.qualite + ' · palier ' + PALQ[debQ].label.toLowerCase() + ' atteint' : '',
+      gantsTitre: 'Gants · ' + (P.qualite || ''),
+      medailleTexte: (anciennete < 1 ? 'Moins d’un an d’ancienneté : la médaille arrive au premier anniversaire.' : anciennete + ' an' + (anciennete > 1 ? 's' : '') + ' d’ancienneté · médaille ' + K.medaillesAnciennete[iAnc].label.toLowerCase() + '.') + (anciennete >= 1 && K.medaillesAnciennete[iAnc + 1] ? ' Prochaine évolution à ' + K.medaillesAnciennete[iAnc + 1].seuil + ' ans.' : ''),
+      aBandana: bandanaCourant !== 'aucun',
+      bandanaCle: perso ? 'pBandana' : 'bandana',
+      bandanaPaysCourant: trouve(K.drapeaux, bandanaCourant) ? bandanaCourant : '',
+      bandanaTexte: perso ? 'Porté en bandeau, masqué sous une casquette ou un bonnet.' : P.masque ? 'Porté en bandeau sous le masque de soudage.' : 'Porté sous le casque : un liseré sur le front et le nœud sur le côté.',
+      palierTitre: outil ? outil + ' et cadre du médaillon' : 'Cadre du médaillon'
+    };
+  }
+
+  renderVals() {
+    var self = this;
+    var K = this.catalogue();
+    var p = this.props || {};
+    var s = Object.assign({}, this.state, {
+      realisations: p.realisations != null ? p.realisations : 25000,
+      jours: (p.ansSansAccident != null ? p.ansSansAccident : 2) * 365,
+      meteo: p.meteo || 'froid',
+      qualite: p.qualite != null ? p.qualite : 400,
+      radio: p.radio != null ? p.radio : 96,
+      cadence: p.cadence != null ? p.cadence : 3,
+      anciennete: p.anciennete != null ? p.anciennete : 7
+    });
+    var m = this.modele(s);
+    function actions(list) {
+      return list.map(function (it) {
+        return Object.assign({}, it, { sel: String(it.sel), bloque: !!it.bloque, pick: function () { self.setState(it.patch); } });
+      });
+    }
+    function pioche(list) { return list[Math.floor(Math.random() * list.length)]; }
+    var v = {
+      cfg: m.cfg, fond: m.fond, cadre: m.cadre,
+      posteLabel: m.poste.label, vueTexte: m.vueTexte,
+      verrou: m.verrou, tenueVisible: m.tenueVisible, travail: !m.perso, perso: m.perso,
+      aHautTeintes: m.groupes.hautTeintes.length > 0,
+      epi: m.epi, progression: m.progression, prochain: m.prochain, etoilesTexte: m.etoilesTexte, palierTitre: m.palierTitre,
+      aRecompenses: m.aRecompenses, aRadio: m.aRadio, aCadence: m.aCadence, cadenceTitre: m.cadenceTitre, radioTexte: m.radioTexte, cadenceTexte: m.cadenceTexte,
+      aGants: m.aGants, aCasque: m.aCasque, qualiteTexte: m.qualiteTexte, gantsTitre: m.gantsTitre, medailleTexte: m.medailleTexte, bandanaTexte: m.bandanaTexte, bandanaPaysCourant: m.bandanaPaysCourant,
+      aBandana: m.aBandana,
+      choisirPays: function (e) { if (!e.target.value) return; var n = {}; n[m.bandanaCle] = e.target.value; self.setState(n); },
+      hasard: function () {
+        var n = {};
+        ['peaux', 'couleurs', 'coiffures', 'barbes', 'lunettes', 'fonds', 'hauts', 'bas', 'chaussures', 'coiffes'].forEach(function (k) {
+          if (m.groupes[k].length) Object.assign(n, pioche(m.groupes[k]).patch);
+        });
+        if (m.tenueVisible) {
+          var cle = function (nom) { return m.perso ? 'p' + nom.charAt(0).toUpperCase() + nom.slice(1) : nom; };
+          ['haut', 'bas', 'chaussures'].forEach(function (nom) { n[cle(nom) + 'Couleur'] = pioche(K.teintes).id; });
+        }
+        self.setState(n);
+      },
+      reinit: function () { self.setState(Object.assign(self.profilInitial(), { poste: self.state.poste, vue: self.state.vue })); }
+    };
+    Object.keys(m.groupes).forEach(function (k) { v[k] = actions(m.groupes[k]); });
+    return v;
+  }
+}
+
+const AVATAR_CALQUES = [{"si": "b_long", "svg": "<g transform=\"{{headT}}\"><path d=\"M82 70 C72 110 74 150 80 172 H160 C166 150 168 110 158 70Z\" fill=\"{{hair}}\"/></g>"}, {"si": "b_queue", "svg": "<g transform=\"{{headT}}\"><path d=\"M148 54 C174 58 181 96 170 126 C166 108 160 92 149 84Z\" fill=\"{{hair}}\"/></g>"}, {"si": null, "svg": "<g transform=\"{{bodyT}}\"><line x1=\"75\" y1=\"142\" x2=\"62\" y2=\"236\" stroke=\"{{skin}}\" style=\"stroke-width: 21; stroke-linecap: round\"/><line x1=\"165\" y1=\"142\" x2=\"178\" y2=\"236\" stroke=\"{{skin}}\" style=\"stroke-width: 21; stroke-linecap: round\"/><path d=\"M83 240 H117 L110 374 H86Z\" fill=\"{{skin}}\"/><path d=\"M157 240 H123 L130 374 H154Z\" fill=\"{{skin}}\"/><g transform=\"translate(61 246) rotate(9)\"><path d=\"M8.5 -9 C14 -8 16.5 -1 15 5 C14 9 9.5 8.5 9.5 4Z\" fill=\"{{skin}}\"/><path d=\"M-9.5 -11 H9.5 V5 Q9.5 15 0 15 Q-9.5 15 -9.5 5Z\" fill=\"{{skin}}\"/><path d=\"M-4.5 8.5 V14 M0 9.5 V15 M4.5 8.5 V14 M9.5 -5 V4\" fill=\"none\" stroke=\"#000000\" opacity=\"0.17\" style=\"stroke-width: 1.2; stroke-linecap: round\"/></g><g transform=\"translate(179 246) rotate(-9) scale(-1 1)\"><path d=\"M8.5 -9 C14 -8 16.5 -1 15 5 C14 9 9.5 8.5 9.5 4Z\" fill=\"{{skin}}\"/><path d=\"M-9.5 -11 H9.5 V5 Q9.5 15 0 15 Q-9.5 15 -9.5 5Z\" fill=\"{{skin}}\"/><path d=\"M-4.5 8.5 V14 M0 9.5 V15 M4.5 8.5 V14 M9.5 -5 V4\" fill=\"none\" stroke=\"#000000\" opacity=\"0.17\" style=\"stroke-width: 1.2; stroke-linecap: round\"/></g></g><g transform=\"{{headT}}\"><rect x=\"109\" y=\"104\" width=\"22\" height=\"28\" rx=\"6\" fill=\"{{skin}}\"/><path d=\"M109 116 Q120 129 131 116 V122 Q120 134 109 122Z\" fill=\"#000000\" opacity=\"0.14\"/><circle cx=\"85\" cy=\"85\" r=\"7\" fill=\"{{skin}}\"/><circle cx=\"155\" cy=\"85\" r=\"7\" fill=\"{{skin}}\"/><circle cx=\"85\" cy=\"85\" r=\"3\" fill=\"#000000\" opacity=\"0.1\"/><circle cx=\"155\" cy=\"85\" r=\"3\" fill=\"#000000\" opacity=\"0.1\"/><path d=\"M85 78 C85 52 100 42 120 42 C140 42 155 52 155 78 C155 102 142 119 120 119 C98 119 85 102 85 78Z\" fill=\"{{skin}}\"/></g>"}, {"si": "pant", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M76 226 H164 L166 250 L159 374 H127 L122 270 H118 L113 374 H81 L74 250Z\" fill=\"{{pantFill}}\" stroke=\"{{pantLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M150 226 H164 L166 250 L159 374 H146Z\" fill=\"#000000\" opacity=\"0.07\"/></g>"}, {"si": "pant78", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M76 226 H164 L166 250 L160 350 H128 L122 270 H118 L112 350 H80 L74 250Z\" fill=\"{{pantFill}}\" stroke=\"{{pantLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M150 226 H164 L166 250 L160 350 H147Z\" fill=\"#000000\" opacity=\"0.07\"/></g>"}, {"si": "bermuda", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M76 226 H164 L166 250 L163.5 298 H125 L122 270 H118 L115 298 H76.5 L74 250Z\" fill=\"{{pantFill}}\" stroke=\"{{pantLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M150 226 H164 L166 250 L163.5 298 H148Z\" fill=\"#000000\" opacity=\"0.07\"/></g>"}, {"si": "jupe", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M76 226 H164 L170 300 Q120 310 70 300Z\" fill=\"{{pantFill}}\" stroke=\"{{pantLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M150 226 H164 L170 300 Q160 303 148 304.5Z\" fill=\"#000000\" opacity=\"0.07\"/></g>"}, {"si": "shoeStd", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M82 369 H114 V386 Q114 392 108 392 H76 Q70 392 70 386 Q70 376 82 369Z\" fill=\"{{shoeFill}}\" stroke=\"{{shoeLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M158 369 H126 V386 Q126 392 132 392 H164 Q170 392 170 386 Q170 376 158 369Z\" fill=\"{{shoeFill}}\" stroke=\"{{shoeLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><rect x=\"69\" y=\"387\" width=\"46\" height=\"6\" rx=\"3\" fill=\"{{shoeSole}}\"/><rect x=\"125\" y=\"387\" width=\"46\" height=\"6\" rx=\"3\" fill=\"{{shoeSole}}\"/></g>"}, {"si": "shoeFin", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M80 378 Q97 372 114 378 V387 Q114 392 109 392 H77 Q70 392 71 387 Q73 381 80 378Z\" fill=\"{{shoeFill}}\" stroke=\"{{shoeLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M86 377 Q97 373 108 377 Q106 385 97 385 Q88 385 86 377Z\" fill=\"{{skin}}\"/><path d=\"M160 378 Q143 372 126 378 V387 Q126 392 131 392 H163 Q170 392 169 387 Q167 381 160 378Z\" fill=\"{{shoeFill}}\" stroke=\"{{shoeLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M154 377 Q143 373 132 377 Q134 385 143 385 Q152 385 154 377Z\" fill=\"{{skin}}\"/></g>"}, {"si": "cagouleSol", "svg": "<g transform=\"{{bodyT}}\"><ellipse cx=\"203\" cy=\"393.5\" rx=\"33\" ry=\"3.5\" fill=\"#1E2A44\" opacity=\"0.14\"/><g transform=\"translate(203 392) scale(1.45) translate(-201 -392)\"><path d=\"M184 364 C184 354 191 349 201 349 C211 349 218 354 218 364 L218 380 C218 387 212 392 206 392 L196 392 C190 392 184 387 184 380Z\" fill=\"#2A2E36\" stroke=\"#0F1115\" style=\"stroke-width: 1.6; stroke-linejoin: round\"/><path d=\"M188 364 C188 357 193 353 201 353\" fill=\"none\" stroke=\"#4A515D\" style=\"stroke-width: 1.4; stroke-linecap: round\"/><path d=\"M190 381 C193 386 197 388 201 388 C205 388 209 386 212 381\" fill=\"none\" stroke=\"#16181D\" style=\"stroke-width: 1.3; stroke-linecap: round\"/><rect x=\"189.5\" y=\"359\" width=\"23\" height=\"14.5\" rx=\"1.8\" fill=\"#16181D\" stroke=\"#0F1115\" style=\"stroke-width: 1.3\"/><rect x=\"192.3\" y=\"361.6\" width=\"17.4\" height=\"9.3\" rx=\"1\" fill=\"#3B5A4A\"/><path d=\"M194.5 363.6 L200 363.6\" fill=\"none\" stroke=\"#9FC2AE\" style=\"stroke-width: 1.1; stroke-linecap: round\"/><circle cx=\"184.6\" cy=\"367\" r=\"2.3\" fill=\"#16181D\" stroke=\"#4A515D\" style=\"stroke-width: 1\"/><circle cx=\"217.4\" cy=\"367\" r=\"2.3\" fill=\"#16181D\" stroke=\"#4A515D\" style=\"stroke-width: 1\"/></g></g>"}, {"si": "casqueSol", "svg": "<g transform=\"{{bodyT}}\"><ellipse cx=\"204\" cy=\"393.5\" rx=\"42\" ry=\"3.8\" fill=\"#1E2A44\" opacity=\"0.14\"/><g transform=\"translate(108 338.3) scale(0.8)\"><path d=\"M79 64 C79 36 96 22 120 22 C144 22 161 36 161 64Z\" fill=\"#F26A1B\" stroke=\"#C9520E\" style=\"stroke-width: 1.5\"/><rect x=\"114.5\" y=\"22.5\" width=\"11\" height=\"40\" rx=\"5.5\" fill=\"#FF8D48\"/><rect x=\"70\" y=\"60\" width=\"100\" height=\"8.5\" rx=\"4.2\" fill=\"#D9570F\"/><rect x=\"108\" y=\"41\" width=\"24\" height=\"12.5\" rx=\"2.5\" fill=\"#FFFFFF\"/><text x=\"120\" y=\"50.8\" fill=\"#1E2A44\" style=\"font: 800 9px Barlow, Arial, sans-serif; text-anchor: middle\">S<tspan fill=\"#E1251B\">C</tspan>R</text></g></g>"}, {"si": "solEtoile1", "svg": "<g transform=\"{{bodyT}}\"><g transform=\"translate(108 338.3) scale(0.8)\"><path d=\"M99.0 50.9 L100.0 53.6 L102.9 53.7 L100.7 55.5 L101.4 58.3 L99.0 56.8 L96.6 58.3 L97.3 55.5 L95.1 53.7 L98.0 53.6Z\" fill=\"#F5C518\" stroke=\"#A87C08\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g></g>"}, {"si": "solEtoile2", "svg": "<g transform=\"{{bodyT}}\"><g transform=\"translate(108 338.3) scale(0.8)\"><path d=\"M141.0 50.9 L142.0 53.6 L144.9 53.7 L142.7 55.5 L143.4 58.3 L141.0 56.8 L138.6 58.3 L139.3 55.5 L137.1 53.7 L140.0 53.6Z\" fill=\"#F5C518\" stroke=\"#A87C08\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g></g>"}, {"si": "solEtoile3", "svg": "<g transform=\"{{bodyT}}\"><g transform=\"translate(108 338.3) scale(0.8)\"><path d=\"M89.5 50.9 L90.5 53.6 L93.4 53.7 L91.2 55.5 L91.9 58.3 L89.5 56.8 L87.1 58.3 L87.8 55.5 L85.6 53.7 L88.5 53.6Z\" fill=\"#F5C518\" stroke=\"#A87C08\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g></g>"}, {"si": "solEtoile4", "svg": "<g transform=\"{{bodyT}}\"><g transform=\"translate(108 338.3) scale(0.8)\"><path d=\"M150.5 50.9 L151.5 53.6 L154.4 53.7 L152.2 55.5 L152.9 58.3 L150.5 56.8 L148.1 58.3 L148.8 55.5 L146.6 53.7 L149.5 53.6Z\" fill=\"#F5C518\" stroke=\"#A87C08\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g></g>"}, {"si": "solEtoile5", "svg": "<g transform=\"{{bodyT}}\"><g transform=\"translate(108 338.3) scale(0.8)\"><path d=\"M101.5 41.4 L102.5 44.1 L105.4 44.2 L103.2 46.0 L103.9 48.8 L101.5 47.2 L99.1 48.8 L99.8 46.0 L97.6 44.2 L100.5 44.1Z\" fill=\"#F5C518\" stroke=\"#A87C08\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g></g>"}, {"si": "solEtoile6", "svg": "<g transform=\"{{bodyT}}\"><g transform=\"translate(108 338.3) scale(0.8)\"><path d=\"M138.5 41.4 L139.5 44.1 L142.4 44.2 L140.2 46.0 L140.9 48.8 L138.5 47.2 L136.1 48.8 L136.8 46.0 L134.6 44.2 L137.5 44.1Z\" fill=\"#F5C518\" stroke=\"#A87C08\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g></g>"}, {"si": "solEtoile7", "svg": "<g transform=\"{{bodyT}}\"><g transform=\"translate(108 338.3) scale(0.8)\"><path d=\"M92.5 42.4 L93.5 45.1 L96.4 45.2 L94.2 47.0 L94.9 49.8 L92.5 48.2 L90.1 49.8 L90.8 47.0 L88.6 45.2 L91.5 45.1Z\" fill=\"#F5C518\" stroke=\"#A87C08\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g></g>"}, {"si": "solEtoile8", "svg": "<g transform=\"{{bodyT}}\"><g transform=\"translate(108 338.3) scale(0.8)\"><path d=\"M147.5 42.4 L148.5 45.1 L151.4 45.2 L149.2 47.0 L149.9 49.8 L147.5 48.2 L145.1 49.8 L145.8 47.0 L143.6 45.2 L146.5 45.1Z\" fill=\"#F5C518\" stroke=\"#A87C08\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g></g>"}, {"si": "solEtoile9", "svg": "<g transform=\"{{bodyT}}\"><g transform=\"translate(108 338.3) scale(0.8)\"><path d=\"M108.0 28.4 L109.0 31.1 L111.9 31.2 L109.7 33.0 L110.4 35.8 L108.0 34.2 L105.6 35.8 L106.3 33.0 L104.1 31.2 L107.0 31.1Z\" fill=\"#F5C518\" stroke=\"#A87C08\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g></g>"}, {"si": "solEtoile10", "svg": "<g transform=\"{{bodyT}}\"><g transform=\"translate(108 338.3) scale(0.8)\"><path d=\"M132.0 28.4 L133.0 31.1 L135.9 31.2 L133.7 33.0 L134.4 35.8 L132.0 34.2 L129.6 35.8 L130.3 33.0 L128.1 31.2 L131.0 31.1Z\" fill=\"#F5C518\" stroke=\"#A87C08\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g></g>"}, {"si": "cargo", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M77.5 298 H116.5 L115.2 330 H79.3Z\" fill=\"#000000\" opacity=\"0.16\"/><path d=\"M162.5 298 H123.5 L124.8 330 H160.7Z\" fill=\"#000000\" opacity=\"0.16\"/><path d=\"M80 306 H114.5 M80.5 322 H114\" fill=\"none\" stroke=\"{{pantLine}}\" style=\"stroke-width: 1\"/><path d=\"M160 306 H125.5 M159.5 322 H126\" fill=\"none\" stroke=\"{{pantLine}}\" style=\"stroke-width: 1\"/><rect x=\"77.5\" y=\"256\" width=\"18\" height=\"26\" rx=\"3\" fill=\"#000000\" opacity=\"0.13\" stroke=\"{{pantLine}}\" style=\"stroke-width: 1\"/><rect x=\"144.5\" y=\"256\" width=\"18\" height=\"26\" rx=\"3\" fill=\"#000000\" opacity=\"0.13\" stroke=\"{{pantLine}}\" style=\"stroke-width: 1\"/><path d=\"M77.5 262 H95.5 M144.5 262 H162.5\" fill=\"none\" stroke=\"{{pantLine}}\" style=\"stroke-width: 1\"/><path d=\"M120 240 V266\" fill=\"none\" stroke=\"{{pantLine}}\" style=\"stroke-width: 1.5\"/></g>"}, {"si": "jean", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M120 240 V266\" fill=\"none\" stroke=\"{{pantLine}}\" style=\"stroke-width: 1.5\"/><path d=\"M80 240 Q84 254 98 254\" fill=\"none\" stroke=\"{{pantLine}}\" style=\"stroke-width: 1.5\"/><path d=\"M160 240 Q156 254 142 254\" fill=\"none\" stroke=\"{{pantLine}}\" style=\"stroke-width: 1.5\"/><path d=\"M81.5 362 H113.5\" fill=\"none\" stroke=\"{{pantLine}}\" style=\"stroke-width: 1.5\"/><path d=\"M158.5 362 H126.5\" fill=\"none\" stroke=\"{{pantLine}}\" style=\"stroke-width: 1.5\"/></g>"}, {"si": "long", "svg": "<g transform=\"{{bodyT}}\"><line x1=\"76\" y1=\"143\" x2=\"63\" y2=\"226\" stroke=\"{{topLine}}\" style=\"stroke-width: 30; stroke-linecap: round\"/><line x1=\"164\" y1=\"143\" x2=\"177\" y2=\"226\" stroke=\"{{topLine}}\" style=\"stroke-width: 30; stroke-linecap: round\"/><line x1=\"76\" y1=\"143\" x2=\"63\" y2=\"226\" stroke=\"{{topFill}}\" style=\"stroke-width: 27; stroke-linecap: round\"/><line x1=\"164\" y1=\"143\" x2=\"177\" y2=\"226\" stroke=\"{{topFill}}\" style=\"stroke-width: 27; stroke-linecap: round\"/><path d=\"M93 123 H147 Q166 125 170 142 L166 240 H74 L70 142 Q74 125 93 123Z\" fill=\"{{topFill}}\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M150 123.2 Q166 125 170 142 L166 240 H152Z\" fill=\"#000000\" opacity=\"0.07\"/></g>"}, {"si": "short", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M63 142 Q67 126 90 127 L91 142 L85 188 L56 184Z\" fill=\"{{topFill}}\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M177 142 Q173 126 150 127 L149 142 L155 188 L184 184Z\" fill=\"{{topFill}}\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M93 123 H147 Q166 125 170 142 L166 240 H74 L70 142 Q74 125 93 123Z\" fill=\"{{topFill}}\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M150 123.2 Q166 125 170 142 L166 240 H152Z\" fill=\"#000000\" opacity=\"0.07\"/></g>"}, {"si": "tee", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M106 121.5 Q120 141 134 121.5Z\" fill=\"{{skin}}\"/><path d=\"M104 123 Q120 145 136 123\" fill=\"none\" stroke=\"{{topLine}}\" style=\"stroke-width: 2.5; stroke-linecap: round\"/></g>"}, {"si": "polo", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M106 118 L120 139 L134 118Z\" fill=\"{{skin}}\"/><path d=\"M120 139 V162\" fill=\"none\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5\"/><circle cx=\"120\" cy=\"147\" r=\"1.7\" fill=\"{{topLine}}\"/><circle cx=\"120\" cy=\"156\" r=\"1.7\" fill=\"{{topLine}}\"/><path d=\"M106 117 L119 137 L108 145 L98 125Z\" fill=\"{{topFill}}\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M134 117 L121 137 L132 145 L142 125Z\" fill=\"{{topFill}}\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/></g>"}, {"si": "chemise", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M106 118 L120 139 L134 118Z\" fill=\"{{skin}}\"/><path d=\"M120 139 V240\" fill=\"none\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5\"/><circle cx=\"120\" cy=\"152\" r=\"1.7\" fill=\"{{topLine}}\"/><circle cx=\"120\" cy=\"171\" r=\"1.7\" fill=\"{{topLine}}\"/><circle cx=\"120\" cy=\"190\" r=\"1.7\" fill=\"{{topLine}}\"/><circle cx=\"120\" cy=\"209\" r=\"1.7\" fill=\"{{topLine}}\"/><circle cx=\"120\" cy=\"228\" r=\"1.7\" fill=\"{{topLine}}\"/><path d=\"M50.5 218 L77.5 222.5\" fill=\"none\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5\"/><path d=\"M189.5 218 L162.5 222.5\" fill=\"none\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5\"/><path d=\"M106 117 L119 137 L108 145 L98 125Z\" fill=\"{{topFill}}\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M134 117 L121 137 L132 145 L142 125Z\" fill=\"{{topFill}}\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/></g>"}, {"si": "chemisier", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M105 118 L120 148 L135 118Z\" fill=\"{{skin}}\"/><path d=\"M120 150 V240\" fill=\"none\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.2\"/><path d=\"M50.5 218 L77.5 222.5\" fill=\"none\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5\"/><path d=\"M189.5 218 L162.5 222.5\" fill=\"none\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5\"/><path d=\"M105 117 Q108 134 120 149 L113 153 Q99 138 97 125Z\" fill=\"{{topFill}}\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M135 117 Q132 134 120 149 L127 153 Q141 138 143 125Z\" fill=\"{{topFill}}\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/></g>"}, {"si": "blazer", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M103 123 L120 176 L137 123Z\" fill=\"#FFFFFF\"/><path d=\"M107 119 L120 141 L133 119Z\" fill=\"{{skin}}\"/><path d=\"M106.5 122 Q120 147 133.5 122\" fill=\"none\" stroke=\"#BCC4CF\" style=\"stroke-width: 1.5\"/><path d=\"M96 123 H106 L120 176 L103 157 L108 150 L97 144Z\" fill=\"{{topFill}}\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M144 123 H134 L120 176 L137 157 L132 150 L143 144Z\" fill=\"{{topFill}}\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M120 176 V240\" fill=\"none\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5\"/><circle cx=\"124.5\" cy=\"190\" r=\"2.4\" fill=\"#0C1222\"/></g>"}, {"si": "hoodie", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M96 126 Q97 108 120 113 Q143 108 144 126 Q134 139 120 139 Q106 139 96 126Z\" fill=\"{{topFill}}\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M108 121 Q120 134 132 121 Q120 116 108 121Z\" fill=\"#000000\" opacity=\"0.22\"/><path d=\"M114 137 V158 M126 137 V158\" fill=\"none\" stroke=\"#FFFFFF\" style=\"stroke-width: 1.8; stroke-linecap: round\"/><path d=\"M98 204 H142 L148 232 H92Z\" fill=\"none\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M74.3 232 H165.7\" fill=\"none\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5\"/><path d=\"M50.5 216 L77.5 220.5\" fill=\"none\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5\"/><path d=\"M189.5 216 L162.5 220.5\" fill=\"none\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5\"/></g>"}, {"si": "bandes", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M71.4 176 H168.6 L168.1 188 H71.9Z\" fill=\"#E4E8ED\" stroke=\"#B4BCC7\" style=\"stroke-width: 0.8\"/><path d=\"M72.5 204 H167.5 L167 216 H73Z\" fill=\"#E4E8ED\" stroke=\"#B4BCC7\" style=\"stroke-width: 0.8\"/><line x1=\"56.5\" y1=\"180.4\" x2=\"83.1\" y2=\"184.6\" stroke=\"#E4E8ED\" style=\"stroke-width: 9\"/><line x1=\"52.8\" y1=\"204.1\" x2=\"79.4\" y2=\"208.3\" stroke=\"#E4E8ED\" style=\"stroke-width: 9\"/><line x1=\"183.5\" y1=\"180.4\" x2=\"156.9\" y2=\"184.6\" stroke=\"#E4E8ED\" style=\"stroke-width: 9\"/><line x1=\"187.2\" y1=\"204.1\" x2=\"160.6\" y2=\"208.3\" stroke=\"#E4E8ED\" style=\"stroke-width: 9\"/></g>"}, {"si": "sweat", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M107 121.5 Q120 137 133 121.5Z\" fill=\"{{skin}}\"/><path d=\"M105 123 Q120 142 135 123\" fill=\"none\" stroke=\"{{topLine}}\" style=\"stroke-width: 4.5; stroke-linecap: round\"/><path d=\"M74.3 230 H165.7 L166 240 H74Z\" fill=\"#000000\" opacity=\"0.14\"/><path d=\"M50.5 216 L77.5 220.5\" fill=\"none\" stroke=\"{{topLine}}\" style=\"stroke-width: 3\"/><path d=\"M189.5 216 L162.5 220.5\" fill=\"none\" stroke=\"{{topLine}}\" style=\"stroke-width: 3\"/></g>"}, {"si": "pluie", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M93 127 Q95 103 120 108 Q145 103 147 127 Q134 119 120 121 Q106 119 93 127Z\" fill=\"{{topLine}}\"/><path d=\"M103 114 Q120 124 137 114 L142 129 Q120 140 98 129Z\" fill=\"{{topFill}}\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><rect x=\"114.5\" y=\"128\" width=\"11\" height=\"112\" fill=\"#000000\" opacity=\"0.16\"/><circle cx=\"120\" cy=\"146\" r=\"1.8\" fill=\"{{topLine}}\"/><circle cx=\"120\" cy=\"172\" r=\"1.8\" fill=\"{{topLine}}\"/><circle cx=\"120\" cy=\"198\" r=\"1.8\" fill=\"{{topLine}}\"/><circle cx=\"120\" cy=\"224\" r=\"1.8\" fill=\"{{topLine}}\"/></g>"}, {"si": "chasuble", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M95 124 H106 L120 152 L134 124 H145 Q160 126 163 142 L165 238 H75 L77 142 Q80 126 95 124Z\" fill=\"#F26A1B\" stroke=\"#C9520E\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M75.9 184 H164.1 L164.4 196 H75.6Z\" fill=\"#E4E8ED\" stroke=\"#B4BCC7\" style=\"stroke-width: 0.8\"/><path d=\"M75.4 210 H164.6 L164.9 222 H75.1Z\" fill=\"#E4E8ED\" stroke=\"#B4BCC7\" style=\"stroke-width: 0.8\"/><path d=\"M120 152 V238\" fill=\"none\" stroke=\"#C9520E\" style=\"stroke-width: 2\"/></g>"}, {"si": "pluieBas", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M80.2 338 H115 L114.5 347 H80.7Z\" fill=\"#E4E8ED\" stroke=\"#B4BCC7\" style=\"stroke-width: 0.8\"/><path d=\"M159.8 338 H125 L125.5 347 H159.3Z\" fill=\"#E4E8ED\" stroke=\"#B4BCC7\" style=\"stroke-width: 0.8\"/></g>"}, {"si": "soft", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M84 150 Q89 196 84 240\" fill=\"none\" stroke=\"#F26A1B\" style=\"stroke-width: 2.5\"/><path d=\"M156 150 Q151 196 156 240\" fill=\"none\" stroke=\"#F26A1B\" style=\"stroke-width: 2.5\"/><path d=\"M103 114 Q120 124 137 114 L142 129 Q120 140 98 129Z\" fill=\"{{topFill}}\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M120 119 V240\" fill=\"none\" stroke=\"#F26A1B\" style=\"stroke-width: 2.5\"/></g>"}, {"si": "hv", "svg": "<g transform=\"{{bodyT}}\"><rect x=\"96\" y=\"124\" width=\"9\" height=\"52\" fill=\"#E4E8ED\" stroke=\"#B4BCC7\" style=\"stroke-width: 0.8\"/><rect x=\"135\" y=\"124\" width=\"9\" height=\"52\" fill=\"#E4E8ED\" stroke=\"#B4BCC7\" style=\"stroke-width: 0.8\"/><path d=\"M71.4 176 H168.6 L168.1 188 H71.9Z\" fill=\"#E4E8ED\" stroke=\"#B4BCC7\" style=\"stroke-width: 0.8\"/><path d=\"M72.5 204 H167.5 L167 216 H73Z\" fill=\"#E4E8ED\" stroke=\"#B4BCC7\" style=\"stroke-width: 0.8\"/><line x1=\"56.5\" y1=\"180.4\" x2=\"83.1\" y2=\"184.6\" stroke=\"#E4E8ED\" style=\"stroke-width: 9\"/><line x1=\"52.8\" y1=\"204.1\" x2=\"79.4\" y2=\"208.3\" stroke=\"#E4E8ED\" style=\"stroke-width: 9\"/><line x1=\"183.5\" y1=\"180.4\" x2=\"156.9\" y2=\"184.6\" stroke=\"#E4E8ED\" style=\"stroke-width: 9\"/><line x1=\"187.2\" y1=\"204.1\" x2=\"160.6\" y2=\"208.3\" stroke=\"#E4E8ED\" style=\"stroke-width: 9\"/><path d=\"M103 114 Q120 124 137 114 L142 129 Q120 140 98 129Z\" fill=\"{{topFill}}\" stroke=\"{{topLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M120 119 V240\" fill=\"none\" stroke=\"{{topLine}}\" style=\"stroke-width: 2\"/></g>"}, {"si": "bi", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M73 216 H167 L166 240 H74Z\" fill=\"#1E2A44\"/><line x1=\"65.4\" y1=\"212\" x2=\"63\" y2=\"226\" stroke=\"#1E2A44\" style=\"stroke-width: 27; stroke-linecap: round\"/><line x1=\"174.6\" y1=\"212\" x2=\"177\" y2=\"226\" stroke=\"#1E2A44\" style=\"stroke-width: 27; stroke-linecap: round\"/><line x1=\"52.8\" y1=\"204.1\" x2=\"79.4\" y2=\"208.3\" stroke=\"#E4E8ED\" style=\"stroke-width: 9\"/><line x1=\"187.2\" y1=\"204.1\" x2=\"160.6\" y2=\"208.3\" stroke=\"#E4E8ED\" style=\"stroke-width: 9\"/><path d=\"M72.5 204 H167.5 L167 216 H73Z\" fill=\"#E4E8ED\" stroke=\"#B4BCC7\" style=\"stroke-width: 0.8\"/><path d=\"M103 114 Q120 124 137 114 L142 129 Q120 140 98 129Z\" fill=\"#1E2A44\" stroke=\"#121A2E\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M120 119 V240\" fill=\"none\" stroke=\"#121A2E\" style=\"stroke-width: 2\"/></g>"}, {"si": "soudeur", "svg": "<g transform=\"{{bodyT}}\"><line x1=\"76\" y1=\"143\" x2=\"72\" y2=\"169\" stroke=\"#8A4B24\" style=\"stroke-width: 27; stroke-linecap: round\"/><line x1=\"164\" y1=\"143\" x2=\"168\" y2=\"169\" stroke=\"#8A4B24\" style=\"stroke-width: 27; stroke-linecap: round\"/><path d=\"M93 123 H147 Q166 125 170 142 L169 176 H71 L70 142 Q74 125 93 123Z\" fill=\"#8A4B24\"/><path d=\"M103 114 Q120 124 137 114 L142 129 Q120 140 98 129Z\" fill=\"#8A4B24\" stroke=\"#5F3116\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M120 119 V240\" fill=\"none\" stroke=\"#5F3116\" style=\"stroke-width: 2\"/><circle cx=\"126\" cy=\"150\" r=\"2.3\" fill=\"#5F3116\"/><circle cx=\"126\" cy=\"192\" r=\"2.3\" fill=\"#7A5A30\"/><circle cx=\"126\" cy=\"222\" r=\"2.3\" fill=\"#7A5A30\"/></g>"}, {"si": "gilet", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M106 118 L120 139 L134 118Z\" fill=\"{{skin}}\"/><path d=\"M95 123 H107 L120 156 L133 123 H145 Q160 126 163 142 L165 238 H75 L77 142 Q80 126 95 123Z\" fill=\"#F26A1B\" stroke=\"#C9520E\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M75.9 184 H164.1 L164.4 196 H75.6Z\" fill=\"#E4E8ED\" stroke=\"#B4BCC7\" style=\"stroke-width: 0.8\"/><path d=\"M75.4 210 H164.6 L164.9 222 H75.1Z\" fill=\"#E4E8ED\" stroke=\"#B4BCC7\" style=\"stroke-width: 0.8\"/><path d=\"M120 156 V238\" fill=\"none\" stroke=\"#C9520E\" style=\"stroke-width: 2\"/><path d=\"M106 117 L119 137 L108 145 L98 125Z\" fill=\"{{topFill}}\" stroke=\"#3A3F4A\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M134 117 L121 137 L132 145 L142 125Z\" fill=\"{{topFill}}\" stroke=\"#3A3F4A\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/></g>"}, {"si": null, "svg": "<g transform=\"{{bodyT}}\"><rect x=\"146\" y=\"146\" width=\"21\" height=\"11\" rx=\"2.5\" fill=\"#FFFFFF\"/><text x=\"156.5\" y=\"154.6\" fill=\"#1E2A44\" style=\"font: 800 8px Barlow, Arial, sans-serif; text-anchor: middle\">S<tspan fill=\"#E1251B\">C</tspan>R</text></g>"}, {"si": "medRayons", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M95.0 151.5 L97.2 154.7 L100.8 153.0 L101.1 156.9 L105.0 157.2 L103.3 160.8 L106.5 163.0 L103.3 165.2 L105.0 168.8 L101.1 169.1 L100.8 173.0 L97.2 171.3 L95.0 174.5 L92.8 171.3 L89.2 173.0 L88.9 169.1 L85.0 168.8 L86.7 165.2 L83.5 163.0 L86.7 160.8 L85.0 157.2 L88.9 156.9 L89.2 153.0 L92.8 154.7Z\" fill=\"#EBBB1F\" stroke=\"#8A6500\" style=\"stroke-width: 0.9; stroke-linejoin: round\"/></g>"}, {"si": "medaille", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M89.5 143.5 H100.5 V157 L95 153.8 L89.5 157Z\" fill=\"{{medR1}}\" stroke=\"{{medRL}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/><rect x=\"93.3\" y=\"143.5\" width=\"3.4\" height=\"11.2\" fill=\"{{medR2}}\"/><circle cx=\"95\" cy=\"163\" r=\"7.6\" fill=\"{{medD}}\" stroke=\"{{medL}}\" style=\"stroke-width: 1.2\"/><circle cx=\"95\" cy=\"163\" r=\"5.9\" fill=\"none\" stroke=\"{{medL}}\" opacity=\"0.45\" style=\"stroke-width: 0.7\"/><text x=\"95\" y=\"165.9\" fill=\"{{medT}}\" style=\"font: 800 7.6px Barlow, Arial, sans-serif; text-anchor: middle\">{{medN}}</text></g>"}, {"si": "medBarrette", "svg": "<g transform=\"{{bodyT}}\"><rect x=\"88.2\" y=\"146.6\" width=\"13.6\" height=\"3.4\" rx=\"1.2\" fill=\"#EBBB1F\" stroke=\"#8A6500\" style=\"stroke-width: 0.8\"/><path d=\"M91 148.3 H99\" fill=\"none\" stroke=\"#8A6500\" opacity=\"0.6\" style=\"stroke-width: 0.7\"/></g>"}, {"si": "medLauriers", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M88 172.5 Q80.5 164 86 153\" fill=\"none\" stroke=\"#2E7D55\" style=\"stroke-width: 1.8; stroke-linecap: round\"/><path d=\"M102 172.5 Q109.5 164 104 153\" fill=\"none\" stroke=\"#2E7D55\" style=\"stroke-width: 1.8; stroke-linecap: round\"/><path d=\"M84.3 168 L80.8 169.5 M83 163.5 L79.3 163.8 M83.5 159 L80 157.5 M85 155 L82.3 152.5\" fill=\"none\" stroke=\"#2E9B5B\" style=\"stroke-width: 2; stroke-linecap: round\"/><path d=\"M105.7 168 L109.2 169.5 M107 163.5 L110.7 163.8 M106.5 159 L110 157.5 M105 155 L107.7 152.5\" fill=\"none\" stroke=\"#2E9B5B\" style=\"stroke-width: 2; stroke-linecap: round\"/></g>"}, {"si": "medCouronne", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M89 143.5 L87.8 136.5 L92 140 L95 135.3 L98 140 L102.2 136.5 L101 143.500Z\" fill=\"#EBBB1F\" stroke=\"#8A6500\" style=\"stroke-width: 0.9; stroke-linejoin: round\"/><circle cx=\"95\" cy=\"141.3\" r=\"1.1\" fill=\"#B3261E\"/></g>"}, {"si": "gantsLongs", "svg": "<g transform=\"{{bodyT}}\"><g transform=\"translate(61 246) rotate(9) scale(1.14)\"><path d=\"M-10.5 -9 L-15 -42 Q0 -46 15 -42 L10.5 -9Z\" fill=\"{{gloveFill}}\" stroke=\"{{gloveLine}}\" style=\"stroke-width: 1.2; stroke-linejoin: round\"/><path d=\"M-13.6 -34 Q0 -38 13.6 -34\" fill=\"none\" stroke=\"{{gloveLine}}\" style=\"stroke-width: 1.2\"/></g><g transform=\"translate(179 246) rotate(-9) scale(-1.14 1.14)\"><path d=\"M-10.5 -9 L-15 -42 Q0 -46 15 -42 L10.5 -9Z\" fill=\"{{gloveFill}}\" stroke=\"{{gloveLine}}\" style=\"stroke-width: 1.2; stroke-linejoin: round\"/><path d=\"M-13.6 -34 Q0 -38 13.6 -34\" fill=\"none\" stroke=\"{{gloveLine}}\" style=\"stroke-width: 1.2\"/></g></g>"}, {"si": "gants", "svg": "<g transform=\"{{bodyT}}\"><g transform=\"translate(61 246) rotate(9) scale(1.14)\"><rect x=\"-11\" y=\"-15.5\" width=\"22\" height=\"6.5\" rx=\"2.5\" fill=\"{{gloveLine}}\"/><path d=\"M8.5 -9 C14 -8 16.5 -1 15 5 C14 9 9.5 8.5 9.5 4Z\" fill=\"{{gloveFill}}\" stroke=\"{{gloveLine}}\" style=\"stroke-width: 1.2; stroke-linejoin: round\"/><path d=\"M-9.5 -11 H9.5 V5 Q9.5 15 0 15 Q-9.5 15 -9.5 5Z\" fill=\"{{gloveFill}}\" stroke=\"{{gloveLine}}\" style=\"stroke-width: 1.2; stroke-linejoin: round\"/><path d=\"M-4.5 8.5 V14 M0 9.5 V15 M4.5 8.5 V14 M9.5 -5 V4\" fill=\"none\" stroke=\"#000000\" opacity=\"0.17\" style=\"stroke-width: 1.2; stroke-linecap: round\"/></g><g transform=\"translate(179 246) rotate(-9) scale(-1 1) scale(1.14)\"><rect x=\"-11\" y=\"-15.5\" width=\"22\" height=\"6.5\" rx=\"2.5\" fill=\"{{gloveLine}}\"/><path d=\"M8.5 -9 C14 -8 16.5 -1 15 5 C14 9 9.5 8.5 9.5 4Z\" fill=\"{{gloveFill}}\" stroke=\"{{gloveLine}}\" style=\"stroke-width: 1.2; stroke-linejoin: round\"/><path d=\"M-9.5 -11 H9.5 V5 Q9.5 15 0 15 Q-9.5 15 -9.5 5Z\" fill=\"{{gloveFill}}\" stroke=\"{{gloveLine}}\" style=\"stroke-width: 1.2; stroke-linejoin: round\"/><path d=\"M-4.5 8.5 V14 M0 9.5 V15 M4.5 8.5 V14 M9.5 -5 V4\" fill=\"none\" stroke=\"#000000\" opacity=\"0.17\" style=\"stroke-width: 1.2; stroke-linecap: round\"/></g></g>"}, {"si": "barbe_3j", "svg": "<g transform=\"{{headT}}\"><path d=\"M86 86 C86 104 99 119 120 119 C141 119 154 104 154 86 L150 87 C149 96 141 99 133 97 Q120 93 107 97 C99 99 91 96 90 87Z\" fill=\"{{hair}}\" opacity=\"0.32\"/></g>"}, {"si": "barbe_courte", "svg": "<g transform=\"{{headT}}\"><path d=\"M85.5 84 C85 106 99 122 120 122 C141 122 155 106 154.5 84 L150 87 C149 96 141 99 133 97 Q120 93 107 97 C99 99 91 96 90 87Z\" fill=\"{{hair}}\"/></g>"}, {"si": "barbe_longue", "svg": "<g transform=\"{{headT}}\"><path d=\"M85.5 84 C82 112 97 139 120 140 C143 139 158 112 154.5 84 L150 87 C149 96 141 99 133 97 Q120 93 107 97 C99 99 91 96 90 87Z\" fill=\"{{hair}}\"/></g>"}, {"si": "barbe_bouc", "svg": "<g transform=\"{{headT}}\"><path d=\"M107 97 Q120 92 133 97 L132 111 Q120 124 108 111Z\" fill=\"{{hair}}\"/></g>"}, {"si": "barbe_moustache", "svg": "<g transform=\"{{headT}}\"><path d=\"M104 100 Q112 91 120 96 Q128 91 136 100 Q127 101.5 120 99.5 Q113 101.5 104 100Z\" fill=\"{{hair}}\"/></g>"}, {"si": null, "svg": "<g transform=\"{{headT}}\"><ellipse cx=\"107\" cy=\"84\" rx=\"3.3\" ry=\"4.2\" fill=\"#1F1A18\"/><ellipse cx=\"133\" cy=\"84\" rx=\"3.3\" ry=\"4.2\" fill=\"#1F1A18\"/><circle cx=\"108.2\" cy=\"82.5\" r=\"1.1\" fill=\"#FFFFFF\"/><circle cx=\"134.2\" cy=\"82.5\" r=\"1.1\" fill=\"#FFFFFF\"/><path d=\"M119 89 Q116.5 96 121.5 96\" fill=\"none\" stroke=\"#000000\" opacity=\"0.25\" style=\"stroke-width: 2; stroke-linecap: round\"/><path d=\"M111 102.5 Q120 112.5 129 102.5Z\" fill=\"#FFFFFF\" stroke=\"#4A2A20\" style=\"stroke-width: 1.4; stroke-linejoin: round\"/></g>"}, {"si": "homme", "svg": "<g transform=\"{{headT}}\"><g transform=\"{{browT}}\"><path d=\"M100 73.5 Q107 69.5 114 73.5\" fill=\"none\" stroke=\"{{brow}}\" style=\"stroke-width: 3; stroke-linecap: round\"/></g><g transform=\"{{browT}}\"><path d=\"M126 73.5 Q133 69.5 140 73.5\" fill=\"none\" stroke=\"{{brow}}\" style=\"stroke-width: 3; stroke-linecap: round\"/></g></g>"}, {"si": "femme", "svg": "<g transform=\"{{headT}}\"><g transform=\"{{browT}}\"><path d=\"M100.5 73 Q107 69 113.5 72.5\" fill=\"none\" stroke=\"{{brow}}\" style=\"stroke-width: 1.9; stroke-linecap: round\"/></g><g transform=\"{{browT}}\"><path d=\"M126.5 72.5 Q133 69 139.5 73\" fill=\"none\" stroke=\"{{brow}}\" style=\"stroke-width: 1.9; stroke-linecap: round\"/></g><path d=\"M103.6 81.6 L100.6 79.4 M104 84.6 L100.4 84 M136.4 81.6 L139.4 79.4 M136 84.6 L139.6 84\" fill=\"none\" stroke=\"#1F1A18\" style=\"stroke-width: 1.5; stroke-linecap: round\"/><path d=\"M111 102.5 Q120 112.5 129 102.5Z\" fill=\"none\" stroke=\"#B8473F\" style=\"stroke-width: 2.2; stroke-linejoin: round\"/></g>"}, {"si": "h_degarni", "svg": "<g transform=\"{{headT}}\"><path d=\"M84.5 85 C80.5 68 84 53 95 48 C92.5 58 91.5 70 91 81Z\" fill=\"{{hair}}\"/><path d=\"M155.5 85 C159.5 68 156 53 145 48 C147.5 58 148.5 70 149 81Z\" fill=\"{{hair}}\"/><path d=\"M108 47 Q120 43.5 132 47\" fill=\"none\" stroke=\"{{hair}}\" opacity=\"0.35\" style=\"stroke-width: 2.2; stroke-linecap: round\"/></g>"}, {"si": "h_court", "svg": "<g transform=\"{{headT}}\"><path d=\"M84 82 C80 52 96 35 120 35 C144 35 160 52 156 82 C154 70 151 62 146 58 C132 62 108 62 94 58 C89 62 86 70 84 82Z\" fill=\"{{hair}}\"/></g>"}, {"si": "h_brosse", "svg": "<g transform=\"{{headT}}\"><path d=\"M84.5 82 C83 70 85 62 88 57 L94 57 C90 64 89 72 89 80Z\" fill=\"{{hair}}\" opacity=\"0.45\"/><path d=\"M155.5 82 C157 70 155 62 152 57 L146 57 C150 64 151 72 151 80Z\" fill=\"{{hair}}\" opacity=\"0.45\"/><path d=\"M88 64 C86 46 100 33 120 33 C140 33 154 46 152 64 C148 58 144 55 140 55 C128 58 112 58 100 55 C96 55 92 58 88 64Z\" fill=\"{{hair}}\"/></g>"}, {"si": "h_meche", "svg": "<g transform=\"{{headT}}\"><path d=\"M83 84 C78 50 98 33 122 33 C146 33 162 52 157 84 C155 72 152 65 147 60 C130 65 110 60 100 49 C96 58 88 66 83 84Z\" fill=\"{{hair}}\"/></g>"}, {"si": "h_milong", "svg": "<g transform=\"{{headT}}\"><path d=\"M81 108 C73 58 92 33 120 33 C148 33 167 58 159 108 C159 114 150 114 150 108 C152 84 150 70 144 59 C130 64 106 62 98 53 C92 62 88 84 90 108 C90 114 81 114 81 108Z\" fill=\"{{hair}}\"/></g>"}, {"si": "h_long", "svg": "<g transform=\"{{headT}}\"><path d=\"M82 100 C76 58 94 33 120 33 C146 33 164 58 158 100 L152 100 C152 80 150 68 144 58 C128 64 108 62 98 52 C92 62 88 80 88 100Z\" fill=\"{{hair}}\"/><path d=\"M82 98 C76 118 77 134 83 147 L95 145 C91 132 91 116 90 100Z\" fill=\"{{hair}}\"/><path d=\"M158 98 C164 118 163 134 157 147 L145 145 C149 132 149 116 150 100Z\" fill=\"{{hair}}\"/></g>"}, {"si": "h_raie", "svg": "<g transform=\"{{headT}}\"><path d=\"M84 84 C78 52 96 35 120 35 C144 35 162 52 156 84 C154 70 148 60 138 54 C130 50 124 48 120 46 C116 48 110 50 102 54 C92 60 86 70 84 84Z\" fill=\"{{hair}}\"/></g>"}, {"si": "v_chignon", "svg": "<g transform=\"{{headT}}\"><circle cx=\"120\" cy=\"27\" r=\"13\" fill=\"{{hair}}\"/></g>"}, {"si": "v_boucle", "svg": "<g transform=\"{{headT}}\"><circle cx=\"86\" cy=\"70\" r=\"11\" fill=\"{{hair}}\"/><circle cx=\"154\" cy=\"70\" r=\"11\" fill=\"{{hair}}\"/><circle cx=\"90\" cy=\"55\" r=\"12\" fill=\"{{hair}}\"/><circle cx=\"150\" cy=\"55\" r=\"12\" fill=\"{{hair}}\"/><circle cx=\"100\" cy=\"42\" r=\"12\" fill=\"{{hair}}\"/><circle cx=\"140\" cy=\"42\" r=\"12\" fill=\"{{hair}}\"/><circle cx=\"113\" cy=\"35\" r=\"12\" fill=\"{{hair}}\"/><circle cx=\"127\" cy=\"35\" r=\"12\" fill=\"{{hair}}\"/><circle cx=\"107\" cy=\"52\" r=\"9\" fill=\"{{hair}}\"/><circle cx=\"133\" cy=\"52\" r=\"9\" fill=\"{{hair}}\"/><circle cx=\"120\" cy=\"50\" r=\"9\" fill=\"{{hair}}\"/></g>"}, {"si": "bandana", "svg": "<g transform=\"{{headT}}\"><g transform=\"{{bandT}}\"><path d=\"M84.8 58 Q96 54.9 108 54 L108 64.5 Q96 65.4 84.6 68.500Z\" fill=\"{{band1}}\"/><path d=\"M108 54 Q120 52.7 132 54 L132 64.5 Q120 63.2 108 64.500Z\" fill=\"{{band2}}\"/><path d=\"M132 54 Q144 54.9 155.2 58 L155.4 68.5 Q144 65.4 132 64.500Z\" fill=\"{{band3}}\"/><path d=\"M84.8 58 Q120 49 155.2 58 L155.4 68.5 Q120 59.5 84.6 68.500Z\" fill=\"none\" stroke=\"{{bandLine}}\" style=\"stroke-width: 1; stroke-linejoin: round\"/></g><g transform=\"{{bandT2}}\"><path d=\"M154 60 L167 69 L161 73.500Z\" fill=\"{{band1}}\" stroke=\"{{bandLine}}\" style=\"stroke-width: 0.9; stroke-linejoin: round\"/><path d=\"M154.5 62 L163 82 L156.5 79Z\" fill=\"{{band3}}\" stroke=\"{{bandLine}}\" style=\"stroke-width: 0.9; stroke-linejoin: round\"/><circle cx=\"155\" cy=\"63\" r=\"2.6\" fill=\"{{band2}}\" stroke=\"{{bandLine}}\" style=\"stroke-width: 0.9\"/></g></g>"}, {"si": "band_pois", "svg": "<g transform=\"{{headT}}\"><g transform=\"{{bandT}}\"><circle cx=\"91\" cy=\"61.5\" r=\"1.3\" fill=\"#FFFFFF\"/><circle cx=\"99\" cy=\"59.2\" r=\"1.3\" fill=\"#FFFFFF\"/><circle cx=\"107\" cy=\"60.6\" r=\"1.3\" fill=\"#FFFFFF\"/><circle cx=\"115\" cy=\"57.8\" r=\"1.3\" fill=\"#FFFFFF\"/><circle cx=\"123\" cy=\"59.6\" r=\"1.3\" fill=\"#FFFFFF\"/><circle cx=\"131\" cy=\"57.9\" r=\"1.3\" fill=\"#FFFFFF\"/><circle cx=\"139\" cy=\"60.4\" r=\"1.3\" fill=\"#FFFFFF\"/><circle cx=\"147\" cy=\"59.6\" r=\"1.3\" fill=\"#FFFFFF\"/></g></g>"}, {"si": "band_zig", "svg": "<g transform=\"{{headT}}\"><g transform=\"{{bandT}}\"><path d=\"M88 63.5 L93 58.5 L98 62 L103 57 L108 60.8 L113 55.8 L118 60 L123 55.5 L128 60 L133 56 L138 61 L143 57.2 L148 62.3 L152 59\" fill=\"none\" stroke=\"#3DF2E0\" style=\"stroke-width: 1.4; stroke-linejoin: round; stroke-linecap: round\"/><path d=\"M90 66 L96 62.5 M104 63.3 L110 61.5 M118 62 L124 61.8 M132 62.3 L138 63.5 M146 65 L151 66.3\" fill=\"none\" stroke=\"#FF3DBB\" style=\"stroke-width: 1.4; stroke-linecap: round\"/></g></g>"}, {"si": "bouche_chewing", "svg": "<g transform=\"{{headT}}\"><circle cx=\"126.2\" cy=\"107.6\" r=\"1.9\" fill=\"#F26FA3\" stroke=\"#D9508A\" style=\"stroke-width: 0.8\"/><circle cx=\"133.5\" cy=\"111.5\" r=\"7.6\" fill=\"#FF8FB8\" stroke=\"#D9508A\" style=\"stroke-width: 1.3; fill-opacity: 0.92\"/><path d=\"M128.9 108.8 C129.6 106.8 131.4 105.6 133.4 105.5\" fill=\"none\" stroke=\"#FFFFFF\" opacity=\"0.9\" style=\"stroke-width: 1.5; stroke-linecap: round\"/><circle cx=\"137.2\" cy=\"115.2\" r=\"0.9\" fill=\"#FFFFFF\" opacity=\"0.55\"/></g>"}, {"si": "bouche_cigarette", "svg": "<g transform=\"{{headT}}\"><path d=\"M147 108 C151 101 143 97 148 90 C151 86 147 82 150 78\" fill=\"none\" stroke=\"#8C98AC\" opacity=\"0.7\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><g transform=\"translate(125 106.5) rotate(10)\"><rect x=\"0\" y=\"-1.8\" width=\"22\" height=\"3.6\" rx=\"1\" fill=\"#FFFFFF\" stroke=\"#AEB7C4\" style=\"stroke-width: 0.7\"/><rect x=\"0\" y=\"-1.8\" width=\"7\" height=\"3.6\" rx=\"1\" fill=\"#D9A25F\"/><rect x=\"19.5\" y=\"-1.8\" width=\"2.5\" height=\"3.6\" rx=\"1\" fill=\"#E4573B\"/></g></g>"}, {"si": "lun_rondes", "svg": "<g transform=\"{{headT}}\"><circle cx=\"107\" cy=\"84\" r=\"9.5\" fill=\"#FFFFFF\" stroke=\"#1D2433\" style=\"stroke-width: 2.4; fill-opacity: 0.2\"/><circle cx=\"133\" cy=\"84\" r=\"9.5\" fill=\"#FFFFFF\" stroke=\"#1D2433\" style=\"stroke-width: 2.4; fill-opacity: 0.2\"/><path d=\"M116.5 83 Q120 80.5 123.5 83\" fill=\"none\" stroke=\"#1D2433\" style=\"stroke-width: 2.4\"/><path d=\"M97.5 83 L86 81 M142.5 83 L154 81\" fill=\"none\" stroke=\"#1D2433\" style=\"stroke-width: 2.4; stroke-linecap: round\"/></g>"}, {"si": "lun_rect", "svg": "<g transform=\"{{headT}}\"><rect x=\"96\" y=\"76.5\" width=\"21\" height=\"15\" rx=\"4.5\" fill=\"#FFFFFF\" stroke=\"#1D2433\" style=\"stroke-width: 2.4; fill-opacity: 0.2\"/><rect x=\"123\" y=\"76.5\" width=\"21\" height=\"15\" rx=\"4.5\" fill=\"#FFFFFF\" stroke=\"#1D2433\" style=\"stroke-width: 2.4; fill-opacity: 0.2\"/><path d=\"M117 83 H123\" fill=\"none\" stroke=\"#1D2433\" style=\"stroke-width: 2.4\"/><path d=\"M96 82 L86 81 M144 82 L154 81\" fill=\"none\" stroke=\"#1D2433\" style=\"stroke-width: 2.4; stroke-linecap: round\"/></g>"}, {"si": "lun_soleil", "svg": "<g transform=\"{{headT}}\"><rect x=\"95\" y=\"76\" width=\"22\" height=\"16\" rx=\"6\" fill=\"#1D2433\"/><rect x=\"123\" y=\"76\" width=\"22\" height=\"16\" rx=\"6\" fill=\"#1D2433\"/><path d=\"M117 82 H123\" fill=\"none\" stroke=\"#1D2433\" style=\"stroke-width: 2.6\"/><path d=\"M95 81 L86 80.5 M145 81 L154 80.5\" fill=\"none\" stroke=\"#1D2433\" style=\"stroke-width: 2.4; stroke-linecap: round\"/><path d=\"M99 80 L104 79 M127 80 L132 79\" fill=\"none\" stroke=\"#FFFFFF\" opacity=\"0.5\" style=\"stroke-width: 1.6; stroke-linecap: round\"/></g>"}, {"si": "casque", "svg": "<g transform=\"{{headT}}\"><path d=\"M79 64 C79 36 96 22 120 22 C144 22 161 36 161 64Z\" fill=\"#F26A1B\" stroke=\"#C9520E\" style=\"stroke-width: 1.5\"/><rect x=\"114.5\" y=\"22.5\" width=\"11\" height=\"40\" rx=\"5.5\" fill=\"#FF8D48\"/><rect x=\"70\" y=\"60\" width=\"100\" height=\"8.5\" rx=\"4.2\" fill=\"#D9570F\"/><rect x=\"108\" y=\"41\" width=\"24\" height=\"12.5\" rx=\"2.5\" fill=\"#FFFFFF\"/><text x=\"120\" y=\"50.8\" fill=\"#1E2A44\" style=\"font: 800 9px Barlow, Arial, sans-serif; text-anchor: middle\">S<tspan fill=\"#E1251B\">C</tspan>R</text></g>"}, {"si": "masque", "svg": "<g transform=\"{{headT}}\"><path d=\"M85.5 60 Q120 50 154.5 60\" fill=\"none\" stroke=\"#16181D\" style=\"stroke-width: 4; stroke-linecap: round\"/><path d=\"M87 52 L84 16 Q120 -8 156 16 L153 52 Q120 43 87 52Z\" fill=\"{{maskFill}}\" stroke=\"{{maskLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M120 -2 V46\" fill=\"none\" stroke=\"{{maskLine}}\" opacity=\"0.4\" style=\"stroke-width: 1.2\"/><rect x=\"105\" y=\"13\" width=\"30\" height=\"15\" rx=\"2.5\" fill=\"#14202E\" stroke=\"{{maskLine}}\" style=\"stroke-width: 1.3\"/><path d=\"M109 17 L117 17\" fill=\"none\" stroke=\"#6E93B5\" style=\"stroke-width: 1.7; stroke-linecap: round\"/><circle cx=\"85.5\" cy=\"58.5\" r=\"3.6\" fill=\"{{maskLine}}\"/><circle cx=\"154.5\" cy=\"58.5\" r=\"3.6\" fill=\"{{maskLine}}\"/></g>"}, {"si": "casquette", "svg": "<g transform=\"{{headT}}\"><path d=\"M81 63 C80 40 97 29 120 29 C143 29 160 40 159 63Z\" fill=\"#1E2A44\" stroke=\"#121A2E\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><path d=\"M82 59.5 Q120 50 158 59.5 L164 68 Q120 58 76 68Z\" fill=\"#121A2E\"/><rect x=\"109\" y=\"37\" width=\"22\" height=\"11\" rx=\"2.5\" fill=\"#FFFFFF\"/><text x=\"120\" y=\"45.6\" fill=\"#1E2A44\" style=\"font: 800 8px Barlow, Arial, sans-serif; text-anchor: middle\">S<tspan fill=\"#E1251B\">C</tspan>R</text></g>"}, {"si": "bonnet", "svg": "<g transform=\"{{headT}}\"><path d=\"M81 62 C79 40 97 27 120 27 C143 27 161 40 159 62Z\" fill=\"#3A404B\" stroke=\"#22252B\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><rect x=\"78\" y=\"53\" width=\"84\" height=\"14\" rx=\"5\" fill=\"#2A2E36\"/><path d=\"M88 55 V65 M96 55 V65 M104 55 V65 M112 55 V65 M120 55 V65 M128 55 V65 M136 55 V65 M144 55 V65 M152 55 V65\" fill=\"none\" stroke=\"#454B56\" style=\"stroke-width: 1.3\"/><rect x=\"124\" y=\"56\" width=\"16\" height=\"8\" rx=\"2\" fill=\"#F26A1B\"/></g>"}, {"si": "etoile1", "svg": "<g transform=\"{{headT}}\"><path d=\"M99.0 50.9 L100.0 53.6 L102.9 53.7 L100.7 55.5 L101.4 58.3 L99.0 56.8 L96.6 58.3 L97.3 55.5 L95.1 53.7 L98.0 53.6Z\" fill=\"#F5C518\" stroke=\"#A87C08\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "etoile2", "svg": "<g transform=\"{{headT}}\"><path d=\"M141.0 50.9 L142.0 53.6 L144.9 53.7 L142.7 55.5 L143.4 58.3 L141.0 56.8 L138.6 58.3 L139.3 55.5 L137.1 53.7 L140.0 53.6Z\" fill=\"#F5C518\" stroke=\"#A87C08\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "etoile3", "svg": "<g transform=\"{{headT}}\"><path d=\"M89.5 50.9 L90.5 53.6 L93.4 53.7 L91.2 55.5 L91.9 58.3 L89.5 56.8 L87.1 58.3 L87.8 55.5 L85.6 53.7 L88.5 53.6Z\" fill=\"#F5C518\" stroke=\"#A87C08\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "etoile4", "svg": "<g transform=\"{{headT}}\"><path d=\"M150.5 50.9 L151.5 53.6 L154.4 53.7 L152.2 55.5 L152.9 58.3 L150.5 56.8 L148.1 58.3 L148.8 55.5 L146.6 53.7 L149.5 53.6Z\" fill=\"#F5C518\" stroke=\"#A87C08\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "etoile5", "svg": "<g transform=\"{{headT}}\"><path d=\"M101.5 41.4 L102.5 44.1 L105.4 44.2 L103.2 46.0 L103.9 48.8 L101.5 47.2 L99.1 48.8 L99.8 46.0 L97.6 44.2 L100.5 44.1Z\" fill=\"#F5C518\" stroke=\"#A87C08\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "etoile6", "svg": "<g transform=\"{{headT}}\"><path d=\"M138.5 41.4 L139.5 44.1 L142.4 44.2 L140.2 46.0 L140.9 48.8 L138.5 47.2 L136.1 48.8 L136.8 46.0 L134.6 44.2 L137.5 44.1Z\" fill=\"#F5C518\" stroke=\"#A87C08\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "etoile7", "svg": "<g transform=\"{{headT}}\"><path d=\"M92.5 42.4 L93.5 45.1 L96.4 45.2 L94.2 47.0 L94.9 49.8 L92.5 48.2 L90.1 49.8 L90.8 47.0 L88.6 45.2 L91.5 45.1Z\" fill=\"#F5C518\" stroke=\"#A87C08\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "etoile8", "svg": "<g transform=\"{{headT}}\"><path d=\"M147.5 42.4 L148.5 45.1 L151.4 45.2 L149.2 47.0 L149.9 49.8 L147.5 48.2 L145.1 49.8 L145.8 47.0 L143.6 45.2 L146.5 45.1Z\" fill=\"#F5C518\" stroke=\"#A87C08\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "etoile9", "svg": "<g transform=\"{{headT}}\"><path d=\"M108.0 28.4 L109.0 31.1 L111.9 31.2 L109.7 33.0 L110.4 35.8 L108.0 34.2 L105.6 35.8 L106.3 33.0 L104.1 31.2 L107.0 31.1Z\" fill=\"#F5C518\" stroke=\"#A87C08\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "etoile10", "svg": "<g transform=\"{{headT}}\"><path d=\"M132.0 28.4 L133.0 31.1 L135.9 31.2 L133.7 33.0 L134.4 35.8 L132.0 34.2 L129.6 35.8 L130.3 33.0 L128.1 31.2 L131.0 31.1Z\" fill=\"#F5C518\" stroke=\"#A87C08\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "acc_tablette", "svg": "<g transform=\"{{bodyT}}\"><g transform=\"rotate(8 180 262)\"><rect x=\"164\" y=\"238\" width=\"33\" height=\"47\" rx=\"4\" fill=\"#262B36\"/><rect x=\"167\" y=\"241\" width=\"27\" height=\"41\" rx=\"2\" fill=\"#4C5A78\"/></g><g transform=\"translate(179 246) rotate(-9) scale(-1 1) scale(1.1)\"><path d=\"M8.5 -9 C14 -8 16.5 -1 15 5 C14 9 9.5 8.5 9.5 4Z\" fill=\"{{handFill}}\" stroke=\"{{handLine}}\" style=\"stroke-width: 1.2; stroke-linejoin: round\"/><path d=\"M-9.5 -11 H9.5 V5 Q9.5 15 0 15 Q-9.5 15 -9.5 5Z\" fill=\"{{handFill}}\" stroke=\"{{handLine}}\" style=\"stroke-width: 1.2; stroke-linejoin: round\"/><path d=\"M-4.5 8.5 V14 M0 9.5 V15 M4.5 8.5 V14 M9.5 -5 V4\" fill=\"none\" stroke=\"#000000\" opacity=\"0.17\" style=\"stroke-width: 1.2; stroke-linecap: round\"/></g></g>"}, {"si": "acc_portable", "svg": "<g transform=\"{{bodyT}}\"><g transform=\"rotate(6 180 262)\"><rect x=\"158\" y=\"240\" width=\"46\" height=\"58\" rx=\"4\" fill=\"#C3CAD3\" stroke=\"#8D96A3\" style=\"stroke-width: 1.5\"/><rect x=\"176\" y=\"263\" width=\"10\" height=\"10\" rx=\"2\" fill=\"#8D96A3\"/></g><g transform=\"translate(179 246) rotate(-9) scale(-1 1) scale(1.1)\"><path d=\"M8.5 -9 C14 -8 16.5 -1 15 5 C14 9 9.5 8.5 9.5 4Z\" fill=\"{{handFill}}\" stroke=\"{{handLine}}\" style=\"stroke-width: 1.2; stroke-linejoin: round\"/><path d=\"M-9.5 -11 H9.5 V5 Q9.5 15 0 15 Q-9.5 15 -9.5 5Z\" fill=\"{{handFill}}\" stroke=\"{{handLine}}\" style=\"stroke-width: 1.2; stroke-linejoin: round\"/><path d=\"M-4.5 8.5 V14 M0 9.5 V15 M4.5 8.5 V14 M9.5 -5 V4\" fill=\"none\" stroke=\"#000000\" opacity=\"0.17\" style=\"stroke-width: 1.2; stroke-linecap: round\"/></g></g>"}, {"si": "acc_plans", "svg": "<g transform=\"{{bodyT}}\"><g transform=\"rotate(-74 61 249)\"><rect x=\"14\" y=\"242\" width=\"96\" height=\"14\" rx=\"7\" fill=\"#F7F8FA\" stroke=\"#AEB7C4\" style=\"stroke-width: 1.5\"/><ellipse cx=\"106\" cy=\"249\" rx=\"3\" ry=\"5.5\" fill=\"#D5DBE4\" stroke=\"#AEB7C4\" style=\"stroke-width: 1\"/><path d=\"M30 242 V256\" fill=\"none\" stroke=\"#F26A1B\" style=\"stroke-width: 2\"/></g><g transform=\"translate(61 246) rotate(9) scale(1.1)\"><path d=\"M8.5 -9 C14 -8 16.5 -1 15 5 C14 9 9.5 8.5 9.5 4Z\" fill=\"{{handFill}}\" stroke=\"{{handLine}}\" style=\"stroke-width: 1.2; stroke-linejoin: round\"/><path d=\"M-9.5 -11 H9.5 V5 Q9.5 15 0 15 Q-9.5 15 -9.5 5Z\" fill=\"{{handFill}}\" stroke=\"{{handLine}}\" style=\"stroke-width: 1.2; stroke-linejoin: round\"/><path d=\"M-4.5 8.5 V14 M0 9.5 V15 M4.5 8.5 V14 M9.5 -5 V4\" fill=\"none\" stroke=\"#000000\" opacity=\"0.17\" style=\"stroke-width: 1.2; stroke-linecap: round\"/></g></g>"}, {"si": "acc_mug", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M52 256 H46 Q41 256 41 262 Q41 268 46 268 H52\" fill=\"none\" stroke=\"#F26A1B\" style=\"stroke-width: 3.5\"/><rect x=\"50\" y=\"248\" width=\"22\" height=\"26\" rx=\"4\" fill=\"#F26A1B\" stroke=\"#C9520E\" style=\"stroke-width: 1.5\"/><g transform=\"translate(61 246) rotate(9) scale(1.1)\"><path d=\"M8.5 -9 C14 -8 16.5 -1 15 5 C14 9 9.5 8.5 9.5 4Z\" fill=\"{{handFill}}\" stroke=\"{{handLine}}\" style=\"stroke-width: 1.2; stroke-linejoin: round\"/><path d=\"M-9.5 -11 H9.5 V5 Q9.5 15 0 15 Q-9.5 15 -9.5 5Z\" fill=\"{{handFill}}\" stroke=\"{{handLine}}\" style=\"stroke-width: 1.2; stroke-linejoin: round\"/><path d=\"M-4.5 8.5 V14 M0 9.5 V15 M4.5 8.5 V14 M9.5 -5 V4\" fill=\"none\" stroke=\"#000000\" opacity=\"0.17\" style=\"stroke-width: 1.2; stroke-linecap: round\"/></g></g>"}, {"si": "acc_chalumeau", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M62 256 C70 300 22 322 22 366 C22 396 50 402 68 394\" fill=\"none\" stroke=\"#F26A1B\" style=\"stroke-width: 4; stroke-linecap: round\"/><line x1=\"60\" y1=\"246\" x2=\"38\" y2=\"344\" stroke=\"{{toolLine}}\" style=\"stroke-width: 5; stroke-linecap: round\"/><g transform=\"rotate(13 36 356)\"><rect x=\"27\" y=\"340\" width=\"18\" height=\"30\" rx=\"3\" fill=\"{{toolLight}}\" stroke=\"#7C8593\" style=\"stroke-width: 1.5\"/><rect x=\"27\" y=\"364\" width=\"18\" height=\"6\" rx=\"2\" fill=\"#7C8593\"/></g><line x1=\"63\" y1=\"236\" x2=\"58\" y2=\"260\" stroke=\"{{toolFill}}\" style=\"stroke-width: 8; stroke-linecap: round\"/><g transform=\"translate(61 246) rotate(9) scale(1.1)\"><path d=\"M8.5 -9 C14 -8 16.5 -1 15 5 C14 9 9.5 8.5 9.5 4Z\" fill=\"{{handFill}}\" stroke=\"{{handLine}}\" style=\"stroke-width: 1.2; stroke-linejoin: round\"/><path d=\"M-9.5 -11 H9.5 V5 Q9.5 15 0 15 Q-9.5 15 -9.5 5Z\" fill=\"{{handFill}}\" stroke=\"{{handLine}}\" style=\"stroke-width: 1.2; stroke-linejoin: round\"/><path d=\"M-4.5 8.5 V14 M0 9.5 V15 M4.5 8.5 V14 M9.5 -5 V4\" fill=\"none\" stroke=\"#000000\" opacity=\"0.17\" style=\"stroke-width: 1.2; stroke-linecap: round\"/></g></g>"}, {"si": "halo1", "svg": "<g transform=\"{{bodyT}}\"><circle cx=\"28.0\" cy=\"384.0\" r=\"19\" fill=\"{{feu2}}\" opacity=\"0.2\"/></g>"}, {"si": "halo2", "svg": "<g transform=\"{{bodyT}}\"><circle cx=\"28.0\" cy=\"384.0\" r=\"28\" fill=\"{{feu2}}\" opacity=\"0.16\"/></g>"}, {"si": "halo3", "svg": "<g transform=\"{{bodyT}}\"><circle cx=\"28.0\" cy=\"384.0\" r=\"37\" fill=\"{{feu2}}\" opacity=\"0.13\"/></g>"}, {"si": "flamme2", "svg": "<g transform=\"{{bodyT}}\"><g transform=\"{{flammeT2}}\"><path d=\"M0 3 C-8 3 -11 -4 -9 -10 C-8 -14 -5 -15 -5 -20 C-2 -17 -1 -14 0 -11 C1 -18 -1 -24 -4 -29 C5 -25 11 -15 10 -6 C9 0 6 3 0 3Z\" fill=\"{{feu1}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.9; stroke-linejoin: round\"/><path d=\"M0 2 C-5 2 -7 -3 -5 -8 C-4 -6 -3 -5 -2 -5 C-2 -10 -1 -14 0 -18 C4 -13 7 -8 6 -3 C5 0 3 2 0 2Z\" fill=\"{{feu2}}\"/><path d=\"M0 1.2 C-2.5 1.2 -3.5 -2 -2 -5 C-1 -3 0 -4 0.5 -8 C2.5 -5 3.5 -2 2.5 0 C2 0.8 1 1.2 0 1.2Z\" fill=\"{{feu3}}\"/></g></g>"}, {"si": "flamme3", "svg": "<g transform=\"{{bodyT}}\"><g transform=\"{{flammeT3}}\"><path d=\"M0 3 C-8 3 -11 -4 -9 -10 C-8 -14 -5 -15 -5 -20 C-2 -17 -1 -14 0 -11 C1 -18 -1 -24 -4 -29 C5 -25 11 -15 10 -6 C9 0 6 3 0 3Z\" fill=\"{{feu1}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.9; stroke-linejoin: round\"/><path d=\"M0 2 C-5 2 -7 -3 -5 -8 C-4 -6 -3 -5 -2 -5 C-2 -10 -1 -14 0 -18 C4 -13 7 -8 6 -3 C5 0 3 2 0 2Z\" fill=\"{{feu2}}\"/><path d=\"M0 1.2 C-2.5 1.2 -3.5 -2 -2 -5 C-1 -3 0 -4 0.5 -8 C2.5 -5 3.5 -2 2.5 0 C2 0.8 1 1.2 0 1.2Z\" fill=\"{{feu3}}\"/></g></g>"}, {"si": "flamme", "svg": "<g transform=\"{{bodyT}}\"><g transform=\"{{flammeT}}\"><path d=\"M0 3 C-8 3 -11 -4 -9 -10 C-8 -14 -5 -15 -5 -20 C-2 -17 -1 -14 0 -11 C1 -18 -1 -24 -4 -29 C5 -25 11 -15 10 -6 C9 0 6 3 0 3Z\" fill=\"{{feu1}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.9; stroke-linejoin: round\"/><path d=\"M0 2 C-5 2 -7 -3 -5 -8 C-4 -6 -3 -5 -2 -5 C-2 -10 -1 -14 0 -18 C4 -13 7 -8 6 -3 C5 0 3 2 0 2Z\" fill=\"{{feu2}}\"/><path d=\"M0 1.2 C-2.5 1.2 -3.5 -2 -2 -5 C-1 -3 0 -4 0.5 -8 C2.5 -5 3.5 -2 2.5 0 C2 0.8 1 1.2 0 1.2Z\" fill=\"{{feu3}}\"/></g></g>"}, {"si": "braise1", "svg": "<g transform=\"{{bodyT}}\"><circle cx=\"12.0\" cy=\"389.8\" r=\"1.6\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.7\"/></g>"}, {"si": "braise2", "svg": "<g transform=\"{{bodyT}}\"><path transform=\"translate(8.8 384.0) scale(0.87)\" d=\"M0 -4.6 Q0.7 -0.7 4.6 0 Q0.7 0.7 0 4.6 Q-0.7 0.7 -4.6 0 Q-0.7 -0.7 0 -4.6Z\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "braise3", "svg": "<g transform=\"{{bodyT}}\"><circle cx=\"7.9\" cy=\"376.7\" r=\"2.2\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.7\"/></g>"}, {"si": "braise4", "svg": "<g transform=\"{{bodyT}}\"><path transform=\"translate(15.0 373.1) scale(0.75)\" d=\"M0 -4.6 Q0.7 -0.7 4.6 0 Q0.7 0.7 0 4.6 Q-0.7 0.7 -4.6 0 Q-0.7 -0.7 0 -4.6Z\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "braise5", "svg": "<g transform=\"{{bodyT}}\"><circle cx=\"18.4\" cy=\"367.4\" r=\"1.9\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.7\"/></g>"}, {"si": "braise6", "svg": "<g transform=\"{{bodyT}}\"><path transform=\"translate(24.3 362.9) scale(0.99)\" d=\"M0 -4.6 Q0.7 -0.7 4.6 0 Q0.7 0.7 0 4.6 Q-0.7 0.7 -4.6 0 Q-0.7 -0.7 0 -4.6Z\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "braise7", "svg": "<g transform=\"{{bodyT}}\"><circle cx=\"31.0\" cy=\"367.3\" r=\"1.6\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.7\"/></g>"}, {"si": "braise8", "svg": "<g transform=\"{{bodyT}}\"><path transform=\"translate(37.6 367.4) scale(0.87)\" d=\"M0 -4.6 Q0.7 -0.7 4.6 0 Q0.7 0.7 0 4.6 Q-0.7 0.7 -4.6 0 Q-0.7 -0.7 0 -4.6Z\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "braise9", "svg": "<g transform=\"{{bodyT}}\"><circle cx=\"44.4\" cy=\"370.2\" r=\"2.2\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.7\"/></g>"}, {"si": "braise10", "svg": "<g transform=\"{{bodyT}}\"><path transform=\"translate(44.0 378.2) scale(0.75)\" d=\"M0 -4.6 Q0.7 -0.7 4.6 0 Q0.7 0.7 0 4.6 Q-0.7 0.7 -4.6 0 Q-0.7 -0.7 0 -4.6Z\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "braise11", "svg": "<g transform=\"{{bodyT}}\"><circle cx=\"0.2\" cy=\"388.9\" r=\"1.9\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.7\"/></g>"}, {"si": "braise12", "svg": "<g transform=\"{{bodyT}}\"><path transform=\"translate(-1.9 378.7) scale(0.99)\" d=\"M0 -4.6 Q0.7 -0.7 4.6 0 Q0.7 0.7 0 4.6 Q-0.7 0.7 -4.6 0 Q-0.7 -0.7 0 -4.6Z\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "braise13", "svg": "<g transform=\"{{bodyT}}\"><circle cx=\"5.5\" cy=\"371.0\" r=\"1.6\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.7\"/></g>"}, {"si": "braise14", "svg": "<g transform=\"{{bodyT}}\"><path transform=\"translate(9.9 362.4) scale(0.87)\" d=\"M0 -4.6 Q0.7 -0.7 4.6 0 Q0.7 0.7 0 4.6 Q-0.7 0.7 -4.6 0 Q-0.7 -0.7 0 -4.6Z\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "braise15", "svg": "<g transform=\"{{bodyT}}\"><circle cx=\"17.6\" cy=\"355.4\" r=\"2.2\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.7\"/></g>"}, {"si": "braise16", "svg": "<g transform=\"{{bodyT}}\"><path transform=\"translate(28.0 358.0) scale(0.75)\" d=\"M0 -4.6 Q0.7 -0.7 4.6 0 Q0.7 0.7 0 4.6 Q-0.7 0.7 -4.6 0 Q-0.7 -0.7 0 -4.6Z\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "braise17", "svg": "<g transform=\"{{bodyT}}\"><circle cx=\"37.6\" cy=\"357.5\" r=\"1.9\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.7\"/></g>"}, {"si": "braise18", "svg": "<g transform=\"{{bodyT}}\"><path transform=\"translate(47.5 360.7) scale(0.99)\" d=\"M0 -4.6 Q0.7 -0.7 4.6 0 Q0.7 0.7 0 4.6 Q-0.7 0.7 -4.6 0 Q-0.7 -0.7 0 -4.6Z\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "braise19", "svg": "<g transform=\"{{bodyT}}\"><circle cx=\"50.5\" cy=\"371.0\" r=\"1.6\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.7\"/></g>"}, {"si": "braise20", "svg": "<g transform=\"{{bodyT}}\"><path transform=\"translate(55.8 379.1) scale(0.87)\" d=\"M0 -4.6 Q0.7 -0.7 4.6 0 Q0.7 0.7 0 4.6 Q-0.7 0.7 -4.6 0 Q-0.7 -0.7 0 -4.6Z\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "braise21", "svg": "<g transform=\"{{bodyT}}\"><circle cx=\"-11.4\" cy=\"384.0\" r=\"2.2\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.7\"/></g>"}, {"si": "braise22", "svg": "<g transform=\"{{bodyT}}\"><path transform=\"translate(-4.9 372.0) scale(0.75)\" d=\"M0 -4.6 Q0.7 -0.7 4.6 0 Q0.7 0.7 0 4.6 Q-0.7 0.7 -4.6 0 Q-0.7 -0.7 0 -4.6Z\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "braise23", "svg": "<g transform=\"{{bodyT}}\"><circle cx=\"-0.5\" cy=\"360.1\" r=\"1.9\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.7\"/></g>"}, {"si": "braise24", "svg": "<g transform=\"{{bodyT}}\"><path transform=\"translate(8.3 349.9) scale(0.99)\" d=\"M0 -4.6 Q0.7 -0.7 4.6 0 Q0.7 0.7 0 4.6 Q-0.7 0.7 -4.6 0 Q-0.7 -0.7 0 -4.6Z\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "braise25", "svg": "<g transform=\"{{bodyT}}\"><circle cx=\"21.9\" cy=\"349.5\" r=\"1.6\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.7\"/></g>"}, {"si": "braise26", "svg": "<g transform=\"{{bodyT}}\"><path transform=\"translate(34.5 347.4) scale(0.87)\" d=\"M0 -4.6 Q0.7 -0.7 4.6 0 Q0.7 0.7 0 4.6 Q-0.7 0.7 -4.6 0 Q-0.7 -0.7 0 -4.6Z\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "braise27", "svg": "<g transform=\"{{bodyT}}\"><circle cx=\"47.7\" cy=\"349.9\" r=\"2.2\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.7\"/></g>"}, {"si": "braise28", "svg": "<g transform=\"{{bodyT}}\"><path transform=\"translate(54.8 361.5) scale(0.75)\" d=\"M0 -4.6 Q0.7 -0.7 4.6 0 Q0.7 0.7 0 4.6 Q-0.7 0.7 -4.6 0 Q-0.7 -0.7 0 -4.6Z\" fill=\"{{feu3}}\" stroke=\"{{feuL}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "acc_meuleuse", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M42 240 C18 247 12 300 20 350 C25 382 40 396 62 396\" fill=\"none\" stroke=\"#22252B\" style=\"stroke-width: 3.5; stroke-linecap: round\"/><g transform=\"translate(61 247) rotate(8) scale(-1.2 1.2)\"><circle cx=\"-46\" cy=\"0\" r=\"18\" fill=\"#B4BCC7\" stroke=\"#7C8593\" style=\"stroke-width: 1.5\"/><circle cx=\"-46\" cy=\"0\" r=\"12.5\" fill=\"none\" stroke=\"#98A1AD\" style=\"stroke-width: 1.2\"/><path d=\"M-46 -20.5 A20.5 20.5 0 0 1 -46 20.5 L-46 13 A13 13 0 0 0 -46 -13Z\" fill=\"#22252B\"/><rect x=\"-41\" y=\"-23\" width=\"8\" height=\"16\" rx=\"3\" fill=\"#22252B\"/><rect x=\"-52\" y=\"-9\" width=\"24\" height=\"18\" rx=\"5\" fill=\"#3A404B\"/><rect x=\"-30\" y=\"-8.5\" width=\"46\" height=\"17\" rx=\"8\" fill=\"{{toolFill}}\" stroke=\"{{toolLine}}\" style=\"stroke-width: 1.5\"/><path d=\"M-22 -4 H-12 M-22 0 H-12 M-22 4 H-12\" fill=\"none\" stroke=\"{{toolLine}}\" style=\"stroke-width: 1.3; stroke-linecap: round\"/><circle cx=\"-46\" cy=\"0\" r=\"5\" fill=\"#5B6370\"/><circle cx=\"-46\" cy=\"0\" r=\"2\" fill=\"#22252B\"/></g><g transform=\"translate(61 246) rotate(9) scale(1.1)\"><path d=\"M8.5 -9 C14 -8 16.5 -1 15 5 C14 9 9.5 8.5 9.5 4Z\" fill=\"{{handFill}}\" stroke=\"{{handLine}}\" style=\"stroke-width: 1.2; stroke-linejoin: round\"/><path d=\"M-9.5 -11 H9.5 V5 Q9.5 15 0 15 Q-9.5 15 -9.5 5Z\" fill=\"{{handFill}}\" stroke=\"{{handLine}}\" style=\"stroke-width: 1.2; stroke-linejoin: round\"/><path d=\"M-4.5 8.5 V14 M0 9.5 V15 M4.5 8.5 V14 M9.5 -5 V4\" fill=\"none\" stroke=\"#000000\" opacity=\"0.17\" style=\"stroke-width: 1.2; stroke-linecap: round\"/></g></g>"}, {"si": "gerbeHalo", "svg": "<g transform=\"{{bodyT}}\"><circle cx=\"126.0\" cy=\"273.0\" r=\"9\" fill=\"{{sparkFill}}\" opacity=\"0.45\"/><circle cx=\"126.0\" cy=\"273.0\" r=\"4\" fill=\"#FFFFFF\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.8\"/></g>"}, {"si": "gerbe1", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M129.0 278.2 L132.8 284.7\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M129.0 278.2 L132.8 284.7\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe2", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M131.1 276.1 L141.6 282.6\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M131.1 276.1 L141.6 282.6\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe3", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M126.2 279.0 L126.4 288.1\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M126.2 279.0 L126.4 288.1\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe4", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M129.8 277.6 L135.6 284.7\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M129.8 277.6 L135.6 284.7\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/><path transform=\"translate(138.1 287.7) scale(0.8)\" d=\"M0 -4.6 Q0.7 -0.7 4.6 0 Q0.7 0.7 0 4.6 Q-0.7 0.7 -4.6 0 Q-0.7 -0.7 0 -4.6Z\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "gerbe5", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M124.2 278.7 L120.5 290.5\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M124.2 278.7 L120.5 290.5\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe6", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M131.6 275.2 L138.5 278.1\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M131.6 275.2 L138.5 278.1\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe7", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M127.1 278.9 L129.2 289.4\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M127.1 278.9 L129.2 289.4\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe8", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M130.5 276.9 L138.6 284.0\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M130.5 276.9 L138.6 284.0\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/><path transform=\"translate(141.6 286.6) scale(0.8)\" d=\"M0 -4.6 Q0.7 -0.7 4.6 0 Q0.7 0.7 0 4.6 Q-0.7 0.7 -4.6 0 Q-0.7 -0.7 0 -4.6Z\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "gerbe9", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M125.2 278.9 L124.1 286.4\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M125.2 278.9 L124.1 286.4\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe10", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M128.1 278.6 L132.4 290.1\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M128.1 278.6 L132.4 290.1\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe11", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M134.0 289.7 L137.9 297.9\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M134.0 289.7 L137.9 297.9\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe12", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M141.0 283.9 L147.0 288.3\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M141.0 283.9 L147.0 288.3\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/><path transform=\"translate(150.3 290.6) scale(0.8)\" d=\"M0 -4.6 Q0.7 -0.7 4.6 0 Q0.7 0.7 0 4.6 Q-0.7 0.7 -4.6 0 Q-0.7 -0.7 0 -4.6Z\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "gerbe13", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M125.0 291.5 L124.5 302.2\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M125.0 291.5 L124.5 302.2\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe14", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M136.6 288.2 L142.7 296.9\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M136.6 288.2 L142.7 296.9\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe15", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M119.1 290.2 L116.3 297.1\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M119.1 290.2 L116.3 297.1\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe16", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M142.6 281.3 L150.7 285.3\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M142.6 281.3 L150.7 285.3\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/><path transform=\"translate(154.3 287.1) scale(0.8)\" d=\"M0 -4.6 Q0.7 -0.7 4.6 0 Q0.7 0.7 0 4.6 Q-0.7 0.7 -4.6 0 Q-0.7 -0.7 0 -4.6Z\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "gerbe17", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M128.1 291.4 L129.5 303.6\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M128.1 291.4 L129.5 303.6\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe18", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M139.0 286.2 L147.6 295.0\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M139.0 286.2 L147.6 295.0\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe19", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M122.0 291.1 L120.0 299.9\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M122.0 291.1 L120.0 299.9\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe20", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M131.1 290.8 L133.2 298.0\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M131.1 290.8 L133.2 298.0\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/><path transform=\"translate(134.3 301.8) scale(0.8)\" d=\"M0 -4.6 Q0.7 -0.7 4.6 0 Q0.7 0.7 0 4.6 Q-0.7 0.7 -4.6 0 Q-0.7 -0.7 0 -4.6Z\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "gerbe21", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M141.5 299.8 L146.8 309.1\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M141.5 299.8 L146.8 309.1\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe22", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M152.4 289.2 L160.2 294.0\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M152.4 289.2 L160.2 294.0\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe23", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M126.8 304.0 L127.1 316.3\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M126.8 304.0 L127.1 316.3\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe24", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M145.7 296.9 L153.5 306.4\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M145.7 296.9 L153.5 306.4\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/><path transform=\"translate(156.1 309.5) scale(0.8)\" d=\"M0 -4.6 Q0.7 -0.7 4.6 0 Q0.7 0.7 0 4.6 Q-0.7 0.7 -4.6 0 Q-0.7 -0.7 0 -4.6Z\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "gerbe25", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M116.7 302.6 L113.9 311.2\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M116.7 302.6 L113.9 311.2\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe26", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M154.7 284.6 L164.7 288.6\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M154.7 284.6 L164.7 288.6\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe27", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M131.9 303.4 L133.3 310.8\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M131.9 303.4 L133.3 310.8\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe28", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M149.4 293.3 L155.1 298.3\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M149.4 293.3 L155.1 298.3\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/><path transform=\"translate(158.1 300.9) scale(0.8)\" d=\"M0 -4.6 Q0.7 -0.7 4.6 0 Q0.7 0.7 0 4.6 Q-0.7 0.7 -4.6 0 Q-0.7 -0.7 0 -4.6Z\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "gerbe29", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M121.7 303.7 L120.2 314.3\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M121.7 303.7 L120.2 314.3\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe30", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M136.9 302.0 L140.0 310.6\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M136.9 302.0 L140.0 310.6\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe31", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M144.7 312.3 L150.0 323.4\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M144.7 312.3 L150.0 323.4\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe32", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M161.2 298.6 L169.8 304.9\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M161.2 298.6 L169.8 304.9\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/><path transform=\"translate(173.1 307.2) scale(0.8)\" d=\"M0 -4.6 Q0.7 -0.7 4.6 0 Q0.7 0.7 0 4.6 Q-0.7 0.7 -4.6 0 Q-0.7 -0.7 0 -4.6Z\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "gerbe33", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M123.7 316.4 L123.3 323.9\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M123.7 316.4 L123.3 323.9\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe34", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M151.0 308.6 L155.3 314.8\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M151.0 308.6 L155.3 314.8\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe35", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M109.7 313.3 L105.7 323.3\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M109.7 313.3 L105.7 323.3\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe36", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M164.9 292.4 L175.9 297.9\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M164.9 292.4 L175.9 297.9\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/><path transform=\"translate(179.5 299.7) scale(0.8)\" d=\"M0 -4.6 Q0.7 -0.7 4.6 0 Q0.7 0.7 0 4.6 Q-0.7 0.7 -4.6 0 Q-0.7 -0.7 0 -4.6Z\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "gerbe37", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M130.9 316.2 L132.0 325.3\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M130.9 316.2 L132.0 325.3\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe38", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M156.5 304.0 L162.9 310.5\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M156.5 304.0 L162.9 310.5\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe39", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M116.6 315.5 L113.9 327.5\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M116.6 315.5 L113.9 327.5\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/></g>"}, {"si": "gerbe40", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M138.0 314.8 L140.9 325.1\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 2.8; stroke-linecap: round\"/><path d=\"M138.0 314.8 L140.9 325.1\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.5; stroke-linecap: round\"/><path transform=\"translate(142.0 328.9) scale(0.8)\" d=\"M0 -4.6 Q0.7 -0.7 4.6 0 Q0.7 0.7 0 4.6 Q-0.7 0.7 -4.6 0 Q-0.7 -0.7 0 -4.6Z\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.8; stroke-linejoin: round\"/></g>"}, {"si": "acc_talkie", "svg": "<g transform=\"{{bodyT}}\"><g transform=\"translate(151.5 271) scale(0.8)\"><rect x=\"-6.5\" y=\"-47\" width=\"5\" height=\"19\" rx=\"2.2\" fill=\"#16181D\"/><rect x=\"2.5\" y=\"-33.5\" width=\"4.5\" height=\"5\" rx=\"1.5\" fill=\"#16181D\"/><rect x=\"-9\" y=\"-30\" width=\"18\" height=\"34\" rx=\"3.5\" fill=\"{{toolFill}}\" stroke=\"{{toolLine}}\" style=\"stroke-width: 1.5; stroke-linejoin: round\"/><rect x=\"-6\" y=\"-26.5\" width=\"12\" height=\"6.5\" rx=\"1.2\" fill=\"#9FD8B0\" stroke=\"{{toolLine}}\" style=\"stroke-width: 0.8\"/><path d=\"M-5.5 -16 H5.5 M-5.5 -12.5 H5.5 M-5.5 -9 H5.5\" fill=\"none\" stroke=\"{{toolLine}}\" style=\"stroke-width: 1.3; stroke-linecap: round\"/><rect x=\"-11.5\" y=\"-22\" width=\"3\" height=\"9\" rx=\"1.2\" fill=\"#F26A1B\"/><path d=\"M-11 -5 H11 V6.5 Q11 9 8.5 9 H-8.5 Q-11 9 -11 6.5Z\" fill=\"{{pantFill}}\" stroke=\"{{pantLine}}\" style=\"stroke-width: 1.4; stroke-linejoin: round\"/><path d=\"M-8.5 -2 H8.5\" fill=\"none\" stroke=\"{{pantLine}}\" opacity=\"0.6\" style=\"stroke-width: 1; stroke-linecap: round\"/></g></g>"}, {"si": "onde1", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M44.1 200.3 A7.0 7.0 0 0 1 46.0 197.0\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M44.1 200.3 A7.0 7.0 0 0 1 46.0 197.0\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde2", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M44.4 204.6 A7.0 7.0 0 0 1 44.0 200.8\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M44.4 204.6 A7.0 7.0 0 0 1 44.0 200.8\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde3", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M46.4 196.6 A7.0 7.0 0 0 1 49.9 195.1\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M46.4 196.6 A7.0 7.0 0 0 1 49.9 195.1\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde4", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M47.2 207.9 A7.0 7.0 0 0 1 44.6 205.1\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M47.2 207.9 A7.0 7.0 0 0 1 44.6 205.1\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde5", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M50.4 195.0 A7.0 7.0 0 0 1 54.2 195.8\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M50.4 195.0 A7.0 7.0 0 0 1 54.2 195.8\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde6", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M38.8 199.0 A12.5 12.5 0 0 1 42.2 193.0\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M38.8 199.0 A12.5 12.5 0 0 1 42.2 193.0\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde7", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M39.3 206.7 A12.5 12.5 0 0 1 38.6 199.8\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M39.3 206.7 A12.5 12.5 0 0 1 38.6 199.8\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde8", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M42.9 192.4 A12.5 12.5 0 0 1 49.2 189.6\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M42.9 192.4 A12.5 12.5 0 0 1 49.2 189.6\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde9", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M44.3 212.6 A12.5 12.5 0 0 1 39.7 207.5\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M44.3 212.6 A12.5 12.5 0 0 1 39.7 207.5\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde10", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M50.0 189.5 A12.5 12.5 0 0 1 56.8 191.0\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M50.0 189.5 A12.5 12.5 0 0 1 56.8 191.0\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde11", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M33.4 197.6 A18.0 18.0 0 0 1 38.4 189.1\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M33.4 197.6 A18.0 18.0 0 0 1 38.4 189.1\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde12", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M34.2 208.7 A18.0 18.0 0 0 1 33.2 198.9\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M34.2 208.7 A18.0 18.0 0 0 1 33.2 198.9\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde13", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M39.3 188.2 A18.0 18.0 0 0 1 48.4 184.2\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M39.3 188.2 A18.0 18.0 0 0 1 48.4 184.2\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde14", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M41.4 217.3 A18.0 18.0 0 0 1 34.7 209.9\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M41.4 217.3 A18.0 18.0 0 0 1 34.7 209.9\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde15", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M49.6 184.0 A18.0 18.0 0 0 1 59.4 186.1\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M49.6 184.0 A18.0 18.0 0 0 1 59.4 186.1\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde16", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M28.1 196.3 A23.5 23.5 0 0 1 34.6 185.1\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M28.1 196.3 A23.5 23.5 0 0 1 34.6 185.1\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde17", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M29.1 210.8 A23.5 23.5 0 0 1 27.8 197.9\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M29.1 210.8 A23.5 23.5 0 0 1 27.8 197.9\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde18", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M35.8 184.0 A23.5 23.5 0 0 1 47.6 178.7\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M35.8 184.0 A23.5 23.5 0 0 1 47.6 178.7\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde19", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M38.4 221.9 A23.5 23.5 0 0 1 29.8 212.3\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M38.4 221.9 A23.5 23.5 0 0 1 29.8 212.3\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde20", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M49.3 178.6 A23.5 23.5 0 0 1 61.9 181.3\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M49.3 178.6 A23.5 23.5 0 0 1 61.9 181.3\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde21", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M22.8 195.0 A29.0 29.0 0 0 1 30.8 181.1\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M22.8 195.0 A29.0 29.0 0 0 1 30.8 181.1\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde22", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M24.0 212.9 A29.0 29.0 0 0 1 22.3 197.0\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M24.0 212.9 A29.0 29.0 0 0 1 22.3 197.0\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde23", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M32.3 179.8 A29.0 29.0 0 0 1 46.9 173.3\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M32.3 179.8 A29.0 29.0 0 0 1 46.9 173.3\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde24", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M35.5 226.6 A29.0 29.0 0 0 1 24.8 214.7\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M35.5 226.6 A29.0 29.0 0 0 1 24.8 214.7\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde25", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M48.9 173.1 A29.0 29.0 0 0 1 64.5 176.4\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M48.9 173.1 A29.0 29.0 0 0 1 64.5 176.4\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde26", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M17.4 193.7 A34.5 34.5 0 0 1 26.9 177.2\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M17.4 193.7 A34.5 34.5 0 0 1 26.9 177.2\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde27", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M18.9 214.9 A34.5 34.5 0 0 1 16.9 196.0\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M18.9 214.9 A34.5 34.5 0 0 1 16.9 196.0\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde28", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M28.7 175.6 A34.5 34.5 0 0 1 46.1 167.8\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M28.7 175.6 A34.5 34.5 0 0 1 46.1 167.8\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde29", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M32.6 231.3 A34.5 34.5 0 0 1 19.9 217.1\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M32.6 231.3 A34.5 34.5 0 0 1 19.9 217.1\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde30", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M48.5 167.6 A34.5 34.5 0 0 1 67.1 171.5\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M48.5 167.6 A34.5 34.5 0 0 1 67.1 171.5\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde31", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M12.1 192.3 A40.0 40.0 0 0 1 23.1 173.2\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M12.1 192.3 A40.0 40.0 0 0 1 23.1 173.2\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde32", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M13.8 217.0 A40.0 40.0 0 0 1 11.5 195.1\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M13.8 217.0 A40.0 40.0 0 0 1 11.5 195.1\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde33", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M25.2 171.4 A40.0 40.0 0 0 1 45.3 162.4\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M25.2 171.4 A40.0 40.0 0 0 1 45.3 162.4\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde34", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M29.7 235.9 A40.0 40.0 0 0 1 14.9 219.5\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M29.7 235.9 A40.0 40.0 0 0 1 14.9 219.5\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde35", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M48.1 162.1 A40.0 40.0 0 0 1 69.7 166.7\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M48.1 162.1 A40.0 40.0 0 0 1 69.7 166.7\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde36", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M6.8 191.0 A45.5 45.5 0 0 1 19.3 169.3\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M6.8 191.0 A45.5 45.5 0 0 1 19.3 169.3\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde37", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M8.7 219.0 A45.5 45.5 0 0 1 6.1 194.1\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M8.7 219.0 A45.5 45.5 0 0 1 6.1 194.1\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde38", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M21.7 167.1 A45.5 45.5 0 0 1 44.6 156.9\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M21.7 167.1 A45.5 45.5 0 0 1 44.6 156.9\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde39", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M26.8 240.6 A45.5 45.5 0 0 1 10.0 221.9\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M26.8 240.6 A45.5 45.5 0 0 1 10.0 221.9\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "onde40", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M47.7 156.6 A45.5 45.5 0 0 1 72.3 161.8\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><path d=\"M47.7 156.6 A45.5 45.5 0 0 1 72.3 161.8\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.8; stroke-linecap: round\"/></g>"}, {"si": "acc_torche", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M40 238 C18 247 12 300 20 350 C25 382 40 396 62 396\" fill=\"none\" stroke=\"#22252B\" style=\"stroke-width: 4; stroke-linecap: round\"/><g transform=\"translate(61 247) rotate(12) scale(1.4)\"><line x1=\"43\" y1=\"4\" x2=\"50\" y2=\"64\" stroke=\"#D5D9DE\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><line x1=\"49.3\" y1=\"58\" x2=\"50\" y2=\"64\" stroke=\"#7C8593\" style=\"stroke-width: 3.2; stroke-linecap: round\"/><rect x=\"-24\" y=\"-7\" width=\"42\" height=\"14\" rx=\"6\" fill=\"#1F2227\"/><path d=\"M-17 -6.5 V6.5 M-13 -6.5 V6.5 M-9 -6.5 V6.5 M-5 -6.5 V6.5 M-1 -6.5 V6.5 M3 -6.5 V6.5\" fill=\"none\" stroke=\"#454B56\" style=\"stroke-width: 1.4\"/><rect x=\"-24\" y=\"-7\" width=\"5\" height=\"14\" rx=\"2.5\" fill=\"#D9C23A\"/><rect x=\"12\" y=\"-7.5\" width=\"24\" height=\"15\" rx=\"3\" fill=\"#2A2E36\"/><path d=\"M36 -7.5 L31 -9.5 C22 -13 13 -17 6 -20.5 C1 -22.5 -1.5 -17.5 3 -15 L19 -7.5Z\" fill=\"{{toolDark}}\"/><rect x=\"34\" y=\"-9\" width=\"17\" height=\"18\" rx=\"4\" fill=\"{{toolFill}}\" stroke=\"{{toolLine}}\" style=\"stroke-width: 1.3\"/><rect x=\"42\" y=\"-2.5\" width=\"9\" height=\"5\" rx=\"1.5\" fill=\"#B8862B\"/></g><g transform=\"translate(61 246) rotate(9) scale(1.1)\"><path d=\"M8.5 -9 C14 -8 16.5 -1 15 5 C14 9 9.5 8.5 9.5 4Z\" fill=\"{{handFill}}\" stroke=\"{{handLine}}\" style=\"stroke-width: 1.2; stroke-linejoin: round\"/><path d=\"M-9.5 -11 H9.5 V5 Q9.5 15 0 15 Q-9.5 15 -9.5 5Z\" fill=\"{{handFill}}\" stroke=\"{{handLine}}\" style=\"stroke-width: 1.2; stroke-linejoin: round\"/><path d=\"M-4.5 8.5 V14 M0 9.5 V15 M4.5 8.5 V14 M9.5 -5 V4\" fill=\"none\" stroke=\"#000000\" opacity=\"0.17\" style=\"stroke-width: 1.2; stroke-linecap: round\"/></g></g>"}, {"si": "arc3", "svg": "<g transform=\"{{bodyT}}\"><circle cx=\"111\" cy=\"349\" r=\"30\" fill=\"{{sparkFill}}\" opacity=\"0.16\"/></g>"}, {"si": "arc2", "svg": "<g transform=\"{{bodyT}}\"><circle cx=\"111\" cy=\"349\" r=\"19\" fill=\"{{sparkFill}}\" opacity=\"0.22\"/></g>"}, {"si": "arc", "svg": "<g transform=\"{{bodyT}}\"><circle cx=\"111\" cy=\"349\" r=\"7.5\" fill=\"{{sparkFill}}\" opacity=\"0.5\"/><circle cx=\"111\" cy=\"349\" r=\"4\" fill=\"#FFFFFF\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.9\"/></g>"}, {"si": "etinc1", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M111.0 342.5 L111.0 333.5\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M111.0 342.5 L111.0 333.5\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"111.0\" cy=\"330.5\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc2", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M111.0 355.5 L111.0 366.5\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M111.0 355.5 L111.0 366.5\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"111.0\" cy=\"369.5\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc3", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M117.5 349.7 L127.4 350.7\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M117.5 349.7 L127.4 350.7\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"130.4\" cy=\"351.0\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc4", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M104.5 348.3 L92.6 347.1\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M104.5 348.3 L92.6 347.1\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"89.6\" cy=\"346.8\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc5", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M114.8 343.7 L123.0 332.4\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M114.8 343.7 L123.0 332.4\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"124.8\" cy=\"330.0\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc6", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M107.2 354.3 L101.9 361.5\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M107.2 354.3 L101.9 361.5\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"100.1\" cy=\"364.0\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc7", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M116.6 352.2 L129.6 359.8\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M116.6 352.2 L129.6 359.8\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"132.2\" cy=\"361.2\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc8", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M105.4 345.8 L96.7 340.8\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M105.4 345.8 L96.7 340.8\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"94.1\" cy=\"339.2\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc9", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M116.6 345.8 L127.0 339.8\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M116.6 345.8 L127.0 339.8\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"129.6\" cy=\"338.2\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc10", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M105.4 352.2 L93.2 359.2\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M105.4 352.2 L93.2 359.2\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"90.6\" cy=\"360.8\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc11", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M113.6 354.9 L118.9 366.8\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M113.6 354.9 L118.9 366.8\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"120.2\" cy=\"369.6\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc12", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M108.4 343.1 L102.3 329.4\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M108.4 343.1 L102.3 329.4\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"101.0\" cy=\"326.6\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc13", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M115.4 332.6 L117.3 325.3\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M115.4 332.6 L117.3 325.3\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"118.1\" cy=\"322.4\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc14", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M106.6 365.4 L104.4 373.7\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M106.6 365.4 L104.4 373.7\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"103.6\" cy=\"376.6\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc15", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M126.9 355.1 L134.4 358.0\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M126.9 355.1 L134.4 358.0\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"137.2\" cy=\"359.1\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc16", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M95.1 342.9 L86.6 339.6\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M95.1 342.9 L86.6 339.6\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"83.8\" cy=\"338.6\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc17", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M124.2 338.3 L132.2 331.9\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M124.2 338.3 L132.2 331.9\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"134.5\" cy=\"330.0\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc18", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M97.8 359.7 L92.0 364.4\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M97.8 359.7 L92.0 364.4\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"89.6\" cy=\"366.3\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc19", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M123.0 361.0 L130.7 368.7\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M123.0 361.0 L130.7 368.7\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"132.8\" cy=\"370.8\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc20", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M99.0 337.0 L93.3 331.3\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M99.0 337.0 L93.3 331.3\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"91.2\" cy=\"329.2\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc21", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M127.4 344.6 L136.3 342.2\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M127.4 344.6 L136.3 342.2\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"139.2\" cy=\"341.5\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc22", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M94.6 353.4 L84.7 356.1\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M94.6 353.4 L84.7 356.1\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"81.8\" cy=\"356.8\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc23", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M113.7 365.8 L115.2 375.4\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M113.7 365.8 L115.2 375.4\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"115.6\" cy=\"378.3\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc24", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M108.3 332.2 L106.7 321.5\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M108.3 332.2 L106.7 321.5\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"106.2\" cy=\"318.6\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc25", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M124.8 325.2 L128.5 318.7\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M124.8 325.2 L128.5 318.7\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"130.0\" cy=\"316.1\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc26", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M97.2 372.8 L93.0 380.3\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M97.2 372.8 L93.0 380.3\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"91.5\" cy=\"382.9\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc27", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M133.2 365.2 L139.8 369.9\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M133.2 365.2 L139.8 369.9\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"142.2\" cy=\"371.7\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc28", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M88.8 332.8 L81.3 327.5\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M88.8 332.8 L81.3 327.5\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"78.9\" cy=\"325.7\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc29", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M136.1 337.8 L145.5 333.6\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M136.1 337.8 L145.5 333.6\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"148.2\" cy=\"332.4\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc30", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M85.9 360.2 L79.0 363.2\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M85.9 360.2 L79.0 363.2\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"76.3\" cy=\"364.5\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc31", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M124.8 372.8 L130.2 382.2\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M124.8 372.8 L130.2 382.2\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"131.7\" cy=\"384.8\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc32", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M97.2 325.2 L93.2 318.2\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M97.2 325.2 L93.2 318.2\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"91.7\" cy=\"315.6\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc33", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M138.5 349.0 L147.7 349.0\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M138.5 349.0 L147.7 349.0\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"150.7\" cy=\"349.0\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc34", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M83.5 349.0 L73.2 349.0\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M83.5 349.0 L73.2 349.0\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"70.2\" cy=\"349.0\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc35", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M108.1 376.3 L107.1 386.0\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M108.1 376.3 L107.1 386.0\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"106.8\" cy=\"389.0\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc36", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M113.9 321.7 L115.0 310.9\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M113.9 321.7 L115.0 310.9\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"115.3\" cy=\"307.9\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc37", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M139.6 320.4 L144.6 315.4\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M139.6 320.4 L144.6 315.4\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"146.7\" cy=\"313.3\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc38", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M82.4 377.6 L78.1 381.9\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M82.4 377.6 L78.1 381.9\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"76.0\" cy=\"384.0\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc39", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M139.6 377.6 L144.9 382.9\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M139.6 377.6 L144.9 382.9\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"147.1\" cy=\"385.1\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}, {"si": "etinc40", "svg": "<g transform=\"{{bodyT}}\"><path d=\"M82.4 320.4 L77.8 315.8\" fill=\"none\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 3; stroke-linecap: round\"/><path d=\"M82.4 320.4 L77.8 315.8\" fill=\"none\" stroke=\"{{sparkFill}}\" style=\"stroke-width: 1.6; stroke-linecap: round\"/><circle cx=\"75.6\" cy=\"313.6\" r=\"1.5\" fill=\"{{sparkFill}}\" stroke=\"{{sparkLine}}\" style=\"stroke-width: 0.6\"/></g>"}];
+const AVATAR_CATALOGUE = new EditorLogic().catalogue();
+const AVATAR_DEFAUT = { masque: null, casqueSol: false, cagouleSol: false, etincelles: 0, flamme: 0, gerbe: 0, ondes: 0, etincellesPalier: 'bronze', hautCouleur: null, basCouleur: null, chaussuresCouleur: null, bandana: null, bouche: 'rien', genre: 'homme', peau: 'p2', cheveux: 'court', couleur: 'brun', barbe: 'aucune', lunettes: 'aucune', haut: 'hv', bas: 'travail', chaussures: 'secu', casque: false, coiffe: 'aucune', gants: 'aucun', accessoire: 'aucun', palier: 'standard', gantsPalier: 'standard', medailleAns: 0, medailleNiveau: 0, etoiles: 0 };
+
+function avatarModele(profil, contexte) {
+  const logique = new EditorLogic();
+  return logique.modele(Object.assign(logique.profilInitial(), { vue: 'travail', meteo: 'froid', realisations: 0, jours: 0, qualite: 0, radio: 0, cadence: 0, anciennete: 0 }, profil, contexte));
+}
+function avatarConfig(profil, contexte) { return avatarModele(profil, contexte).cfg; }
+
+function avatarSVG(cfg, taille) {
+  const c = Object.assign({}, AVATAR_DEFAUT, cfg);
+  const v = new AvatarLogic().resolve(c);
+  const t = taille || 240;
+  const corps = AVATAR_CALQUES.filter(l => !l.si || v.f[l.si]).map(l => l.svg.replace(/\{\{(\w+)\}\}/g, (m, k) => v[k])).join('');
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 420" width="' + t + '" height="' + Math.round(t * 1.75) + '" style="overflow:visible">' + corps + '</svg>';
+}
+
+function avatarMedaillon(cfg, diametre, fond, cadre) {
+  const d = diametre || 96, t = d * 1.875;
+  const anneau = cadre ? ';box-shadow:0 0 0 3px #fff,0 0 0 6px ' + cadre : '';
+  return '<span style="display:inline-block;flex:none;position:relative;width:' + d + 'px;height:' + d + 'px;border-radius:50%;overflow:hidden;background:' + (fond || '#E3E8EF') + anneau + '">'
+    + '<span style="position:absolute;left:' + (-0.4375 * d) + 'px;top:' + (-0.156 * d) + 'px">' + avatarSVG(cfg, t) + '</span></span>';
+}
+
+</script>
+<script>
+const LOGIQUE = new EditorLogic();
+let S = Object.assign(LOGIQUE.profilInitial(), { meteo: 'froid', realisations: 25000, jours: 730, qualite: 400, radio: 96, cadence: 3, anciennete: 7 });
+let ACTIONS = [];
+
+function esc(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
+function action(patch) { ACTIONS.push(patch); return ACTIONS.length - 1; }
+function crop(cfg, w, h, taille, left, top, radius) {
+  return '<span class="crop" style="width:' + w + 'px;height:' + h + 'px;border-radius:' + radius + '"><span style="left:' + left + 'px;top:' + top + 'px">' + avatarSVG(cfg, taille) + '</span></span>';
+}
+function groupe(titre, html) { return html ? '<div class="grp"><div class="lab">' + esc(titre) + '</div><div class="row">' + html + '</div></div>' : ''; }
+function chips(list) {
+  return list.map(o => '<button type="button" class="opt chip" data-a="' + action(o.patch) + '" aria-pressed="' + o.sel + '">' + esc(o.label) + '</button>').join('');
+}
+function pastilles(list) {
+  return list.map(o => '<button type="button" class="opt sw" data-a="' + action(o.patch) + '" aria-label="' + esc(o.label) + '" title="' + esc(o.label) + '" aria-pressed="' + o.sel + '"><i style="background:' + o.hex + '"></i></button>').join('');
+}
+const CADRAGES = {
+  tete: [64, 64, 130, -33, -9, '50%'], barbe: [64, 64, 130, -33, -14, '50%'], buste: [72, 80, 120, -24, -48, '10px'],
+  jambes: [60, 84, 100, -20, -88, '10px'], pieds: [72, 44, 150, -39, -206, '10px'], hanches: [84, 100, 100, -8, -24, '10px'], coiffure: [58, 58, 118, -30, -8, '50%'], casque: [64, 64, 130, -33, -4, '50%']
+};
+function vignettes(list, cadrage, large) {
+  const c = CADRAGES[cadrage];
+  return list.map(o => '<button type="button" class="opt th' + (large === 'xl' ? ' xl' : large === 's' ? ' s' : large ? ' large' : '') + '" data-a="' + action(o.patch) + '" aria-pressed="' + o.sel + '">' + crop(o.cfg, c[0], c[1], c[2], c[3], c[4], c[5]) + '<span>' + esc(o.label) + '</span></button>').join('');
+}
+
+function rendu() {
+  ACTIONS = [];
+  let m = LOGIQUE.modele(S);
+  if (S.realisations > m.realMax) { S.realisations = m.realMax; m = LOGIQUE.modele(S); }
+  const g = m.groupes;
+  const barre = document.getElementById('real');
+  if (+barre.max !== m.realMax) { barre.max = m.realMax; barre.step = m.realMax > 20000 ? 250 : 50; }
+  document.getElementById('vReal').textContent = S.realisations + ' ' + m.poste.unite;
+  document.getElementById('vRadio').textContent = S.radio + ' %';
+  document.getElementById('vCad').textContent = S.cadence + ' semaine' + (S.cadence > 1 ? 's' : '') + ' d\'affilée';
+  document.getElementById('vJours').textContent = Math.floor(S.jours / 365) + ' an' + (S.jours >= 730 ? 's' : '') + ' · ' + m.etoiles + ' étoile' + (m.etoiles > 1 ? 's' : '');
+  document.getElementById('meteo').innerHTML = chips(g.meteos);
+  document.getElementById('vAnc').textContent = S.anciennete + ' an' + (S.anciennete > 1 ? 's' : '');
+  document.getElementById('vQual').textContent = S.qualite + ' ' + (m.poste.qualite || 'jours (non utilisé ici : la qualité du soudeur, ce sont les radios)');
+
+  document.getElementById('preview').innerHTML =
+    '<div class="row" style="justify-content:center">' + chips(g.vues) + '</div>' +
+    '<div class="stage"><div class="disc" style="background:' + m.fond + '"></div><div class="shadow"></div><div class="fig">' + avatarSVG(m.cfg, 280) + '</div></div>' +
+    '<div><div class="pill">' + esc(m.poste.label) + '</div><div class="famille">' + esc(m.vueTexte) + '</div></div>' +
+    '<div class="box"><div class="lab">Rendu dans l\'appli</div><div class="meds">' + avatarMedaillon(m.cfg, 96, m.fond, m.cadre) + avatarMedaillon(m.cfg, 48, m.fond) + avatarMedaillon(m.cfg, 32, m.fond) + '</div>' +
+    '<div class="sub" style="font-size:14px">Photo de profil, listes d\'équipe et planning. Le cadre prend la couleur du palier atteint.</div></div>' +
+    '<div class="box"><div class="lab">Données enregistrées</div><pre id="json">' + esc(JSON.stringify(donnees(), null, 2)) + '</pre></div>';
+
+  let tenue = '';
+  if (m.verrou) tenue += '<div class="box"><strong>Tenue de chantier et casque imposés, adaptés à la météo du jour</strong><div class="sub">' + esc(m.epi) + '</div></div>';
+  if (m.tenueVisible) {
+    tenue += groupe('Haut', vignettes(g.hauts, 'buste', true)) + groupe('Teinte du haut', pastilles(g.hautTeintes)) + groupe('Bas', vignettes(g.bas, 'jambes', true)) + groupe('Teinte du bas', pastilles(g.basTeintes)) +
+      groupe('Chaussures', vignettes(g.chaussures, 'pieds', true)) + groupe('Teinte des chaussures', pastilles(g.chaussuresTeintes)) + groupe('Accessoire', vignettes(g.accessoires, 'hanches', 'xl'));
+  }
+  tenue += groupe('Casque', vignettes(g.casques, 'casque', true)) + groupe('Sur la tête', vignettes(g.coiffes, 'tete', true));
+  tenue += '<div class="grp"><div class="lab">Bandana · accessoire en option</div><div class="row">' + chips(g.bandanaBascule) + '</div></div>';
+  if (m.aBandana) tenue += '<div class="grp"><div class="sub">' + esc(m.bandanaTexte) + '</div><div class="row">' + g.bandanas.map(o => '<button type="button" class="opt tri" data-a="' + action(o.patch) + '" aria-label="' + esc(o.label) + '" title="' + esc(o.label) + '" aria-pressed="' + o.sel + '"><span><i style="background:' + o.c1 + '"></i><i style="background:' + o.c2 + '"></i><i style="background:' + o.c3 + '"></i></span></button>').join('') + '</div><label class="pays">Aux couleurs d\'un pays <select id="pays"><option value="">Choisir un pays</option>' + g.bandanaPays.map(o => '<option value="' + o.id + '"' + (o.sel ? ' selected' : '') + '>' + esc(o.label) + '</option>').join('') + '</select></label></div>';
+
+  const medaille = '<div class="grp"><div class="lab">Médaille d\'ancienneté · au choix</div><div class="sub">' + esc(m.medailleTexte) + '</div><div class="row">' +
+    g.medailleBascule.map(o => '<button type="button" class="opt chip" data-a="' + action(o.patch) + '" aria-pressed="' + o.sel + '"' + (o.bloque ? ' disabled' : '') + '>' + esc(o.label) + '</button>').join('') + '</div><div class="row">' +
+    g.medailleNiveaux.map(o => '<div class="niv" aria-current="' + o.sel + '">' + crop(o.cfg, 76, 76, 300, -81, -164, '10px') + '<span>' + esc(o.label) + '</span><small>' + esc(o.info) + '</small></div>').join('') + '</div></div>';
+  const palierBoutons = list => list.map(o => '<button type="button" class="opt pal" data-a="' + action(o.patch) + '" aria-pressed="' + o.sel + '"' + (o.bloque ? ' disabled' : '') + '><i style="background:' + o.hex + '"></i><span>' + esc(o.label) + '<small>' + esc(o.info) + '</small></span></button>').join('');
+  const gants = m.aGants ? '<div class="grp"><div class="lab">' + esc(m.gantsTitre) + '</div><div class="sub">' + esc(m.qualiteTexte) + '</div><div class="row">' + palierBoutons(g.paliersGants) + '</div></div>' : '';
+  const paliers = g.paliers.map(o => '<button type="button" class="opt pal" data-a="' + action(o.patch) + '" aria-pressed="' + o.sel + '"' + (o.bloque ? ' disabled' : '') + '><i style="background:' + o.hex + '"></i><span>' + esc(o.label) + '<small>' + esc(o.info) + '</small></span></button>').join('');
+
+  document.getElementById('side').innerHTML =
+    '<section class="card sec"><div class="head"><h2>Poste</h2><div class="sub" style="font-size:14px">Attribué par l\'administrateur, il fixe la tenue de travail</div></div><div class="row">' + chips(g.postes) + '</div></section>' +
+    '<section class="card sec"><h2>Visage</h2><div class="two">' + groupe('Silhouette', chips(g.genres)) + groupe('Teint', pastilles(g.peaux)) + groupe('Couleur cheveux et barbe', pastilles(g.couleurs)) + '</div>' +
+    groupe('Coiffure', vignettes(g.coiffures, 'coiffure', 's')) + groupe('Barbe', vignettes(g.barbes, 'barbe', true)) + groupe('Lunettes', vignettes(g.lunettes, 'tete', true)) + groupe('En bouche', vignettes(g.bouches, 'barbe', true)) + '</section>' +
+    '<section class="card sec"><div class="head"><h2>Tenue</h2><div class="row">' + chips(g.vues) + '</div></div>' + tenue + '</section>' +
+    '<section class="card sec"><h2>Récompenses</h2>' + (m.aRecompenses ? '<div class="box"><strong>' + esc(m.progression) + '</strong><div class="sub">' + esc(m.prochain) + '</div><div class="sub">' + esc(m.etoilesTexte) + '</div></div>' +
+    groupe(m.palierTitre, paliers) + gants +
+    (m.aRadio ? '<div class="grp"><div class="lab">Masque de soudage · qualité, radios conformes</div><div class="sub">' + esc(m.radioTexte) + '</div><div class="row">' + palierBoutons(g.paliersRadio) + '</div></div>' : '') +
+    (m.aCadence ? '<div class="grp"><div class="lab">' + esc(m.cadenceTitre) + '</div><div class="sub">' + esc(m.cadenceTexte) + '</div><div class="row">' + palierBoutons(g.paliersCadence) + '</div></div>' : '') +
+    '' : '<div class="sub">Pas de récompenses de production sur ce poste.</div>') + medaille + groupe('Fond du médaillon', pastilles(g.fonds)) + '</section>';
+}
+function donnees() {
+  const d = {};
+  Object.keys(LOGIQUE.profilInitial()).forEach(k => { if (k !== 'vue') d[k] = S[k]; });
+  return d;
+}
+function pioche(l) { return l[Math.floor(Math.random() * l.length)]; }
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('button[data-a]');
+  if (!b || b.disabled) return;
+  Object.assign(S, ACTIONS[+b.dataset.a]);
+  rendu();
+});
+document.addEventListener('change', e => { if (e.target.id === 'pays' && e.target.value) { S[LOGIQUE.modele(S).bandanaCle] = e.target.value; rendu(); } });
+document.getElementById('real').addEventListener('input', e => { S.realisations = +e.target.value; rendu(); });
+document.getElementById('jours').addEventListener('input', e => { S.jours = +e.target.value * 365; rendu(); });
+document.getElementById('anc').addEventListener('input', e => { S.anciennete = +e.target.value; rendu(); });
+document.getElementById('qual').addEventListener('input', e => { S.qualite = +e.target.value; rendu(); });
+document.getElementById('radio').addEventListener('input', e => { S.radio = +e.target.value; rendu(); });
+document.getElementById('cad').addEventListener('input', e => { S.cadence = +e.target.value; rendu(); });
+document.getElementById('hasard').onclick = () => {
+  const g = LOGIQUE.modele(S).groupes;
+  ['peaux', 'couleurs', 'coiffures', 'barbes', 'lunettes', 'fonds', 'hauts', 'bas', 'chaussures', 'coiffes'].forEach(k => { if (g[k].length) Object.assign(S, pioche(g[k]).patch); });
+  const g2 = LOGIQUE.modele(S).groupes;
+  ['hautTeintes', 'basTeintes', 'chaussuresTeintes'].forEach(k => { if (g2[k].length) Object.assign(S, pioche(g2[k]).patch); });
+  rendu();
+};
+document.getElementById('reinit').onclick = () => { S = Object.assign(LOGIQUE.profilInitial(), { poste: S.poste, vue: S.vue, meteo: S.meteo, realisations: S.realisations, jours: S.jours, qualite: S.qualite, radio: S.radio, cadence: S.cadence, anciennete: S.anciennete }); rendu(); };
+document.getElementById('copier').onclick = function () {
+  const t = JSON.stringify(donnees(), null, 2), btn = this;
+  const ok = () => { btn.textContent = 'Copié'; setTimeout(() => { btn.textContent = 'Copier la configuration'; }, 1500); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(ok, () => {});
+};
+rendu();
+</script>
+</body>
+</html>

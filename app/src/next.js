@@ -4,6 +4,7 @@
 export const NEXTF=(()=>{try{return JSON.parse(localStorage.getItem('trace:next')||'{}')||{};}catch(e){return {};}})();
 export const nOn=k=>k==='ts'||k==='tabs'||k==='doe'||k==='admin'||!!NEXTF[k]; // ts et tabs : DÉFINITIFS depuis le 07/10 (Ethan : « mets ça en définitif », « rends définitif barre d'onglets allégée ») ; admin (Dossier administratif) : DÉFINITIF depuis le 09/10 (« passe le dossier administratif en définitif »)
 import {initScr,scrInject,scrRenderTab} from './scr.js';
+import {docHTML} from './charte.js'; // charte SCR des documents imprimés (09/10 soir)
 let A=null; // API fournie par app.js (state, NET, sync, openModal, toast, esc…)
 const FEATS=[
  // ['admin', …] : Dossier administratif DÉFINITIF depuis le 09/10 — onglet « Dossier » (droit dossier.edit) : DT / DICT, plans exé, qualifications, PGC, PPSPS, planning, habilitations, BL, accueil ; fichiers au serveur ; un BL importé au stock s'y classe tout seul.
@@ -166,19 +167,15 @@ function qseSign(d0,preset){const esc=A.esc;const others=A.users().map(u=>u.name
     A.saveNet('qse');A.closeModal();qseBadge();renderQse();qseOpen(d0.id);A.toast(name+' a émargé'+(preset?'':' — au suivant'));};}
 function qsePrint(d0){const w=window.open('','_blank');if(!w){A.toast('Autorise la fenêtre pop-up pour imprimer');return;}w.document.write(qseSheetHTML(d0));w.document.close();}
 // feuille d'émargement (HTML autonome) — aussi dans le dossier DOE (onglet Export)
-export function qseSheetHTML(d0){const esc=A.esc;const NET=A.net();
-  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${esc(d0.title)}</title>
-  <style>body{font-family:system-ui,sans-serif;margin:28px;color:#111}h1{font-size:18px;margin:0 0 2px}h2{font-size:13.5px;margin:16px 0 6px}table{border-collapse:collapse;width:100%;font-size:12.5px}th,td{border:1px solid #bbb;padding:6px 8px;text-align:left}th{background:#f2f1ec}li{margin:3px 0}img{height:34px}@media print{button{display:none}}</style></head><body>
-  <button onclick="print()" style="float:right;padding:8px 14px">🖨 Imprimer / PDF</button>
-  <h1>${esc(d0.title)}</h1><div style="color:#555;font-size:12.5px">${esc(NET.name||'')} · créé le ${dFR(d0.at)} par ${esc(d0.by||'')}</div>
-  ${d0.type==='quart'?`<h2>Thème</h2><div>${esc(d0.theme||'—')}</div><h2>Points abordés</h2><div style="white-space:pre-wrap">${esc(d0.points||'—')}</div>`:''}
+export function qseSheetHTML(d0){const esc=A.esc;const NET=A.net();const T={accueil:'Accueil chantier',quart:'Quart d’heure sécurité',pdf:'Document à émarger'};
+  const body=`${d0.type==='quart'?`<h2>Thème</h2><div>${esc(d0.theme||'—')}</div><h2>Points abordés</h2><div style="white-space:pre-wrap">${esc(d0.points||'—')}</div>`:''}
   ${(d0.qs||[]).length?`<h2>${d0.type==='accueil'?'Points de l’accueil':'Questions'}</h2><ul>${d0.qs.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
-  ${d0.type==='accueil'?`<div style="font-size:12.5px;margin-top:6px">${d0.ppsps?('Le PPSPS « '+esc(d0.ppsps.name)+' » a été présenté : la signature ci-dessous vaut AUSSI signature du PPSPS.'):'PPSPS : non joint au dossier au moment de l’accueil.'}</div>`:''}
-  ${d0.type==='pdf'?`<div style="font-size:12.5px">Document : ${esc(d0.title)} — la signature vaut « j’ai pris connaissance ».</div>`:''}
-  <h2>Émargements (${(d0.sigs||[]).length})</h2><table><tr><th>Nom</th><th>Date</th><th>Signature</th></tr>
-  ${(d0.sigs||[]).map(s2=>`<tr><td>${esc(s2.name)}</td><td>${dhFR(s2.at)}</td><td>${s2.img?`<img src="${s2.img}">`:''}</td></tr>`).join('')}
-  ${Array.from({length:Math.max(0,6-(d0.sigs||[]).length)}).map(()=>'<tr><td style="height:34px"></td><td></td><td></td></tr>').join('')}</table>
-  </body></html>`;}
+  ${d0.type==='accueil'?`<div class="card ${d0.ppsps?'soft':'notice'}">${d0.ppsps?('Le PPSPS « '+esc(d0.ppsps.name)+' » a été présenté : la signature ci-dessous vaut AUSSI signature du PPSPS.'):'PPSPS : non joint au dossier au moment de l’accueil.'}</div>`:''}
+  ${d0.type==='pdf'?`<div class="card soft">Document : ${esc(d0.title)} — la signature vaut « j’ai pris connaissance ».</div>`:''}
+  <h2>Émargements (${(d0.sigs||[]).length})</h2><table class="em"><tr><th>Nom</th><th>Date</th><th>Signature</th></tr>
+  ${(d0.sigs||[]).map(s2=>`<tr><td><b>${esc(s2.name)}</b></td><td>${dhFR(s2.at)}</td><td>${s2.img?`<img src="${s2.img}">`:''}</td></tr>`).join('')}
+  ${Array.from({length:Math.max(0,6-(d0.sigs||[]).length)}).map(()=>'<tr><td style="height:36px"></td><td></td><td></td></tr>').join('')}</table>`;
+  return docHTML({title:d0.title,kicker:'QSE · '+(T[d0.type]||d0.type),sub:esc(NET.name||''),meta:[['Créé le',dFR(d0.at)],['Par',esc(d0.by||'')],['Émargements',(d0.sigs||[]).length]],body,css:'li{margin:4px 0}table.em img{height:34px}table.em td{vertical-align:middle}',footLeft:esc(NET.name||'')});}
 // ---------- TS / hors marché : porté par app.js depuis le 07/10 (tracé marché figé, marques par élément, extrusions) — HM_ET gardé pour le traceur ----------
 export const HM_ET={propose:'TS proposé',commande:'TS commandé',forfait:'compris (global et forfaitaire)',marche:'conforme au marché'};
 // ---------- EXPORT DOE : carnet de soudage / manchonnage ----------
@@ -209,14 +206,5 @@ function doeOpen(){const esc=A.esc;const NET=A.net();const all=Object.values(A.s
       ${dh?`<div class="dh">DH figée au raccordement : ${dh.expected?('attendu '+dh.expected+' Ω'):''}${dh.meas?(' · mesuré '+dh.meas+' Ω'):''}${dh.iso!=null?(' · isolement '+dh.iso+' MΩ'):''} — ${esc(dh.closure||'')}</div>`:''}
       ${j.wire==='inversion'?'<div class="dh" style="color:#a01212">Inversion de fils enregistrée à ce manchon</div>':''}</div></div>
      ${uph.length?`<div class="phs">${uph.map(u=>`<img src="${u}">`).join('')}</div>`:''}</div>`;});}));
-  w.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Carnet de soudage — ${esc(NET.name||'')}</title>
-  <style>body{font-family:system-ui,sans-serif;margin:24px;color:#111}h1{font-size:19px;margin:0}
-  .w{border:1px solid #ccc;border-radius:8px;padding:10px;margin:10px 0;page-break-inside:avoid}
-  .whead{font-size:13.5px;margin-bottom:6px}.st{background:#eee;border-radius:6px;padding:1px 7px;font-weight:700;font-size:11.5px}
-  .wrow{display:flex;gap:10px;align-items:flex-start}table{border-collapse:collapse;width:100%;font-size:11.5px}th,td{border:1px solid #ccc;padding:3px 6px;text-align:left}th{background:#f2f1ec}
-  .dh{font-size:11.5px;margin-top:4px;color:#333}.phs{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.phs img{max-height:110px;max-width:160px;border-radius:6px;border:1px solid #ddd}
-  @media print{button{display:none}}</style></head><body>
-  <button onclick="print()" style="float:right;padding:8px 14px">🖨 Imprimer / PDF</button>
-  <h1>Carnet de soudage et manchonnage — ${esc(NET.name||'')}</h1>
-  <div style="color:#555;font-size:12.5px">${nDone} soudure(s) documentée(s) sur ${nTot} · édité le ${dFR(new Date())} · TRACÉ / RCU-COMPAGNON</div>
-  ${body||'<p>Aucune soudure documentée pour l’instant.</p>'}</body></html>`);w.document.close();}
+  w.document.write(docHTML({title:'Carnet de soudage — '+(NET.name||''),h1:'Carnet de soudage et manchonnage',kicker:'Suivi de chantier',sub:esc(NET.name||''),meta:[['Documentées',nDone+' / '+nTot+' soudures'],['Édité le',dFR(new Date())]],
+    body:body||'<p>Aucune soudure documentée pour l’instant.</p>',css:`.w{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:10px 0;page-break-inside:avoid}.whead{font-size:13.5px;margin-bottom:6px}.st{background:var(--soft);border-radius:999px;padding:2px 9px;font-weight:700;font-size:11px}.wrow{display:flex;gap:10px;align-items:flex-start}table{font-size:11.5px}th,td{padding:3px 7px}.dh{font-size:11.5px;margin-top:4px;color:#333}.phs{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.phs img{max-height:110px;max-width:160px;border-radius:8px;border:1px solid var(--line)}`,footLeft:esc(NET.name||'')}));w.document.close();}
