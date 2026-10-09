@@ -1,0 +1,20 @@
+// capture : hydraulique — section 5 exécution (téléphone), fiche de rinçage, rapport de réalisation (PV)
+import { chromium } from 'playwright';
+const BASE=process.env.BASE||'http://localhost:8765';
+const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
+const ctx=await browser.newContext({viewport:{width:430,height:900}});const page=await ctx.newPage();page.on('dialog',d=>d.accept().catch(()=>{}));
+await page.goto(BASE+'/traceur.html');await page.waitForTimeout(500);await page.evaluate(()=>{localStorage.clear();});await page.reload();await page.waitForTimeout(500);
+await page.evaluate(()=>{const S=window.MAQ.state;S.supplier='RENALIA';S.lines=[{id:'L1',name:'Rue de la Gare',dn:150,bar:12,pts:[[10,50],[130,50]],specials:[],parent:null}];S.seq=2;window.MAQ.setMode('select');window.MAQ.rebuild();});
+await page.click('#bSave');await page.waitForTimeout(200);await page.fill('#svName','Sous-station Mairie');await page.click('#svOk');await page.waitForTimeout(700);await page.click('#svGo');await page.waitForTimeout(1500);await page.selectOption('#roleSel','ethan');await page.waitForTimeout(300);
+const ph=(txt,c)=>`data:image/svg+xml;utf8,`+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240"><rect width="320" height="240" fill="${c}"/><circle cx="160" cy="120" r="80" fill="#fff"/><text x="100" y="128" font-size="24" font-family="sans-serif">${txt}</text></svg>`);
+const photos=[ph('20,8 bar','#2f3b4a'),ph('20,7 bar','#2f3b4a')];
+await page.evaluate((photos)=>{const T=window.TRACE;T.state.tab='hydro';T.renderAll();const h=T.net.hydro;h.prest.rincage=true;
+  h.exec={0:{epreuve:{date:'2026-10-08',debut:'08:30',fin:'09:45',equipe:'Karim B., Sofiane K.',chef:'Ethan L.',temoin:'M. Durand (MOE)',ps:'16',pe:'20,8',pDebut:'20,8',pFin:'20,7',duree:'60',chuteAdm:'0,2',tEau:'12',mano:'MN-07 étal. 03/2026',obs:'RAS',photos,result:'',operateur:'Ethan L.',at:new Date().toISOString()}}};
+  T.renderAll();const sec=[...document.querySelectorAll('#hydro h3')].find(x=>/Exécution/.test(x.textContent));sec.scrollIntoView();},photos);
+await page.waitForTimeout(400);await page.screenshot({path:'shot_hydro_exec_section.png'});
+await page.evaluate(()=>document.querySelector('#hydro [data-hxedit="0"][data-hxkind=rincage]').click());await page.waitForTimeout(400);
+await page.screenshot({path:'shot_hydro_exec_modal.png'});
+await page.evaluate(()=>document.getElementById('modal').classList.remove('show'));
+const popup=page.waitForEvent('popup');await page.evaluate(()=>document.querySelector('#hyExecReport').click());const pop=await popup;await pop.waitForLoadState('domcontentloaded');await pop.setViewportSize({width:900,height:1200});await page.waitForTimeout(500);
+await pop.screenshot({path:'shot_hydro_exec_pv.png',fullPage:true});await pop.close();
+await browser.close();console.log('ok');
