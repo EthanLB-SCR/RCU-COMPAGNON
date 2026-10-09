@@ -83,5 +83,15 @@ await page.waitForTimeout(2500);
 out={rots:await rotOf(),srv:srvElPos(),cloud:await page.evaluate(()=>!!window.TRACE.state.cloudUser),toast:await page.evaluate(()=>document.querySelector('#toast').textContent)};
 out.lastCheck=await page.evaluate(()=>window.TRACE.state.syncLastCheck||null);out.loads=calls.slice(nBefore).filter(c=>/^GET \/rest\/v1\/sites\?select=id(,|%2C)name(,|%2C)supplier(,|%2C)serie(,|%2C)data/.test(c)).length;
 console.log('5) rechargement :',JSON.stringify(out));C.c5=out.cloud&&out.rots[1]===90&&out.rots[2]===270&&out.rots[3]===15&&out.rots[4]===0&&out.rots[6]===180&&out.rots[7]===45&&out.srv===6&&/rechargé/.test(out.lastCheck&&out.lastCheck.why||'')&&out.loads===1&&/Plan rechargé depuis le serveur/.test(out.toast);
+// ── 6) ré-enregistrement depuis le TRACEUR (chantier trc_) : la copie de cet appareil ne doit pas écraser ce que les autres ont fait depuis (message, tube tourné) → parties reprises du serveur, orientations fusionnées
+{const r=sites[SID];r.data.conv={...r.data.conv,msgs:[...r.data.conv.msgs,{id:'X2',at:new Date().toISOString(),by:'Paul D.',text:'Tranchée refermée côté école',photos:[],pos:null,kind:'msg',cat:'tranchee'}],seq:3};
+ const EL9=await page.evaluate(()=>{const T=window.TRACE;const L=Object.values(T.lines)[0];return L.id+'|A|'+L.cond.A.els[8].id;});r.data.elPos={...r.data.elPos,[EL9]:{rot:90,flip:0,td:0}};r.updated_at=new Date(Date.now()+9000).toISOString();}
+posts0=calls.filter(c=>/^POST \/rest\/v1\/sites/.test(c)).length;
+await page.goto(BASE+'/traceur.html?site='+encodeURIComponent(SID));await page.waitForTimeout(1800);
+await page.click('#bSave');await page.waitForTimeout(200);await page.selectOption('#svMode','update');await page.click('#svOk');await page.waitForTimeout(900);await page.click('#svGo');await page.waitForTimeout(1500);
+try{await page.waitForFunction(()=>window.TRACE&&window.TRACE.state.cloudUser&&window.TRACE.state.screen==='site'&&/^trc_/.test(window.TRACE.state.siteId||'')&&Object.keys(window.TRACE.lines).length===1,null,{timeout:15000});}catch(e){}
+await page.waitForTimeout(2500);
+out={rots:await rotOf(),srv:srvElPos(),srvConv:((sites[SID].data.conv||{}).msgs||[]).map(m=>m.id).join(','),local:await page.evaluate(()=>{const T=window.TRACE;return {conv:((T.net.conv||{}).msgs||[]).map(m=>m.id).join(','),elPos:Object.keys(T.net.elPos||{}).length,pending:T.syncPending()};}),posts:calls.filter(c=>/^POST \/rest\/v1\/sites/.test(c)).length-posts0,sent:!!(sites[SID].data.traceur&&sites[SID].data.traceur.savedAt)};
+console.log('6) reprise du traceur :',JSON.stringify(out));C.c6=out.rots[1]===90&&out.rots[6]===180&&out.rots[7]===45&&out.rots[8]===90&&out.srv===7&&out.srvConv==='X1,X2'&&out.local.conv==='X1,X2'&&out.local.elPos===7&&out.posts>=1&&out.sent;
 const bad=Object.entries(C).filter(([k,v])=>!v).map(([k])=>k);console.log(bad.length?'RESULTAT: ECHEC '+bad.join(','):'RESULTAT: TOUT VERT');console.log(logs.length?logs:'[]');
 await browser.close();

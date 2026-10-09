@@ -3,7 +3,7 @@ import DB from './db.json';
 import {createPieceEngine} from './pieces.js';
 import CATALOGUE from './catalogue.json';
 import {parseDXF,parseDXFFile,analyze,buildSite,buildSiteJBTP,drawingOf,buildDrawing,previewSVG,drawingSVG,drawingBBoxes,decimateDrawing} from './dxfimport.js';
-import {sync} from './sync.js';
+import {sync,mergeServerParts} from './sync.js';
 import {kv} from './kv.js';
 import {geoOfSite,planToLonLat,lonLatToPlan,tilesFor,ignTileURL,IGN_LAYERS,distLL,fmtDist,crsName,similarityFromPairs,geocode,CRS} from './geo.js';
 import {parseBL,stockLabel,stockKey,matchKey,zoneAgg,globalAgg,remainByMatch,zoneStatusOf,dnOfOd,isPU,K_LABEL as STK_LABEL} from './stock.js';
@@ -178,7 +178,10 @@ async function pushHandoffs(remote){if(!(await sync.user()))return;const onServe
     if(remote&&remote.length&&!srv&&net.sent){const hm=hiddenMap();hm[net.id]=Date.now();try{localStorage.setItem('trace:hiddenAt',JSON.stringify(hm));}catch(e){}removeSiteOption(net.id);continue;} // absent d'une liste serveur valide ET NON VIDE : masqué ici (la copie locale reste). Une liste vide n'est jamais une preuve de suppression (échec de requête, verrou d'auth, compte neuf) — c'est elle qui avait fait « disparaître » tous les chantiers le 20/08
     if(srv){const srvAt=(srv.traceur&&srv.traceur.savedAt?Date.parse(srv.traceur.savedAt):0)||(srv.updated_at?Date.parse(srv.updated_at):0);
       if(!(localSaved&&localSaved>srvAt+1000)){await markSent(net.id);continue;}} // le serveur a la même version ou plus récent : on n'écrase JAMAIS (une vieille copie de téléphone avait écrasé les retouches du PC)
-    const okk=await saveSiteNet(clean);if(okk){await markSent(net.id);setCloudBadge('chantier « '+net.name+' » envoyé au serveur');}}}
+    let toSave=clean;if(srv){try{const full=await sync.loadSite(net.id);if(full&&full.lines&&!full.deleted)toSave=mergeServerParts(clean,full);}catch(e){console.warn(e);}} /* 09/10 : le traceur ré-enregistre le plan avec la copie de CET appareil ; conversation, stock, QSE, orientations… des autres appareils sont repris du serveur au lieu d'être écrasés */
+    const okk=await saveSiteNet(toSave);if(okk){await markSent(net.id);setCloudBadge('chantier « '+net.name+' » envoyé au serveur');
+      if(toSave!==clean){const merged={...toSave,updated_at:typeof okk==='string'?okk:toSave.updated_at};if(state.siteId===net.id&&state.screen==='site')await adoptServerNet(merged,net.id,'Plan du traceur enregistré, complété avec la version du serveur');else{SITES[net.id]=merged;try{await kv.set('trace:handoff:'+net.id,{...merged,sent:true,sentAt:Date.now()});}catch(e){}}}}}}
+
 function addSiteOption(net){if(!SITES[net.id]){SITES[net.id]=net;const o=document.createElement('option');o.value=net.id;o.textContent=net.name;siteSel.appendChild(o);}else{SITES[net.id]=net;const o=[...siteSel.options].find(x=>x.value===net.id);if(o)o.textContent=net.name;}}
 // historique des versions du chantier (serveur) : chaque ré-enregistrement garde la version d'avant — restauration en deux clics
 // remise à zéro d'une soudure (erreur de saisie) : tout l'avancement disparaît, la soudure elle-même reste
@@ -332,7 +335,8 @@ const localUpdatedOf=net=>net?(net.updated_at?Date.parse(net.updated_at):(net.tr
 async function refreshSiteFromServer(id){try{const net=await sync.loadSite(id);if(!net)return;if(net.deleted){const hm=hiddenMap();hm[id]=net.deletedAt?Date.parse(net.deletedAt):Date.now();try{localStorage.setItem('trace:hiddenAt',JSON.stringify(hm));}catch(e){}removeSiteOption(id);toast('Chantier supprimé depuis un autre appareil');return;}
   if(!net.lines)return;await adoptServerNet(net,id,'Plan rechargé depuis le serveur (modifié ailleurs)');}catch(e){console.warn(e);}}
 // adopte une version serveur du chantier : copie locale, cache traceur, reconstruction à l'écran (zoom, onglet et fiche ouverte conservés), parties en attente renvoyées
-async function adoptServerNet(net,id,msg,except){keepPendingParts(net,id); // nos modifications pas encore écrites (phasage en cours de saisie, stock…) gagnent sur la copie serveur — elles repartent au serveur juste après
+async function adoptServerNet(net,id,msg,except){keepPendingParts(net,id);
+  try{const loc=(state.siteId===id&&NET&&NET.id===id)?NET:SITES[id];const lp=loc&&loc.elPos&&typeof loc.elPos==='object'?loc.elPos:null;if(lp){const sp=net.elPos&&typeof net.elPos==='object'?{...net.elPos}:{};let add=0;Object.entries(lp).forEach(([k,v])=>{if(!(k in sp)){sp[k]=v;add++;}});if(add){net.elPos=sp;netPending.elPos=id;}}}catch(e){console.warn(e);} /* tubes tournés ici mais jamais arrivés au serveur (ancienne version, refus) : gardés et renvoyés — le serveur gagne pour les tubes qu'il connaît */ // nos modifications pas encore écrites (phasage en cours de saisie, stock…) gagnent sur la copie serveur — elles repartent au serveur juste après
   SITES[id]=net;delete siteStore[id];if(net.traceur){try{await kv.set('trace:handoff:'+id,{...net,sent:true,sentAt:Date.now()});}catch(e){}}
   addSiteOption(net);if(state.siteId===id){const keep={k:state.view.k,tx:state.view.tx,ty:state.view.ty,tab:state.tab,phOpen:state.phOpen,phChk:state.phChk,phLv:state.phLv,sel:state.sel&&state.sheetMode==='view'?{...state.sel}:null};await switchSite(id);state.view={k:keep.k,tx:keep.tx,ty:keep.ty};state.tab=keep.tab;state.phOpen=keep.phOpen;state.phChk=keep.phChk;state.phLv=keep.phLv;applyView();renderAll();
     try{const s0=keep.sel;const l0=s0&&state.lines[s0.line];const cd0=l0&&l0.cond&&l0.cond[s0.cond];if(cd0){if(s0.kind==='j'&&cd0.joints[s0.i])openJoint(s0.line,s0.cond,s0.i);else if(s0.kind==='el'&&cd0.els[s0.i])openEl(s0.line,s0.cond,s0.i);}}catch(e){console.warn(e);} /* la fiche qu'on lisait reste ouverte */

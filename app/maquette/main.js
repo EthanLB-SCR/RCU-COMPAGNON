@@ -4,7 +4,7 @@ import {buildConduit,nomenclature,offsetPoly,polyLen,ptAt,projOnPoly,fmt} from '
 import {parseDXFFile,analyze,buildDrawing,buildBackground,drawingSVG,drawingBBoxes,decimateDrawing} from '../src/dxfimport.js';
 import {siteFromTraceur,weldsOfSite} from './bridge.js';
 import {M_KEYS,countShapes,geoDiff,sumCounts,marcheSnapshot} from '../src/marche.js';
-import {sync} from '../src/sync.js';
+import {sync,mergeServerParts} from '../src/sync.js';
 import {kv} from '../src/kv.js';
 const $=(s,el=document)=>el.querySelector(s),$$=(s,el=document)=>[...el.querySelectorAll(s)];const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const svg=$('#svg'),world=$('#world'),gBg=$('#bg'),gGrid=$('#grid'),gNet=$('#net'),gDraft=$('#draft'),main=$('#main');
@@ -416,6 +416,8 @@ async function saveToTrace(name,ref){if(!state.lines.length){flash('Rien à enre
   const bad=state.lines.filter(l=>polyLen(l.pts)>5000);if(bad.length&&!confirm(`⚠ ${bad.length} ligne(s) anormalement longue(s) : ${bad.map(l=>`${l.name} (${Math.round(polyLen(l.pts)/1000)} km)`).join(', ')}.\n\nC'est presque sûrement un tracé accidentel (clic à un zoom trop faible). Annuler, puis onglet Lignes → « Supprimer la ligne » — sinon le chantier sera illisible (cadrage sur des kilomètres).\n\nEnregistrer quand même ?`))return;
   const id=ref?ref.id:'trc_'+Date.now().toString(36);const {site,lost,nW}=siteFromTraceur({id,name,supplier:state.supplier,serie:state.serie,lines:state.lines,built:state.built,rules,bg:state.bg,prev:ref?{welds:ref.welds,geo:ref.geo||null,hydro:ref.hydro||null,dhData:ref.dhData||null,stock:ref.stock||null,marche:ref.marche||null,ts:ref.ts||null,elPos:ref.elPos||null,admin:ref.admin||null,qse:ref.qse||null,full:ref.full||null}:null,barDefault:state.bar});
   if(lost.length&&!confirm(`${lost.length} soudure(s) déjà faites ne sont plus retrouvées dans le nouveau tracé (${lost.slice(0,8).map(w=>w.weldId).join(', ')}${lost.length>8?'…':''}). Leur historique restera sur le serveur mais elles disparaissent du plan. Continuer ?`))return;
+  // mise à jour d'un chantier déjà sur le serveur (09/10) : ce qui a été fait depuis d'autres appareils (conversation, stock, QSE, tubes tournés…) est repris du serveur — la copie de cet appareil n'écrase plus le travail des autres
+  if(ref){try{const full=await Promise.race([sync.loadSite(id),new Promise(r=>setTimeout(()=>r(null),6000))]);if(full&&full.lines&&!full.deleted)Object.assign(site,mergeServerParts(site,full));}catch(e){console.warn(e);}}
   // remise locale à l'appli (même navigateur) : avec le fond de plan si ça tient, sinon sans (l'appli le reprendra du serveur)
   let localOk=await kv.set(HANDOFF+id,site); // IndexedDB (avec le fond) + un double léger dans localStorage (au cas où) — l'appli prend le plus complet
   try{localStorage.setItem(HANDOFF+id,JSON.stringify({...site,drawing:null,sheetType:site.image?'plain':(site.drawing?'plain':site.sheetType),bgTooBig:!!site.drawing}));localOk=true;}catch(e2){if(!localOk)flash('Mémoire du navigateur pleine : le chantier n\'a pas pu être remis localement (il partira par le serveur)');}
