@@ -72,6 +72,7 @@ export const PERMS=[
  ['site.versions','Versions du plan (historique, restauration)','Bureau'],
  ['site.delete','Supprimer un chantier','Bureau'],
  ['team.view','Voir l\'équipe (noms, postes)','Équipe'],
+ ['planning.edit','Planning : placer les équipes sur les chantiers de la semaine, fiche chantier (secteur, chef, conducteur)','Équipe'], // 09/10 soir : conducteurs, responsables d'exploitation, direction — pas le chef de chantier (planning imposé)
 ];
 export const STEP_PERMS=['weld.step1','weld.step2','weld.step3','weld.step4'];
 export const PENDING=new Set([]); // 09/10 : tous les droits déclarés sont appliqués (plan.view à l'ouverture, dh.measure sur les états DH, pointage.*, qse.sign / manage, team.view sur la liste des personnes)
@@ -83,11 +84,12 @@ const OPS=['undo.own']; // un opérateur annule ses propres erreurs (dans ses cr
 // crédits d'annulation par semaine glissante (7 jours) : au-delà, la demande part au chef. Les postes qui ont « corriger une fiche » (weld.admin) sont illimités.
 export const DEFAULT_CREDITS={soudeur:3,tuyauteur:3,manchonneur:3,activites_specifiques:3,chauffeur_engin:1,autre:1,chef:10,conducteur:10};
 const ENC={...ALL,'site.delete':false};
+const CHEF={...ENC,'planning.edit':false}; // le chef de chantier a tout l'encadrement sauf le planning (il lui est imposé)
 // défauts SCR de chaque poste (salarié) — modifiables dans l'onglet Administrateur (écarts gardés sur le serveur, clé app_settings.poste_rights)
 export const DEFAULT_RIGHTS={
  gerant:ALL,dir_adjointe:ALL,dir_technique:ALL,
  resp_exploitation:ALL,resp_operations:ALL,
- conducteur:ENC,chef:ENC,
+ conducteur:ENC,chef:CHEF,
  soudeur:pick(...SOCLE,...OPS,'weld.step1','weld.extra','weld.transfer','dh.measure'),
  tuyauteur:pick(...SOCLE,...OPS,'weld.step1','weld.transfer'),
  manchonneur:pick(...SOCLE,...OPS,'weld.step2','weld.step3','weld.step4','weld.transfer','dh.measure'),

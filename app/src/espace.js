@@ -8,7 +8,7 @@
 //     au lieu d'inventer des données (lots suivants : planning + météo, productions, validation en deux temps, habilitations RH).
 // Kit avatar : src/avatar.js (repris tel quel). Enveloppe avModele() : pas de médaille d'ancienneté hors travail (règle SCR, à reporter dans le kit).
 import {avatarModele,avatarSVG,avatarMedaillon,EditorLogic} from './avatar.js';
-import {POSTES_DEF,FAM_COLOR} from './acces.js';
+import {POSTES_DEF,FAM_COLOR,POSTE_FAM} from './acces.js';
 let A=null;               // API fournie par app.js : state, accounts(), sites(), rights(acc), current(), sync, kv, toast, openSite, userName
 let ROOT=null;            // conteneur du rendu (#homeBody)
 let DATA=null;            // données du rendu courant (voir buildData)
@@ -31,7 +31,7 @@ const CONFIG={recompenses:true,seuilEcheance:60,seuilChef:30};
 // clé « personne » : e-mail en minuscules (stable entre invitation et compte), sinon l'identifiant du compte (personnages de démo hors connexion)
 export const personKey=acc=>acc?((acc.email||'').toLowerCase()||String(acc.id||'')):'';
 const splitName=a=>{if(a.prenom||a.nom)return [a.prenom||'',a.nom||''];const t=String(a.name||a.email||'?').trim().split(/\s+/);return [t[0]||'?',t.slice(1).join(' ')];};
-const S={tab:'moi',sub:'moi',fiche:null,avVue:null,planSem:0,planJour:null,per:{mode:'sem',k:0,m:''},semOpen:{},entVue:'travail',valMode:'jour',valJour:null,valPers:null,corr:null,edit:false,q:'',fFam:'',fSite:'',habF:'traiter',open:{}};
+const S={tab:'moi',sub:'moi',fiche:null,avVue:null,planSem:0,planJour:null,plWeek:0,plSel:null,plSect:undefined,plEnc:false,plEdit:null,plAutres:false,per:{mode:'sem',k:0,m:''},semOpen:{},entVue:'travail',valMode:'jour',valJour:null,valPers:null,corr:null,edit:false,q:'',fFam:'',fSite:'',habF:'traiter',open:{}};
 export function initEspace(api){A=api;}
 /* ── DATA : l'état de l'appli, dans la forme attendue par les gabarits de la maquette ── */
 function buildData(){
@@ -41,23 +41,25 @@ function buildData(){
   const cur=A.current();if(cur&&cur.poste!=='visiteur'&&!accs.some(a=>personKey(a)===personKey(cur)))accs.push(cur); /* la personne connectée est toujours là, même avant la liste des comptes */
   const personnes=accs.map(a=>{const key=personKey(a);const x=PEOPLE[key]||{};const [prenom,nom]=splitName(a);
     return {id:key,acc:a.id,prenom,nom,email:a.email||'',tel:x.tel||'',poste:POSTES_ESP[a.poste]?a.poste:'autre',type:a.type||'salarie',admin:!!a.admin,active:a.active!==false,invite:!!a.invite,sites:a.sites||null,rights:a.rights||{},
-      entree:x.entree||null,contrat:x.contrat||null,urgence:x.urgence||null,_acc:a};});
+      entree:x.entree||null,contrat:x.contrat||null,urgence:x.urgence||null,secteur:x.secteur||null,_acc:a};});
   const seen=new Set();const uniques=personnes.filter(p=>{if(seen.has(p.id))return false;seen.add(p.id);return true;});
-  const chantiers=(A.sites()||[]).map(c=>({id:c.id,nom:c.name||c.id,ville:c.ville||'',soudures:+c.nw||0,faites:c.faites!=null?+c.faites:undefined,chef:c.chef||null,conducteur:c.conducteur||null})).concat([{id:'siege',nom:'Siège',ville:'Bureau',bureau:true}]);
+  const chantiers=(A.sites()||[]).map(c=>({id:c.id,nom:c.name||c.id,ville:c.ville||'',soudures:+c.nw||0,faites:c.faites!=null?+c.faites:undefined,chef:c.chef||null,conducteur:c.conducteur||null,secteur:c.secteur||null})).concat([{id:'siege',nom:'Siège',ville:'Bureau',bureau:true}]);
   const affectations={};uniques.forEach(p=>{if(p.type==='interim'&&Array.isArray(p.sites)&&p.sites.length&&chantiers.some(c=>c.id===p.sites[0]))affectations[p.id]=p.sites[0];});
   const habilitations=[];const avatars={},avatarCompteurs={},documents={};
   uniques.forEach(p=>{const x=PEOPLE[p.id]||{};(x.habs||[]).forEach(h=>habilitations.push(Object.assign({p:p.id},h)));avatars[p.id]=x.avatar||{};avatarCompteurs[p.id]=x.compteurs||{};documents[p.id]=x.docs||[];});
-  return {today,now:nowHM,config:CONFIG,familles:FAMILLES_ESP,postes:POSTES_ESP,chantiers,personnes:uniques,inconnus:{},affectations,planning:{},meteo:{},
+  return {today,now:nowHM,config:CONFIG,familles:FAMILLES_ESP,postes:POSTES_ESP,chantiers,personnes:uniques,inconnus:{},affectations,planning:planningAff(),meteo:{},
     habTypes:HAB_TYPES,habRequises:HAB_REQ,habilitations,pointages:POINTAGES,demandes:null,taches:null,stock:null,engins:null,agenda:null,equipes:null,productions:{},
     avatarPostes:AVATAR_POSTES,avatars,avatarCompteurs,documents};
 }
 /* ── Enregistrement : fiche personne par partie, pointages ; hors connexion → en attente ── */
 async function kvSet(k,v){try{await A.kv.set(k,v);}catch(e){}}
-async function flushPending(){if(!PENDING.length||!A.state.cloudUser)return;const rest=[];
-  for(const w of PENDING){let ok=false;try{if(w.kind==='people'){if(!w.key.includes('@')){ok=true;}else{const r=await A.sync.setPeoplePart(w.key,w.part,w.value);ok=!!r.ok;if(!ok&&r.missing){A.toast('Serveur : passe le SQL sql/espace_v1.sql (fiche personne)');rest.push(w);break;}}}
-      else if(w.kind==='pt'){const r=await A.sync.setPointage(w.row);ok=!!r.ok;}}catch(e){console.warn(e);}
+async function flushPending(){if(!PENDING.length||!A.state.cloudUser)return;const rest=[];const list=PENDING.slice();
+  for(let i=0;i<list.length;i++){const w=list[i];let ok=false,stop=false;try{if(w.kind==='people'){if(!w.key.includes('@')){ok=true;}else{const r=await A.sync.setPeoplePart(w.key,w.part,w.value);ok=!!r.ok;if(!ok&&r.missing){A.toast('Serveur : passe le SQL sql/espace_v1.sql (fiche personne)');stop=true;}}}
+      else if(w.kind==='pt'){const r=await A.sync.setPointage(w.row);ok=!!r.ok;}
+      else if(w.kind==='plan'){const r=await A.sync.setPlanning(w.week,{aff:w.patch});ok=!!r.ok;if(!ok&&r.missing){A.toast('Serveur : passe le SQL sql/espace_v2.sql (planning)');stop=true;}if(ok&&r.row&&r.row.data&&!list.some(x=>x!==w&&x.kind==='plan'&&x.week===w.week)){PLANNING[w.week]={aff:r.row.data.aff||{}};kvSet('trace:planning',PLANNING);}}}catch(e){console.warn(e);}
+    if(stop){rest.push(...list.slice(i));break;} /* fonction serveur absente : tout le reste attend, rien n'est perdu */
     if(!ok)rest.push(w);}
-  PENDING=rest;kvSet('trace:espacePending',PENDING);}
+  PENDING=rest.concat(PENDING.filter(w=>!list.includes(w))); /* + ce qui a été ajouté pendant l'envoi */kvSet('trace:espacePending',PENDING);}
 function savePeoplePart(key,part,value){const x=PEOPLE[key]||(PEOPLE[key]={});x[part]=value;kvSet('trace:people',PEOPLE);
   if(!String(key).includes('@'))return; /* personnage de démo : appareil seulement */
   PENDING=PENDING.filter(w=>!(w.kind==='people'&&w.key===key&&w.part===part));PENDING.push({kind:'people',key,part,value});kvSet('trace:espacePending',PENDING);
@@ -68,19 +70,48 @@ function savePointage(row){const i=POINTAGES.findIndex(x=>x.p===row.p&&x.d===row
   PENDING=PENDING.filter(w=>!(w.kind==='pt'&&w.row.p===row.p&&w.row.d===row.d));PENDING.push({kind:'pt',row:clean});kvSet('trace:espacePending',PENDING);
   clearTimeout(flushT);flushT=setTimeout(()=>flushPending().catch(e=>console.warn(e)),700);}
 // chargement : cache de l'appareil, puis serveur (si connecté) ; appelé à la connexion et à l'ouverture de l'onglet
-export async function espaceLoad(){
+// un seul chargement à la fois ; un appel pendant un chargement en relance un à la fin (connexion arrivée entre-temps)
+let loadP=null,loadAgain=false;
+export function espaceLoad(){if(loadP){loadAgain=true;return loadP;}loadP=espaceLoad_().catch(e=>console.warn(e)).finally(()=>{loadP=null;if(loadAgain){loadAgain=false;espaceLoad();}});return loadP;}
+async function espaceLoad_(){
   try{const c=await A.kv.get('trace:people');if(c&&typeof c==='object')PEOPLE=c;}catch(e){}
   try{const c=await A.kv.get('trace:accountsCache');if(Array.isArray(c)&&c.length&&!ACC_CACHE)ACC_CACHE=c;}catch(e){}
   try{const c=await A.kv.get('trace:pointages');if(Array.isArray(c))POINTAGES=c;}catch(e){}
+  try{const c=await A.kv.get('trace:planning');if(c&&typeof c==='object')PLANNING=c;}catch(e){}
   try{const c=await A.kv.get('trace:espacePending');if(Array.isArray(c))PENDING=c;}catch(e){}
   if(A.state.cloudUser){
     const rows=await A.sync.listPeople();
     if(rows){rows.forEach(r=>{const loc=PEOPLE[r.key]||{};const srv=r.data||{};const pend=PENDING.filter(w=>w.kind==='people'&&w.key===r.key).map(w=>w.part);const merged=Object.assign({},loc,srv);pend.forEach(k=>{merged[k]=loc[k];}); /* une écriture en attente ici garde la main */PEOPLE[r.key]=merged;});kvSet('trace:people',PEOPLE);}
     const d0=new Date();d0.setDate(d0.getDate()-7*14);const pts=await A.sync.listPointages(iso(d0));
     if(pts){pts.forEach(r=>{const row={p:r.p,d:String(r.d).slice(0,10),site:r.site,events:r.events||[],status:r.status||'declare',val:r.val||[],corr:r.corr||null};if(PENDING.some(w=>w.kind==='pt'&&w.row.p===row.p&&w.row.d===row.d))return;const i=POINTAGES.findIndex(x=>x.p===row.p&&x.d===row.d);if(i>=0)POINTAGES[i]=row;else POINTAGES.push(row);});kvSet('trace:pointages',POINTAGES);}
+    await loadWeeks([-2,-1,0,1,2].map(k=>weekKey(semaineDe(k)[0])));
+    await loadPlanningRules();
     await flushPending();}
-  LOADED=true;if(ROOT&&document.contains(ROOT))render();}
+  LOADED=true;if(ROOT&&document.contains(ROOT))render();if(A.onLoaded)try{A.onLoaded();}catch(e){console.warn(e);}}
 export const espaceState=()=>({people:PEOPLE,pointages:POINTAGES,pending:PENDING,loaded:LOADED,S});
+/* ── PLANNING DES ÉQUIPES (09/10 soir) : une ligne serveur par semaine ISO, fusion par personne ; les gars n'ouvrent que les chantiers de leur semaine et de la précédente ── */
+export const SECTEURS={ouest:'Ouest',idf:'Île-de-France',sudouest:'Sud-Ouest',sudest:'Sud-Est'};
+let PLANNING={};             // 'YYYY-Www' → {aff:{clé personne:{'yyyy-mm-dd':[idChantier,…]}}}
+// règle d'accès des gars non planifiés : souple (tout voir, défaut : rien ne bloque tant que le planning n'est pas en place) ou strict (rien voir) — réglage d'entreprise, administrateur
+let PL_RULES={strict:false};try{const r=JSON.parse(localStorage.getItem('trace:planningRules')||'null');if(r&&typeof r==='object')PL_RULES=Object.assign({strict:false},r);}catch(e){}
+export const planningRules=()=>PL_RULES;
+async function loadPlanningRules(){if(!A.state.cloudUser||!A.sync.getSetting)return;try{const v=await A.sync.getSetting('planning_rules');if(v&&typeof v==='object'){PL_RULES=Object.assign({strict:false},v);try{localStorage.setItem('trace:planningRules',JSON.stringify(PL_RULES));}catch(e){}}}catch(e){console.warn(e);}}
+async function savePlanningRules(patch){const next=Object.assign({},PL_RULES,patch);if(A.state.cloudUser&&A.sync.setSetting){const err=await A.sync.setSetting('planning_rules',next);if(err){msg('Réglage non enregistré : '+(err.message||err));return false;}}PL_RULES=next;try{localStorage.setItem('trace:planningRules',JSON.stringify(PL_RULES));}catch(e){}return true;}
+const WEEKS_LOADED=new Set();
+export const weekKey=d=>{const x=D(d);x.setDate(x.getDate()+3-((x.getDay()+6)%7));return x.getFullYear()+'-W'+pad(numSemaine(d));}; // année ISO (celle du jeudi) + n° de semaine
+function planningAff(){const out={};Object.keys(PLANNING).forEach(w=>{const aff=(PLANNING[w]||{}).aff||{};Object.keys(aff).forEach(k=>{out[k]=Object.assign(out[k]||{},aff[k]);});});return out;}
+async function loadWeeks(ws){const need=ws.filter(w=>!WEEKS_LOADED.has(w));if(!need.length||!A.state.cloudUser)return;const rows=await A.sync.listPlanning(need);if(!rows)return;
+  need.forEach(w=>WEEKS_LOADED.add(w));rows.forEach(r=>{if(PENDING.some(x=>x.kind==='plan'&&x.week===r.week))return;PLANNING[r.week]={aff:(r.data&&r.data.aff)||{}};});kvSet('trace:planning',PLANNING);}
+let ensureT=null;function ensureWeeks(ws){const need=ws.filter(w=>!WEEKS_LOADED.has(w));if(!need.length||!A.state.cloudUser)return;clearTimeout(ensureT);ensureT=setTimeout(()=>loadWeeks(need).then(()=>{if(ROOT&&document.contains(ROOT))render();}).catch(e=>console.warn(e)),50);}
+// patch = {clé personne : {date:[sites]} | null} : fusion locale par personne + envoi (fusion identique côté serveur)
+function savePlanning(week,patch){const P=PLANNING[week]||(PLANNING[week]={aff:{}});Object.keys(patch).forEach(k=>{if(patch[k]===null)delete P.aff[k];else P.aff[k]=patch[k];});kvSet('trace:planning',PLANNING);
+  const w=PENDING.find(x=>x.kind==='plan'&&x.week===week);if(w)Object.assign(w.patch,patch);else PENDING.push({kind:'plan',week,patch:Object.assign({},patch)});kvSet('trace:espacePending',PENDING);
+  clearTimeout(flushT);flushT=setTimeout(()=>flushPending().catch(e=>console.warn(e)),700);}
+// chantiers ouverts à un compte : null = tous (encadrement, bureau, direction, administrateur, ou personne pas encore planifiée) ; sinon l'ensemble des chantiers de sa semaine et de la précédente
+export function espacePlannedSites(acc){if(!acc||acc.admin||acc.active===false||acc.type==='visiteur')return null;const fam=POSTE_FAM[acc.poste];if(!(fam==='terrain'||acc.poste==='chef'))return null;
+  const aff=planningAff()[personKey(acc)]||{};const set=new Set();semaineDe(0).concat(semaineDe(-1)).forEach(d=>(aff[d]||[]).forEach(id=>set.add(id)));if(set.size)return set;
+  return PL_RULES.strict?set:null; /* pas planifié ces deux semaines : règle souple = tout voir, stricte = rien */}
+export const espacePlanning=()=>PLANNING;
 /* ════════════════════════════════════════════════════════════════════
    3. OUTILS : texte, dates, heures
    ════════════════════════════════════════════════════════════════════ */
@@ -88,7 +119,8 @@ const $id=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const pad=n=>String(n).padStart(2,'0');
 const nb=n=>Number(n).toLocaleString('fr-FR');
-const D=s=>{const [y,m,d]=String(s||DATA.today).slice(0,10).split('-').map(Number);return new Date(y,m-1,d,12)};
+const TODAY=()=>{const n=new Date();return n.getFullYear()+'-'+pad(n.getMonth()+1)+'-'+pad(n.getDate());};
+const D=s=>{const [y,m,d]=String(s||(DATA?DATA.today:TODAY())).slice(0,10).split('-').map(Number);return new Date(y,m-1,d,12)};
 const iso=dt=>dt.getFullYear()+'-'+pad(dt.getMonth()+1)+'-'+pad(dt.getDate());
 const fDate=s=>{if(!s)return '—';const [y,m,d]=String(s).slice(0,10).split('-');return d+'/'+m+'/'+y};               // jj/mm/aaaa
 const fJour=s=>['dim.','lun.','mar.','mer.','jeu.','ven.','sam.'][D(s).getDay()]+' '+s.slice(8,10)+'/'+s.slice(5,7);
@@ -98,7 +130,7 @@ const fHeure=at=>{const t=at.slice(-5);return (+t.slice(0,2))+' h '+t.slice(3)};
 const fDuree=m=>Math.floor(m/60)+' h '+pad(m%60);                                           // 8 h 06
 const MOIS=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const fMois=s=>MOIS[+s.slice(5,7)-1]+' '+s.slice(0,4);
-function semaineDe(k){const t=D(DATA.today),l=new Date(t);l.setDate(t.getDate()-((t.getDay()+6)%7)+7*k); // k = 0 semaine en cours, -1 la précédente, 1 la suivante
+function semaineDe(k){const t=D(DATA?DATA.today:TODAY()),l=new Date(t);l.setDate(t.getDate()-((t.getDay()+6)%7)+7*k); // k = 0 semaine en cours, -1 la précédente, 1 la suivante
   return [0,1,2,3,4].map(i=>{const d=new Date(l);d.setDate(l.getDate()+i);return iso(d)})}
 function semaine(){return semaineDe(0)}
 function numSemaine(s){const d=D(s);d.setDate(d.getDate()+3-((d.getDay()+6)%7));const j=new Date(d.getFullYear(),0,4,12);
@@ -108,7 +140,8 @@ function numSemaine(s){const d=D(s);d.setDate(d.getDate()+3-((d.getDay()+6)%7));
    4. LOGIQUE MÉTIER (à reprendre dans l'appli)
    ════════════════════════════════════════════════════════════════════ */
 const pers=id=>DATA.personnes.find(p=>p.id===id)||DATA.inconnus[id]||(DATA.inconnus[id]={id,prenom:String(id||'?').split('@')[0],nom:'',email:'',tel:'',poste:'autre',type:'salarie',admin:false,active:false,rights:{},contrat:null,urgence:null,inconnu:true}); /* un id inconnu (compte supprimé) ne casse rien */
-const site=id=>(id&&DATA.chantiers.find(c=>c.id===id))||{id:id||null,nom:id?String(id):'—',ville:'',bureau:id==='siege',stub:true}; /* id inconnu ou absent : stub, jamais null (les gabarits lisent .nom) */
+const site=id=>(id&&DATA.chantiers.find(c=>c.id===id))||{id:id||null,nom:id?String(id):'—',ville:'',bureau:id==='siege',stub:true};
+const site_=site; /* id inconnu ou absent : stub, jamais null (les gabarits lisent .nom) */
 const poste=p=>DATA.postes[p.poste];
 const famille=p=>DATA.familles[poste(p).fam];
 const nomC=p=>p.prenom+' '+p.nom;
@@ -161,7 +194,7 @@ const can=(p,r)=>!!droits(p)[r];
 function visibles(me){
   if(!can(me,'team.view'))return [];
   let l=DATA.personnes.filter(p=>p.active||can(me,'dossier.edit'));
-  if(me.type==='interim')l=l.filter(p=>DATA.affectations[p.id]===DATA.affectations[me.id]);
+  if(me.type==='interim'){const mine=new Set(planDe(me.id,DATA.today));l=l.filter(p=>p.id===me.id||planDe(p.id,DATA.today).some(x=>mine.has(x)));} /* intérimaire : l'équipe de son chantier du jour (planning) */
   return l;
 }
 /* Qui j'encadre : chef = ses chantiers, conducteur = ses chantiers, sinon tout le monde si j'ai un droit d'équipe */
@@ -783,14 +816,14 @@ function vProd(me){
 function vProdEquipe(me){
   const ids=prodIds(me)||[],jours=semainesAff().flatMap(x=>x.js).filter(d=>d<=DATA.today).sort(),tot={};
   const par={};ids.forEach(id=>{par[id]={};jours.forEach(d=>addProd(par[id],prodJour([id],d)));addProd(tot,pers(id).poste==='tuyauteur'?{}:par[id])});
-  const sites=[...new Set(ids.map(id=>DATA.affectations[id]))];
+  const siteOf=id=>planDe(id,DATA.today)[0]||null;const sites=[...new Set(ids.map(siteOf))];
   const cles=Object.keys(PROD).filter(x=>tot[x]);
   const ligne=o=>Object.keys(PROD).filter(x=>o[x]).map(x=>nb(o[x])+' '+PROD[x][o[x]>1?1:0]).join(' · ');
   return `<h2 class="vt">Productions de ton équipe</h2>${chipsPeriode()}
     <div class="card"><h3>Total <span class="hint">· ${periodeTxt()} · ${ids.length} opérateur${ids.length>1?'s':''}${sites.length>1?' · '+sites.length+' chantiers':''}</span></h3>
       ${cles.length?`<div class="eq-tiles">${cles.map(x=>`<div class="eq-tile"><b>${nb(tot[x])}</b><span class="eq-s">${PROD[x][tot[x]>1?1:0]}</span></div>`).join('')}</div>
       ${tot.dn?`<div class="eq-lab">Soudures par DN</div>${dnChips(tot.dn)}`:''}`:'<div class="eq-s">Rien de compté sur la période.</div>'}</div>
-    <div class="eq-sems">${sites.map(i=>{const g=ids.filter(id=>DATA.affectations[id]===i).map(pers);
+    <div class="eq-sems">${sites.map(i=>{const g=ids.filter(id=>siteOf(id)===i).map(pers);
       return `<div class="card"><h3>📍 ${esc(site(i).nom)} <span class="hint">· ${g.length} opérateur${g.length>1?'s':''}</span></h3><div class="eq-list">${g.map(p=>{
         const o=par[p.id],cle='prod|'+p.id,open=S.open[cle];
         return `<div class="eq-vrow"><button class="eq-row" data-act="jour" data-v="${cle}" aria-expanded="${!!open}">${avatar(p)}<span class="eq-grow"><span class="eq-t">${esc(nomC(p))}${tagType(p)} <span class="eq-s">· ${esc(poste(p).label)}</span></span>
@@ -908,10 +941,54 @@ function vHabs(me,perso,equipe){
   return `<h2 class="vt">${perso?'Tes habilitations':'Échéances'}</h2><div class="eq-cols eq-1"><div>${Bq||A}</div></div>`;
 }
 
+/* ── PLANNING ÉQUIPE (planning.edit) : la semaine, les chantiers du secteur, les gars à placer — toucher une personne puis un chantier (ou glisser-déposer) ── */
+const secteurDe=p=>(PEOPLE[p.id]&&PEOPLE[p.id].secteur)||p.secteur||'';
+function mySecteur(me){const s=secteurDe(me);if(s)return s;const c=DATA.chantiers.find(c=>c.conducteur===me.id&&c.secteur);return c?c.secteur:'';}
+const plGens=()=>DATA.personnes.filter(p=>p.active&&(poste(p).fam==='terrain'||p.poste==='chef'||(S.plEnc&&(p.poste==='conducteur'||poste(p).fam==='encadrement'))));
+function plSitesDe(aff,p,js){const o=aff[p.id]||{};const sites={};js.forEach(d=>(o[d]||[]).forEach(id=>{(sites[id]=sites[id]||[]).push(d);}));return sites;}
+function plChip(p,site,js,aff,me){const sites=plSitesDe(aff,p,js);const jours=site?(sites[site]||[]):[];const sel=S.plSel===p.id;const edit=S.plEdit===p.id+'|'+(site||'');
+  const dots=site?`<span class="eq-pldots">${js.map(d=>`<i class="${jours.includes(d)?'on':''}" title="${fJour(d)}">${['L','M','M','J','V'][D(d).getDay()-1]||''}</i>`).join('')}</span>`:'';
+  return `<div class="eq-plchip${sel?' sel':''}${site?'':' libre'}" draggable="true" data-drag="${esc(p.id)}" data-site="${esc(site||'')}">
+    <button class="eq-plmain" data-act="${site?'pledit':'plsel'}" data-v="${esc(site?p.id+'|'+site:p.id)}" title="${site?'Régler les jours':'Choisir, puis toucher un chantier'}">${avatar(p)}<span class="eq-grow"><b>${esc(p.prenom)} ${esc(p.nom)}</b><small>${esc(poste(p).label)}${p.type==='interim'?' · intérim':''}${!site&&secteurDe(p)?' · '+esc(SECTEURS[secteurDe(p)]||secteurDe(p)):''}</small></span>${dots}</button>
+    ${edit?`<div class="eq-pledit"><div class="eq-s" style="margin-bottom:6px">Jours sur ce chantier</div><div class="eq-opts">${js.map(d=>`<button class="chip${jours.includes(d)?' active':''}" data-act="plday" data-v="${esc(p.id)}|${esc(site)}|${d}">${fJour(d).slice(0,4)} ${d.slice(8,10)}</button>`).join('')}</div>
+      <div class="eq-acts" style="margin:8px 0 0"><button class="btn" data-act="plrm" data-v="${esc(p.id)}|${esc(site)}">Retirer de ce chantier</button><button class="btn" data-act="pledit" data-v="${esc(p.id)}|${esc(site)}">Fermer</button></div>
+      <label class="f">Secteur de rattachement</label><select class="f" data-chg="plpers" data-k="secteur" data-p="${esc(p.id)}"><option value="">—</option>${Object.keys(SECTEURS).map(k=>`<option value="${k}"${secteurDe(p)===k?' selected':''}>${SECTEURS[k]}</option>`).join('')}</select></div>`:''}</div>`;}
+function vOrga(me){
+  const k=S.plWeek||0,js=semaineDe(k),wk=weekKey(js[0]);ensureWeeks([wk,weekKey(semaineDe(k-1)[0])]);
+  const sect=S.plSect===undefined?mySecteur(me):S.plSect;const aff=(PLANNING[wk]||{}).aff||{};
+  const chantiers=DATA.chantiers.filter(c=>!c.bureau);const duSect=chantiers.filter(c=>!sect||c.secteur===sect||!c.secteur),hors=chantiers.filter(c=>sect&&c.secteur&&c.secteur!==sect); /* un chantier sans secteur reste visible : on lui règle son secteur (⚙) */
+  const gens=plGens();const mine=gens.filter(p=>!sect||secteurDe(p)===sect||!secteurDe(p)),autres=gens.filter(p=>sect&&secteurDe(p)&&secteurDe(p)!==sect); /* sans secteur : à placer ici (le premier placement le rattache) */
+  const estPlace=p=>Object.keys(plSitesDe(aff,p,js)).length>0;const aPlacer=mine.filter(p=>!estPlace(p)),places=mine.filter(estPlace).length,aPlacerAutres=autres.filter(p=>!estPlace(p));
+  const selP=S.plSel?pers(S.plSel):null;const pct=mine.length?Math.round(places/mine.length*100):0;
+  const chefs=DATA.personnes.filter(p=>p.active&&p.poste==='chef'),conds=DATA.personnes.filter(p=>p.active&&(p.poste==='conducteur'||poste(p).fam==='encadrement'));
+  const fiche=c=>{const dk='plF_'+c.id;const resume=[c.secteur?SECTEURS[c.secteur]||c.secteur:'secteur ?',c.chef?nomC(pers(c.chef)):'chef ?',c.conducteur?nomC(pers(c.conducteur)):'conducteur ?'].join(' · ');
+    return `<details class="eq-plfd"${S[dk]?' open':''} data-det="${dk}"><summary class="eq-s">⚙ ${esc(resume)}</summary><div class="eq-plfiche"><select class="f" data-chg="plfiche" data-site="${esc(c.id)}" data-k="secteur" title="Secteur"><option value="">Secteur…</option>${Object.keys(SECTEURS).map(x=>`<option value="${x}"${c.secteur===x?' selected':''}>${SECTEURS[x]}</option>`).join('')}</select>
+    <select class="f" data-chg="plfiche" data-site="${esc(c.id)}" data-k="chef" title="Chef de chantier"><option value="">Chef de chantier…</option>${chefs.map(p=>`<option value="${esc(p.id)}"${c.chef===p.id?' selected':''}>${esc(nomC(p))}</option>`).join('')}</select>
+    <select class="f" data-chg="plfiche" data-site="${esc(c.id)}" data-k="conducteur" title="Conducteur de travaux"><option value="">Conducteur…</option>${conds.map(p=>`<option value="${esc(p.id)}"${c.conducteur===p.id?' selected':''}>${esc(nomC(p))}</option>`).join('')}</select></div></details>`;};
+  const carte=c=>{const ici=gens.filter(p=>plSitesDe(aff,p,js)[c.id]);const n=ici.length;
+    return `<div class="card eq-plsite${selP?' drop':''}" data-drop="${esc(c.id)}"><div class="eq-plhead"><span class="eq-grow"><span class="eq-big">📍 ${esc(c.nom)}</span><span class="eq-s">${esc(c.ville||'')}${c.secteur?(c.ville?' · ':'')+esc(SECTEURS[c.secteur]||c.secteur):''}${c.soudures?' · '+nb(c.soudures)+' soudures':''}</span></span><span class="eq-plcount${n?'':' vide'}">${n}</span></div>
+      ${fiche(c)}
+      <div class="eq-plpeople">${ici.map(p=>plChip(p,c.id,js,aff,me)).join('')||'<div class="eq-s eq-plvide">Personne pour l\'instant</div>'}</div>
+      ${selP?`<button class="btn primary eq-full" data-act="plput" data-v="${esc(c.id)}">Placer ${esc(selP.prenom)} ici · toute la semaine</button>`:''}</div>`;};
+  return `<h2 class="vt">Planning équipe <span class="hint">· semaine ${numSemaine(js[0])} · du ${fDate(js[0]).slice(0,5)} au ${fDate(js[4])}</span></h2>
+    <div class="eq-nav"><button class="btn" data-act="plweek" data-v="${k-1}">◀</button><div class="eq-filtres" style="padding:0;flex:1">${[[-1,'Semaine passée'],[0,'Cette semaine'],[1,'Semaine prochaine'],[2,'Dans 2 semaines']].map(([n,t])=>`<button class="chip${k===n?' active':''}" data-act="plweek" data-v="${n}">${t}</button>`).join('')}</div><button class="btn" data-act="plweek" data-v="${k+1}">▶</button></div>
+    <div class="card"><div class="eq-2sel"><div><label class="f" style="margin-top:0">Secteur</label><select class="f" data-chg="plSect"><option value=""${sect===''?' selected':''}>Tous les secteurs</option>${Object.keys(SECTEURS).map(x=>`<option value="${x}"${sect===x?' selected':''}>${SECTEURS[x]}</option>`).join('')}</select></div>
+      <div><label class="f" style="margin-top:0">Semaine</label><div class="eq-plprog${pct>=100?' ok':''}"><b>${places} / ${mine.length}</b> placé${places>1?'s':''}${pct>=100&&mine.length?' · 🎉 tout le monde est placé':''}<span class="eq-prog"><i style="width:${pct}%"></i></span></div></div></div>
+      <div class="eq-acts" style="margin:10px 0 0"><button class="btn" data-act="plcopy" data-v="${wk}">↩ Reprendre la semaine passée</button><button class="btn${S.plEnc?' primary':''}" data-act="plenc">${S.plEnc?'✓ ':''}Avec l'encadrement</button>${me.admin?`<button class="btn" data-act="plstrict" title="Règle d'accès des gars qui ne sont pas placés">${PL_RULES.strict?'🔒 Non placé = rien':'🔓 Non placé = tout voir'}</button>`:''}</div>
+      <div class="hint" style="margin-top:6px">Touche une personne puis un chantier (ou glisse-la). Toucher une personne placée règle ses jours. Les gars n'ouvrent dans l'appli que les chantiers de leur semaine et de la précédente.</div></div>
+    <div class="eq-cols eq-2b"><div>
+      <div class="card eq-pltray${selP?' sel':''}" data-drop="tray"><h3>À placer <span class="hint">· ${aPlacer.length}</span></h3>${aPlacer.length?`<div class="eq-plpeople">${aPlacer.map(p=>plChip(p,null,js,aff,me)).join('')}</div>`:`<div class="eq-s">${mine.length?'🎉 Tout le monde est placé cette semaine.':'Personne dans ce secteur : rattache les gars à un secteur (toucher une personne placée → secteur) ou choisis « Tous les secteurs ».'}</div>`}
+        ${autres.length?`<details${S.plAutres?' open':''} data-det="plAutres" style="margin-top:8px"><summary class="eq-s" style="cursor:pointer;min-height:44px;display:flex;align-items:center">Autres secteurs · ${aPlacerAutres.length} à placer${autres.length-aPlacerAutres.length?' · '+(autres.length-aPlacerAutres.length)+' déjà placé'+(autres.length-aPlacerAutres.length>1?'s':''):''}</summary><div class="eq-plpeople">${aPlacerAutres.map(p=>plChip(p,null,js,aff,me)).join('')||'<div class="eq-s">Tous placés.</div>'}</div></details>`:''}</div>
+      </div><div>
+      <div class="eq-plsites">${duSect.map(carte).join('')||'<div class="card"><div class="eq-s">Aucun chantier dans ce secteur : règle le secteur des chantiers (⚙ sur chaque chantier, avec « Tous les secteurs »).</div></div>'}</div>
+      ${hors.length?`<details${S.plAutres?' open':''} data-det="plAutres"><summary class="eq-s" style="cursor:pointer;min-height:44px;display:flex;align-items:center;padding:0 4px">Chantiers des autres secteurs · ${hors.length}</summary><div class="eq-plsites">${hors.map(carte).join('')}</div></details>`:''}
+    </div></div>`;
+}
+
 /* ── Sous-onglets selon les droits ── */
 function subsFor(me){
   if(S.tab!=='moi')return [];
-  return [['moi','Accueil'],['planning','Planning'],mesSites(me).length&&['chantiers','Chantiers'],prodIds(me)&&['prod','Productions'],(can(me,'pointage.self')||can(me,'pointage.validate'))&&['heures',can(me,'pointage.self')?'Heures':'Pointages'],['habs','Habilitations'],KIT&&avPoste(me)&&['avatar','Avatar']].filter(Boolean);
+  return [['moi','Accueil'],['planning','Planning'],can(me,'planning.edit')&&['orga','Planning équipe'],mesSites(me).length&&['chantiers','Chantiers'],prodIds(me)&&['prod','Productions'],(can(me,'pointage.self')||can(me,'pointage.validate'))&&['heures',can(me,'pointage.self')?'Heures':'Pointages'],['habs','Habilitations'],KIT&&avPoste(me)&&['avatar','Avatar']].filter(Boolean);
 }
 function badge(me,k){
   const val=can(me,'pointage.validate'),qse=can(me,'qse.manage');
@@ -930,6 +1007,7 @@ function vue(me){
   switch(S.sub){
     case 'moi':return vMoi(me);
     case 'planning':return vPlanning(me);
+    case 'orga':return vOrga(me);
     case 'prod':return vProd(me);
     case 'chantiers':return vChantiers(me);
     case 'heures':return vHeures(me);
@@ -1013,6 +1091,18 @@ const ACT={
     ['peaux','couleurs','coiffures','barbes','lunettes','fonds','hauts','bas','chaussures','coiffes'].forEach(k=>{if(g[k]&&g[k].length)avApply(me,pioche(g[k]).patch)});
     g=avMe(me).groupes;['hautTeintes','basTeintes','chaussuresTeintes'].forEach(k=>{if(g[k]&&g[k].length)avApply(me,pioche(g[k]).patch)});render()},
   avreinit(){const me=pers(S.me);DATA.avatars[me.id]={};AVM={};savePeoplePart(me.id,'avatar',null);render();msg('Avatar réinitialisé (le poste est conservé)')},
+  /* planning équipe */
+  plweek(v){S.plWeek=Math.max(-8,Math.min(8,+v));S.plSel=null;S.plEdit=null;render()},
+  plsel(v){S.plSel=S.plSel===v?null:v;S.plEdit=null;render()},
+  plenc(){S.plEnc=!S.plEnc;render()},
+  plstrict(){const me=pers(S.me);if(!me.admin)return;const strict=!PL_RULES.strict;savePlanningRules({strict}).then(ok=>{render();if(ok)msg(strict?'Règle stricte : un gars qui n\'est pas placé ne peut ouvrir aucun chantier':'Règle souple : un gars qui n\'est pas placé voit tous les chantiers')})},
+  pledit(v){S.plEdit=S.plEdit===v?null:v;S.plSel=null;render()},
+  plput(site){const key=S.plSel;if(!key)return;const js=semaineDe(S.plWeek||0),wk=weekKey(js[0]);const o=Object.assign({},((PLANNING[wk]||{}).aff||{})[key]||{});js.forEach(d=>{o[d]=[site];});savePlanning(wk,{[key]:o});S.plSel=null;const p=pers(key),c=site_(site);if(!secteurDe(p)&&c.secteur&&String(key).includes('@'))savePeoplePart(key,'secteur',c.secteur); /* premier placement : la personne est rattachée au secteur du chantier */render();msg(p.prenom+' placé'+(p.genre==='femme'?'e':'')+' sur '+c.nom+' toute la semaine')},
+  plday(v){const [key,site,d]=v.split('|');const wk=weekKey(d);const o=Object.assign({},((PLANNING[wk]||{}).aff||{})[key]||{});const cur=o[d]||[];o[d]=cur.includes(site)?cur.filter(x=>x!==site):[site];if(!o[d].length)delete o[d];savePlanning(wk,{[key]:Object.keys(o).length?o:null});render()},
+  plrm(v){const [key,site]=v.split('|');const js=semaineDe(S.plWeek||0),wk=weekKey(js[0]);const o=Object.assign({},((PLANNING[wk]||{}).aff||{})[key]||{});js.forEach(d=>{if(o[d]){o[d]=o[d].filter(x=>x!==site);if(!o[d].length)delete o[d];}});savePlanning(wk,{[key]:Object.keys(o).length?o:null});S.plEdit=null;render()},
+  plcopy(wk){const js=semaineDe(S.plWeek||0),jp=semaineDe((S.plWeek||0)-1),wp=weekKey(jp[0]);const prev=(PLANNING[wp]||{}).aff||{},cur=(PLANNING[wk]||{}).aff||{};const patch={};let n=0;
+    plGens().forEach(p=>{if(cur[p.id]&&Object.keys(cur[p.id]).some(d=>js.includes(d)))return;const o=prev[p.id];if(!o)return;const nv={};jp.forEach((d,i)=>{if(o[d]&&o[d].length)nv[js[i]]=o[d].slice();});if(Object.keys(nv).length){patch[p.id]=Object.assign({},cur[p.id]||{},nv);n++;}});
+    if(!n){msg('Rien à reprendre : la semaine passée est vide ou tout le monde est déjà placé');return}savePlanning(wk,patch);render();msg(n+' personne'+(n>1?'s':'')+' reprise'+(n>1?'s':'')+' de la semaine passée')},
   sim(v){msg('Pas encore branché : '+v)},
   tel(){}
 };
@@ -1024,7 +1114,17 @@ function bind(){if(bound)return;bound=true;
     if(k==='perk'){S.per.k=+e.target.value;render();return}
     if(k==='perm'){S.per.m=e.target.value;render();return}
     if(k==='avpays'){if(e.target.value){const me=pers(S.me);avApply(me,{[avMe(me).bandanaCle]:e.target.value});render()}return}
+    if(k==='plfiche'){const id=e.target.dataset.site,kk=e.target.dataset.k;if(A.saveSiteFiche)A.saveSiteFiche(id,{[kk]:e.target.value||null}).then(()=>render());return}
+    if(k==='plpers'){const key=e.target.dataset.p,kk=e.target.dataset.k;savePeoplePart(key,kk,e.target.value||null);render();return}
     S[k]=e.target.value;render();});
   document.addEventListener('input',e=>{if(e.target.id!=='eq-q')return;S.q=e.target.value;const l=$id('eq-annu-liste');if(l)l.innerHTML=listeEnt(pers(S.me));});
+  document.addEventListener('dragstart',e=>{const el=e.target.closest&&e.target.closest('#eq-app [data-drag]');if(!el)return;S.plSel=el.dataset.drag;try{e.dataTransfer.setData('text/plain',el.dataset.drag);e.dataTransfer.effectAllowed='move';}catch(x){}el.classList.add('dragging');});
+  document.addEventListener('dragend',e=>{const el=e.target.closest&&e.target.closest('#eq-app [data-drag]');if(el)el.classList.remove('dragging');});
+  document.addEventListener('dragover',e=>{const z=e.target.closest&&e.target.closest('#eq-app [data-drop]');if(!z)return;e.preventDefault();z.classList.add('over');});
+  document.addEventListener('dragleave',e=>{const z=e.target.closest&&e.target.closest('#eq-app [data-drop]');if(z)z.classList.remove('over');});
+  document.addEventListener('drop',e=>{const z=e.target.closest&&e.target.closest('#eq-app [data-drop]');if(!z)return;e.preventDefault();const key=S.plSel||(e.dataTransfer&&e.dataTransfer.getData('text/plain'));if(!key)return;S.plSel=key;
+    if(z.dataset.drop==='tray'){const js=semaineDe(S.plWeek||0),wk=weekKey(js[0]);const o=Object.assign({},((PLANNING[wk]||{}).aff||{})[key]||{});js.forEach(d=>{delete o[d];});savePlanning(wk,{[key]:Object.keys(o).length?o:null});S.plSel=null;render();}
+    else ACT.plput(z.dataset.drop);});
+  document.addEventListener('toggle',e=>{const d=e.target&&e.target.dataset&&e.target.dataset.det;if(d)S[d]=e.target.open;},true);
 }
 bind();
