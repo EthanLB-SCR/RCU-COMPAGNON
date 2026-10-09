@@ -168,7 +168,7 @@ out=await pop.evaluate(()=>({title:document.title,h2:[...document.querySelectorA
 console.log('15) export du phasage (fenêtre imprimable):',JSON.stringify(out));const c15=/Phasage/.test(out.title)&&out.h2.some(h=>/Plan/.test(h))&&out.h2.some(h=>/Planning/.test(h))&&out.h2.some(h=>/Planning soudure/.test(h))&&out.h2.some(h=>/Phase 1/.test(h))&&out.gantt&&out.mini&&out.print&&out.plan&&out.ml&&out.nw===4&&out.gap===1&&!out.nav;
 // ── 16) barre d'onglets : … Phasage · Modifs · QSE · Export · ⋯ visibles ; Liste · Récap · Catalogue cachés (barre allégée définitive)
 out=await page.evaluate(()=>({all:[...document.querySelectorAll('#tabbar [data-tab]')].map(b=>b.dataset.tab),vis:[...document.querySelectorAll('#tabbar [data-tab]')].filter(b=>b.style.display!=='none').map(b=>b.dataset.tab)}));
-console.log('16) ordre des onglets:',JSON.stringify(out));const c16=out.vis.join()==='plan,bouclage,hydro,stock,phasage,ts,conv,qse,export,__more'&&['liste','recap','catalogue'].every(t=>out.all.includes(t)&&!out.vis.includes(t));
+console.log('16) ordre des onglets:',JSON.stringify(out));const c16=out.vis.join()==='plan,bouclage,hydro,stock,phasage,ts,conv,admin,qse,export,__more'&&['liste','recap','catalogue'].every(t=>out.all.includes(t)&&!out.vis.includes(t));
 const ALL=c1&&c2a&&c2c&&c3&&c4&&c4b&&c5&&c6&&c7&&c8&&c9a&&c9b&&c10&&c11&&c12&&c13&&c14a&&c14b&&c14c&&c14d&&c15&&c16;
 console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2a,c2c,c3,c4,c4b,c5,c6,c7,c8,c9a,c9b,c10,c11,c12,c13,c14a,c14b,c14c,c14d,c15,c16}));
 console.log(logs.length?logs:'[]');

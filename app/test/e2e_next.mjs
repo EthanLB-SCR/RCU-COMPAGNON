@@ -14,8 +14,8 @@ await page.evaluate(()=>{const S=window.MAQ.state;S.supplier='AXIOM';S.lines=[
 await page.click('#bSave');await page.waitForTimeout(200);await page.fill('#svName','Next test');await page.click('#svOk');await page.waitForTimeout(800);
 await page.click('#svGo');await page.waitForTimeout(1500);await page.selectOption('#roleSel','ethan');await page.waitForTimeout(300);
 let out=await page.evaluate(()=>({adm:!!document.querySelector('#tabbar [data-tab="admin"]'),cat:getComputedStyle(document.querySelector('#tabbar [data-tab="catalogue"]')).display!=='none',ts:(document.getElementById('tsG')||{innerHTML:''}).innerHTML.length}));
-console.log('0) flags OFF : rien ne change:',JSON.stringify(out));
-const c0=!out.adm&&!out.cat&&out.ts>0;
+console.log('0) flags OFF : rien ne change (sauf le Dossier administratif, définitif depuis le 09/10):',JSON.stringify(out));
+const c0=out.adm&&!out.cat&&out.ts>0;
 // ── activer TOUT (comme depuis le panneau Nouveautés) puis recharger
 const sid=await page.evaluate(()=>{localStorage.setItem('trace:next',JSON.stringify({ts:1,admin:1,qse:1,tabs:1,doe:1}));return window.TRACE.state.siteId;});
 await page.reload();await page.waitForTimeout(900);
@@ -90,7 +90,7 @@ await page.evaluate(()=>{window.TRACE.showScreen&&window.TRACE.showScreen('home'
 await page.waitForTimeout(400);
 out=await page.evaluate(()=>{const b=document.getElementById('nextBtn');return {btn:!!b,txt:b?b.textContent:''};});
 console.log('6) bouton Nouveautés (home):',JSON.stringify(out));
-const c6=out.btn&&/1\/3/.test(out.txt);
+const c6=out.btn&&/\(2\)/.test(out.txt); /* 09/10 : admin définitif → il reste pointage et profil, éteints */
 const ALL=c0&&c1&&c2a&&c2b&&c2c&&c3&&c4a&&c4b&&c4c&&c5&&c6;
 console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c0,c1,c2a,c2b,c2c,c3,c4a,c4b,c4c,c5,c6}));
 console.log(logs.length?logs:'[]');

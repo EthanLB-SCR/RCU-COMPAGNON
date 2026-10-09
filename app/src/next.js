@@ -2,11 +2,11 @@
 // Interrupteurs : localStorage 'trace:next' — panneau « ⏳ Nouveautés » sur la home (chef/bureau), activation UNE PAR UNE, l'appli
 // se recharge à chaque bascule. Tant que rien n'est allumé, l'appli ne change pas d'un poil.
 export const NEXTF=(()=>{try{return JSON.parse(localStorage.getItem('trace:next')||'{}')||{};}catch(e){return {};}})();
-export const nOn=k=>k==='ts'||k==='tabs'||k==='doe'||!!NEXTF[k]; // ts et tabs : DÉFINITIFS depuis le 07/10 (Ethan : « mets ça en définitif », « rends définitif barre d'onglets allégée »)
+export const nOn=k=>k==='ts'||k==='tabs'||k==='doe'||k==='admin'||!!NEXTF[k]; // ts et tabs : DÉFINITIFS depuis le 07/10 (Ethan : « mets ça en définitif », « rends définitif barre d'onglets allégée ») ; admin (Dossier administratif) : DÉFINITIF depuis le 09/10 (« passe le dossier administratif en définitif »)
 import {initScr,scrInject,scrRenderTab} from './scr.js';
 let A=null; // API fournie par app.js (state, NET, sync, openModal, toast, esc…)
 const FEATS=[
- ['admin','Dossier administratif','Onglet par chantier : DT / DICT, plans exé, qualifications, PGC, PPSPS, planning, habilitations, BL, accueil… Les fichiers partent au serveur (pas dans l’appli) ; un BL importé au stock peut s’y classer tout seul.'],
+ // ['admin', …] : Dossier administratif DÉFINITIF depuis le 09/10 — onglet « Dossier » (droit dossier.edit) : DT / DICT, plans exé, qualifications, PGC, PPSPS, planning, habilitations, BL, accueil ; fichiers au serveur ; un BL importé au stock s'y classe tout seul.
  ['pointage','Pointage heures & production (SCR interne)','Chacun pointe sa journée (début géolocalisé, pause, reprise, fin ; départ du chantier = inter-chantier) ; production du jour prise sur le plan ; le chef déclare après coup, valide ou corrige ; le conducteur valide en second. Onglet « Pointage ».'],
  ['profil','Profil opérateur (SCR interne)','Avatar aux couleurs de l’entreprise, points, trophées et médailles (soudures, manchons, fils, jours au-dessus de la cadence, QSE signés, pointage non contesté, pauses), mes heures validées. Onglet « Profil ».'],
 ];
@@ -29,7 +29,7 @@ export function nextBindHome(){const b=document.getElementById('nextBtn');if(b)b
   A.openModal(`<h3 style="margin-top:0">Nouveautés en attente</h3>
    <p class="hint" style="margin-top:0">Codées et testées, mais INACTIVES tant que tu ne les allumes pas. Active-les une par une, vérifie tranquillement, redis-moi. (L'appli se recharge à chaque bascule.)</p>
    ${FEATS.map(f=>`<label style="display:flex;gap:8px;align-items:flex-start;padding:8px;border:1.5px solid var(--line);border-radius:10px;margin:6px 0;cursor:pointer;${nOn(f[0])?'background:#f2fbf2;border-color:#9fd49f':''}"><input type="checkbox" data-nextf="${f[0]}" ${nOn(f[0])?'checked':''} style="margin-top:3px"><span><b>${f[1]}</b><br><span class="hint">${f[2]}</span></span></label>`).join('')}
-   <div style="margin:10px 0 4px;font-size:12.5px"><b>Rendu définitif :</b> QSE, Modifs / marché, barre d'onglets allégée, Export DOE (07/10).</div>
+   <div style="margin:10px 0 4px;font-size:12.5px"><b>Rendu définitif :</b> QSE, Modifs / marché, barre d'onglets allégée, Export DOE (07/10), Dossier administratif (09/10).</div>
    <h4 style="margin:10px 0 4px">À concevoir (SCR interne, pas dans la version vendue)</h4>${BACKLOG.map(b=>`<div style="padding:8px;border:1.5px dashed var(--line);border-radius:10px;margin:6px 0"><b>${b[0]}</b><br><span class="hint">${b[1]}</span></div>`).join('')}
    <div class="actions"><button class="btn block" data-close>Fermer</button></div>`);
   document.querySelectorAll('#modal [data-nextf]').forEach(cb=>cb.onchange=()=>{const o={...NEXTF};if(cb.checked)o[cb.dataset.nextf]=1;else delete o[cb.dataset.nextf];try{localStorage.setItem('trace:next',JSON.stringify(o));}catch(e){}location.reload();});};}
