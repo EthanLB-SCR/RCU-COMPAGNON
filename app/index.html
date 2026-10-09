@@ -241,6 +241,9 @@
   .homeWait.show{display:flex}
   .spin{width:34px;height:34px;border-radius:50%;border:3.5px solid #e1e0d9;border-top-color:#eb6834;animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
   .homeBanner{margin:0 14px 8px;background:#fff3d6;border:1px solid #f0c76a;color:#7a5200;border-radius:10px;padding:8px 10px;font-size:12px}
+  .homeAsBar{margin:0 14px 8px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink2)}
+  .homeAsBar label{flex:none;white-space:nowrap}
+  .homeAsBar select.f{flex:1;min-width:0;margin:0;padding:6px 8px;font-size:12.5px;min-height:34px}
   .tabbar button{flex:1;border:0;background:transparent;padding:9px 4px 8px;font-size:12px;color:var(--muted)}.tabbar button.active{color:var(--ink);font-weight:600}
   .cvFilters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.cvList{display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow:auto;padding:2px}.cvMsg{background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:8px 10px;font-size:13px;max-width:92%}.cvMsg.mine{align-self:flex-end;background:#eef3fb;border-color:#c7d6ee}.cvMsg.task{border-left:5px solid #eb6834}.cvMsg.note{border-left:5px solid #1c3d6b}.cvRange{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0 0 8px;font-size:12.5px}.cvRange input.f{padding:4px 6px;font-size:12.5px;width:auto}.cvCats{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px}.cvCats .chip{padding:4px 9px;font-size:12px}.cvCat{font-size:14px;margin-right:2px}select.chip{appearance:auto;-webkit-appearance:menulist;padding:4px 8px;font-size:12.5px;max-width:190px;background:var(--surface)}select.chip.active{background:var(--ink);color:#fff;border-color:var(--ink)}
   .cvTaskRow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 2px;font-size:13px}.cvTaskRow select.f{flex:1;min-width:200px;padding:6px 8px;font-size:13px}
@@ -456,6 +459,9 @@
 .eq-plcount{flex:none;min-width:34px;height:34px;padding:0 9px;border-radius:17px;display:inline-flex;align-items:center;justify-content:center;background:var(--ink);color:#fff;font-weight:700;font-size:15px}
 .eq-plcount.vide{background:var(--plane);color:var(--muted)}
 .eq-plvide{padding:10px 0 4px;font-style:italic}
+.eq-plmeteo{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;margin-top:8px}
+.eq-plmeteo span{display:flex;align-items:center;justify-content:center;gap:3px;font-size:12px;color:var(--ink2);background:var(--page);border:1px solid var(--line);border-radius:8px;padding:3px 2px;white-space:nowrap}
+.eq-plmeteo b{color:var(--ink);font-weight:600}
 .eq-plfd{margin-top:6px}
 .eq-plfd>summary{list-style:none;cursor:pointer;min-height:36px;display:flex;align-items:center;gap:6px;padding:0 2px}
 .eq-plfd>summary::-webkit-details-marker{display:none}
@@ -524,6 +530,7 @@
     <div class="homeHead"><span id="homeLogo"></span><b>TRACÉ</b><div class="who" id="homeWho"></div><button class="iconbtn wideonly" id="homeWide" title="Affichage large (ordinateur)">⤢</button><button class="ava" id="homeAva">?</button></div>
     <div class="homeSub"><div class="t">Mes chantiers</div><div class="s" id="homeCount"></div></div>
     <div id="homeBanner" class="homeBanner" style="display:none"></div>
+    <div id="homeAsBar" class="homeAsBar" style="display:none"></div>
     <div class="homeTabs"><button id="htMap">🗺 Carte</button><button id="htList">☰ Liste</button><button id="htEspace">👤 Mon espace</button><button id="htEnt">🏢 Entreprise</button><button id="htAdmin" style="display:none">⚙ Administrateur</button></div>
     <div class="homeBody" id="homeBody"></div>
     <div class="resume" id="homeResume" style="display:none"></div>

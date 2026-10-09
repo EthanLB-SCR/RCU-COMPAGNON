@@ -43,11 +43,11 @@ function buildData(){
     return {id:key,acc:a.id,prenom,nom,email:a.email||'',tel:x.tel||'',poste:POSTES_ESP[a.poste]?a.poste:'autre',type:a.type||'salarie',admin:!!a.admin,active:a.active!==false,invite:!!a.invite,sites:a.sites||null,rights:a.rights||{},
       entree:x.entree||null,contrat:x.contrat||null,urgence:x.urgence||null,secteur:x.secteur||null,_acc:a};});
   const seen=new Set();const uniques=personnes.filter(p=>{if(seen.has(p.id))return false;seen.add(p.id);return true;});
-  const chantiers=(A.sites()||[]).map(c=>({id:c.id,nom:c.name||c.id,ville:c.ville||'',soudures:+c.nw||0,faites:c.faites!=null?+c.faites:undefined,chef:c.chef||null,conducteur:c.conducteur||null,secteur:c.secteur||null})).concat([{id:'siege',nom:'Siège',ville:'Bureau',bureau:true}]);
+  const chantiers=(A.sites()||[]).map(c=>({id:c.id,nom:c.name||c.id,ville:c.ville||'',soudures:+c.nw||0,faites:c.faites!=null?+c.faites:undefined,chef:c.chef||null,conducteur:c.conducteur||null,secteur:c.secteur||null,ll:c.ll||null})).concat([{id:'siege',nom:'Siège',ville:'Bureau',bureau:true}]);
   const affectations={};uniques.forEach(p=>{if(p.type==='interim'&&Array.isArray(p.sites)&&p.sites.length&&chantiers.some(c=>c.id===p.sites[0]))affectations[p.id]=p.sites[0];});
   const habilitations=[];const avatars={},avatarCompteurs={},documents={};
   uniques.forEach(p=>{const x=PEOPLE[p.id]||{};(x.habs||[]).forEach(h=>habilitations.push(Object.assign({p:p.id},h)));avatars[p.id]=x.avatar||{};avatarCompteurs[p.id]=x.compteurs||{};documents[p.id]=x.docs||[];});
-  return {today,now:nowHM,config:CONFIG,familles:FAMILLES_ESP,postes:POSTES_ESP,chantiers,personnes:uniques,inconnus:{},affectations,planning:planningAff(),meteo:{},
+  return {today,now:nowHM,config:CONFIG,familles:FAMILLES_ESP,postes:POSTES_ESP,chantiers,personnes:uniques,inconnus:{},affectations,planning:planningAff(),meteo:meteoData(),
     habTypes:HAB_TYPES,habRequises:HAB_REQ,habilitations,pointages:POINTAGES,demandes:null,taches:null,stock:null,engins:null,agenda:null,equipes:null,productions:{},
     avatarPostes:AVATAR_POSTES,avatars,avatarCompteurs,documents};
 }
@@ -79,6 +79,8 @@ async function espaceLoad_(){
   try{const c=await A.kv.get('trace:pointages');if(Array.isArray(c))POINTAGES=c;}catch(e){}
   try{const c=await A.kv.get('trace:planning');if(c&&typeof c==='object')PLANNING=c;}catch(e){}
   try{const c=await A.kv.get('trace:espacePending');if(Array.isArray(c))PENDING=c;}catch(e){}
+  try{const c=await A.kv.get('trace:meteo');if(c&&typeof c==='object')METEO_STORE=c;}catch(e){}
+  try{const c=await A.kv.get('trace:geocode');if(c&&typeof c==='object')GEOCODE=c;}catch(e){}
   if(A.state.cloudUser){
     const rows=await A.sync.listPeople();
     if(rows){rows.forEach(r=>{const loc=PEOPLE[r.key]||{};const srv=r.data||{};const pend=PENDING.filter(w=>w.kind==='people'&&w.key===r.key).map(w=>w.part);const merged=Object.assign({},loc,srv);pend.forEach(k=>{merged[k]=loc[k];}); /* une écriture en attente ici garde la main */PEOPLE[r.key]=merged;});kvSet('trace:people',PEOPLE);}
@@ -87,7 +89,8 @@ async function espaceLoad_(){
     await loadWeeks([-2,-1,0,1,2].map(k=>weekKey(semaineDe(k)[0])));
     await loadPlanningRules();
     await flushPending();}
-  LOADED=true;if(ROOT&&document.contains(ROOT))render();if(A.onLoaded)try{A.onLoaded();}catch(e){console.warn(e);}}
+  LOADED=true;if(ROOT&&document.contains(ROOT))render();if(A.onLoaded)try{A.onLoaded();}catch(e){console.warn(e);}
+  if(!DATA)DATA=buildData();meteoEnsure();}
 export const espaceState=()=>({people:PEOPLE,pointages:POINTAGES,pending:PENDING,loaded:LOADED,S});
 /* ── PLANNING DES ÉQUIPES (09/10 soir) : une ligne serveur par semaine ISO, fusion par personne ; les gars n'ouvrent que les chantiers de leur semaine et de la précédente ── */
 export const SECTEURS={ouest:'Ouest',idf:'Île-de-France',sudouest:'Sud-Ouest',sudest:'Sud-Est'};
@@ -112,6 +115,35 @@ export function espacePlannedSites(acc){if(!acc||acc.admin||acc.active===false||
   const aff=planningAff()[personKey(acc)]||{};const set=new Set();semaineDe(0).concat(semaineDe(-1)).forEach(d=>(aff[d]||[]).forEach(id=>set.add(id)));if(set.size)return set;
   return PL_RULES.strict?set:null; /* pas planifié ces deux semaines : règle souple = tout voir, stricte = rien */}
 export const espacePlanning=()=>PLANNING;
+/* ── MÉTÉO PAR CHANTIER (09/10 soir) : Open-Meteo (gratuit, sans clé), prévisions à 7 jours au point du chantier (centre du réseau géoréférencé, sinon la ville de la fiche
+   géocodée), cache 3 h sur l'appareil (kv trace:meteo). La météo du jour fixe la TENUE de travail des avatars (kit : chaud / frais / froid / pluie) et la scène « Aujourd'hui ». ── */
+const METEO_SEUILS={chaud:25,froid:8,pluieMm:3,pluiePct:70}; // HYPOTHÈSES (°C max du jour, mm de pluie, % de probabilité) — à faire trancher par Ethan
+const METEO_TTL=3*3600e3,METEO_RETRY=15*60e3;
+let METEO_STORE={};   // id chantier → {at, ll:[lon,lat], ville, days:{'yyyy-mm-dd':[k, t°max, mm, code]}, failAt}
+let GEOCODE={};       // ville → [lon,lat] | null (pas trouvée)
+export const espaceMeteo=()=>METEO_STORE;
+function meteoKind(tmax,mm,pct,code){ // codes WMO : 51-67 bruine / pluie, 80-82 averses, 95-99 orage, 71-77 neige
+  const pluie=(mm>=METEO_SEUILS.pluieMm)||(pct>=METEO_SEUILS.pluiePct&&mm>=1)||(code>=61&&code<=67)||(code>=80&&code<=82)||code>=95;
+  if(pluie&&!(tmax<METEO_SEUILS.froid&&code>=71&&code<=77))return 'pluie';
+  if(tmax<METEO_SEUILS.froid)return 'froid';if(tmax>=METEO_SEUILS.chaud)return 'chaud';return 'frais';}
+function meteoData(){const out={};Object.keys(METEO_STORE).forEach(id=>{if(METEO_STORE[id]&&METEO_STORE[id].days)out[id]=METEO_STORE[id].days;});return out;}
+async function geocode(ville){const k=String(ville||'').trim().toLowerCase();if(!k)return null;if(k in GEOCODE)return GEOCODE[k];
+  try{const r=await fetch('https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(k)+'&count=1&language=fr&format=json&countryCode=FR');if(!r.ok)throw new Error(r.status);const j=await r.json();const x=j&&j.results&&j.results[0];GEOCODE[k]=x?[+x.longitude,+x.latitude]:null;}
+  catch(e){console.warn('geocode',ville,e);return null;} /* échec réseau : on ne mémorise rien, on réessaiera */
+  kvSet('trace:geocode',GEOCODE);return GEOCODE[k];}
+async function meteoFetch(c){let ll=c.ll;if(!ll&&c.ville)ll=await geocode(c.ville);if(!ll)return null;
+  const u='https://api.open-meteo.com/v1/forecast?latitude='+(+ll[1]).toFixed(4)+'&longitude='+(+ll[0]).toFixed(4)+'&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max&timezone=Europe%2FParis&forecast_days=7';
+  const r=await fetch(u);if(!r.ok)throw new Error('open-meteo '+r.status);const j=await r.json();const d=j.daily||{};const days={};
+  (d.time||[]).forEach((t,i)=>{const tmax=+(d.temperature_2m_max||[])[i],mm=+((d.precipitation_sum||[])[i]||0),pct=+((d.precipitation_probability_max||[])[i]||0),code=+((d.weathercode||[])[i]||0);if(!isFinite(tmax))return;days[t]=[meteoKind(tmax,mm,pct,code),Math.round(tmax),Math.round(mm*10)/10,code];});
+  return {at:Date.now(),ll,ville:c.ville||'',days};}
+let meteoBusy=false,meteoT=null;
+function meteoEnsure(){clearTimeout(meteoT);meteoT=setTimeout(()=>meteoRefresh().catch(e=>console.warn(e)),300);}
+async function meteoRefresh(){if(meteoBusy||typeof fetch!=='function'||(typeof navigator!=='undefined'&&navigator.onLine===false))return;
+  const now=Date.now();const list=(DATA?DATA.chantiers:[]).filter(c=>!c.bureau&&(c.ll||c.ville)).filter(c=>{const m=METEO_STORE[c.id];if(m&&m.failAt&&now-m.failAt<METEO_RETRY)return false;return !(m&&m.at&&now-m.at<METEO_TTL&&m.days);}).slice(0,40);
+  if(!list.length)return;meteoBusy=true;let changed=false;
+  try{for(const c of list){try{const m=await meteoFetch(c);if(m){METEO_STORE[c.id]=m;changed=true;}else{METEO_STORE[c.id]=Object.assign({},METEO_STORE[c.id]||{},{failAt:now});}}catch(e){console.warn('météo',c.id,e);METEO_STORE[c.id]=Object.assign({},METEO_STORE[c.id]||{},{failAt:now});}}}
+  finally{meteoBusy=false;}
+  if(changed){kvSet('trace:meteo',METEO_STORE);if(ROOT&&document.contains(ROOT))render();}}
 /* ════════════════════════════════════════════════════════════════════
    3. OUTILS : texte, dates, heures
    ════════════════════════════════════════════════════════════════════ */
@@ -179,8 +211,8 @@ const dnTxt=dn=>dnListe(dn).map(k=>'DN '+k+' × '+dn[k]).join(' · ');
 const dnChips=dn=>dnListe(dn).length?`<div class="eq-dn">${dnListe(dn).map(k=>`<span>DN ${k} · <b>${dn[k]}</b></span>`).join('')}</div>`:'';
 const prodTxt=o=>Object.keys(PROD).filter(k=>o&&o[k]).map(k=>nb(o[k])+' '+PROD[k][o[k]>1?1:0]+(k==='soudures'&&o.dn?' ('+dnTxt(o.dn)+')':'')).join(' · ');
 /* Météo : pictogramme, libellé, aplat de fond de la scène */
-const METEO={chaud:['☀️','Chaud','#FBEBCB'],frais:['⛅','Frais','#E4EEF6'],froid:['❄️','Froid','#E9ECF3'],pluie:['🌧️','Forte pluie','#DCE5EA']};
-function meteoDe(siteId,d){const c=site(siteId),m=c&&DATA.meteo[c.ville]&&DATA.meteo[c.ville][d];return m?{k:m[0],t:m[1]}:null}
+const METEO={chaud:['☀️','Chaud','#FBEBCB'],frais:['⛅','Frais','#E4EEF6'],froid:['❄️','Froid','#E9ECF3'],pluie:['🌧️','Pluie','#DCE5EA']};
+function meteoDe(siteId,d){const c=site(siteId);if(!c)return null;const m=(DATA.meteo[c.id]&&DATA.meteo[c.id][d])||(DATA.meteo[c.ville]&&DATA.meteo[c.ville][d]);return m?{k:m[0],t:m[1],mm:m[2]}:null}
 const chefDe=p=>{const c=siteJour(p);return c&&c.chef&&c.chef!==p.id?pers(c.chef):null};
 const RH=['resp_rh','assist_rh','charge_dev_rh'];
 
@@ -967,6 +999,7 @@ function vOrga(me){
     <select class="f" data-chg="plfiche" data-site="${esc(c.id)}" data-k="conducteur" title="Conducteur de travaux"><option value="">Conducteur…</option>${conds.map(p=>`<option value="${esc(p.id)}"${c.conducteur===p.id?' selected':''}>${esc(nomC(p))}</option>`).join('')}</select></div></details>`;};
   const carte=c=>{const ici=gens.filter(p=>plSitesDe(aff,p,js)[c.id]);const n=ici.length;
     return `<div class="card eq-plsite${selP?' drop':''}" data-drop="${esc(c.id)}"><div class="eq-plhead"><span class="eq-grow"><span class="eq-big">📍 ${esc(c.nom)}</span><span class="eq-s">${esc(c.ville||'')}${c.secteur?(c.ville?' · ':'')+esc(SECTEURS[c.secteur]||c.secteur):''}${c.soudures?' · '+nb(c.soudures)+' soudures':''}</span></span><span class="eq-plcount${n?'':' vide'}">${n}</span></div>
+      ${js.some(d=>meteoDe(c.id,d))?`<div class="eq-plmeteo">${js.map(d=>{const mt=meteoDe(c.id,d);return `<span title="${fJour(d)}${mt?' · '+METEO[mt.k][1]+' '+mt.t+' °C'+(mt.mm?' · '+mt.mm+' mm':''):''}">${mt?METEO[mt.k][0]+'<b>'+mt.t+'°</b>':'·'}</span>`;}).join('')}</div>`:''}
       ${fiche(c)}
       <div class="eq-plpeople">${ici.map(p=>plChip(p,c.id,js,aff,me)).join('')||'<div class="eq-s eq-plvide">Personne pour l\'instant</div>'}</div>
       ${selP?`<button class="btn primary eq-full" data-act="plput" data-v="${esc(c.id)}">Placer ${esc(selP.prenom)} ici · toute la semaine</button>`:''}</div>`;};
@@ -1021,7 +1054,7 @@ function render(){
   if(!ROOT)return;AVM={};AVA=[];
   DATA=buildData();if(!S.per.m)S.per.m=DATA.today.slice(0,7);const acc=A.current();S.me=personKey(acc);const me=DATA.personnes.find(p=>p.id===S.me);
   if(!me){ROOT.innerHTML=`<div class="eq-app" id="eq-app"><div class="card"><h3>Mon espace</h3><div class="eq-s">Connecte-toi avec ton compte pour voir ton espace.</div></div></div>`;return;}
-  fix(me);
+  fix(me);meteoEnsure();
   const subs=subsFor(me),panneau=!!S.fiche;
   const sy=ROOT.scrollTop;
   ROOT.innerHTML=`<div class="eq-app" id="eq-app">
@@ -1107,10 +1140,15 @@ const ACT={
   tel(){}
 };
 let bound=false;
+// 👁 vue d'une autre personne (administrateur, « voir l'appli comme ») : on regarde, on ne modifie rien à sa place (pointage, avatar, contact, validation, planning)
+const viewing=()=>{const a=A.current();return !!(a&&a.test);};
+const RW=new Set(['pointer','editok','av','avhasard','avreinit','valider','toutvalider','corrok','plput','plday','plrm','plcopy','plstrict','tache','demande','binome']);
+function viewOnly(){const me=pers(S.me);msg('👁 Tu regardes la vue de '+(me.prenom||me.nom||'cette personne')+' : rien n\'est modifié à sa place. Reviens sur ton compte pour agir.');}
 function bind(){if(bound)return;bound=true;
-  document.addEventListener('click',e=>{const app=e.target.closest&&e.target.closest('#eq-app');if(!app)return;const el=e.target.closest('[data-act]');if(!el)return;if(el.tagName==='A'&&el.dataset.act==='tel')return;const f=ACT[el.dataset.act];if(f){e.preventDefault();f(el.dataset.v,el);}});
+  document.addEventListener('click',e=>{const app=e.target.closest&&e.target.closest('#eq-app');if(!app)return;const el=e.target.closest('[data-act]');if(!el)return;if(el.tagName==='A'&&el.dataset.act==='tel')return;if(RW.has(el.dataset.act)&&viewing()){e.preventDefault();viewOnly();return;}const f=ACT[el.dataset.act];if(f){e.preventDefault();f(el.dataset.v,el);}});
   document.addEventListener('keydown',e=>{if(!ROOT||!document.contains(ROOT))return;if(e.key==='Enter'&&e.target.matches&&e.target.matches('#eq-app [role=button][data-act]'))e.target.click();if(e.key==='Escape'&&S.fiche)ACT.close();});
   document.addEventListener('change',e=>{if(!e.target.closest||!e.target.closest('#eq-app'))return;const k=e.target.dataset&&e.target.dataset.chg;if(!k)return;
+    if((k==='plfiche'||k==='plpers'||k==='avpays')&&viewing()){viewOnly();render();return;}
     if(k==='perk'){S.per.k=+e.target.value;render();return}
     if(k==='perm'){S.per.m=e.target.value;render();return}
     if(k==='avpays'){if(e.target.value){const me=pers(S.me);avApply(me,{[avMe(me).bandanaCle]:e.target.value});render()}return}
@@ -1122,7 +1160,7 @@ function bind(){if(bound)return;bound=true;
   document.addEventListener('dragend',e=>{const el=e.target.closest&&e.target.closest('#eq-app [data-drag]');if(el)el.classList.remove('dragging');});
   document.addEventListener('dragover',e=>{const z=e.target.closest&&e.target.closest('#eq-app [data-drop]');if(!z)return;e.preventDefault();z.classList.add('over');});
   document.addEventListener('dragleave',e=>{const z=e.target.closest&&e.target.closest('#eq-app [data-drop]');if(z)z.classList.remove('over');});
-  document.addEventListener('drop',e=>{const z=e.target.closest&&e.target.closest('#eq-app [data-drop]');if(!z)return;e.preventDefault();const key=S.plSel||(e.dataTransfer&&e.dataTransfer.getData('text/plain'));if(!key)return;S.plSel=key;
+  document.addEventListener('drop',e=>{const z=e.target.closest&&e.target.closest('#eq-app [data-drop]');if(!z)return;e.preventDefault();if(viewing()){viewOnly();return;}const key=S.plSel||(e.dataTransfer&&e.dataTransfer.getData('text/plain'));if(!key)return;S.plSel=key;
     if(z.dataset.drop==='tray'){const js=semaineDe(S.plWeek||0),wk=weekKey(js[0]);const o=Object.assign({},((PLANNING[wk]||{}).aff||{})[key]||{});js.forEach(d=>{delete o[d];});savePlanning(wk,{[key]:Object.keys(o).length?o:null});S.plSel=null;render();}
     else ACT.plput(z.dataset.drop);});
   document.addEventListener('toggle',e=>{const d=e.target&&e.target.dataset&&e.target.dataset.det;if(d)S[d]=e.target.open;},true);
