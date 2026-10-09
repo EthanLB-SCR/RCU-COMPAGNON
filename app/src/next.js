@@ -43,7 +43,7 @@ function lightTabs(){const tb=document.getElementById('tabbar');if(!tb)return;
   ['catalogue','liste','recap'].forEach(t=>{const b=tb.querySelector(`[data-tab="${t}"]`);if(b)b.style.display='none';}); // Récap aussi (Ethan 07/10 : « passe récap dans autre onglet »)
   if(!tb.querySelector('[data-tab="__more"]')){const b=document.createElement('button');b.dataset.tab='__more';b.textContent='⋯';b.title='Récap · Liste · Catalogue';
     b.addEventListener('click',ev=>{ev.stopPropagation();ev.preventDefault();
-      A.openModal(`<h3 style="margin-top:0">Autres onglets</h3><div class="actions"><button class="btn block" data-nmt="recap">Récap du chantier</button><button class="btn block" data-nmt="liste">Liste des soudures</button><button class="btn block" data-nmt="catalogue">Catalogue</button><button class="btn block" data-close>Fermer</button></div>`);
+      A.openModal(`<h3 style="margin-top:0">Autres onglets</h3><div class="actions"><button class="btn block" data-nmt="recap">Récap du chantier</button><button class="btn block" data-nmt="liste">Liste des soudures</button>${(!A.can||A.can('stock.edit'))?'<button class="btn block" data-nmt="catalogue">Catalogue</button>':''}<button class="btn block" data-close>Fermer</button></div>`);
       document.querySelectorAll('#modal [data-nmt]').forEach(x=>x.onclick=()=>{A.closeModal();A.state.tab=x.dataset.nmt;A.renderAll();});},true);
     tb.appendChild(b);}}
 // dispatch de renderAll pour les vues injectées

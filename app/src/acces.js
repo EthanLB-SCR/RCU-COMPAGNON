@@ -104,7 +104,7 @@ export const DEFAULT_RIGHTS={
 export const TYPE_CAP={
  salarie:null,
  interim:pick('plan.view',...STEP_PERMS,'weld.extra','weld.transfer','dh.measure','conv.post','pointage.self','qse.sign','undo.own'), // undo.own avec 0 crédit = toujours une demande au chef
- visiteur:pick('plan.view','conv.post','export.doe'),
+ visiteur:pick('plan.view','export.doe'), // un visiteur regarde (plan, export) : il ne touche à rien, pas même la conversation (Ethan 08/10)
 };
 export const ADMIN_SEED=['elebihan@scr-soudure.fr']; // Ethan : administrateur d'office, quoi qu'il arrive côté serveur
 /* ---------- droits des postes : défauts SCR + écarts (serveur app_settings.poste_rights, miroir sur l'appareil) ---------- */

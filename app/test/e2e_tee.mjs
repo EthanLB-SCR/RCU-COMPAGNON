@@ -13,7 +13,7 @@ async function mkSite(sup,name,side=1){ // side=+1 : antenne vers y+ (défaut) ;
     {id:'L1',name:'Feeder',dn:100,bar:12,pts:[[10,50],[120,50]],specials:[],parent:null},
     {id:'L2',name:'Antenne',dn:80,bar:12,pts:[[60,50],[60,sd>0?80:20]],specials:[],parent:{line:'L1',m:50,side:sd}}];S.seq=3;window.MAQ.setMode('select');window.MAQ.rebuild();},[sup,side]);
   await page.click('#bSave');await page.waitForTimeout(200);await page.fill('#svName',name);await page.click('#svOk');await page.waitForTimeout(600);
-  await page.click('#svGo');await page.waitForTimeout(1200);await page.selectOption('#roleSel','ethan');await page.waitForTimeout(300);
+  await page.click('#svGo');await page.waitForTimeout(1200);try{await page.waitForFunction(()=>window.TRACE&&/^trc_/.test(window.TRACE.state.siteId)&&window.TRACE.state.screen==='site'&&Object.keys(window.TRACE.lines).length>1,{timeout:20000});}catch(e){} /* sous charge (13 suites), l'ouverture peut dépasser 1,2 s */ await page.selectOption('#roleSel','ethan');await page.waitForTimeout(300);
   await page.evaluate(sd=>window.TRACE.centerOn(60.35,sd>0?50.35:49.65,110),side);await page.waitForTimeout(500);}
 // ── 1) AXIOM, mode série (défaut) : T plein dessiné, le CUIVRÉ plonge (4 brins : 2 conduites × aller/retour), pas de U
 await mkSite('AXIOM','Tee test');
