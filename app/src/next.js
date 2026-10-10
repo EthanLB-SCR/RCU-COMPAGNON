@@ -7,7 +7,7 @@ import {initScr,scrInject,scrRenderTab} from './scr.js';
 import {docHTML} from './charte.js'; // charte SCR des documents imprimés (09/10 soir)
 import {ACCUEIL_CHANTIER_Q} from './prevention.js';
 import {initAccueil,accueilStanding,accueilParcours,ficheAccueilHTML,controleNew,controleListHTML,controleOpen,controlesOf,controleNC} from './accueil.js'; // parcours d'accueil chantier + contrôle chantier (nuit 09→10/10)
-import {qhsFor,qhsBlockHTML,qhsParcours,qhsTriggerOpen,qhsRuns,qhsSheetHTML,qhsCancel,qhsMyKey,qhsSigned} from './qhs.js'; // quart d'heure sécurité (10/10)
+import {qhsFor,qhsBlockHTML,qhsParcours,qhsTriggerOpen,qhsRuns,qhsSheetHTML,qhsCancel,qhsMyKey,qhsSigned,qhsCloseOpen,qhsSigsOf} from './qhs.js'; // quart d'heure sécurité (10/10)
 let A=null; // API fournie par app.js (state, NET, sync, openModal, toast, esc…)
 const FEATS=[
  // ['admin', …] : Dossier administratif DÉFINITIF depuis le 09/10 — onglet « Dossier » (droit dossier.edit) : DT / DICT, plans exé, qualifications, PGC, PPSPS, planning, habilitations, BL, accueil ; fichiers au serveur ; un BL importé au stock s'y classe tout seul.
@@ -92,6 +92,8 @@ function renderAdmin(){const el=document.getElementById('admin');if(!el)return;c
    ${ADMIN_CATS.map(([k,t])=>{const docs=ad.docs.filter(d0=>d0.cat===k);if(!docs.length&&k==='autre')return '';
      return `<details class="card" ${docs.length?'open':''}><summary style="cursor:pointer;font-size:13px"><b>${t}</b> <span class="dim">(${docs.length||'—'})</span></summary>
       ${k==='epreuves'?'<div class="hint" style="margin-top:4px">Les PV (PDF) et les exports du manomètre déposés depuis l’onglet Hydraulique (section 5 · Exécution) arrivent ici.</div>':''}${docs.length?`<table class="rc" style="margin-top:6px">${docs.map(d0=>`<tr><td><a href="${d0.url||d0.data||'#'}" target="_blank" rel="noopener" ${d0.url?'':'download="'+esc(d0.name)+'"'} style="color:#1c3d6b;font-weight:600">${esc(d0.name)}</a>${d0.note?'<div class="dim" style="font-size:11px">'+esc(d0.note)+'</div>':''}${d0.data?' <span class="dim" style="font-size:10px">(gardé dans l’appli)</span>':''}</td><td class="dim">${esc(d0.by||'')} · ${dFR(d0.at)}</td><td>${canEd?`<button data-admdel="${d0.id}" style="border:0;background:none;cursor:pointer;color:#d03b3b">✕</button>`:''}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin-top:4px">rien pour l’instant</div>'}</details>`;}).join('')}`;
+  el.insertAdjacentHTML('beforeend',qseDossierHTML());
+  el.querySelectorAll('[data-qsheet]').forEach(b=>b.onclick=()=>qseDossierOpen(b.dataset.qsheet));
   const inp=document.getElementById('adm-file');if(inp)inp.onchange=async e2=>{const cat=document.getElementById('adm-cat').value;
     for(const f of [...e2.target.files]){await adminAddFile(f,cat);}renderAdmin();};
   el.querySelectorAll('[data-admdel]').forEach(b=>b.onclick=()=>{if(!confirm('Retirer ce document du dossier ? (le fichier reste au serveur)'))return;ad.docs=ad.docs.filter(d0=>d0.id!==b.dataset.admdel);A.saveNet('admin');renderAdmin();});}
@@ -108,6 +110,22 @@ export async function nextAdminAddFile(f,cat,extra){if(!f)return null;return adm
 // hook stock : le BL PDF importé dans une livraison se classe aussi au dossier (appelé par app.js, flag déjà vérifié là-bas)
 export async function nextAdminAddBL(file,liv){if(!nOn('admin')||!file)return;const d0=await adminAddFile(file,'bl',{liv:liv&&liv.id,note:liv?('BL de « '+liv.label+' »'):''});
   if(d0)A.toast('BL classé au dossier administratif ('+file.name+')');}
+// 10/10 (Ethan) : « tout ce qui est signé dans QSE doit être stocké dans le dossier chantier, comme l'accueil chantier : le document et un émargement qui reprend toutes les signatures à date »
+// → rubrique « Émargements QSE » du Dossier, générée à partir des données (toujours à jour, sans copie qui vieillit) : accueil chantier, quarts d'heure sécurité, documents à émarger.
+function qseDossierHTML(){const esc=A.esc;const NET=A.net();const q=(NET&&NET.qse)||{docs:[]};const docs=qDocs(q);
+  const accDocs=docs.filter(d0=>d0.type==='accueil');const nAcc=accDocs.reduce((a,d0)=>a+(d0.sigs||[]).length,0);
+  const runs=qhsRuns().filter(r=>r.sites&&(r.sites.includes('*')||r.sites.includes(NET.id))).sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  const pdfs=docs.filter(d0=>d0.type==='pdf');const row=(k,ic,t,sub)=>`<tr><td><span class="ic" style="display:inline-flex;width:22px;height:22px;border-radius:7px;background:#fff4ee;align-items:center;justify-content:center;font-size:12px;margin-right:6px">${ic}</span><b>${esc(t)}</b><div class="dim" style="font-size:11px;margin-left:28px">${sub}</div></td><td style="text-align:right;white-space:nowrap"><button class="btn sm" data-qsheet="${esc(k)}">👁 Feuille</button></td></tr>`;
+  const rows=[row('acc','🦺','Accueil chantier — feuille d’émargement à date',nAcc+' signature'+(nAcc>1?'s':'')+(nAcc?' · dernière le '+dFR(accDocs.flatMap(d0=>d0.sigs||[]).map(s2=>s2.at).sort().pop()):''))]
+    .concat(runs.map(r=>{const n=qhsSigsOf(r.id,NET.id).length;return row('qhs:'+r.id,'⛑️','Quart d’heure sécurité — '+(r.title||r.topic),dFR(r.date)+' · animateur '+esc(r.by||'')+' · '+n+' participation'+(n>1?'s':'')+(r.closedAt?' · séance close':''));}))
+    .concat(pdfs.map(d0=>row('pdf:'+d0.id,'📄',d0.title||'Document',(d0.sigs||[]).length+' émargement'+((d0.sigs||[]).length>1?'s':'')+' · déposé le '+dFR(d0.at)+(d0.url||d0.data?' · <a href="'+(d0.url||d0.data)+'" target="_blank" rel="noopener" style="color:#1c3d6b">ouvrir le document</a>':''))));
+  return `<details class="card" open><summary style="cursor:pointer;font-size:13px"><b>Émargements QSE</b> <span class="dim">(${rows.length} · à date, mis à jour à chaque signature)</span></summary><div class="hint" style="margin:4px 0">Chaque feuille reprend le document et toutes les signatures à ce jour. Ces feuilles partent aussi dans l'export DOE.</div><table class="rc" style="margin-top:6px">${rows.join('')}</table></details>`;}
+function qseDossierOpen(k){const NET=A.net();const q=(NET&&NET.qse)||{docs:[]};const w=window.open('','_blank');if(!w){A.toast('Autorise la fenêtre pop-up pour afficher la feuille');return;}let html='';
+  if(k==='acc'){const accDocs=qDocs(q).filter(d0=>d0.type==='accueil');const standing=accDocs.find(d0=>d0.standing)||null;const sigs=accDocs.flatMap(d0=>(d0.sigs||[]).map(s2=>Object.assign({_doc:d0},s2))).sort((a,b)=>String(a.at||'').localeCompare(String(b.at||'')));
+    html=qseSheetHTML(Object.assign({},standing||{id:'ACC-virtual',type:'accueil',title:'Accueil chantier — '+(NET.name||''),qs:ACCUEIL_Q.slice(),at:new Date().toISOString(),by:''},{sigs}));}
+  else if(k.startsWith('qhs:')){const run=qhsRuns().find(r=>r.id===k.slice(4));if(run)html=qhsSheetHTML(run,NET.id,NET.name);}
+  else if(k.startsWith('pdf:')){const d0=qDocs(q).find(x=>x.id===k.slice(4));if(d0)html=qseSheetHTML(d0);}
+  if(!html){w.close();A.toast('Feuille introuvable');return;}w.document.write(html);w.document.close();}
 // ---------- QSE ----------
 export const ACCUEIL_Q=ACCUEIL_CHANTIER_Q; // les 10 points d'Ethan (09/10 soir) — src/prevention.js
 export const QUART_Q=['Le point sécurité du jour a été compris.','Les EPI du poste sont portés et en bon état.','Aucune situation dangereuse constatée non signalée.'];
@@ -169,6 +187,7 @@ function renderQse(){const el=document.getElementById('qse');if(!el)return;const
   el.querySelectorAll('[data-qhext]').forEach(b=>b.onclick=()=>{const run=qhsRuns().find(r=>r.id===b.dataset.qhext);if(!run)return;qseWhoExt('Quart d\'heure sécurité — qui participe ?',as=>qhsParcours(run,NET.id,{siteName:NET.name,as:{name:as.name,key:'ext:'+as.slug,org:as.org},after:()=>renderQse()}));});
   el.querySelectorAll('[data-qhprint]').forEach(b=>b.onclick=()=>{const run=qhsRuns().find(r=>r.id===b.dataset.qhprint);if(!run)return;const w=window.open('','_blank');if(!w){A.toast('Autorise la fenêtre pop-up');return;}w.document.write(qhsSheetHTML(run,NET.id,NET.name));w.document.close();});
   el.querySelectorAll('[data-qhcancel]').forEach(b=>b.onclick=()=>{if(!confirm('Annuler ce quart d\'heure sécurité ?'))return;qhsCancel(b.dataset.qhcancel);renderQse();});
+  el.querySelectorAll('[data-qhclose]').forEach(b=>b.onclick=()=>{const run=qhsRuns().find(r=>r.id===b.dataset.qhclose);if(run)qhsCloseOpen(run,{after:()=>renderQse()});});
   const qn=el.querySelector('[data-qhnew]');if(qn)qn.onclick=()=>qhsTriggerOpen({siteId:NET.id,sites:A.mesSites?A.mesSites():[],after:()=>renderQse()});
   if(A.state.autoParcours){A.state.autoParcours=false;if(canSign&&!accDone)setTimeout(qseStartParcours,150);}
   if(A.state.autoQhs){const rid=A.state.autoQhs;A.state.autoQhs=null;const run=qhsRuns().find(r=>r.id===rid);if(run&&canSign&&!qhsSigned(run,qhsMyKey(),me))setTimeout(()=>qhsParcours(run,NET.id,{siteName:NET.name,after:()=>{renderQse();qseBadge();}}),150);}}

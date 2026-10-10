@@ -10,3 +10,6 @@ app/test/node_modules/
 app/test/*.png
 app/dist-maquette/
 app/test/bl/
+
+# 10/10 : documents sources lourds dans app/docs (annexe 5 quarts d heure, 33 Mo) — pas dans le depot
+app/docs/*.pdf

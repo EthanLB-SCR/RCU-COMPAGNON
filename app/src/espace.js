@@ -1358,7 +1358,7 @@ function vControles(me){const R=ctrlRecap();const today=todayIso();
     <div class="ac-h"><b>Par chantier actif</b><span>${R.late.length?R.late.length+' en retard':'✓ tous dans l\'objectif'}</span></div>${sites}
     <div class="ac-h"><b>Derniers contrôles</b><span>${R.all.length}</span></div>${list||'<div class="ac-empty">Rien pour l\'instant.</div>'}`;}
 /* ── 10/10 : QUART D'HEURE SÉCURITÉ (Exploitation) — déclencher, suivre ── */
-function vQhs(me){return `<div class="hint" style="margin:0 0 8px">Un quart d'heure sécurité = un sujet à dérouler en entier, 3 points à confirmer, une signature au doigt — pour tout le monde placé sur le(s) chantier(s) ce jour-là (chefs de chantier compris). Sujets : exemples RCU en attendant la base SCR (Ethan).</div>
+function vQhs(me){return `<div class="hint" style="margin:0 0 8px">Un quart d'heure sécurité = un sujet à dérouler en entier, un quiz vrai / faux, « je m'engage » signé au doigt (+ retour de l'échange), puis retour et signature de l'animateur — pour tout le monde placé sur le(s) chantier(s) ce jour-là (chefs de chantier compris). Sujets : les 12 quarts d'heure SCR (annexe 5 du guide sécurité) : contexte, objectifs, chiffres clés, vrai / faux, notions clés, « je m'engage ».</div>
     <div class="eq-acts" style="margin:0 0 8px"><button class="btn primary" data-act="qhsnew">⛑️ Déclencher un quart d'heure sécurité</button></div>
     <div class="ac-h"><b>Déclenchés</b><span>40 derniers</span></div>${qhsRecapHTML(DATA.chantiers)}`;}
 /* ── Sous-onglets selon les droits ── */
