@@ -8,6 +8,7 @@ const ctx=await browser.newContext({viewport:{width:430,height:900}});const page
 const logs=[];page.on('pageerror',e=>logs.push('PAGEERROR: '+e.message.slice(0,300)));page.on('console',m=>{if(m.type()==='error'&&!/supabase|Failed to fetch|net::ERR|404|WebSocket/i.test(m.text()))logs.push(m.text().slice(0,200));});
 page.on('dialog',d=>d.accept().catch(()=>{}));
 const C={};
+await page.clock.install({time:new Date(2026,9,9,8,30,0)}); /* vendredi 09/10/2026 8 h 30 : le planning ignore le week-end, la date ne doit pas dépendre du jour du test */
 await page.goto(BASE+'/index.html');await page.waitForTimeout(600);await page.evaluate(()=>{localStorage.clear();});await page.evaluate(()=>new Promise(r=>{try{const q=indexedDB.deleteDatabase('trace-kv');q.onsuccess=q.onerror=q.onblocked=()=>r();}catch(e){r();}}));
 await page.reload();await page.waitForTimeout(1200);
 const skip=async()=>{const s=await page.$('#loginSkip');if(s&&await s.isVisible())await s.click();await page.waitForTimeout(700);};await skip();
@@ -42,7 +43,7 @@ out.after=await page.evaluate(()=>{document.getElementById('htEspace').click();r
 console.log('4) contact d\'urgence :',JSON.stringify({form:out.form,saved:/Samira BENALI/.test(out.txt||''),after:out.after}));
 C.c4=out.form&&/Samira BENALI/.test(out.txt)&&out.after;
 // ── 5) pointage : « Début de journée » → ligne du jour en cours (heure réelle), boutons Pause / Fin, gardé après rechargement ; Heures : la journée apparaît avec sa barre
-out=await page.evaluate(()=>{document.querySelector('#eq-app [data-act=pointer][data-v=start]').click();const app=document.getElementById('eq-app');return {enCours:/Au travail depuis/.test(app.textContent)||/En cours/.test(app.textContent),pause:!!app.querySelector('[data-act=pointer][data-v=pause]'),fin:!!app.querySelector('[data-act=pointer][data-v=end]'),start:!app.querySelector('[data-act=pointer][data-v=start]')};});
+out=await page.evaluate(()=>{document.querySelector('#eq-app [data-act=pointer][data-v=start]').click();const app=document.getElementById('eq-app');return {enCours:/Au travail/.test(app.textContent),pause:!!app.querySelector('[data-act=pointer][data-v=pause]'),fin:!!app.querySelector('[data-act=pointer][data-v=end]'),start:!app.querySelector('[data-act=pointer][data-v=start]')};});
 await page.waitForTimeout(500);await page.reload();await page.waitForTimeout(1200);await skip();
 out.after=await page.evaluate(()=>{document.getElementById('htEspace').click();const app=document.getElementById('eq-app');const r={pause:!!app.querySelector('[data-act=pointer][data-v=pause]')};[...app.querySelectorAll('.eq-subs .chip')].find(x=>/Heures/.test(x.textContent)).click();const a2=document.getElementById('eq-app');r.h2=(a2.querySelector('h2.vt')||{}).textContent;r.bar=!!a2.querySelector('.eq-bar');r.auj=/aujourd/i.test(a2.textContent)||/En cours/.test(a2.textContent);return r;});
 console.log('5) pointage :',JSON.stringify(out));
@@ -93,7 +94,7 @@ out.t7=await page.evaluate(()=>({lyonMain:!!document.querySelector('#eq-app .eq-
 await page.reload();await page.waitForTimeout(1200);await skip();await seed();await goOrga();await page.waitForTimeout(500);
 out.t8=await page.evaluate(()=>({caen:document.querySelectorAll('#eq-app .eq-plsite[data-drop=demo_caen] .eq-plchip').length,dotsOn:document.querySelectorAll('#eq-app .eq-plsite[data-drop=demo_caen] .eq-pldots i.on').length}));
 console.log('8) planning équipe :',JSON.stringify(out));
-C.c8=out.sub&&!out.karimSub&&out.t0.tray===3&&out.t0.sites>=4&&/0 \/ 3/.test(out.t0.prog)&&/Planning équipe/.test(out.t0.h2)&&out.selDrop.sel===1&&out.selDrop.drop>=4&&out.selDrop.btn>=4&&out.t1.tray===1&&out.t1.caen===1&&out.t1.rennes===1&&/2 \/ 3/.test(out.t1.prog)&&out.t1.dotsOn===5&&out.edit.open&&out.edit.days===5&&out.edit.sect&&out.t2.dotsOn===4&&out.t3.tray===2&&out.t3.rennes===0&&/1 \/ 3/.test(out.t3.prog)&&out.t4.tray===3&&out.t4.place===0&&out.t5.caen===1&&out.t5.dotsOn===4&&out.t5.tray===2&&out.t6.main===4&&out.t6.hors===1&&out.t6.lyonHors&&out.t7.lyonMain&&out.t7.fiche==='ouest'&&out.t8.caen===1&&out.t8.dotsOn===4;
+C.c8=out.sub&&!out.karimSub&&out.t0.tray===3&&out.t0.sites>=4&&/0 \/ 3/.test(out.t0.prog)&&/Planning équipe/.test(out.t0.h2)&&out.selDrop.sel===1&&out.selDrop.drop>=4&&out.selDrop.btn>=4&&out.t1.tray===1&&out.t1.caen===1&&out.t1.rennes===1&&/2 \/ 3/.test(out.t1.prog)&&out.t1.dotsOn===5&&out.edit.open&&out.edit.days===5&&out.edit.sect&&out.t2.dotsOn===4&&out.t3.tray===3&&out.t3.rennes===0&&/0 \/ 3/.test(out.t3.prog)&&/11 jours à pourvoir/.test(out.t3.prog)&&out.t4.tray===3&&out.t4.place===0&&out.t5.caen===1&&out.t5.dotsOn===4&&out.t5.tray===3 /* ③ : Karim placé 4 jours sur 5 reste « à placer » (vendredi libre) */&&out.t6.main===4&&out.t6.hors===1&&out.t6.lyonHors&&out.t7.lyonMain&&out.t7.fiche==='ouest'&&out.t8.caen===1&&out.t8.dotsOn===4;
 // ── 9) VERROU DU PLANNING sur l'accueil : Karim (soudeur, planifié à Caen) voit les autres chantiers grisés et ne peut pas les ouvrir ; Caen s'ouvre ; Julien (pas placé) voit tout (règle souple) ; règle stricte → rien ; retour souple
 await page.evaluate(()=>{localStorage.setItem('trace:homeTab','list');});await page.reload();await page.waitForTimeout(1200);await skip();await seed();
 out=await page.evaluate(async()=>{const T=window.TRACE;T.state.userId='karim';T.renderHome();await new Promise(r=>setTimeout(r,200));const cards=[...document.querySelectorAll('.siteCard')].map(c=>({id:c.dataset.open,locked:c.classList.contains('locked'),txt:c.textContent}));
@@ -133,7 +134,7 @@ await page.route(u=>u.hostname.endsWith('supabase.co'),route=>{const url=route.r
 const meteoCalls=[];const isoLocal=dt=>dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
 await page.route(u=>/open-meteo\.com$/.test(u.hostname),route=>{const url=route.request().url();const json=o=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(o)});
   if(url.includes('geocoding-api')){meteoCalls.push({geo:decodeURIComponent(url.split('name=')[1].split('&')[0])});return json({results:[{name:'Caen',latitude:49.18,longitude:-0.37,country_code:'FR'}]});}
-  meteoCalls.push({fc:url.match(/latitude=([-\d.]+)&longitude=([-\d.]+)/).slice(1,3)});const days=[...Array(7)].map((_,i)=>{const d=new Date();d.setDate(d.getDate()+i);return isoLocal(d);});
+  meteoCalls.push({fc:url.match(/latitude=([-\d.]+)&longitude=([-\d.]+)/).slice(1,3)});const days=[...Array(7)].map((_,i)=>{const d=new Date(2026,9,9,12);d.setDate(d.getDate()+i);return isoLocal(d);}); /* à partir du « aujourd'hui » de la page (horloge figée au 09/10) */
   return json({daily:{time:days,weathercode:[63,0,71,2,3,1,2],temperature_2m_max:[14,28,5,15,16,17,18],temperature_2m_min:[9,16,-1,8,8,9,9],precipitation_sum:[8,0,2,0,0.2,0,0],precipitation_probability_max:[90,5,60,10,20,5,5]}});});
 await page.evaluate(()=>{localStorage.clear();});await page.evaluate(()=>new Promise(r=>{try{const q=indexedDB.deleteDatabase('trace-kv');q.onsuccess=q.onerror=q.onblocked=()=>r();}catch(e){r();}}));
 await page.evaluate(s=>{localStorage.setItem('sb-pghftlepduvfazbiavhq-auth-token',JSON.stringify(s));localStorage.setItem('trace:homeTab','espace');},SESSION);
@@ -188,7 +189,7 @@ out.karim=await page.evaluate(()=>{const T=window.TRACE;return {me:T.espace.key(
 await page.evaluate(()=>document.getElementById('htEspace').click());await page.waitForTimeout(800);
 out.espace=await page.evaluate(()=>{const app=document.getElementById('eq-app');const h2=(app.querySelector('h2.vt')||{}).textContent;const sc=app.querySelector('.eq-scene');const expl=document.getElementById('htExpl').style.display!=='none';const b=app.querySelector('[data-act=pointer][data-v=start]');if(b)b.click();return {h2,expl,subs:[...app.querySelectorAll('.eq-subs .chip')].map(c=>c.textContent.trim()),scene:sc?sc.getAttribute('style'):'',meteo:sc?(sc.querySelector('.eq-meteo')||{}).textContent:'',pointerBtn:!!b};});
 await page.waitForTimeout(1200);
-out.afterClick=await page.evaluate(()=>({toast:document.getElementById('toast').textContent,enCours:/Au travail depuis|En cours/.test(document.getElementById('eq-app').textContent),pending:window.TRACE.espace.state().pending.length}));
+out.afterClick=await page.evaluate(()=>({toast:document.getElementById('toast').textContent,enCours:/Au travail/.test(document.getElementById('eq-app').textContent),pending:window.TRACE.espace.state().pending.length}));
 out.ptCalls=calls.slice(nCalls).filter(c=>c.fn==='pointage_set').length;
 // retour à mon compte (lien du bandeau)
 await page.evaluate(()=>document.getElementById('hbMe').click());await page.waitForTimeout(600);

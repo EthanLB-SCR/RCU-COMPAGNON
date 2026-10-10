@@ -50,21 +50,21 @@ out=await page.evaluate(()=>{const ad=window.TRACE.net.admin;const el=document.g
   return {n:ad.docs.length,cat:ad.docs[0]&&ad.docs[0].cat,data:!!(ad.docs[0]&&ad.docs[0].data),listed:/axiom\.pdf/.test(el.textContent)};});
 console.log('3) PPSPS déposé au dossier (hors connexion : gardé dans l\'appli):',JSON.stringify(out));
 const c3=out.n===1&&out.cat==='ppsps'&&out.data&&out.listed;
-// ── 4) QSE : accueil chantier (voit le PPSPS du dossier), émargement au doigt, feuille imprimable
+// ── 4) QSE (10/10) : l'accueil chantier PERMANENT voit le PPSPS du dossier (plus de « séance ») ; un PDF déposé sur le chantier s'émarge au doigt (tablette du chef) ; feuille imprimable
 await page.click('#tabbar [data-tab=qse]');await page.waitForTimeout(500);
-await page.evaluate(()=>{[...document.querySelectorAll('#qse [data-qnew]')].find(b=>b.dataset.qnew==='accueil').click();});
-await page.waitForTimeout(500);
-out=await page.evaluate(()=>{const t=document.querySelector('#modal').textContent;return {open:/Accueil chantier/.test(t),ppsps:/vaut AUSSI signature du PPSPS/.test(t),qs:/Mes équipements et EPI ont été contrôlés/.test(t)};});  /* nuit 09→10/10 : les 10 points d'Ethan */
-console.log('4a) accueil créé — PPSPS du dossier rattaché:',JSON.stringify(out));
-const c4a=out.open&&out.ppsps&&out.qs;
+out=await page.evaluate(()=>{const t=document.getElementById('qse').textContent;return {acc:!!document.getElementById('qse-acc'),ppsps:/PPSPS au dossier : « axiom\.pdf »/.test(t),ext:!!document.getElementById('qse-accext'),qnew:document.querySelectorAll('#qse [data-qnew]').length,qhs:/Quart d'heure sécurité du jour/.test(t)};});
+console.log('4a) accueil chantier permanent — PPSPS du dossier rattaché, plus de séance :',JSON.stringify(out));
+const c4a=out.acc&&out.ppsps&&out.ext&&out.qnew===0&&out.qhs;
+await page.setInputFiles('#qse-pdf', new URL('./bl/axiom.pdf',import.meta.url).pathname);await page.waitForTimeout(800);
+await page.evaluate(()=>{const d0=window.TRACE.net.qse.docs.find(x=>x.type==='pdf');document.querySelector('#qse [data-qopen="'+d0.id+'"]').click();});await page.waitForTimeout(400);
 await page.evaluate(()=>document.getElementById('qse-sign').click());await page.waitForTimeout(400);
 await page.evaluate(()=>{document.getElementById('sig-name').value='Karim B.';});
 const pad=await page.evaluate(()=>{const c=document.getElementById('sig-pad');const r=c.getBoundingClientRect();return {x:r.left,y:r.top,w:r.width,h:r.height};});
 await page.mouse.move(pad.x+30,pad.y+pad.h/2);await page.mouse.down();
 await page.mouse.move(pad.x+pad.w/2,pad.y+30,{steps:6});await page.mouse.move(pad.x+pad.w-30,pad.y+pad.h-30,{steps:6});await page.mouse.up();
 await page.evaluate(()=>document.getElementById('sig-ok').click());await page.waitForTimeout(500);
-out=await page.evaluate(()=>{const d0=window.TRACE.net.qse.docs[0];return {sigs:d0.sigs.length,name:d0.sigs[0]&&d0.sigs[0].name,img:!!(d0.sigs[0]&&d0.sigs[0].img&&d0.sigs[0].img.startsWith('data:image/png'))};});
-console.log('4b) Karim a émargé au doigt:',JSON.stringify(out));
+out=await page.evaluate(()=>{const d0=window.TRACE.net.qse.docs.find(x=>x.type==='pdf');return {sigs:d0.sigs.length,name:d0.sigs[0]&&d0.sigs[0].name,img:!!(d0.sigs[0]&&d0.sigs[0].img&&d0.sigs[0].img.startsWith('data:image/png'))};});
+console.log('4b) Karim a émargé au doigt (PDF déposé sur le chantier):',JSON.stringify(out));
 const c4b=out.sigs===1&&out.name==='Karim B.'&&out.img;
 const [pop1]=await Promise.all([page.waitForEvent('popup'),page.evaluate(()=>document.getElementById('qse-print').click())]);
 await pop1.waitForLoadState('domcontentloaded');

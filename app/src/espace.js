@@ -9,7 +9,9 @@
 // Kit avatar : src/avatar.js (repris tel quel). Enveloppe avModele() : pas de médaille d'ancienneté hors travail (règle SCR, à reporter dans le kit).
 import {avatarModele,avatarSVG,avatarMedaillon,EditorLogic} from './avatar.js';
 import {POSTES_DEF,FAM_COLOR,POSTE_FAM} from './acces.js';
-import {docsFor,docsTodo,docsListHTML,docOpen,docsAdminHTML,docAdminOpen,docNewOpen,KINDS as DOC_KINDS} from './docs.js'; // documents d'entreprise à lire et signer (nuit 09→10/10)
+import {docsFor,docsTodo,docsListHTML,docOpen,docsAdminHTML,docAdminOpen,docNewOpen,docsLateHTML,KINDS as DOC_KINDS} from './docs.js'; // documents d'entreprise à lire et signer (nuit 09→10/10)
+import {qhsTodo,qhsMyKey,qhsRecapHTML,qhsTriggerOpen,qhsRuns} from './qhs.js'; // quart d'heure sécurité (10/10)
+import {controlesOf,controleNC,controleReportHTML} from './accueil.js'; // contrôles chantier : suivi direction (10/10)
 import {affView,affAct,affInput,affAll,affState} from './affaires.js'; // volet commerce (nuit 09→10/10)
 import {flotteView,flotteAct,flotteInput,vehAll,vehAlertes,vehDe,monVehiculeHTML} from './flotte.js'; // parc véhicules (nuit 09→10/10)
 import {cmdView,cmdAct,cmdInput,dbListHTML,dbTodo,dbDe,cmdAll,cmdState} from './commandes.js'; // bons de commande & débours (nuit 09→10/10)
@@ -41,7 +43,7 @@ const S={tab:'moi',sub:'moi',fiche:null,avVue:null,planSem:0,planJour:null,plWee
 export function initEspace(api){A=api;}
 /* ── DATA : l'état de l'appli, dans la forme attendue par les gabarits de la maquette ── */
 function buildData(){
-  const now=new Date();const today=iso(now);const nowHM=pad(now.getHours())+':'+pad(now.getMinutes());
+  const now=new Date();const today=TODAY();const nowHM=pad(now.getHours())+':'+pad(now.getMinutes()); /* TODAY() : date du jour, ou date figée par un test */
   const live=A.accounts();if(live&&live.length&&live!==ACC_CACHE){ACC_CACHE=live;kvSet('trace:accountsCache',live.map(a=>Object.assign({},a)));} /* liste des comptes gardée pour le hors-connexion (annuaire) */
   const accs=(live||ACC_CACHE||(A.state.cloudUser?[]:A.personas())).filter(a=>a&&a.poste!=='visiteur'&&(a.active!==false||a.invite));
   const cur=A.current();if(cur&&cur.poste!=='visiteur'&&!accs.some(a=>personKey(a)===personKey(cur)))accs.push(cur); /* la personne connectée est toujours là, même avant la liste des comptes */
@@ -168,7 +170,8 @@ const $id=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const pad=n=>String(n).padStart(2,'0');
 const nb=n=>Number(n).toLocaleString('fr-FR');
-const TODAY=()=>{const n=new Date();return n.getFullYear()+'-'+pad(n.getMonth()+1)+'-'+pad(n.getDate());};
+const TODAY=()=>{try{const t=localStorage.getItem('trace:testToday');if(t&&/^\d{4}-\d{2}-\d{2}$/.test(t))return t;}catch(e){} /* tests seulement : figer la date (le planning ignore le week-end) */const n=new Date();return n.getFullYear()+'-'+pad(n.getMonth()+1)+'-'+pad(n.getDate());};
+export const espaceToday=()=>DATA?DATA.today:TODAY();
 const D=s=>{const [y,m,d]=String(s||(DATA?DATA.today:TODAY())).slice(0,10).split('-').map(Number);return new Date(y,m-1,d,12)};
 const iso=dt=>dt.getFullYear()+'-'+pad(dt.getMonth()+1)+'-'+pad(dt.getDate());
 const fDate=s=>{if(!s)return '—';const [y,m,d]=String(s).slice(0,10).split('-');return d+'/'+m+'/'+y};               // jj/mm/aaaa
@@ -1082,8 +1085,10 @@ function notifsFor(me){const L=[];const nets=netsLocal();const name=A.userName?A
   const accSigned=net=>((net.qse&&net.qse.docs)||[]).some(d0=>d0&&!d0.deleted&&d0.type==='accueil'&&qseSigned(d0,name,key));
   if(can(me,'qse.sign')&&['terrain','interim','chef'].includes(kindOf(me))){const wk=new Set(semaineDe(0).flatMap(d=>planDe(me.id,d)));[...wk].forEach(id=>{const net=nets.find(n=>n.id===id);if(net&&accSigned(net))return;const c=site(id);push({act:true,sev:'bad',ic:ICO.hat,t:'Accueil chantier à faire : '+(c.nom||id),s:'PPSPS à dérouler, 10 points, DICT, prévention, signature — avant de commencer sur ce chantier',when:idsToday.includes(id)?'aujourd\'hui':'cette semaine',go:()=>{A.state.autoParcours=true;if(A.openSite)A.openSite(id,'qse');}});});}
   /* 0ter. documents QSE à émarger (PDF requis, accueils de séance) sur les chantiers de l'appareil — l'accueil chantier passe par le parcours ci-dessus */
-  if(can(me,'qse.sign'))nets.forEach(net=>{const docs=(net.qse&&net.qse.docs)||[];const planned=semaineDe(0).some(d=>planDe(me.id,d).includes(net.id));docs.filter(d0=>qseReq(d0)&&!qseSigned(d0,name,key)).forEach(d0=>{if(d0.type==='accueil'){if(L.some(n=>n.t==='Accueil chantier à faire : '+(net.name||net.id)))return;if(d0.standing&&!planned)return; /* l'accueil permanent ne réclame que les gars placés sur ce chantier cette semaine */push({act:true,sev:'bad',ic:ICO.hat,t:'Accueil chantier à faire : '+(net.name||net.id),s:(d0.title||'')+' · PPSPS, 10 points, signature',when:whenOf(d0.at),go:()=>{A.state.autoParcours=true;if(A.openSite)A.openSite(net.id,'qse');}});return;}
+  if(can(me,'qse.sign'))nets.forEach(net=>{const docs=(net.qse&&net.qse.docs)||[];const planned=semaineDe(0).some(d=>planDe(me.id,d).includes(net.id));docs.filter(d0=>qseReq(d0)&&!qseSigned(d0,name,key)).forEach(d0=>{if(d0.type==='accueil'){if(L.some(n=>n.t==='Accueil chantier à faire : '+(net.name||net.id)))return;if(!planned||accSigned(net))return; /* 10/10 (Ethan) : l'accueil d'un chantier ne réclame QUE les gens placés dessus au planning, et jamais deux fois (anciennes séances comprises) */push({act:true,sev:'bad',ic:ICO.hat,t:'Accueil chantier à faire : '+(net.name||net.id),s:(d0.title||'')+' · PPSPS, 10 points, signature',when:whenOf(d0.at),go:()=>{A.state.autoParcours=true;if(A.openSite)A.openSite(net.id,'qse');}});return;}
     push({act:true,sev:'bad',ic:ICO.pen,t:'À lire et signer : '+(d0.title||'document'),s:(net.name||net.id)+' · obligatoire',when:whenOf(d0.at),go:open(net.id,'qse')});});});
+  /* 0quater. quart d'heure sécurité du jour (10/10) : déclenché par l'encadrement sur un chantier où je suis placé aujourd'hui → sujet, questions, signature */
+  if(can(me,'qse.sign')){const qk=qhsMyKey();qhsTodo(qk,name,idsToday,today).forEach(x=>{const c=site(x.site);push({act:true,sev:'bad',ic:ICO.hat,t:'Quart d\'heure sécurité à faire : '+(x.run.title||x.run.topic),s:(c.nom||x.site)+(x.run.by?' · déclenché par '+x.run.by:'')+(x.run.note?' · '+x.run.note:''),when:'aujourd\'hui',go:()=>{A.state.autoQhs=x.run.id;if(A.openSite)A.openSite(x.site,'qse');}});});}
   /* chef / conducteur : pointages à valider, pas pointé hier, demandes d'annulation (avant les tâches, règle Ethan) */
   if(can(me,'pointage.validate')){const ids=equipeIds(me);const V=DATA.pointages.filter(x=>ids.has(x.p)&&aValider(x,me));
     if(V.length){const dj=[...new Set(V.map(x=>x.d))].sort();push({act:true,sev:dj.length>=3?'bad':'warn',ic:ICO.check,t:V.length+' pointage'+(V.length>1?'s':'')+' à valider'+(dj.length>1?' · '+dj.length+' jours':''),s:[...new Set(V.map(x=>pers(x.p).prenom))].join(', ')+(dj.length?' — depuis le '+fJour(dj[0]):''),when:dj.length?fJour(dj[dj.length-1]):'',go:()=>goSub('heures')});}
@@ -1286,9 +1291,17 @@ export function espaceBureau(id){if(!DATA)DATA=buildData();const acc=A.current()
   const msgs=net?liveMsgs(net):[];const seen=A.seen?A.seen(id):'';const unread=msgs.filter(m=>m.by!==name&&(m.at||'')>seen).length;const tasks=msgs.filter(m=>m.kind==='task'&&m.task&&!m.task.done&&(m.task.to==='tous'||m.task.to===name)).length;
   const docs=net?((net.qse&&net.qse.docs)||[]).filter(d0=>d0&&!d0.deleted):[];const qseTodo=me&&can(me,'qse.sign')?docs.filter(d0=>qseReq(d0)&&!qseSigned(d0,name,key)).length:0;const accueilDone=docs.some(d0=>d0.type==='accueil'&&qseSigned(d0,name,key));
   const mine=me?missionsFor(me,today).filter(m=>m.site===id):[];const all=net?missionsOf(net,today):[];const eq=DATA.personnes.filter(p=>p.active&&planDe(p.id,today).includes(id));
-  return {me,acc,c,fiche,enc,today,meteo:mt?{k:mt.k,t:mt.t,label:METEO[mt.k][1],tenue:TENUE_TXT[mt.k]||''}:null,chef:c.chef?nomC(pers(c.chef)):'',conducteur:c.conducteur?nomC(pers(c.conducteur)):'',eq:eq.map(p=>p.prenom),unread,tasks,qseTodo,accueilDone,canSign:me?can(me,'qse.sign'):false,isTerrain:me?['terrain','interim','chef'].includes(kindOf(me)):false,
+  const qhs=me&&can(me,'qse.sign')?qhsTodo(qhsMyKey(),name,[id],today):[];
+  return {me,acc,c,fiche,enc,today,meteo:mt?{k:mt.k,t:mt.t,label:METEO[mt.k][1],tenue:TENUE_TXT[mt.k]||''}:null,chef:c.chef?nomC(pers(c.chef)):'',conducteur:c.conducteur?nomC(pers(c.conducteur)):'',eq:eq.map(p=>p.prenom),unread,tasks,qseTodo,accueilDone,qhs:qhs.map(x=>({id:x.run.id,title:x.run.title||x.run.topic,by:x.run.by||''})),accueilExpected:espaceAccueilExpected(id),canSign:me?can(me,'qse.sign'):false,isTerrain:me?['terrain','interim','chef'].includes(kindOf(me)):false,
     objectifs:{mine:mine.map(m=>({label:m.label,h:m.h,done:!!m.done})),all:all.map(m=>({label:m.label,h:m.h,who:(m.who||[]).map(k=>pers(k).prenom),done:!!m.done})),txt:missionsTxt(mine.length?mine:all)},
     dash:D?DASH_DEF.map(x=>Object.assign({key:x[0],lab:x[1],ic:x[2],tab:x[3],short:x[4]},D[x[0]])):null,bad:D?DASH_DEF.filter(x=>D[x[0]].k==='bad').map(x=>({lab:x[1],v:D[x[0]].v,s:D[x[0]].s,tab:x[3]})):[],warn:D?DASH_DEF.filter(x=>D[x[0]].k==='warn').map(x=>({lab:x[1],v:D[x[0]].v,s:D[x[0]].s,tab:x[3]})):[],pc:D?(D.$.charge&&D.$.n?Math.round(100*D.$.soud/D.$.n):(c.soudures?Math.round(100*(c.faites||0)/c.soudures):0)):null};}
+/* 10/10 (retours Ethan) — qui est là aujourd'hui sur ce chantier (planning), chef / conducteur de la fiche : pré-remplit le contrôle chantier */
+export function espacePresents(id){if(!DATA)DATA=buildData();const today=todayIso();const c=site(id);const eq=DATA.personnes.filter(p=>p.active&&planDe(p.id,today).includes(id));
+  return {names:eq.map(p=>nomC(p)),chef:c&&c.chef?nomC(pers(c.chef)):'',conducteur:c&&c.conducteur?nomC(pers(c.conducteur)):''};}
+/* l'accueil chantier est ATTENDU de la personne connectée sur ce chantier si elle est terrain / intérim / chef de chantier (les autres peuvent le faire, sans pastille) */
+export function espaceAccueilExpected(id){if(!DATA)DATA=buildData();const acc=A.current();const me=DATA.personnes.find(p=>p.id===personKey(acc))||null;if(!me)return false;return ['terrain','interim','chef'].includes(kindOf(me))&&semaineDe(0).some(d=>planDe(me.id,d).includes(id));} /* Ethan 10/10 : « juste les personnes pointées au planning sur un chantier » */
+/* chantiers « à moi » (chef / conducteur) ou de mon secteur — pour déclencher un quart d'heure sécurité sur « mes chantiers » */
+export function espaceMesSites(){if(!DATA)DATA=buildData();const acc=A.current();const me=DATA.personnes.find(p=>p.id===personKey(acc))||null;if(!me)return [];const mine=mesSites(me);if(mine.length)return mine.map(c=>c.id);const sect=mySecteur(me);return DATA.chantiers.filter(c=>!c.bureau&&(!sect||c.secteur===sect)).map(c=>c.id);}
 /* ── ESPACE EXPLOITATION (encadrement : conducteurs, responsables, direction ; chef de chantier : version réduite) ── */
 function vExpl(me){const x=S.xsub;const back=t=>`<button class="ac-back" data-act="xsub" data-v="">‹ Exploitation</button>${t?`<h2 class="vt">${t}</h2>`:''}`;
   if(x==='orga')return back('')+(can(me,'planning.edit')?vOrga(me):vPlanning(me)); /* les vues ont leur propre titre */
@@ -1303,6 +1316,8 @@ function vExpl(me){const x=S.xsub;const back=t=>`<button class="ac-back" data-ac
   if(x==='prodEq')return back('')+vProdEquipe(me,prodIds(me)||DATA.personnes.filter(p=>p.active&&OPERATEURS.includes(p.poste)).map(p=>p.id));
   if(x==='obj')return back('Objectifs de la journée')+vObjectifs(me);
   if(x==='docs')return back('Documents d\'entreprise')+docsAdminHTML(DATA.personnes.map(p=>p._acc).filter(Boolean));
+  if(x==='controles')return back('Contrôles chantier')+vControles(me);
+  if(x==='qhs')return back('Quart d\'heure sécurité')+vQhs(me);
   if(x==='habsEq')return back('Habilitations de l\'équipe')+`<div class="eq-cols eq-1"><div>${can(me,'qse.manage')?cTableHabs(me):cEchEquipe(me)||'<div class="card"><div class="eq-s">Rien à signaler.</div></div>'}</div></div>`;
   if(x==='annul'){const nets=netsLocal();const rows=[];nets.forEach(net=>liveMsgs(net).filter(m=>m.kind==='undo'&&m.undo&&m.undo.status==='pending').forEach(m=>rows.push({net,m})));
     return back('Demandes d\'annulation')+(rows.length?rows.map(r=>`<button class="ac-row" data-act="opensite" data-v="${esc(r.net.id)}|conv"><span class="ic" style="background:#fdebe3">${ICO.undo}</span><span class="tx"><b>${esc(r.m.by||'')} · ${esc(r.m.undo.weldId||'soudure')}</b><small>${esc(r.net.name||r.net.id)} · ${esc(String(r.m.text||r.m.undo.reason||'').slice(0,80))}</small></span><span class="chev">${CHEV}</span></button>`).join('')+'<div class="hint">Tu tranches dans la conversation du chantier (accepter / refuser) — tout est journalisé.</div>':'<div class="ac-empty">✓ Aucune demande en attente sur les chantiers de cet appareil.</div>');}
@@ -1318,12 +1333,34 @@ function vExpl(me){const x=S.xsub;const back=t=>`<button class="ac-back" data-ac
     ${can(me,'flotte.manage')?row('Flotte · parc véhicules','Contrôles techniques, vidanges, contrats, conducteurs, contrôles visuels, signalements',ICO.cart,'#ececea','flotte',(()=>{const n=vehAll().filter(v=>vehAlertes(v).some(a=>a.sev==='bad')).length;return n||null;})(),'bad'):''}
     ${(can(me,'planning.edit')||accueilType(me)==='rh'||me.admin)?row('Grands déplacements','Cas 1 à 4 selon la distance domicile → chantier, nuitées, repas, indemnités de la semaine',ICO.home,'#fff4d6','gd',null):''}
     ${can(me,'affaires.view')?row('Affaires · commerce','Préconsultations, devis, chantiers en cours : fiche, DCE, chiffrage par DN, situations et facturation',ICO.cart,'#e3f3f3','aff',(()=>{const n=affAll().filter(a=>a.etat==='devis'||a.etat==='preconsult').length;return n||null;})()):''}
-    ${(can(me,'qse.manage')||me.admin)?row('Documents d\'entreprise','Règlement intérieur, notes de service, accueil nouvel arrivant — qui a signé',ICO.doc,'#e8f0fb','docs',null):''}
+    ${(can(me,'qse.manage')||me.admin)?row('Documents d\'entreprise','Règlement intérieur, notes de service, flash info, accueil nouvel arrivant — qui a signé, qui est à relancer',ICO.doc,'#e8f0fb','docs',(()=>{const all=DATA.personnes.map(p=>p._acc).filter(Boolean);const n=all.filter(a=>docsTodo(a).length).length;return n||null;})(),'bad'):''}
+    ${(can(me,'qse.manage')||me.admin)?row('Contrôles chantier','Qui contrôle, à quelle fréquence, où ça traîne — objectif : un contrôle par chantier actif toutes les 2 semaines',ICO.check,'#fff4d6','controles',(()=>{const r=ctrlRecap();return r.late.length||null;})(),'bad'):''}
+    ${(can(me,'qse.manage')||me.admin)?row('Quart d\'heure sécurité','Déclencher un sujet du jour sur un chantier ou tous — sujet, questions, émargement de tous',ICO.hat,'#fdebe3','qhs',(()=>{const n=qhsRuns().filter(r=>r.date===todayIso()).length;return n||null;})()):''}
     ${(can(me,'pointage.validate')&&(can(me,'planning.edit')||accueilType(me)==='rh'||accueilType(me)==='direction'||me.admin))?row('Heures & production · rapport','Heures définitives, validées, à valider · objectifs · production · variables de paie (CSV)',ICO.clock,'#e6f5ec','rapport',(()=>{const R=rapportSemaine(-1);const a=R.rows.reduce((x,r)=>x+(r.att>0?1:0),0);return a||null;})(),'bad'):''}
     ${row('Production des équipes','Par chantier, par personne, par DN — depuis les fiches de soudure des chantiers ouverts sur cet appareil',ICO.flag,'#efeafb','prodEq',null)}
     ${row('Objectifs de la journée','Missions de l\'équipe en heures estimées — pas un plafond',ICO.flag,'#fdebe3','obj',(()=>{const t=todayIso();return mesSites(me).reduce((a,c)=>a+missionsOf(netOf(c.id),t).length,0)||null;})())}
     ${(can(me,'planning.edit')||can(me,'affaires.edit')||me.admin)?row('Bons de commande & débours','Commandes fournisseurs (bon imprimable) · débours à valider et rembourser',ICO.cart,'#ececea','cmd',dbTodo().length||null,'bad'):''}
     ${can(me,'site.tracer')?row('Traceur','Tracer un réseau à partir du DWG, l\'envoyer dans l\'appli',ICO.ruler,'#e3f3f3','traceur'):''}`;}
+/* ── 10/10 (retour Ethan) : SUIVI DES CONTRÔLES CHANTIER — « la direction et le responsable d'exploitation ont un visuel de qui a fait des contrôles, à quelle fréquence ; on va mettre des objectifs là-dessus » ── */
+const CTRL_OBJ_DAYS=14; /* objectif : un contrôle par chantier actif toutes les 2 semaines */
+function ctrlRecap(){const nets=netsLocal();const today=todayIso();const all=[];nets.forEach(net=>controlesOf(net).forEach(c=>all.push({c,net})));all.sort((a,b)=>String(b.c.at||'').localeCompare(String(a.c.at||'')));
+  const since=k=>{const d=D(today);d.setDate(d.getDate()-k);return iso(d);};const d28=since(28),d84=since(84);
+  const byWho={};all.forEach(x=>{const w=x.c.by||'?';const o=byWho[w]=byWho[w]||{who:w,n28:0,n84:0,n:0,nc:0,last:null};o.n++;if((x.c.at||'')>=d28)o.n28++;if((x.c.at||'')>=d84)o.n84++;o.nc+=controleNC(x.c);if(!o.last||x.c.at>o.last)o.last=x.c.at;});
+  const planned=new Set(semaineDe(0).flatMap(d=>DATA.personnes.filter(p=>p.active).flatMap(p=>planDe(p.id,d))));const active=DATA.chantiers.filter(c=>!c.bureau&&(planned.has(c.id)||(netOf(c.id)&&controlesOf(netOf(c.id)).length)));
+  const sites=active.map(c=>{const net=netOf(c.id);const L=net?controlesOf(net).slice().sort((a,b)=>String(b.at||'').localeCompare(String(a.at||''))):[];const last=L[0]||null;const days=last?Math.round((Date.parse(today)-Date.parse(String(last.at).slice(0,10)))/86400e3):null;return {c,last,days,ncOpen:L.length?controleNC(L[0]):0,n:L.length};}).sort((a,b)=>(b.days===null?1e9:b.days)-(a.days===null?1e9:a.days));
+  return {all,who:Object.values(byWho).sort((a,b)=>b.n84-a.n84),sites,late:sites.filter(x=>x.days===null||x.days>CTRL_OBJ_DAYS)};}
+function vControles(me){const R=ctrlRecap();const today=todayIso();
+  const who=R.who.length?`<div class="card" style="padding:4px 10px"><table class="rc" style="font-size:12px"><tr><th>Encadrant</th><th>4 sem.</th><th>12 sem.</th><th>Total</th><th>NC relevées</th><th>Dernier</th></tr>${R.who.map(w=>`<tr><td><b>${esc(w.who)}</b></td><td>${w.n28}</td><td>${w.n84}</td><td>${w.n}</td><td style="color:${w.nc?'#a01212':'inherit'}">${w.nc}</td><td class="dim">${w.last?fDate(String(w.last).slice(0,10)):'—'}</td></tr>`).join('')}</table></div>`:'<div class="ac-empty">Aucun contrôle enregistré sur les chantiers de cet appareil.</div>';
+  const sites=R.sites.length?`<div class="card" style="padding:4px 10px"><table class="rc" style="font-size:12px"><tr><th>Chantier</th><th>Dernier contrôle</th><th>Il y a</th><th>NC</th></tr>${R.sites.map(x=>`<tr><td><b>${esc(x.c.nom)}</b><div class="dim" style="font-size:11px">${esc(x.c.ville||'')}${x.c.chef?' · chef '+esc(pers(x.c.chef).prenom):''}</div></td><td>${x.last?fDate(String(x.last.at).slice(0,10))+' <span class="dim">· '+esc(x.last.by||'')+'</span>':'<span style="color:#a01212;font-weight:700">jamais</span>'}</td><td style="font-weight:700;color:${x.days===null||x.days>CTRL_OBJ_DAYS?'#a01212':x.days>CTRL_OBJ_DAYS-4?'#7a5a00':'#15673a'}">${x.days===null?'—':x.days+' j'}</td><td style="color:${x.ncOpen?'#a01212':'inherit'}">${x.ncOpen||'—'}</td></tr>`).join('')}</table></div>`:'<div class="ac-empty">Aucun chantier actif cette semaine.</div>';
+  const list=R.all.slice(0,40).map(x=>{const nc=controleNC(x.c);return `<button class="ac-row" data-act="ctopen" data-v="${esc(x.net.id)}|${esc(x.c.id)}"><span class="ic" style="background:${nc?'#fdeae7':'#e6f5ec'}">${nc?'✗':'✓'}</span><span class="tx"><b>${fDate(String(x.c.at).slice(0,10))} · ${esc(x.net.name||x.net.id)}</b><small>${esc(x.c.by||'')} · ${Object.keys(x.c.items||{}).length} points · <b>${nc}</b> NC${x.c.risque?' · situation à risque notée':''}${x.c.presents?' · présents : '+esc(String(x.c.presents).slice(0,60)):''}</small></span><span class="chev">${CHEV}</span></button>`;}).join('');
+  return `<div class="hint" style="margin:0 0 8px">Objectif : <b>un contrôle par chantier actif toutes les ${CTRL_OBJ_DAYS/7} semaines</b> (à ajuster avec la direction). Les contrôles se font depuis l'onglet QSE du chantier (encadrement). Chantiers actifs = du monde placé cette semaine (ou déjà contrôlés).</div>
+    <div class="ac-h"><b>Par encadrant</b><span>12 dernières semaines</span></div>${who}
+    <div class="ac-h"><b>Par chantier actif</b><span>${R.late.length?R.late.length+' en retard':'✓ tous dans l\'objectif'}</span></div>${sites}
+    <div class="ac-h"><b>Derniers contrôles</b><span>${R.all.length}</span></div>${list||'<div class="ac-empty">Rien pour l\'instant.</div>'}`;}
+/* ── 10/10 : QUART D'HEURE SÉCURITÉ (Exploitation) — déclencher, suivre ── */
+function vQhs(me){return `<div class="hint" style="margin:0 0 8px">Un quart d'heure sécurité = un sujet à dérouler en entier, 3 points à confirmer, une signature au doigt — pour tout le monde placé sur le(s) chantier(s) ce jour-là (chefs de chantier compris). Sujets : exemples RCU en attendant la base SCR (Ethan).</div>
+    <div class="eq-acts" style="margin:0 0 8px"><button class="btn primary" data-act="qhsnew">⛑️ Déclencher un quart d'heure sécurité</button></div>
+    <div class="ac-h"><b>Déclenchés</b><span>40 derniers</span></div>${qhsRecapHTML(DATA.chantiers)}`;}
 /* ── Sous-onglets selon les droits ── */
 function subsFor(me){
   if(S.tab!=='moi')return [];
@@ -1406,7 +1443,10 @@ const ACT={
   objdone(v){if(viewing()){viewOnly();return;}const [id,mid]=v.split('|');const day=S.objDay||todayIso();const net=netOf(id);if(!net)return;saveMissions(id,day,missionsOf(net,day).map(m=>m.id===mid?Object.assign({},m,{done:m.done?null:{at:new Date().toISOString(),by:nomC(pers(S.me))}}):m));render()},
   docopen(v){const me=pers(S.me);if(viewing()){viewOnly();return;}docOpen(v,me&&me._acc);},
   docadm(v){docAdminOpen(v,DATA.personnes.map(p=>p._acc).filter(Boolean));},
-  docnew(){if(viewing()){viewOnly();return;}docNewOpen();},
+  docnew(v){if(viewing()){viewOnly();return;}docNewOpen(v||'note');},
+  doclate(){const w=window.open('','_blank');if(!w){msg('Autorise la fenêtre pop-up pour imprimer');return;}w.document.write(docsLateHTML(DATA.personnes.map(p=>p._acc).filter(Boolean)));w.document.close();},
+  qhsnew(){if(viewing()){viewOnly();return;}qhsTriggerOpen({sites:espaceMesSites(),after:()=>render()});},
+  ctopen(v){const [id,cid]=String(v).split('|');const net=netOf(id);const c=net?controlesOf(net).find(x=>x.id===cid):null;if(!c){msg('Contrôle introuvable sur cet appareil');return;}const w=window.open('','_blank');if(!w){msg('Autorise la fenêtre pop-up pour afficher le rapport');return;}w.document.write(controleReportHTML(c,net));w.document.close();},
   xsub(v){S.xsub=v||null;S.fiche=null;render();window.scrollTo(0,0)},
   xgo(v){if(v==='sites'||v==='traceur'){ACT.tabgo(v);return;}S.xsub=v;S.fiche=null;render()},
   sub(v){S.sub=v;S.fiche=null;S.corr=null;render()},

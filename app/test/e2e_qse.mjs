@@ -16,7 +16,7 @@ let out=await page.evaluate(()=>({tab:!!document.querySelector('#tabbar [data-ta
 console.log('1) onglet QSE définitif, sans pastille:',JSON.stringify(out));const c1=out.tab&&!out.flag&&!out.badge&&out.todo===0;
 // ── 2) le chef dépose un PDF (simulé : doc type pdf dans NET.qse) → à émarger par tous → pastille rouge « 1 », bandeau dans l'onglet
 await page.evaluate(()=>{const T=window.TRACE;T.net.qse={docs:[{id:'Q1',type:'pdf',title:'Flash info sécurité tranchées',by:'Ethan L.',at:new Date().toISOString(),sigs:[]},{id:'Q2',type:'quart',title:'Quart d\'heure du jour',by:'Ethan L.',at:new Date().toISOString(),sigs:[]}]};document.querySelector('#tabbar [data-tab="qse"]').click();});await page.waitForTimeout(400);
-out=await page.evaluate(()=>{const b=document.querySelector('#tabbar .qseBadge');const t=document.querySelector('#qse').textContent;return {badge:b&&b.textContent,red:document.querySelector('#tabbar [data-tab="qse"]').style.color!=='',banner:/il te reste 1 document à émarger/.test(t),btn:!!document.querySelector('#qse [data-qsignme="Q1"]'),quartFac:/facultatif/.test(t),todo:window.TRACE.qseTodo().map(d=>d.id)};});
+out=await page.evaluate(()=>{const b=document.querySelector('#tabbar .qseBadge');const t=document.querySelector('#qse').textContent;return {badge:b&&b.textContent,red:document.querySelector('#tabbar [data-tab="qse"]').style.color!=='',banner:/il te reste 1 document à émarger/.test(t),btn:!!document.querySelector('#qse [data-qsignme="Q1"]'),quartFac:/Historique/.test(t) /* 10/10 : l'ancien quart d'heure (séance) est dans l'historique, plus « facultatif » */,todo:window.TRACE.qseTodo().map(d=>d.id)};});
 console.log('2) PDF déposé → pastille rouge + bandeau « à émarger », quart d\'heure facultatif:',JSON.stringify(out));const c2=out.badge==='1'&&out.red&&out.banner&&out.btn&&out.quartFac&&out.todo.join()==='Q1';
 // ── 3) « j'ai lu — j'émarge » : nom pré-rempli (Ethan L.), trait au doigt, validation → émargé, pastille disparue
 await page.evaluate(()=>document.querySelector('#qse [data-qsignme="Q1"]').click());await page.waitForTimeout(300);
@@ -36,13 +36,14 @@ await page.evaluate(()=>{window.TRACE.net.qse.docs[0].required=false;document.qu
 await page.selectOption('#roleSel','karim');await page.waitForTimeout(300);
 out=await page.evaluate(()=>({badge:!!document.querySelector('#tabbar .qseBadge'),todo:window.TRACE.qseTodo().length}));
 console.log('5) obligation levée par le chef → plus de pastille pour Karim:',JSON.stringify(out));const c5=!out.badge&&out.todo===0;
-// ── 6) accueil chantier créé par le chef = obligatoire pour tous
+// ── 6) 10/10 (Ethan) : plus de « séance » d'accueil ni de quart d'heure à l'ancienne — un accueil chantier PERMANENT par chantier (bloc QSE : émargements de tous, « accueillir quelqu'un sans compte », feuille),
+//       le quart d'heure sécurité du jour (bloc, déclenchement), le contrôle chantier ; pour Karim (pas placé ici au planning) l'accueil est proposé, pas réclamé — il ne compte dans la pastille que pour les gens placés sur le chantier
 await page.selectOption('#roleSel','ethan');await page.waitForTimeout(300);
 await page.evaluate(()=>{document.querySelector('#tabbar [data-tab="qse"]').click();});await page.waitForTimeout(300);
-await page.evaluate(()=>document.querySelector('#qse [data-qnew="accueil"]').click());await page.waitForTimeout(400);
-await page.evaluate(()=>{const m=document.querySelector('#modal [data-close]');if(m)m.click();});await page.waitForTimeout(200);
-out=await page.evaluate(()=>({n:window.TRACE.net.qse.docs.length,todo:window.TRACE.qseTodo().map(d=>d.type),badge:(document.querySelector('#tabbar .qseBadge')||{}).textContent}));
-console.log('6) accueil chantier → obligatoire (à émarger par le chef aussi):',JSON.stringify(out));const c6=out.n===3&&out.todo.join()==='accueil'&&out.badge==='1';
+out=await page.evaluate(()=>{const el=document.getElementById('qse');return {qnew:el.querySelectorAll('[data-qnew]').length,acc:!!document.getElementById('qse-acc'),ext:!!document.getElementById('qse-accext'),print:!!document.getElementById('qse-accprint'),qhs:/Quart d'heure sécurité du jour/.test(el.textContent),qhnew:!!el.querySelector('[data-qhnew]'),ctrl:!!document.getElementById('qse-controle'),legacy:/Historique/.test(el.textContent)};});
+await page.selectOption('#roleSel','karim');await page.waitForTimeout(300);
+out.karim=await page.evaluate(()=>({todo:window.TRACE.qseTodo().map(d=>d.type),badge:!!document.querySelector('#tabbar .qseBadge'),card:/ton accueil chantier n'est pas fait ici/.test(document.getElementById('qse').textContent),volontaire:/pas obligatoire pour ton poste/.test(document.getElementById('qse').textContent)}));
+console.log('6) accueil chantier permanent (bloc QSE), quart d\'heure, contrôle ; à faire pour Karim :',JSON.stringify(out));const c6=out.qnew===0&&out.acc&&out.ext&&out.print&&out.qhs&&out.qhnew&&out.ctrl&&out.legacy&&out.karim.todo.length===0&&!out.karim.badge&&out.karim.card&&out.karim.volontaire; /* Karim n'est pas placé sur ce chantier au planning : l'accueil lui est proposé, pas réclamé (Ethan 10/10) */
 const ALL=c1&&c2&&c3a&&c3b&&c4&&c5&&c6;
 console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3a,c3b,c4,c5,c6}));
 console.log(logs.length?logs:'[]');

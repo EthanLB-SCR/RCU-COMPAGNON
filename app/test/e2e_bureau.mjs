@@ -7,7 +7,8 @@ const ctx=await browser.newContext({viewport:{width:430,height:900}});const page
 const logs=[];page.on('pageerror',e=>logs.push('PAGEERROR: '+e.message.slice(0,300)));page.on('console',m=>{if(m.type()==='error'&&!/supabase|Failed to fetch|net::ERR|404|WebSocket/i.test(m.text()))logs.push(m.text().slice(0,200));});
 page.on('dialog',d=>d.accept().catch(()=>{}));
 const C={};const wait=ms=>page.waitForTimeout(ms);
-await page.goto(BASE+'/index.html');await wait(600);await page.evaluate(()=>{localStorage.clear();});await page.evaluate(()=>new Promise(r=>{try{const q=indexedDB.deleteDatabase('trace-kv');q.onsuccess=q.onerror=q.onblocked=()=>r();}catch(e){r();}}));
+await page.clock.install({time:new Date(2026,9,9,8,30,0)}); /* vendredi 09/10/2026 8 h 30 : le planning ignore le week-end */
+await page.goto(BASE+'/index.html');await wait(600);await page.evaluate(()=>{localStorage.clear();}); /* vendredi : le planning ignore le week-end */await page.evaluate(()=>new Promise(r=>{try{const q=indexedDB.deleteDatabase('trace-kv');q.onsuccess=q.onerror=q.onblocked=()=>r();}catch(e){r();}}));
 await page.reload();await wait(1200);
 const skip=async()=>{const s=await page.$('#loginSkip');if(s&&await s.isVisible())await s.click();await wait(700);};await skip();
 await page.evaluate(()=>{const T=window.TRACE;const src=T.sites[Object.keys(T.sites).find(k=>k!=='__vide'&&T.sites[k]&&T.sites[k].lines)];const now=new Date().toISOString();const x=JSON.parse(JSON.stringify(src));x.id='demo_caen';x.name='Caen — Presqu\'île';x.fiche={ville:'Caen',secteur:'ouest',chef:'l:ethan',horaires:'7 h 30 – 16 h 30',rassemblement:'base vie, rue de la Mer'};
