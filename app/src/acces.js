@@ -73,33 +73,38 @@ export const PERMS=[
  ['site.delete','Supprimer un chantier','Bureau'],
  ['team.view','Voir l\'équipe (noms, postes)','Équipe'],
  ['planning.edit','Planning : placer les équipes sur les chantiers de la semaine, fiche chantier (secteur, chef, conducteur)','Équipe'], // 09/10 soir : conducteurs, responsables d'exploitation, direction — pas le chef de chantier (planning imposé)
+ ['affaires.view','Affaires : voir les affaires, chiffrages, situations et facturation','Commerce'], // nuit 09→10/10 : volet commerce (chargés d'affaires, direction, exploitation)
+ ['affaires.edit','Affaires : créer et modifier (affaire, DCE, chiffrage, situations, facturation)','Commerce'],
+ ['flotte.manage','Flotte : parc véhicules, contrôles, affectations, alertes','Bureau'], // nuit 09→10/10 : responsable flotte, direction, exploitation
 ];
 export const STEP_PERMS=['weld.step1','weld.step2','weld.step3','weld.step4'];
 export const PENDING=new Set([]); // 09/10 : tous les droits déclarés sont appliqués (plan.view à l'ouverture, dh.measure sur les états DH, pointage.*, qse.sign / manage, team.view sur la liste des personnes)
 const GROUPS=[...new Set(PERMS.map(p=>p[2]))];
 const ALL=Object.fromEntries(PERMS.map(([k])=>[k,true]));
 const pick=(...ks)=>Object.fromEntries(PERMS.map(([k])=>[k,ks.includes(k)]));
-const SOCLE=['plan.view','conv.post','pointage.self','qse.sign','team.view']; // ce que tout salarié a
+const SOCLE=['plan.view','conv.post','qse.sign','team.view']; // ce que tout salarié a — le pointage n'en fait plus partie (Ethan 09/10 soir : « seuls certains chefs de chantier et tous les opérateurs pointent des heures, tous les autres non »)
+const PT=['pointage.self']; // opérateurs : soudeur, tuyauteur, manchonneur, activités spécifiques, chauffeur d'engin, aide ; chef de chantier : compte par compte (ajustement personnel dans Administrateur)
+const NOPT={'pointage.self':false};
 const OPS=['undo.own']; // un opérateur annule ses propres erreurs (dans ses crédits)
 // crédits d'annulation par semaine glissante (7 jours) : au-delà, la demande part au chef. Les postes qui ont « corriger une fiche » (weld.admin) sont illimités.
 export const DEFAULT_CREDITS={soudeur:3,tuyauteur:3,manchonneur:3,activites_specifiques:3,chauffeur_engin:1,autre:1,chef:10,conducteur:10};
-const ENC={...ALL,'site.delete':false};
-const CHEF={...ENC,'planning.edit':false}; // le chef de chantier a tout l'encadrement sauf le planning (il lui est imposé)
+const ENC={...ALL,'site.delete':false,...NOPT,'affaires.edit':false}; // conducteur : voit les affaires (montants, situations) sans les modifier ; ne pointe pas
+const CHEF={...ENC,'planning.edit':false,'affaires.view':false,'flotte.manage':false}; // le chef de chantier a tout l'encadrement sauf le planning (imposé), les affaires et la flotte ; pointage : par compte
 // défauts SCR de chaque poste (salarié) — modifiables dans l'onglet Administrateur (écarts gardés sur le serveur, clé app_settings.poste_rights)
 export const DEFAULT_RIGHTS={
- gerant:ALL,dir_adjointe:ALL,dir_technique:ALL,
- resp_exploitation:ALL,resp_operations:ALL,
+ gerant:{...ALL,...NOPT},dir_adjointe:{...ALL,...NOPT},dir_technique:{...ALL,...NOPT},
+ resp_exploitation:{...ALL,...NOPT},resp_operations:{...ALL,...NOPT},
  conducteur:ENC,chef:CHEF,
- soudeur:pick(...SOCLE,...OPS,'weld.step1','weld.extra','weld.transfer','dh.measure'),
- tuyauteur:pick(...SOCLE,...OPS,'weld.step1','weld.transfer'),
- manchonneur:pick(...SOCLE,...OPS,'weld.step2','weld.step3','weld.step4','weld.transfer','dh.measure'),
- activites_specifiques:pick(...SOCLE,...OPS,...STEP_PERMS,'weld.extra','weld.transfer','dh.measure'), // équipe Activités spécifiques RCU (Ethan 08/10) : tous les droits opérationnels du terrain
- chauffeur_engin:pick(...SOCLE,...OPS),autre:pick(...SOCLE,...OPS),
+ soudeur:pick(...SOCLE,...PT,...OPS,'weld.step1','weld.extra','weld.transfer','dh.measure'),
+ tuyauteur:pick(...SOCLE,...PT,...OPS,'weld.step1','weld.transfer'),
+ manchonneur:pick(...SOCLE,...PT,...OPS,'weld.step2','weld.step3','weld.step4','weld.transfer','dh.measure'),
+ activites_specifiques:pick(...SOCLE,...PT,...OPS,...STEP_PERMS,'weld.extra','weld.transfer','dh.measure'), // équipe Activités spécifiques RCU (Ethan 08/10) : tous les droits opérationnels du terrain
+ chauffeur_engin:pick(...SOCLE,...PT,...OPS),autre:pick(...SOCLE,...PT,...OPS),
  resp_rh:pick(...SOCLE,'pointage.validate','qse.manage','dossier.edit'),assist_rh:pick(...SOCLE,'pointage.validate','qse.manage','dossier.edit'),charge_dev_rh:pick(...SOCLE,'pointage.validate','qse.manage'),
- resp_admin_fin:pick(...SOCLE,'pointage.validate','export.doe','dossier.edit','site.versions'),
- resp_commercial:pick(...SOCLE,'ts.qualify','export.doe','dossier.edit','phasage.edit'),
+ resp_admin_fin:pick(...SOCLE,'pointage.validate','export.doe','dossier.edit','site.versions','affaires.view','affaires.edit'), // facturation, situations
+ resp_commercial:pick(...SOCLE,'ts.qualify','export.doe','dossier.edit','phasage.edit','affaires.view','affaires.edit'),
  charge_affaires:{...ALL,'pointage.self':false,'weld.step1':false,'weld.step2':false,'weld.step3':false,'weld.step4':false,'undo.own':false},
- resp_flotte:pick(...SOCLE,'stock.edit'),referent_magasin:pick(...SOCLE,'stock.edit'),
+ resp_flotte:pick(...SOCLE,'stock.edit','flotte.manage'),referent_magasin:pick(...SOCLE,'stock.edit'),
  visiteur:pick('plan.view'),
 };
 // plafond par type de compte : un intérimaire garde le pur opérationnel, un visiteur regarde
@@ -142,7 +147,7 @@ export function rightOrigin(acc,k){if(!acc||acc.active===false)return 'inactif';
 const ORIGIN_LABEL={admin:'★ administrateur','perso+':'ajout personnel','perso-':'retiré pour lui',plafond:'plafond du type',poste:'par le poste','poste-':'pas dans le poste',inactif:'compte inactif'};
 // rôle « serveur » (ancienne colonne role, règles RLS du 18/08 : chef = tout, bureau = plans sans suppression, soudeur/manchonneur = fiches) déduit des droits effectifs
 export function roleFor(acc){const e=effectiveRights(acc);if(acc.admin||e['site.delete'])return 'chef';
-  if(['site.tracer','site.versions','stock.edit','phasage.edit','ts.qualify','weld.admin','hydro','conv.task','qse.manage','dossier.edit','export.doe','pointage.validate'].some(k=>e[k]))return 'bureau';
+  if(['site.tracer','site.versions','stock.edit','phasage.edit','ts.qualify','weld.admin','hydro','conv.task','qse.manage','dossier.edit','export.doe','pointage.validate','affaires.edit','flotte.manage'].some(k=>e[k]))return 'bureau';
   return acc.poste==='manchonneur'?'manchonneur':'soudeur';}
 // compte RÉEL (profil serveur), sans tenir compte d'un personnage de test
 export function realAccount(){if(!A||!A.state.profile)return null;return normAccount(A.state.profile);}

@@ -54,7 +54,7 @@ const c3=out.n===1&&out.cat==='ppsps'&&out.data&&out.listed;
 await page.click('#tabbar [data-tab=qse]');await page.waitForTimeout(500);
 await page.evaluate(()=>{[...document.querySelectorAll('#qse [data-qnew]')].find(b=>b.dataset.qnew==='accueil').click();});
 await page.waitForTimeout(500);
-out=await page.evaluate(()=>{const t=document.querySelector('#modal').textContent;return {open:/Accueil chantier/.test(t),ppsps:/vaut AUSSI signature du PPSPS/.test(t),qs:/EPI obligatoires/.test(t)};});
+out=await page.evaluate(()=>{const t=document.querySelector('#modal').textContent;return {open:/Accueil chantier/.test(t),ppsps:/vaut AUSSI signature du PPSPS/.test(t),qs:/Mes équipements et EPI ont été contrôlés/.test(t)};});  /* nuit 09→10/10 : les 10 points d'Ethan */
 console.log('4a) accueil créé — PPSPS du dossier rattaché:',JSON.stringify(out));
 const c4a=out.open&&out.ppsps&&out.qs;
 await page.evaluate(()=>document.getElementById('qse-sign').click());await page.waitForTimeout(400);
@@ -86,7 +86,7 @@ await pop2.close();out.tabAfter=tabAfter;
 console.log('5) carnet DOE généré depuis l\'onglet Export:',JSON.stringify(out));
 const c5=out.t&&out.w&&out.soudee&&out.noImg&&out.table&&out.planche&&tabAfter==='export';
 // ── 6) le panneau « Nouveautés » existe sur la home (1/3 actives — QSE, TS, barre allégée et Export DOE définitifs hors liste ; admin allumé ici, pointage et profil éteints)
-await page.evaluate(()=>{window.TRACE.showScreen&&window.TRACE.showScreen('home');window.TRACE.renderHome&&window.TRACE.renderHome();});
+await page.evaluate(()=>{window.TRACE.showScreen&&window.TRACE.showScreen('home');window.TRACE.state.homeTab='list';window.TRACE.renderHome&&window.TRACE.renderHome();}); /* refonte 09/10 soir : le panneau Nouveautés vit sur l'espace Chantiers (l'accueil général est l'onglet par défaut) */
 await page.waitForTimeout(400);
 out=await page.evaluate(()=>{const b=document.getElementById('nextBtn');return {btn:!!b,txt:b?b.textContent:''};});
 console.log('6) bouton Nouveautés (home):',JSON.stringify(out));

@@ -1,0 +1,27 @@
+// captures de la maquette « accueil général + espaces » (app/maquette_accueil.html) : accueils par métier, pointage, documents à signer, Ma semaine, planning, large
+import { chromium } from 'playwright';
+const BASE=process.env.BASE||'http://localhost:8765';
+const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
+const ctx=await browser.newContext({viewport:{width:430,height:930}});const page=await ctx.newPage();
+const errs=[];page.on('pageerror',e=>errs.push(e.message+' | '+(e.stack||'').split('\n').slice(1,3).join(' | ')));page.on('console',m=>{if(m.type()==='error'&&!/404/.test(m.text()))errs.push(m.text().slice(0,200));});
+await page.goto(BASE+'/maquette_accueil.html');await page.waitForTimeout(600);await page.evaluate(()=>localStorage.clear());
+const who=async k=>{await page.evaluate(k=>{const s=document.getElementById('whoSel');s.value=k;s.dispatchEvent(new Event('change',{bubbles:true}));},k);await page.waitForTimeout(300);};
+const go=async h=>{await page.evaluate(h=>{location.hash=h;},h);await page.waitForTimeout(350);};
+const shot=async n=>{await page.screenshot({path:'shot_maq_'+n+'.png',fullPage:process.env.FULL==='1'});};
+await who('karim');await go('#/home');await shot('karim_home');
+await page.evaluate(()=>document.querySelector('[data-act=ptstart]').click());await page.waitForTimeout(1500);await shot('karim_pointe');
+await page.evaluate(()=>document.querySelector('[data-act=ptpause]').click());await page.waitForTimeout(400);
+const ptTxt=await page.evaluate(()=>document.querySelector('.ptbig').textContent);
+await page.evaluate(()=>document.querySelector('.prio[data-go^="/doc/"]').click());await page.waitForTimeout(400);await shot('karim_doc');
+await page.evaluate(()=>document.querySelector('[data-act=sign]').click());await page.waitForTimeout(400);
+const prioAfter=await page.evaluate(()=>[...document.querySelectorAll('.prio b')].map(b=>b.textContent));
+await go('#/espace');await page.evaluate(()=>{const d=[...document.querySelectorAll('.day')][1];d&&d.click();});await page.waitForTimeout(400);await shot('karim_semaine');
+await who('mehdi');await go('#/home');await shot('mehdi_home');
+await who('paul');await go('#/home');await shot('paul_home');await go('#/expl');await shot('paul_expl');await go('#/planning-moi');await shot('paul_planning');
+await go('#/valider');await page.evaluate(()=>{const b=document.querySelector('[data-set^="corr="]');b&&b.click();});await page.waitForTimeout(300);await shot('paul_valider');await go('#/prod');await shot('paul_prod');
+await go('#/annul');await shot('paul_annul');await page.evaluate(()=>{const b=document.querySelector('[data-go^="/chantier/caen#S-"]');b&&b.click();});await page.waitForTimeout(400);await shot('paul_soudure');
+await who('julie');await go('#/home');await shot('julie_home');await go('#/valider');await shot('julie_valider');await page.evaluate(()=>{const b=[...document.querySelectorAll('[data-set="vMode=pers"]')][0];b&&b.click();});await page.waitForTimeout(300);await shot('julie_valider_pers');await go('#/prod');await shot('julie_prod');await go('#/planning');await page.evaluate(()=>{const b=document.querySelector('.tray [data-act=plsel]');b&&b.click();});await page.waitForTimeout(200);await shot('julie_planning');await page.evaluate(()=>{const b=document.querySelector('.pl [data-act=pledit]');b&&b.click();});await page.waitForTimeout(300);await shot('julie_planning_edit');
+await who('ethan');await go('#/home');await shot('ethan_home');await go('#/heures');await shot('ethan_heures');
+await who('nadia');await go('#/home');await shot('nadia_home');await go('#/paie');await shot('nadia_paie');
+await page.setViewportSize({width:1280,height:900});await who('karim');await go('#/home');await shot('karim_home_large');
+console.log(JSON.stringify({ptTxt,prioAfter,errs}));await browser.close();

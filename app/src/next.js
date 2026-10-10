@@ -5,6 +5,8 @@ export const NEXTF=(()=>{try{return JSON.parse(localStorage.getItem('trace:next'
 export const nOn=k=>k==='ts'||k==='tabs'||k==='doe'||k==='admin'||!!NEXTF[k]; // ts et tabs : DÉFINITIFS depuis le 07/10 (Ethan : « mets ça en définitif », « rends définitif barre d'onglets allégée ») ; admin (Dossier administratif) : DÉFINITIF depuis le 09/10 (« passe le dossier administratif en définitif »)
 import {initScr,scrInject,scrRenderTab} from './scr.js';
 import {docHTML} from './charte.js'; // charte SCR des documents imprimés (09/10 soir)
+import {ACCUEIL_CHANTIER_Q} from './prevention.js';
+import {initAccueil,accueilStanding,accueilParcours,ficheAccueilHTML,controleNew,controleListHTML,controleOpen,controlesOf,controleNC} from './accueil.js'; // parcours d'accueil chantier + contrôle chantier (nuit 09→10/10)
 let A=null; // API fournie par app.js (state, NET, sync, openModal, toast, esc…)
 const FEATS=[
  // ['admin', …] : Dossier administratif DÉFINITIF depuis le 09/10 — onglet « Dossier » (droit dossier.edit) : DT / DICT, plans exé, qualifications, PGC, PPSPS, planning, habilitations, BL, accueil ; fichiers au serveur ; un BL importé au stock s'y classe tout seul.
@@ -19,7 +21,7 @@ const FEATS=[
 const BACKLOG=[
  ['Suites profils & pointage (SCR interne)','Les deux options sont codées (interrupteurs ci-dessus). Reste à cadrer : avantages liés aux points, pouces 👍 entre collègues, profils synchronisés (avatar et compteurs serveur plutôt que par appareil), lien pointage ↔ paie.'],
 ];
-export function initNext(api){A=api;initScr(api);
+export function initNext(api){A=api;initScr(api);initAccueil(api);
   injectViews();
   if(nOn('tabs'))lightTabs();
 }
@@ -36,8 +38,9 @@ export function nextBindHome(){const b=document.getElementById('nextBtn');if(b)b
   document.querySelectorAll('#modal [data-nextf]').forEach(cb=>cb.onchange=()=>{const o={...NEXTF};if(cb.checked)o[cb.dataset.nextf]=1;else delete o[cb.dataset.nextf];try{localStorage.setItem('trace:next',JSON.stringify(o));}catch(e){}location.reload();});};}
 // ---------- onglets / vues injectés ----------
 function injectViews(){const tb=document.getElementById('tabbar');const cont=document.querySelector('.view')?.parentElement;if(!tb||!cont)return;
-  const mk=(tab,label)=>{if(!tb.querySelector(`[data-tab="${tab}"]`)){const b=document.createElement('button');b.dataset.tab=tab;b.textContent=label;tb.insertBefore(b,tb.querySelector('[data-tab="liste"]')||tb.querySelector('[data-tab="recap"]'));}
+  const mk=(tab,label,first)=>{if(!tb.querySelector(`[data-tab="${tab}"]`)){const b=document.createElement('button');b.dataset.tab=tab;b.textContent=label;tb.insertBefore(b,first?tb.firstElementChild:(tb.querySelector('[data-tab="liste"]')||tb.querySelector('[data-tab="recap"]')));}
     if(!document.getElementById('view-'+tab)){const v=document.createElement('div');v.className='view';v.id='view-'+tab;v.innerHTML='<div class="pad" id="'+tab+'"></div>';cont.appendChild(v);}};
+  mk('bureau','Bureau',true); /* nuit 09→10/10 : le bureau du chantier, premier onglet — raccourcis, objectif du jour, accueil, checklist (encadrement) ; rien d'ancien ne bouge */
   if(nOn('admin'))mk('admin','Dossier');
   mk('qse','QSE');scrInject(mk);}
 function lightTabs(){const tb=document.getElementById('tabbar');if(!tb)return;
@@ -48,7 +51,27 @@ function lightTabs(){const tb=document.getElementById('tabbar');if(!tb)return;
       document.querySelectorAll('#modal [data-nmt]').forEach(x=>x.onclick=()=>{A.closeModal();A.state.tab=x.dataset.nmt;A.renderAll();});},true);
     tb.appendChild(b);}}
 // dispatch de renderAll pour les vues injectées
-export function nextRenderTab(tab){qseBadge();if(tab==='admin'&&nOn('admin')){renderAdmin();return true;}if(tab==='qse'){renderQse();return true;}if(scrRenderTab(tab))return true;return false;}
+export function nextRenderTab(tab){qseBadge();if(tab==='bureau'){renderBureau();return true;}if(tab==='admin'&&nOn('admin')){renderAdmin();return true;}if(tab==='qse'){renderQse();return true;}if(scrRenderTab(tab))return true;return false;}
+// ---------- BUREAU DU CHANTIER (nuit 09→10/10) ----------
+const TAB_LABELS={plan:['Plan d’ensemble','📐'],bouclage:['DH · bouclage','🔌'],hydro:['Hydraulique','🌊'],stock:['Stock & livraisons','🚚'],phasage:['Phasage','📅'],ts:['Modifs · TS','📄'],conv:['Conversation','💬'],qse:['QSE · accueils','⛑️'],admin:['Dossier administratif','🗂'],export:['Export DOE','📷'],liste:['Liste des soudures','🎖'],recap:['Récap','📊'],catalogue:['Catalogue','📦']};
+function renderBureau(){const el=document.getElementById('bureau');if(!el)return;const NET=A.net();const esc=A.esc;if(!NET||NET.id==='__vide'||!A.bureau){el.innerHTML='<h2 class="vt">Bureau</h2><div class="card muted">Aucun chantier.</div>';return;}
+  let B=null;try{B=A.bureau(NET.id);}catch(e){console.warn('bureau',e);}if(!B){el.innerHTML='<h2 class="vt">Bureau</h2><div class="card muted">Bureau indisponible.</div>';return;}
+  const f=B.fiche||{};const allowed=t=>!A.tabAllowed||A.tabAllowed(t);const tabs=Object.keys(TAB_LABELS).filter(t=>allowed(t)&&(t!=='admin'||nOn('admin'))&&document.querySelector(`#tabbar [data-tab="${t}"]`));
+  const chk=k=>k==='ok'?'<span class="ac-chk ok">✓</span>':k==='warn'?'<span class="ac-chk warn">!</span>':k==='bad'?'<span class="ac-chk bad">✗</span>':'<span class="ac-chk off">○</span>';
+  const tile=(t,lab,ic,sub,n,k)=>`<button class="ac-kt ac-dk ${k||''}" data-bur="${esc(t)}"><span class="ic">${ic}</span><span class="tx"><b>${esc(lab)}${n?` <span class="ac-n">${n}</span>`:''}</b>${sub?`<small>${esc(sub)}</small>`:''}</span>${k!==undefined?chk(k):''}</button>`;
+  const today=[];if(B.canSign&&!B.accueilDone&&B.isTerrain)today.push(`<button class="ac-notif bad" data-bur="__parcours"><span class="ic">🦺</span><span class="tx"><b>Mon accueil chantier n'est pas fait ici</b><small>PPSPS, 10 points, DICT, prévention, signature — avant de commencer</small></span><span class="chev">›</span></button>`);
+  if(B.qseTodo)today.push(`<button class="ac-notif bad" data-bur="qse"><span class="ic">✍️</span><span class="tx"><b>${B.qseTodo} document${B.qseTodo>1?'s':''} QSE à émarger</b><small>sur ce chantier</small></span><span class="chev">›</span></button>`);
+  if(B.objectifs.mine.length||B.objectifs.all.length){const L=B.objectifs.mine.length?B.objectifs.mine:B.objectifs.all;today.push(`<div class="ac-notif or" style="cursor:default"><span class="ic">🎯</span><span class="tx"><b>Objectif du jour · ${esc(B.objectifs.txt)}</b><small>${L.map(m=>esc(m.label)+' ('+(+m.h||0)+' h'+(m.who&&m.who.length?' · '+esc(m.who.join(', ')):'')+')'+(m.done?' ✓':'')).join(' · ')} — un repère, pas un plafond</small></span></div>`);}
+  if(B.tasks)today.push(`<button class="ac-notif or" data-bur="conv"><span class="ic">🚩</span><span class="tx"><b>${B.tasks} tâche${B.tasks>1?'s':''} pour toi</b><small>conversation du chantier</small></span><span class="chev">›</span></button>`);
+  if(B.unread)today.push(`<button class="ac-notif info" data-bur="conv"><span class="ic">💬</span><span class="tx"><b>${B.unread} message${B.unread>1?'s':''} non lu${B.unread>1?'s':''}</b><small>conversation du chantier</small></span><span class="chev">›</span></button>`);
+  el.innerHTML=`<h2 class="vt">Bureau — ${esc(NET.name||'')} <span class="hint">· ${esc(B.c.ville||f.ville||'')}${B.pc!==null?' · '+B.pc+' % soudé':''}</span></h2>
+    <div class="card"><div class="kv" style="font-size:12.5px"><span>${B.chef?'🦺 chef : '+esc(B.chef):'chef de chantier : —'}</span><span>${B.conducteur?'📋 conducteur : '+esc(B.conducteur):''}</span><span>${f.horaires?'🕗 '+esc(f.horaires):'horaires : voir le responsable d’exploitation'}</span><span>${f.rassemblement?'📍 rassemblement : '+esc(f.rassemblement):'rassemblement : base vie'}</span>${B.meteo?`<span>🌦 ${esc(B.meteo.label)} · ${B.meteo.t} °C${B.meteo.tenue?' · '+esc(B.meteo.tenue):''}</span>`:''}${B.eq.length?`<span>👥 aujourd'hui : ${esc(B.eq.join(', '))}</span>`:''}</div></div>
+    ${today.length?`<div class="ac-h"><b>Aujourd'hui</b><span>${today.length} point${today.length>1?'s':''}</span></div>${today.join('')}`:'<div class="okbox" style="margin:6px 0">✓ Rien n’attend de toi sur ce chantier aujourd’hui.</div>'}
+    ${B.dash?`<div class="ac-h"><b>Ce qui coince</b><span>${B.bad.length} bloquant${B.bad.length>1?'s':''} · ${B.warn.length} à surveiller</span></div>${(B.bad.concat(B.warn).slice(0,6)).map(x=>`<button class="ac-notif ${B.bad.includes(x)?'bad':'warn'}" data-bur="${esc(x.tab||'plan')}"><span class="tx"><b>${esc(x.lab)} — ${esc(x.v)}</b>${x.s?`<small>${esc(x.s)}</small>`:''}</span>${chk(B.bad.includes(x)?'bad':'warn')}</button>`).join('')||'<div class="ac-empty">✓ Rien ne coince.</div>'}
+      <div class="ac-h"><b>Checklist du chantier</b><span>✓ complet · ! manque · ✗ bloquant · ○ pas commencé</span></div><div class="ac-kgrid">${B.dash.map(d=>tile(d.tab||(d.key==='eq'?'__orga':d.key==='pt'?'__valid':'plan'),d.short||d.lab,d.ic,d.v,d.n,d.k)).join('')}</div>`:''}
+    <div class="ac-h"><b>Onglets du chantier</b><span>raccourcis</span></div><div class="ac-kgrid">${tabs.map(t=>tile(t,TAB_LABELS[t][0],TAB_LABELS[t][1],'',0)).join('')}</div>
+    <div class="hint" style="margin-top:10px">Le bureau regroupe ce qui attend quelqu'un sur ce chantier et les raccourcis vers chaque onglet. Les onglets, eux, ne changent pas.</div>`;
+  el.querySelectorAll('[data-bur]').forEach(b=>b.onclick=()=>{const t=b.dataset.bur;if(t==='__parcours'){qseStartParcours();return;}if(t==='__orga'){if(A.goExpl)A.goExpl('orga');return;}if(t==='__valid'){if(A.goExpl)A.goExpl('valid');return;}if(!allowed(t)){A.toast('Onglet non accessible avec tes droits');return;}A.state.tab=t;A.renderAll();});}
 // ---------- données ----------
 function adminOf(){const NET=A.net();if(!NET||NET.id==='__vide')return null;if(!NET.admin)NET.admin={docs:[]};NET.admin.docs=NET.admin.docs||[];return NET.admin;}
 function qseOf(){const NET=A.net();if(!NET||NET.id==='__vide')return null;if(!NET.qse)NET.qse={docs:[]};NET.qse.docs=NET.qse.docs||[];return NET.qse;}
@@ -84,12 +107,7 @@ export async function nextAdminAddFile(f,cat,extra){if(!f)return null;return adm
 export async function nextAdminAddBL(file,liv){if(!nOn('admin')||!file)return;const d0=await adminAddFile(file,'bl',{liv:liv&&liv.id,note:liv?('BL de « '+liv.label+' »'):''});
   if(d0)A.toast('BL classé au dossier administratif ('+file.name+')');}
 // ---------- QSE ----------
-export const ACCUEIL_Q=[ // PROVISOIRE — questions à remplacer par celles d'Ethan dès qu'il les envoie
- 'Le chantier, ses accès, la base vie et les zones de stockage ont été présentés.',
- 'Les risques propres au chantier (tranchées, levage, circulation, réseaux voisins) ont été expliqués.',
- 'Les EPI obligatoires (casque, chaussures, gilet, gants, lunettes) ont été rappelés.',
- 'La conduite à tenir en cas d’accident (secours, n° d’urgence, point de rassemblement) a été expliquée.',
- 'Le tri des déchets et les règles environnementales du chantier ont été présentés.'];
+export const ACCUEIL_Q=ACCUEIL_CHANTIER_Q; // les 10 points d'Ethan (09/10 soir) — src/prevention.js
 export const QUART_Q=['Le point sécurité du jour a été compris.','Les EPI du poste sont portés et en bon état.','Aucune situation dangereuse constatée non signalée.'];
 // documents que l'utilisateur courant DOIT émarger sur ce chantier (PDF déposés + accueil chantier, sauf si le chef a levé l'obligation ; les quarts d'heure ne sont pas obligatoires)
 const qseRequired=d0=>d0.required!==undefined?!!d0.required:(d0.type==='pdf'||d0.type==='accueil');
@@ -103,10 +121,13 @@ function renderQse(){const el=document.getElementById('qse');if(!el)return;const
   if(!q){el.innerHTML='<h2 class="vt">QSE</h2><div class="card muted">Aucun chantier.</div>';return;}
   const canEd=A.can?A.can('qse.manage'):(A.role()==='chef'||A.role()==='bureau');const todo=qseTodo();const me=A.userName();
   const T={accueil:'Accueil chantier',quart:'Quart d’heure sécurité',pdf:'Document à émarger'};
+  const accDone=qDocs(q).some(d0=>d0.type==='accueil'&&qseSignedBy(d0,me));const canSign=!A.can||A.can('qse.sign');const NET=A.net();
   el.innerHTML=`<h2 class="vt">QSE — ${esc(A.net().name||'')}</h2>
+   ${canSign&&!accDone?`<div class="card" style="border-color:#eb6834;background:#fff4ee"><b style="color:#9b3b12">🦺 ${esc(me)}, ton accueil chantier n'est pas fait ici</b><div class="hint" style="margin:4px 0 6px">PPSPS à dérouler, 10 points à valider (DICT, prévention), signature au doigt : 10 à 15 minutes, une fois par chantier. Ta fiche d'accueil est produite à la fin.</div><button class="btn primary block" id="qse-parcours">Faire mon accueil chantier →</button></div>`:canSign&&accDone?`<div class="okbox" style="margin-bottom:8px">✓ ${esc(me)} : accueil chantier fait sur ce chantier.</div>`:''}
    ${todo.length?`<div class="card" style="border-color:#d03b3b;background:#fdecec"><b style="color:#a01212">✍️ ${esc(me)}, il te reste ${todo.length} document${todo.length>1?'s':''} à émarger sur ce chantier</b><div class="hint" style="margin:4px 0 6px">Lis-les et signe au doigt : l'émargement vaut « j'ai pris connaissance ».</div>${todo.map(d0=>`<button class="btn block" data-qsignme="${d0.id}" style="margin-top:4px;justify-content:space-between"><span>${esc(d0.title||T[d0.type])}</span><span style="color:#d03b3b;font-weight:700">à émarger →</span></button>`).join('')}</div>`:qDocs(q).some(qseRequired)&&(!A.can||A.can('qse.sign'))?`<div class="okbox" style="margin-bottom:8px">✓ ${esc(me)} : tout est émargé sur ce chantier.</div>`:''}
    <div class="hint" style="margin-bottom:8px">Une tablette par chef : le document s'ouvre, on le lit ensemble, et chaque opérateur émarge au doigt. Chaque feuille s'imprime (émargements inclus). Les PDF déposés et l'accueil chantier sont à émarger par <b>tous</b> (pastille rouge sur l'onglet tant que ce n'est pas fait).</div>
-   ${canEd?`<div class="card" style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn primary" data-qnew="accueil">➕ Accueil chantier</button><button class="btn primary" data-qnew="quart">➕ Quart d’heure sécurité</button><label class="btn">📎 PDF à faire émarger (flash info…)<input type="file" id="qse-pdf" accept="application/pdf,image/*" style="display:none"></label></div>`:''}
+   ${canEd?`<div class="card" style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn primary" data-qnew="accueil">➕ Accueil chantier (séance)</button><button class="btn primary" data-qnew="quart">➕ Quart d’heure sécurité</button><button class="btn" id="qse-controle">📋 Contrôle chantier</button><label class="btn">📎 PDF à faire émarger (flash info…)<input type="file" id="qse-pdf" accept="application/pdf,image/*" style="display:none"></label></div>`:''}
+   ${controleListHTML(NET)}
    ${qDocs(q).length?qDocs(q).slice().reverse().map(d0=>{const mine=qseSignedBy(d0,me);const req=qseRequired(d0);return `<div class="card" style="cursor:pointer;${req&&!mine?'border-color:#e9a1a1':''}" data-qopen="${d0.id}"><b>${esc(d0.title||T[d0.type])}</b> <span class="hyChip" style="font-size:10.5px">${T[d0.type]||d0.type}</span>${req?(mine?' <span style="color:#0ca30c;font-size:11.5px;font-weight:700">✓ émargé</span>':' <span style="color:#d03b3b;font-size:11.5px;font-weight:700">● à émarger</span>'):' <span class="dim" style="font-size:11px">facultatif</span>'}<div class="kv" style="margin-top:4px;font-size:12px"><span>${dFR(d0.at)}</span><span>par ${esc(d0.by||'')}</span><span><b>${(d0.sigs||[]).length}</b> émargement${(d0.sigs||[]).length>1?'s':''}</span></div></div>`;}).join(''):'<div class="card muted">Rien pour l’instant : crée un accueil, un quart d’heure, ou dépose un PDF.</div>'}`;
   el.querySelectorAll('[data-qsignme]').forEach(b=>b.onclick=ev=>{ev.stopPropagation();const d0=q.docs.find(x=>x.id===b.dataset.qsignme);if(d0)qseSign(d0,me);});
   el.querySelectorAll('[data-qnew]').forEach(b=>b.onclick=()=>qseNew(b.dataset.qnew));
@@ -116,7 +137,16 @@ function renderQse(){const el=document.getElementById('qse');if(!el)return;const
       data=await new Promise(res=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>res(null);r.readAsDataURL(f);});}
     q.docs.push({id:qid(),type:'pdf',title:f.name.replace(/\.pdf$/i,''),url:url||undefined,data:data||undefined,by:A.userName(),at:new Date().toISOString(),sigs:[]});
     A.saveNet('qse');renderQse();A.toast('Document ajouté — ouvre-le pour les émargements');};
-  el.querySelectorAll('[data-qopen]').forEach(c2=>c2.onclick=()=>qseOpen(c2.dataset.qopen));}
+  el.querySelectorAll('[data-qopen]').forEach(c2=>c2.onclick=()=>qseOpen(c2.dataset.qopen));
+  const pb=document.getElementById('qse-parcours');if(pb)pb.onclick=()=>qseStartParcours();
+  const cb=document.getElementById('qse-controle');if(cb)cb.onclick=()=>controleNew();
+  el.querySelectorAll('[data-ctopen]').forEach(b=>b.onclick=()=>controleOpen(b.dataset.ctopen));
+  if(A.state.autoParcours){A.state.autoParcours=false;if(canSign&&!accDone)setTimeout(qseStartParcours,150);}}
+// parcours d'accueil : émarge le document « Accueil chantier » permanent du chantier (créé au besoin), puis propose la fiche d'accueil
+export function qseStartParcours(){const q=qseOf();if(!q)return;const esc=A.esc;const NET=A.net();const d0=accueilStanding(q,NET);if(!d0)return;
+  accueilParcours(d0,{after:sig=>{qseBadge();renderQse();A.openModal(`<h3 style="margin-top:0">Accueil chantier signé ✓</h3><div class="okbox">${esc(sig.name)} — ${esc(NET.name||'')} — ${new Date(sig.at).toLocaleDateString('fr-FR')}</div><div class="hint" style="margin:6px 0">La fiche d'accueil reprend les 10 points, le PPSPS, la DICT et les modules lus. Elle est aussi dans la feuille d'émargement du document « ${esc(d0.title)} ».</div><div class="actions"><button class="btn primary block" id="qse-fiche">🖨 Ma fiche d'accueil</button><button class="btn block" data-close>Fermer</button></div>`);
+    document.getElementById('qse-fiche').onclick=()=>{const w=window.open('','_blank');if(!w){A.toast('Autorise la fenêtre pop-up pour afficher la fiche');return;}w.document.write(ficheAccueilHTML(d0,sig,NET));w.document.close();};}});}
+export const qseAccueilDone=()=>{const q=qseOf();if(!q)return true;const me=A.userName();return qDocs(q).some(d0=>d0.type==='accueil'&&qseSignedBy(d0,me));};
 const qid=()=>'Q'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
 function qseNew(type){const q=qseOf();if(!q)return;
   if(type==='accueil'){const ad=adminOf();const pp=ad&&ad.docs.find(d0=>d0.cat==='ppsps');
@@ -135,11 +165,13 @@ function qseOpen(id){const q=qseOf();const d0=q&&q.docs.find(x=>x.id===id);if(!d
       <b style="font-size:12.5px">Questions</b><ul style="margin:4px 0;padding-left:18px;font-size:12.5px;line-height:1.7">${(d0.qs||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`;
   A.openModal(`<h3 style="margin-top:0">${esc(d0.title)}</h3><div class="kv" style="font-size:12px"><span>${dFR(d0.at)}</span><span>par ${esc(d0.by||'')}</span></div>${body}
    <b style="font-size:12.5px">Émargements (${(d0.sigs||[]).length})</b>
-   ${(d0.sigs||[]).length?`<table class="rc" style="margin-top:4px">${d0.sigs.map(s2=>`<tr><td>${esc(s2.name)}</td><td class="dim">${esc(s2.detail||'')}</td><td class="dim">${dhFR(s2.at)}</td><td>${s2.img?`<img src="${s2.img}" style="height:26px">`:''}</td></tr>`).join('')}</table>`:'<div class="hint">personne n’a encore signé</div>'}
+   ${(d0.sigs||[]).length?`<table class="rc" style="margin-top:4px">${d0.sigs.map((s2,i)=>`<tr><td>${esc(s2.name)}</td><td class="dim">${esc(s2.detail||'')}${s2.parcours?` <button class="btn sm" data-qfiche="${i}" style="padding:1px 6px;font-size:11px">fiche</button>`:''}</td><td class="dim">${dhFR(s2.at)}</td><td>${s2.img?`<img src="${s2.img}" style="height:26px">`:''}</td></tr>`).join('')}</table>`:'<div class="hint">personne n’a encore signé</div>'}
    ${canEd?`<label class="tgl" style="display:flex;gap:6px;align-items:center;margin-top:8px;font-size:12.5px"><input type="checkbox" id="qse-req" ${qseRequired(d0)?'checked':''}> Émargement obligatoire pour tous (pastille rouge tant que ce n'est pas fait)</label>`:''}
-   <div class="actions" style="margin-top:8px">${(A.can&&!A.can('qse.sign'))?'':!qseSignedBy(d0,A.userName())?`<button class="btn primary block" id="qse-signme">✍️ J'ai lu — j'émarge (${esc(A.userName())})</button>`:`<div class="okbox" style="margin:0 0 6px">✓ Tu as émargé ce document.</div>`}${canEd?`<button class="btn block" id="qse-sign">✍️ Émarger pour un autre opérateur (tablette du chef)</button>`:''}<button class="btn block" id="qse-print">🖨 Feuille d’émargement</button>${canEd?`<button class="btn block" id="qse-del" style="color:#d03b3b">Supprimer</button>`:''}<button class="btn block" data-close>Fermer</button></div>`);
+   <div class="actions" style="margin-top:8px">${(A.can&&!A.can('qse.sign'))?'':!qseSignedBy(d0,A.userName())?(d0.type==='accueil'?`<button class="btn primary block" id="qse-parcours2">🦺 Faire mon accueil chantier (PPSPS, 10 points, signature)</button>`:`<button class="btn primary block" id="qse-signme">✍️ J'ai lu — j'émarge (${esc(A.userName())})</button>`):`<div class="okbox" style="margin:0 0 6px">✓ Tu as émargé ce document.</div>`}${canEd?`<button class="btn block" id="qse-sign">✍️ Émarger pour un autre opérateur (tablette du chef)</button>`:''}<button class="btn block" id="qse-print">🖨 Feuille d’émargement</button>${canEd?`<button class="btn block" id="qse-del" style="color:#d03b3b">Supprimer</button>`:''}<button class="btn block" data-close>Fermer</button></div>`);
   const rq=document.getElementById('qse-req');if(rq)rq.onchange=()=>{d0.required=rq.checked;A.saveNet('qse');qseBadge();};
   const sm=document.getElementById('qse-signme');if(sm)sm.onclick=()=>qseSign(d0,A.userName());
+  const p2=document.getElementById('qse-parcours2');if(p2)p2.onclick=()=>{A.closeModal();accueilParcours(d0,{after:()=>{qseBadge();renderQse();qseOpen(d0.id);}});};
+  document.querySelectorAll('#modal [data-qfiche]').forEach(b=>b.onclick=()=>{const s2=d0.sigs[+b.dataset.qfiche];const w=window.open('','_blank');if(!w){A.toast('Autorise la fenêtre pop-up');return;}w.document.write(ficheAccueilHTML(d0,s2,A.net()));w.document.close();});
   const th=document.getElementById('qse-theme');if(th)th.onchange=()=>{d0.theme=th.value;A.saveNet('qse');};
   const po=document.getElementById('qse-points');if(po)po.onchange=()=>{d0.points=po.value;A.saveNet('qse');};
   const so=document.getElementById('qse-sign');if(so)so.onclick=()=>qseSign(d0);
