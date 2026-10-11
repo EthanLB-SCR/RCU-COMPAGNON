@@ -54,7 +54,7 @@ const b3=out.tab==='plan'&&out.ferm&&out.att&&out.violet&&out.deux;
 // ── C) ⑤ une INVERSION sur le trajet : le tracé change de fil (les 2 couleurs), le défaut est localisé sur le bon fil
 await page.evaluate(({L})=>{const T=window.TRACE;const J=T.lines[L].cond.A.joints;
   J[2].wire='raccorde';J[2].conn={E:'E',N:'N'};J[3].wire='inversion';J[3].conn={E:'N',N:'E'};J[4].wire='raccorde';J[4].conn={E:'E',N:'N'};T.closeSheet();T.renderAll();},{L});
-await page.click('#tabbar [data-tab=bouclage]');await page.waitForTimeout(500);
+await page.evaluate(()=>document.querySelector('#tabbar [data-tab=bouclage]').click());await page.waitForTimeout(500);
 await page.evaluate(()=>{document.querySelector('#loc-d').value='50';const w=document.querySelector('#loc-wire');if(w)w.value='E';});
 await page.click('#loc-go');await page.waitForTimeout(500);
 out=await page.evaluate(()=>{const r=window.TRACE.state.loc;return {ok:r&&r.ok,w:r&&r.seg&&r.seg.w,legs:r&&r.legs&&r.legs.length,d0:r&&r.legs&&r.legs[0].d0,d1:r&&r.legs&&r.legs[0].d1};});

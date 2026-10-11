@@ -20,7 +20,7 @@ const ids=await page.evaluate(()=>{const T=window.TRACE;const L=Object.values(T.
   d.temps[J[1].weldId]={by:'test',at:new Date().toISOString()};d.temps[J[5].weldId]={by:'test',at:new Date().toISOString()};
   T.renderAll();return {line:L.id,w1:J[1].weldId,w2:J[2].weldId,w5:J[5].weldId,idx2:J[2].idx,pk:L.cond.A.els[J[2].idx].m1};});
 console.log('réseau prêt:',JSON.stringify(ids));
-await page.click('#tabbar [data-tab=bouclage]');await page.waitForTimeout(600);
+await page.evaluate(()=>document.querySelector('#tabbar [data-tab=bouclage]').click());await page.waitForTimeout(600);
 // 1) choisir le point de mesure joints[2] → deux directions FERMÉES, deux R différents
 await page.evaluate(({line,idx2})=>{const tr=document.querySelector(`#dh-rows tr[data-line="${line}"][data-idx="${idx2}"]`);tr.click();},{line:ids.line,idx2:ids.idx2});
 await page.waitForTimeout(500);
@@ -73,7 +73,7 @@ out=await page.evaluate(({line,idx2})=>{const g=document.querySelector('#dhG');c
 console.log('3c) trajet depuis le manchon, badge M SUR la conduite:',JSON.stringify(out));
 const c3c=out.M&&out.cote&&out.lab&&out.trajet&&out.dM<0.5;
 // 4) fiche soudure joints[2] : 4 sous-étapes + attendu au testeur (les 2 boucles)
-await page.click('#tabbar [data-tab=plan]');await page.waitForTimeout(300);
+await page.evaluate(()=>document.querySelector('#tabbar [data-tab=plan]').click());await page.waitForTimeout(300);
 await page.evaluate(({line,idx2})=>{const T=window.TRACE;const L=T.lines[line];const i=L.cond.A.joints.findIndex(j=>j.idx===idx2);T.openJoint(line,'A',i);},{line:ids.line,idx2:ids.idx2});
 await page.waitForTimeout(500);
 out=await page.evaluate(()=>{const sh=document.querySelector('#sheet');return {steps:sh.querySelectorAll('.dstep').length,attendu:/Attendu au testeur ici/.test(sh.textContent),deuxVals:(sh.textContent.match(/Ω \((amont|aval)/g)||[]).length,btn1:!!sh.querySelector('[data-stepok="1"]')};});

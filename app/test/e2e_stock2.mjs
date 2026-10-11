@@ -14,7 +14,7 @@ await page.click('#bSave');await page.waitForTimeout(200);await page.fill('#svNa
 await page.click('#svGo');await page.waitForTimeout(1500);await page.selectOption('#roleSel','ethan');await page.waitForTimeout(300);
 const L=await page.evaluate(()=>Object.values(window.TRACE.lines).find(l=>!l.parent).id);
 // ── 1) catalogue : un manchon DN100 → la mousse DN100 suit toute seule, Ø gaine affiché, DATE saisie conservée après re-render
-await page.click('#tabbar [data-tab=stock]');await page.waitForTimeout(400);
+await page.evaluate(()=>document.querySelector('#tabbar [data-tab=stock]').click());await page.waitForTimeout(400);
 await page.click('#stk-new');await page.waitForTimeout(300);
 await page.fill('#stk-date','2026-08-28');
 await page.selectOption('#stk-kind','sleeve');await page.waitForTimeout(150);
@@ -67,7 +67,7 @@ await page.evaluate(()=>{const m=document.querySelector('#modal [data-close]');i
 // ── 5) besoin par DN dans le récap (Mousse PU DN100), et moussage étape 4 : mousse du DN + repli générique
 await page.evaluate(()=>{const s=window.TRACE.net.stock; // un vieux stock de mousse SANS DN quelque part : il doit dépanner
   s.lots.push({id:'OLD1',liv:null,zone:s.zones[0].id,key:'pu:',label:'Mousse PU (A+B)',kind:'pu',qty:3});window.TRACE.renderAll();});
-await page.click('#tabbar [data-tab=stock]');await page.waitForTimeout(400);
+await page.evaluate(()=>document.querySelector('#tabbar [data-tab=stock]').click());await page.waitForTimeout(400);
 await page.evaluate(()=>{[...document.querySelectorAll('#stock details')].forEach(d=>d.open=true);});
 out=await page.evaluate(()=>{const t=document.querySelector('#stock').textContent;return {dn:/Mousse PU \(A\+B\) DN100/.test(t),gen:/Mousse PU \(A\+B\)(?! DN)/.test(t)};});
 console.log('5a) récap : mousse par DN + ligne générique à part:',JSON.stringify(out));

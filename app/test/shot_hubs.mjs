@@ -1,0 +1,16 @@
+import { chromium } from 'playwright';
+const BASE='http://localhost:8765';
+const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
+const ctx=await browser.newContext({viewport:{width:430,height:1000},deviceScaleFactor:2});const page=await ctx.newPage();
+const errs=[];page.on('pageerror',e=>errs.push(e.message));
+const wait=ms=>page.waitForTimeout(ms);
+await page.clock.install({time:new Date(2026,9,9,8,30,0)});
+await page.goto(BASE+'/index.html');await wait(600);await page.evaluate(()=>{localStorage.clear();});await page.reload();await wait(1200);const s=await page.$('#loginSkip');if(s&&await s.isVisible())await s.click();await wait(700);
+await page.evaluate(()=>{const T=window.TRACE;T.state.userId='ethan';T.renderHome();document.getElementById('htExpl').click();});await wait(500);
+await page.screenshot({path:'/root/repo/app/test/shot_hub_equipes.png'});
+await page.evaluate(()=>{document.getElementById('htEnt').click();});await wait(500);
+await page.screenshot({path:'/root/repo/app/test/shot_hub_entreprise.png'});
+await page.evaluate(()=>{[...document.querySelectorAll('#eq-app .ac-row')].find(x=>/Affaires/.test(x.textContent)).click();});await wait(400);
+const t=await page.evaluate(()=>({back:(document.querySelector('#eq-app .ac-back')||{}).textContent,h2:(document.querySelector('#eq-app h2.vt')||{}).textContent,tab:[...document.querySelectorAll('#homeTabs button')].filter(b=>b.classList.contains('on')).map(b=>b.id)}));
+console.log(JSON.stringify(t),errs);
+await browser.close();

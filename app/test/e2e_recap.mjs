@@ -9,7 +9,7 @@ await page.evaluate(()=>{const S=window.MAQ.state;S.lines=[{id:'L1',name:'Feeder
 await page.click('#bSave');await page.waitForTimeout(200);await page.fill('#svName','Recap test');await page.click('#svOk');await page.waitForTimeout(800);await page.click('#svGo');await page.waitForTimeout(1500);
 // quelques statuts
 await page.evaluate(()=>{const T=window.TRACE;const js=T.allJoints();js.slice(0,6).forEach(x=>x.j.status='soudee');js.slice(6,9).forEach(x=>x.j.status='manchonnee');js.slice(9,10).forEach(x=>x.j.status='a_reprendre');});
-await page.click('#tabbar [data-tab=recap]');await page.waitForTimeout(400);
+await page.evaluate(()=>document.querySelector('#tabbar [data-tab=recap]').click());await page.waitForTimeout(400);
 const out=await page.evaluate(()=>{const el=document.querySelector('#recap');return {kpis:[...el.querySelectorAll('.kpi')].map(k=>k.textContent.trim().replace(/\s+/g,' ')),tables:el.querySelectorAll('table.rc').length,dnRows:[...el.querySelectorAll('table.rc')][0].querySelectorAll('tr').length,pieces:[...[...el.querySelectorAll('table.rc')][2].querySelectorAll('tr')].slice(1,8).map(r=>r.textContent.trim().replace(/\s+/g,' ')),manchons:[...[...el.querySelectorAll('table.rc')][3].querySelectorAll('tr')].slice(1).map(r=>r.textContent.trim().replace(/\s+/g,' '))};});
 console.log(JSON.stringify(out,null,1));
 await page.screenshot({path:new URL('./e2e_recap.png',import.meta.url).pathname,fullPage:true});

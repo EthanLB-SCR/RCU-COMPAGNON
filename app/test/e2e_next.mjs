@@ -33,7 +33,7 @@ console.log('2a) plan : ligne TS hachurée + badge:',JSON.stringify(out));
 out.eye=await page.evaluate(()=>{const T=window.TRACE;T.state.show.ts=false;T.renderPlan();const off=document.getElementById('tsG').innerHTML.length;T.state.show.ts=true;T.renderPlan();const on=document.getElementById('tsG').innerHTML.includes('TS-01');const d=document.getElementById('disp');const lbl=d&&[...d.querySelectorAll('label')].some(l=>/hors marché/.test(l.textContent));return {off,on,lbl:lbl||!d};});
 console.log('2a\') case 👁 TS / hors marché (off → vide, on → hachures):',JSON.stringify(out.eye));
 const c2a=out.ts&&out.dash&&out.eye.off===0&&out.eye.on;
-await page.click('#tabbar [data-tab=ts]');await page.waitForTimeout(500);
+await page.evaluate(()=>document.querySelector('#tabbar [data-tab=ts]').click());await page.waitForTimeout(500);
 out=await page.evaluate(()=>{const el=document.getElementById('tsview');return {bloc:/Modifications/.test(el.textContent),ts:/TS-01/.test(el.textContent),btns:el.querySelectorAll('[data-tsst]').length};});
 console.log('2b) onglet TS + boutons d\'état:',JSON.stringify(out));
 const c2b=out.bloc&&out.ts&&out.btns>=4;
@@ -43,7 +43,7 @@ out=await page.evaluate(()=>{const l=Object.values(window.TRACE.lines).find(x=>x
 console.log('2c) bascule proposé → commandé (persistée):',JSON.stringify(out));
 const c2c=out.etat==='commande'&&out.net==='commande';
 // ── 3) Dossier administratif : dépôt d'un PDF (hors connexion → gardé dans l'appli), listé, BL croisé au stock
-await page.click('#tabbar [data-tab=admin]');await page.waitForTimeout(500);
+await page.evaluate(()=>document.querySelector('#tabbar [data-tab=admin]').click());await page.waitForTimeout(500);
 await page.evaluate(()=>{document.getElementById('adm-cat').value='ppsps';});
 await page.setInputFiles('#adm-file', new URL('./bl/axiom.pdf',import.meta.url).pathname);await page.waitForTimeout(900);
 out=await page.evaluate(()=>{const ad=window.TRACE.net.admin;const el=document.getElementById('admin');
@@ -51,7 +51,7 @@ out=await page.evaluate(()=>{const ad=window.TRACE.net.admin;const el=document.g
 console.log('3) PPSPS déposé au dossier (hors connexion : gardé dans l\'appli):',JSON.stringify(out));
 const c3=out.n===1&&out.cat==='ppsps'&&out.data&&out.listed;
 // ── 4) QSE (10/10) : l'accueil chantier PERMANENT voit le PPSPS du dossier (plus de « séance ») ; un PDF déposé sur le chantier s'émarge au doigt (tablette du chef) ; feuille imprimable
-await page.click('#tabbar [data-tab=qse]');await page.waitForTimeout(500);
+await page.evaluate(()=>document.querySelector('#tabbar [data-tab=qse]').click());await page.waitForTimeout(500);
 out=await page.evaluate(()=>{const t=document.getElementById('qse').textContent;return {acc:!!document.getElementById('qse-acc'),ppsps:/PPSPS au dossier : « axiom\.pdf »/.test(t),ext:!!document.getElementById('qse-accext'),qnew:document.querySelectorAll('#qse [data-qnew]').length,qhs:/Quart d'heure sécurité du jour/.test(t)};});
 console.log('4a) accueil chantier permanent — PPSPS du dossier rattaché, plus de séance :',JSON.stringify(out));
 const c4a=out.acc&&out.ppsps&&out.ext&&out.qnew===0&&out.qhs;

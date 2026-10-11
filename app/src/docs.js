@@ -57,7 +57,7 @@ export async function mountPdfReader(file,host,alt,btn,onRead){const url=file.ur
     readGate(host,btn,()=>onRead('pdfjs'));}
   catch(e){console.warn('PDF',e);fallback();}}
 /* ── ouverture d'un document : lecture (règlement, note) ou questionnaire (accueil entreprise), puis signature ── */
-export function docOpen(docId,acc){const d=docById(docId);if(!d||!A)return;acc=acc||A.current();const key=docKey(acc);const mine=docSig(d.id,key);const ro=A.viewing&&A.viewing();
+export function docOpen(docId,acc){const d=docById(docId);if(!d||!A)return;acc=acc||A.current();const key=docKey(acc);const mine=docSig(d.id,key);const act=!!(A.acting&&A.acting());const ro=(A.viewing&&A.viewing())||act; /* 12/10 : « agir comme » fait tout… sauf signer à la place de la personne (attestation personnelle) */
   const isQ=Array.isArray(d.qs)&&d.qs.length;const name=acc?(acc.name||acc.email||''):'';const pdf=!isQ&&isPdfDoc(d);
   const body=isQ
     ?`<div class="dr-q">${d.intro?`<p class="hint">${esc(d.intro)}</p>`:''}${d.qs.map((q,i)=>`<label class="dr-qi"><input type="checkbox" data-q="${i}" ${mine?'checked disabled':''}><span><b>${i+1}</b> ${esc(q)}</span></label>`).join('')}</div>`
@@ -65,7 +65,7 @@ export function docOpen(docId,acc){const d=docById(docId);if(!d||!A)return;acc=a
     :`<div class="dr-body" id="dr-body"><div class="dr-doc">${d.html||'<p>(document vide)</p>'}</div></div>`;
   A.openModal(`<h3 style="margin-top:0">${esc(d.title)} <span class="hint">· ${esc(KINDS[d.kind]||d.kind)}${d.version?' · '+esc(d.version):''}</span></h3>
    ${body}
-   ${mine?`<div class="okbox" style="margin-top:8px">✓ Signé par ${esc(mine.name||name)} le ${dhFR(mine.at)}.</div>`:ro?'<div class="warnbox" style="margin-top:8px">Lecture seule : tu regardes l\'appli comme quelqu\'un d\'autre.</div>':
+   ${mine?`<div class="okbox" style="margin-top:8px">✓ Signé par ${esc(mine.name||name)} le ${dhFR(mine.at)}.</div>`:ro?`<div class="warnbox" style="margin-top:8px">${act?`La signature est <b>personnelle</b> : ${esc(name)} signe lui-même (sur son téléphone, ou sur le tien depuis son compte). Tu agis comme lui pour tout le reste.`:'Lecture seule : tu regardes l\'appli comme quelqu\'un d\'autre.'}</div>`:
      `<div id="dr-step1" style="margin-top:8px"><button class="btn block" id="dr-read" data-ok="${isQ?'✓ Tous les points sont confirmés — je signe':'✓ J\'ai lu en entier — je signe'}" disabled>${isQ?'Confirme chaque point pour pouvoir signer':pdf?'Déroule le document jusqu\'à la dernière page':'Déroule jusqu\'en bas pour pouvoir signer'}</button></div>
       <div id="dr-step2" style="display:none;margin-top:8px"><div class="okbox" style="margin:0 0 6px">Tu signes en tant que <b>${esc(name)}</b>.</div>${sigPadHTML('dr-pad')}<div class="actions" style="margin-top:8px"><button class="btn primary block" id="dr-ok">Valider ma signature</button><button class="btn block" id="dr-clear">Effacer le trait</button></div></div>`}
    <div class="actions" style="margin-top:8px"><button class="btn block" data-close>Fermer</button></div>`);

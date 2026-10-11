@@ -14,13 +14,16 @@ export const ROUTE_FACTOR=1.25;
 export const kmRoute=km=>Math.round(km*ROUTE_FACTOR);
 export const minutesRoute=km=>Math.round(kmRoute(km)/70*60); /* 70 km/h de moyenne */
 export function gdCase(kmVol){const km=kmRoute(kmVol);return GD_CAS.find(c=>km<=c.max)||GD_CAS[3];}
-// semaine type (dim → sam) d'un cas, pour la semaine ISO donnée ; cas 3 / 4 : cycle S1…S4 selon le n° de semaine (hypothèse)
-export function gdWeek(cas,weekNo){if(!cas.weeks)return null;const w=cas.weeks[cas.weeks.length===1?0:((weekNo||1)-1)%4];return w;}
-// indemnités de la semaine : jours planifiés (tableau de booléens lun→ven) ; sans planning : semaine complète
-export function gdSemaine(cas,weekNo,joursPlanifies){const w=gdWeek(cas,weekNo);if(!w)return {cas:cas.n,nuits:0,repas:0,ar:0,eur:0,jours:0};
+// semaine type (dim → sam) d'un cas, à la POSITION donnée dans le cycle de la personne (12/10, Ethan : « N déplacements d'affilée puis détente » — le cycle
+// se compte par personne : semaines consécutives en déplacement, remis à zéro par une détente ; plus le n° de semaine du calendrier)
+export const GD_CYCLE={3:2,4:4}; /* cas 3 : 2 semaines (pleine, puis retour vendredi = détente 2 j) ; cas 4 : 4 semaines (3 pleines, puis retour jeudi = détente 3 j) */
+export function gdWeek(cas,idx){if(!cas.weeks)return null;const N=GD_CYCLE[cas.n]||1;const w=cas.weeks[cas.weeks.length===1?0:((+idx||0)%N+N)%N];return w;}
+export const gdDetenteIdx=cas=>(GD_CYCLE[cas.n]||1)-1; /* position « détente » du cycle */
+// indemnités de la semaine : idx = position dans le cycle de la personne ; jours planifiés (tableau de booléens lun→ven) ; sans planning : semaine complète
+export function gdSemaine(cas,idx,joursPlanifies){const w=gdWeek(cas,idx);if(!w)return {cas:cas.n,nuits:0,repas:0,ar:0,eur:0,jours:0};const N=GD_CYCLE[cas.n]||1;const i=((+idx||0)%N+N)%N;
   const jp=Array.isArray(joursPlanifies)&&joursPlanifies.length===5?joursPlanifies:[true,true,true,true,true];const n=jp.filter(Boolean).length;
   const full={nuits:w.nuit.reduce((a,b)=>a+b,0),repas:w.repas.reduce((a,b)=>a+b,0),ar:w.ar.reduce((a,b)=>a+b,0)};
-  const k=n/5;const out={cas:cas.n,jours:n,nuits:Math.round(full.nuits*k),repas:Math.round(full.repas*k),ar:n?full.ar:0,full};out.eur=Math.round(out.ar*cas.ar*100)/100;return out;}
+  const k=n/5;const out={cas:cas.n,jours:n,nuits:Math.round(full.nuits*k),repas:Math.round(full.repas*k),ar:n?full.ar:0,full,idx:i,cycle:N,detente:N>1&&i===N-1};out.eur=Math.round(out.ar*cas.ar*100)/100;return out;}
 /* ── ancienneté & médailles ── */
 export const PALIERS=[5,10,15,20,25,30,35,40];
 export function anciennete(entree,ref){if(!entree)return null;const d=new Date(entree);if(isNaN(d))return null;const now=ref?new Date(ref):new Date();let y=now.getFullYear()-d.getFullYear();const m=now.getMonth()-d.getMonth();if(m<0||(m===0&&now.getDate()<d.getDate()))y--;

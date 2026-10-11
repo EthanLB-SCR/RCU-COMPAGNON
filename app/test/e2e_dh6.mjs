@@ -19,7 +19,7 @@ const ids=await page.evaluate(()=>{const T=window.TRACE;const L1=Object.values(T
   return {l1:L1.id,l2:L2.id,total:L1.length};});
 console.log('réseau prêt (antenne en série au té):',JSON.stringify(ids));
 // 1) branché au départ sur le NU (celui qui plonge dans l'antenne), 120 m : le défaut est APRÈS l'antenne, sur L1
-await page.click('#tabbar [data-tab=bouclage]');await page.waitForTimeout(500);
+await page.evaluate(()=>document.querySelector('#tabbar [data-tab=bouclage]').click());await page.waitForTimeout(500);
 await page.evaluate(()=>{document.querySelector('#loc-d').value='120';document.querySelector('#loc-wire').value='N';});
 await page.click('#loc-go');await page.waitForTimeout(500);
 let out=await page.evaluate(({l1})=>{const r=window.TRACE.state.loc;return {ok:r&&r.ok,line:r&&r.line,w:r&&r.seg&&r.seg.w,total:r&&r.total};},ids);
@@ -34,7 +34,7 @@ out=await page.evaluate(({l2})=>{const g=document.querySelector('#dhG');const h=
 console.log('2) plongée visible dans l\'antenne + jonctions:',JSON.stringify(out));
 const c2=out.tab==='plan'&&out.rouge&&out.surL2>=2&&out.surL1>=2&&out.joints>=2&&out.cote; // aller + retour dans L2, L1 des deux côtés, ≥2 jonctions visibles au té (le bout d'antenne est hors vue à ce zoom → il suit l'axe, pas de jonction à dessiner)
 // 3) défaut DANS l'antenne (70 m = 20 m après l'entrée) : le point est posé sur L2, trajet tronqué à l'aller
-await page.click('#tabbar [data-tab=bouclage]');await page.waitForTimeout(400);
+await page.evaluate(()=>document.querySelector('#tabbar [data-tab=bouclage]').click());await page.waitForTimeout(400);
 await page.evaluate(()=>{document.querySelector('#loc-d').value='70';document.querySelector('#loc-wire').value='N';});
 await page.click('#loc-go');await page.waitForTimeout(400);
 out=await page.evaluate(({l2})=>{const r=window.TRACE.state.loc;return {line:r&&r.line,kind:r&&r.seg&&r.seg.kind,ant:/antenne/.test((r&&r.where)||'')};},ids);
@@ -46,7 +46,7 @@ out=await page.evaluate(({l2})=>{const g=document.querySelector('#dhG');const wt
 console.log('4) trajet tronqué au défaut dans l\'antenne:',JSON.stringify(out));
 const c4=out.surL2>=1&&out.defaut;
 // 5) sur le PLAN : au té, le fil concerné (AXIOM : le cuivré) PLONGE dans la branche — plus les deux tout droit
-await page.click('#tabbar [data-tab=plan]');await page.waitForTimeout(400);
+await page.evaluate(()=>document.querySelector('#tabbar [data-tab=plan]').click());await page.waitForTimeout(400);
 await page.evaluate(()=>{const T=window.TRACE;T.centerOn(60,52,20);});await page.waitForTimeout(500); // les fils ne se dessinent qu'à partir de 15 px/m
 out=await page.evaluate(()=>{const dives=[...document.querySelectorAll('[data-wtee]')];
   return {n:dives.length,cuivre:dives.every(p2=>p2.getAttribute('stroke')==='#e2843a')};});

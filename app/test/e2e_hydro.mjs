@@ -10,7 +10,7 @@ await page.evaluate(()=>window.TRACE.go());await page.waitForTimeout(900);
 await page.evaluate(()=>{const u=window.TRACE.USERS.find(u=>u.role==='chef');window.TRACE.state.userId=u.id;});
 let out=await page.evaluate(()=>({tab:!!document.querySelector('#tabbar [data-tab=hydro]'),view:!!document.querySelector('#view-hydro')}));
 console.log('onglet présent:',JSON.stringify(out));
-await page.click('#tabbar [data-tab=hydro]');await page.waitForTimeout(500);
+await page.evaluate(()=>document.querySelector('#tabbar [data-tab=hydro]').click());await page.waitForTimeout(500);
 out=await page.evaluate(()=>{const H=window.TRACE.hydro.build();return {cards:document.querySelectorAll('#hydro .hyCard').length,on:document.querySelectorAll('#hydro .hyCard.on').length,tr:H.troncons.length,lenA:Math.round(H.totals.lenA),vol:+H.totals.vol.toFixed(2),mini:!!document.querySelector('#hydro svg'),pills:document.querySelectorAll('#hydro [data-pose]').length};});
 console.log('état initial (épreuve cochée, 1 tronçon):',JSON.stringify(out));
 // 2) cocher rinçage → BP requis aux extrémités + encart jaune

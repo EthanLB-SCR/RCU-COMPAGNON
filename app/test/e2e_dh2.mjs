@@ -13,7 +13,7 @@ await page.click('#bSave');await page.waitForTimeout(200);await page.fill('#svNa
 await page.click('#svGo');await page.waitForTimeout(1500);await page.selectOption('#roleSel','ethan');await page.waitForTimeout(300);
 // tout raccorder (fils droits) pour avoir une boucle continue
 await page.evaluate(()=>{const T=window.TRACE;Object.values(T.lines).forEach(l=>['A','R'].forEach(c=>{const cd=l.cond[c];if(!cd)return;cd.joints.forEach(j=>{j.status='manchonnee';j.wire='raccorde';j.conn={E:'E',N:'N'};});}));T.renderAll();});
-await page.click('#tabbar [data-tab=bouclage]');await page.waitForTimeout(600);
+await page.evaluate(()=>document.querySelector('#tabbar [data-tab=bouclage]').click());await page.waitForTimeout(600);
 // 1) fil par défaut AXIOM = cuivré (nu) dans la branche ; piquages non déclarés signalés
 let out=await page.evaluate(()=>{const el=document.querySelector('#bouclage');return {autoLab:document.querySelector('#dh-antwire option[value=auto]')?.textContent.trim().slice(0,30),piqWarn:/piquage/i.test(el.textContent)&&/sans état DH/.test(el.textContent),tol:!!document.querySelector('#dh-tol'),piql:!!document.querySelector('#dh-piql')};});
 console.log('AXIOM auto=cuivré + piquages à déclarer:',JSON.stringify(out));
@@ -44,7 +44,7 @@ await page.click('[data-act=dh-temp]');await page.waitForTimeout(400);
 out=await page.evaluate(()=>({temps:Object.keys(window.TRACE.net.dhData.temps),btn:document.querySelector('[data-act=dh-temp]')?.textContent.includes('retirer')}));
 console.log('bouclage temporaire posé:',JSON.stringify(out));
 await page.evaluate(()=>{document.querySelector('[data-act=close]')?.click();});
-await page.click('#tabbar [data-tab=bouclage]');await page.waitForTimeout(500);
+await page.evaluate(()=>document.querySelector('#tabbar [data-tab=bouclage]').click());await page.waitForTimeout(500);
 out=await page.evaluate(()=>{const el=document.querySelector('#bouclage');return {ferme:/FERMÉE par le/.test(el.textContent)&&/bouclage temporaire/.test(el.textContent),chip:!!el.querySelector('[data-rmtemp]'),icone:/⟲/.test(el.querySelector('#dh-rows').textContent)};});
 console.log('boucle fermée au pont ⟲:',JSON.stringify(out));
 // 5) mesure : choisir un point, comparer avec tolérance, isolement bas → localisation → voir sur le plan (trajet+cote+zone)

@@ -45,8 +45,8 @@ console.log('2c) manchonneur : pas l\'étape ① (soudure), mais la ②+ :',JSON
 // ── 3) onglet Administrateur (Ethan) : Personnes — création d'un accès intérimaire limité à un chantier, recherche, filtres, ajustement, visiteur, ★
 await page.selectOption('#roleSel','ethan');await page.waitForTimeout(200);
 await page.evaluate(()=>{window.TRACE.showScreen('home');window.TRACE.renderHome();});await page.waitForTimeout(400);
-out=await page.evaluate(()=>({tab:document.querySelector('#htAdmin').style.display!=='none'}));
-await page.click('#htAdmin');await page.waitForTimeout(600);
+out=await page.evaluate(()=>({tab:document.querySelector('#htAdmin').style.display==='none'&&window.TRACE.acces.isAdmin()})); /* 12/10 : plus d'onglet, l'administration vit dans Entreprise → Outils (admin seulement) */
+await page.evaluate(()=>document.getElementById('htAdmin').click()); /* 12/10 : l'onglet Administration est caché (Entreprise → Outils), le bouton reste un raccourci */await page.waitForTimeout(600);
 out.view=await page.evaluate(()=>({title:/Administrateur/.test(body()),nav:document.querySelectorAll('#homeBody .admNav button').length,newBtn:!!document.querySelector('#admNew'),bulk:!!document.querySelector('#admBulk'),q:!!document.querySelector('#admQ'),hors:/Hors serveur/.test(body()),nextHidden:!document.querySelector('#homeNext')||document.querySelector('#homeNext').style.display==='none'}));
 console.log('3a) onglet ⚙ :',JSON.stringify(out));C.c3a=out.tab&&out.view.title&&out.view.nav===4/* Personnes, Postes, Qui peut quoi, Bac à sable (10/10) */&&out.view.newBtn&&out.view.bulk&&out.view.q&&out.view.hors&&out.view.nextHidden;
 await page.click('#admNew');await page.waitForTimeout(300);
@@ -140,7 +140,7 @@ await page.evaluate(()=>{window.TRACE.showScreen('home');window.TRACE.renderHome
 out=await page.evaluate(()=>({btn:!!document.querySelector('#homeWide'),wide0:document.querySelector('#app').classList.contains('wide')}));
 await page.click('#homeWide');await page.waitForTimeout(300);
 out.on=await page.evaluate(()=>({wide:document.querySelector('#app').classList.contains('wide'),saved:localStorage.getItem('trace:wide'),w:document.querySelector('#app').getBoundingClientRect().width}));
-await page.selectOption('#roleSel','ethan');await page.waitForTimeout(200);await page.evaluate(()=>window.TRACE.renderHome());await page.waitForTimeout(200);await page.click('#htAdmin');await page.waitForTimeout(600);
+await page.selectOption('#roleSel','ethan');await page.waitForTimeout(200);await page.evaluate(()=>window.TRACE.renderHome());await page.waitForTimeout(200);await page.evaluate(()=>document.getElementById('htAdmin').click()); /* 12/10 : l'onglet Administration est caché (Entreprise → Outils), le bouton reste un raccourci */await page.waitForTimeout(600);
 out.grid=await page.evaluate(()=>getComputedStyle(document.querySelector('#admList')).display);
 await page.reload();await page.waitForTimeout(1500);
 out.reload=await page.evaluate(()=>document.querySelector('#app').classList.contains('wide'));

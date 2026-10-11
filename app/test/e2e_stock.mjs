@@ -19,7 +19,7 @@ await page.click('#svGo');await page.waitForTimeout(1600);
 await page.evaluate(()=>history.replaceState(null,'',location.href+(location.search?'&':'?')+'pdfjs=/pdfjs/')); // moteur PDF servi localement (CDN bloqué dans le conteneur), sans recharger
 await page.selectOption('#roleSel','ethan');await page.waitForTimeout(300);
 // 1) onglet Stock : vide + bouton nouvelle livraison
-await page.click('#tabbar [data-tab=stock]');await page.waitForTimeout(400);
+await page.evaluate(()=>document.querySelector('#tabbar [data-tab=stock]').click());await page.waitForTimeout(400);
 let out=await page.evaluate(()=>({tab:!!document.querySelector('#view-stock.active'),btn:!!document.querySelector('#stk-new'),vide:/Aucune zone/.test(document.querySelector('#stock').textContent)}));
 console.log('1) onglet Stock présent:',JSON.stringify(out));
 const c1=out.tab&&out.btn&&out.vide;
@@ -58,7 +58,7 @@ out=await page.evaluate(()=>{const s=window.TRACE.net.stock;const t=s.takes[0];r
 console.log('5b) prélèvement enregistré:',JSON.stringify(out));
 const c5b=out.takes===1&&out.zone==='Z1'&&out.key==='pipe:100';
 await page.evaluate(()=>window.TRACE.closeSheet());await page.waitForTimeout(250);
-await page.click('#tabbar [data-tab=stock]');await page.waitForTimeout(400);
+await page.evaluate(()=>document.querySelector('#tabbar [data-tab=stock]').click());await page.waitForTimeout(400);
 out=await page.evaluate(()=>{const tr=[...document.querySelectorAll('#stock table tr')].find(r=>/Barre 12 m DN100/.test(r.textContent));const td=tr?[...tr.children].map(c=>c.textContent.trim().split('\n')[0]):[];return {td:td.slice(0,4)};});
 console.log('5c) reste 12→11 affiché:',JSON.stringify(out));
 const c5c=out.td[1]==='12'&&out.td[2]==='1'&&/^11/.test(out.td[3]);
@@ -114,7 +114,7 @@ const rl=await tryBL('logstor.pdf');const rr=await tryBL('renalia1.pdf');
 console.log('8) BL LOGSTOR / Renalia dans le navigateur:',JSON.stringify({logstor:rl,renalia:rr}));
 const c8=rl.n>=5&&rr.n===4;
 // 9) fiche zone au TAP sur le plan : reste + provenance camion (vue posée sur la zone, sélection vierge)
-await page.click('#tabbar [data-tab=plan]');await page.waitForTimeout(300);
+await page.evaluate(()=>document.querySelector('#tabbar [data-tab=plan]').click());await page.waitForTimeout(300);
 await page.evaluate(()=>{const T=window.TRACE;const z=T.net.stock.zones.find(z2=>z2.id==='Z1');const v=T.state.view;v.k=8;v.tx=450-z.x*8;v.ty=470-z.y*8;T.state.stockSel=null;T.renderPlan();});
 await page.waitForTimeout(300);
 const zpos=await page.evaluate(()=>{const r=document.querySelector('#stockG [data-stkz="Z1"]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};});
@@ -135,7 +135,7 @@ const c10=dlgSeen&&out.err&&out.takes===1; // toujours le seul take du début
 
 // 11) récap : le solde suit le stock (besoin vs stock vs attendu) et se filtre par tronçon
 await page.evaluate(()=>window.TRACE.closeSheet());await page.waitForTimeout(300);
-await page.click('#tabbar [data-tab=stock]');await page.waitForTimeout(400);
+await page.evaluate(()=>document.querySelector('#tabbar [data-tab=stock]').click());await page.waitForTimeout(400);
 out=await page.evaluate(()=>{const el=document.querySelector('#stock');
   const row=[...el.querySelectorAll('table tr')].find(r=>/Mousse PU \(A\+B\)/.test(r.textContent)&&r.children.length===7);
   const sel=!!el.querySelector('#stk-matline');
@@ -160,7 +160,7 @@ console.log('12b) moussage validé → 1 mousse décomptée:',JSON.stringify(out
 const c12b=out.pu===puBefore+1&&!!out.zone;
 // 13) suppression d'une livraison (le « Camion 1 » qu'on n'arrivait pas à supprimer)
 await page.evaluate(()=>window.TRACE.closeSheet());await page.waitForTimeout(300);
-await page.click('#tabbar [data-tab=stock]');await page.waitForTimeout(400);
+await page.evaluate(()=>document.querySelector('#tabbar [data-tab=stock]').click());await page.waitForTimeout(400);
 await page.evaluate(()=>{[...document.querySelectorAll('#stock details')].forEach(d=>d.open=true);});
 const nLiv=await page.evaluate(()=>window.TRACE.net.stock.livs.length);
 page.once('dialog',d=>d.accept());
@@ -187,7 +187,7 @@ const c15=out.show&&out.contenu&&out.parZone;
 await page.evaluate(()=>document.querySelector('#modal [data-close]').click());await page.waitForTimeout(200);
 // 16) déplacer une zone sur le PLAN de façon significative → tracé dans les mouvements
 await page.evaluate(()=>{window.TRACE.closeSheet();const bd=document.querySelector('#backdrop');if(bd)bd.classList.remove('show');});
-await page.click('#tabbar [data-tab=plan]');await page.waitForTimeout(400);
+await page.evaluate(()=>document.querySelector('#tabbar [data-tab=plan]').click());await page.waitForTimeout(400);
 const nMov=await page.evaluate(()=>window.TRACE.net.stock.moves.length);
 await page.evaluate(()=>{const T=window.TRACE;T.state.stockSel=null;const z=T.net.stock.zones.find(z2=>z2.id==='Z1');T.state.view.k=5;T.centerOn(z.x,z.y,6);}); // centerOn gère l'offset réel du canvas ; 120 px ≈ 20 m au k=6
 await page.waitForTimeout(250);

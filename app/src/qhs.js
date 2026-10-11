@@ -37,7 +37,7 @@ export const qhsSigned=(run,key,name)=>{if(qhsSig(run.id,key))return true;const 
 export function qhsTodo(key,name,siteIds,date){date=date||todayIso();const out=[];(siteIds||[]).forEach(id=>qhsFor(id,date).forEach(r=>{if(qhsSigned(r,key,name)||out.some(x=>x.run.id===r.id))return;out.push({run:r,site:id});}));return out;}
 /* ── le parcours : sujet déroulé en entier → questions → signature ── */
 export function qhsParcours(run,siteId,opts){opts=opts||{};const t=qhsTopic(run.topic);if(!t){A.toast('Sujet introuvable');return;}
-  const as=opts.as||null;const me=as?as.name:(A.userName?A.userName():'');const key=as?as.key:qhsMyKey();const NET=A.net?A.net():null;const siteName=opts.siteName||(NET&&NET.id===siteId?NET.name:siteId);
+  const as=opts.as||null;if(!as&&A.acting&&A.acting()){const who=(A.current&&A.current())||{};A.toast(`La signature du quart d'heure est personnelle : ${who.name||'la personne'} signe elle-même (ou depuis l'écran du chef : « faire signer »). Tu agis comme elle pour tout le reste.`);return;} /* 12/10 : « agir comme » ne signe pas à la place */const me=as?as.name:(A.userName?A.userName():'');const key=as?as.key:qhsMyKey();const NET=A.net?A.net():null;const siteName=opts.siteName||(NET&&NET.id===siteId?NET.name:siteId);
   let step=0;const P={read:null,q:{}};
   const head=t2=>`<h3 style="margin-top:0">Quart d'heure sécurité <span class="hint">· ${esc(dFR(run.date))}${siteName?' · '+esc(siteName):''}</span></h3><div class="pv-steps">${[0,1,2].map(i=>`<i class="${i<step?'done':i===step?'cur':''}"></i>`).join('')}</div><div class="pv-title">${t2}</div>`;
   const render=()=>{

@@ -30,7 +30,7 @@ export async function sandboxOn(){if(isSandboxOn()&&A.sites()[SB_SITE]){A.toast(
   A.syncRoleSel();A.renderHome();A.toast('🧪 Bac à sable en place : chantier « Démo — Caen », Karim / Julien / Ethan L. placés, objectifs, livraison, quart d\'heure du jour');return true;}
 export async function sandboxReset(){if(!isSandboxOn())return sandboxOn();await sandboxOff(false);return sandboxOn();}
 export async function sandboxOff(reload){A.espace.clear();
-  try{A.reg.purge('qhs',(id,d)=>Array.isArray(d.sites)&&d.sites.length&&d.sites.every(x=>isSandboxSite(x)));A.reg.purge('qhsig',(id,d)=>!String(id.split('|')[1]||'').includes('@'));A.reg.purge('docsig',(id,d)=>!String(id.split('|')[1]||'').includes('@'));}catch(e){console.warn(e);}
+  try{A.reg.purge('qhs',(id,d)=>Array.isArray(d.sites)&&d.sites.length&&d.sites.every(x=>isSandboxSite(x)));A.reg.purge('qhsig',(id,d)=>!String(id.split('|')[1]||'').includes('@'));A.reg.purge('docsig',(id,d)=>!String(id.split('|')[1]||'').includes('@'));A.reg.purge('prov',(id,d)=>!!d.demo);}catch(e){console.warn(e);} /* 12/10 : personnes provisoires créées par un personnage de démo */
   if(A.currentSiteId()===SB_SITE)A.goHome();A.removeSite(SB_SITE);try{await A.kv.del(KV_SITE);}catch(e){}
   try{localStorage.removeItem(KEY);}catch(e){}A.state.sandbox=false;if(String(A.state.userId).length&&!String(A.state.userId).startsWith('acc:')&&A.state.userId!=='__me'&&A.state.profile)A.state.userId='__me';
   A.syncRoleSel();A.renderHome();A.toast('Bac à sable retiré : plus aucune donnée de test sur cet appareil');if(reload!==false)setTimeout(()=>location.reload(),600);return true;}

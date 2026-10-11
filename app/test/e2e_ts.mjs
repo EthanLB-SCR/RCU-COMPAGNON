@@ -26,7 +26,7 @@ out=await page.evaluate(()=>{const T=window.TRACE;const M=T.ts.marche();const D=
 console.log('1b) appli : marché présent (du traceur), réel = marché, 0 candidat, calque marché décoché par défaut:',JSON.stringify(out));
 C.c1b=out.m&&out.src==='traceur'&&out.soud>0&&out.reel===out.soud&&out.d===0&&out.cands===0&&out.marG===0;
 // ── 2) récap : section TS, tableau marché vs réel, « aucun écart »
-await page.click('#tabbar [data-tab=ts]');await page.waitForTimeout(400);
+await page.evaluate(()=>document.querySelector('#tabbar [data-tab=ts]').click());await page.waitForTimeout(400);
 out=await page.evaluate(()=>{const t=document.querySelector('#tsview').textContent;return {ts:/Modifications/.test(t),tbl:/Marché/.test(t)&&/Réel \/ projeté/.test(t),ok:/Aucune modification à qualifier/.test(t),btns:!!document.querySelector('#tsview [data-tsrange]')&&!!document.querySelector('#tsview [data-tsexport]')&&!!document.querySelector('#tsview [data-tsrefreeze]'),svg:!!document.querySelector('#tsview .tsOverview svg'),badge:!document.querySelector('#tabbar [data-tab=ts] .tsBadge')};});
 console.log('2) onglet TS :',JSON.stringify(out));C.c2=out.ts&&out.tbl&&out.ok&&out.btns&&out.svg&&out.badge;
 // ── 3) manchon extrudé à l'étape ③ (cause « angle trop important ») → j.extru, EXT sur le plan, TS proposé automatique, récap « Manchons extrudés 1 »
@@ -53,7 +53,7 @@ await page.click('#bSave');await page.waitForTimeout(200);await page.selectOptio
 out=await page.evaluate(()=>{const r=window.MAQ.state.siteRef;return {src:r.marche&&r.marche.source,soud:r.marche&&r.marche.tot.soud,ts:r.ts&&r.ts.items.length};});
 console.log('4b) mise à jour : le marché d\'origine est gardé (pas re-figé), la marque TS aussi :',JSON.stringify(out));C.c4b=out.src==='traceur'&&out.ts===1;
 await page.click('#svGo');await page.waitForTimeout(1500);await page.selectOption('#roleSel','ethan');await page.waitForTimeout(300);
-await page.click('#tabbar [data-tab=ts]');await page.waitForTimeout(400);
+await page.evaluate(()=>document.querySelector('#tabbar [data-tab=ts]').click());await page.waitForTimeout(400);
 out=await page.evaluate(()=>{const T=window.TRACE;const cands=T.ts.candidates();const D=T.ts.diff();const t=document.querySelector('#tsview').textContent;return {n:cands.length,line:cands[0]&&cands[0].line,qty:cands[0]&&cands[0].qty,dV:D.tot.d.vannes,dS:D.tot.d.soud,txt:/Modifications à qualifier/.test(t)&&/à qualifier/.test(t)&&/\+2 vannes \(PK 100\)/.test(t),btn:!!document.querySelector('#tsview [data-tscok="0"]'),vig:document.querySelectorAll('#tsview .tsCard.cand .tsVig svg').length===1,pcs:cands[0]&&cands[0].pcs.length===2&&cands[0].pcs.every(p=>p.k==='valve'&&Math.abs(p.m-100)<2),plan:document.getElementById('tsG').innerHTML.includes('à qualifier · vanne'),badge:(document.querySelector('#tabbar [data-tab=ts] .tsBadge')||{}).textContent==='1',items:T.ts.of().items.length,extruKept:T.ts.of().items[0]&&T.ts.of().items[0].kind==='weld'};});
 console.log('4c) onglet TS : 1 TS potentiel localisé (+2 vannes PK 100, +4 soudures), vignette, « TS ? » sur le plan, pastille 1 sur l\'onglet :',JSON.stringify(out));
 C.c4c=out.n===1&&out.line==='L1'&&out.qty.vannes===2&&out.qty.soud===4&&out.dV===2&&out.dS===4&&out.txt&&out.btn&&out.vig&&out.pcs&&out.plan&&out.badge&&out.items===1&&out.extruKept;
