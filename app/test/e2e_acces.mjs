@@ -31,7 +31,7 @@ console.log('1) modèle :',JSON.stringify(out));C.c1=out.n===31&&out.postes===22
 await page.selectOption('#roleSel','ethan');await page.waitForTimeout(300);
 out=await page.evaluate(()=>{const Ac=window.TRACE.acces;const T=window.TRACE;const a=Ac.current();T.state.tab='plan';T.renderAll();const tools=[...document.querySelectorAll('#planTools button')].map(b=>b.id);
   return {poste:a.poste,admin:a.admin,isAdmin:Ac.isAdmin(),tracer:tools.includes('btnTraceur'),del:tools.includes('btnDelSite'),vers:tools.includes('btnVersions'),extra:tools.includes('btnExtraWeld'),note:tools.includes('btnConvNote'),exportTab:document.querySelector('#tabbar [data-tab=export]').style.display!=='none'};});
-console.log('2a) démo Ethan (admin) :',JSON.stringify(out));C.c2a=out.poste==='chef'&&out.admin&&out.isAdmin&&out.tracer&&out.del&&out.vers&&out.extra&&out.note&&out.exportTab;
+console.log('2a) démo Ethan (admin) :',JSON.stringify(out));C.c2a=out.poste==='chef'&&out.admin&&out.isAdmin&&out.tracer/* 12/10 : chantier tracé → « modifier ce réseau » (la création d'un réseau se fait depuis l'affaire) */&&out.del&&out.vers&&out.extra&&out.note&&out.exportTab;
 await page.selectOption('#roleSel','karim');await page.waitForTimeout(300);
 out=await page.evaluate(()=>{const Ac=window.TRACE.acces;const T=window.TRACE;T.renderAll();const tools=[...document.querySelectorAll('#planTools button')].map(b=>b.id);const a=Ac.current();
   return {poste:a.poste,isAdmin:Ac.isAdmin(),tracer:tools.includes('btnTraceur'),del:tools.includes('btnDelSite'),extra:tools.includes('btnExtraWeld'),note:tools.includes('btnConvNote'),exportTab:document.querySelector('#tabbar [data-tab=export]').style.display!=='none',s1:Ac.can('weld.step1'),s2:Ac.can('weld.step2'),ts:Ac.can('ts.qualify')};});

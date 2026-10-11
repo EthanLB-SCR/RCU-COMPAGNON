@@ -90,7 +90,7 @@ await page.evaluate(()=>{window.TRACE.showScreen&&window.TRACE.showScreen('home'
 await page.waitForTimeout(400);
 out=await page.evaluate(()=>{const b=document.getElementById('nextBtn');return {btn:!!b,txt:b?b.textContent:''};});
 console.log('6) bouton Nouveautés (home):',JSON.stringify(out));
-const c6=out.btn&&/\(2\)/.test(out.txt); /* 09/10 : admin définitif → il reste pointage et profil, éteints */
+const c6=out.btn&&/à concevoir/.test(out.txt); /* 12/10 : pointage et profil retirés du chantier (Moi) → plus d'option en attente, le bouton montre le backlog */
 const ALL=c0&&c1&&c2a&&c2b&&c2c&&c3&&c4a&&c4b&&c4c&&c5&&c6;
 console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c0,c1,c2a,c2b,c2c,c3,c4a,c4b,c4c,c5,c6}));
 console.log(logs.length?logs:'[]');

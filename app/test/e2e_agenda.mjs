@@ -82,14 +82,33 @@ await page.evaluate(()=>{const cards=[...document.querySelectorAll('#eq-app .eq-
 out=await page.evaluate(()=>({n:document.querySelectorAll('#eq-app .eq-ag').length}));const rm=calls.slice(n1).filter(c=>c.fn==='registre_set'&&c.kind==='agenda');out.rm=rm.map(c=>[c.id.split('|')[0],c.patch.deleted]);
 console.log('5) retrait :',JSON.stringify(out));
 C.c5=out.n===1&&rm.length===1&&rm[0].patch.deleted===true&&rm[0].id.startsWith(EMAIL+'|');
+// ── 5b) 12/10 soir (Ethan : « plutôt un import depuis Outlook… une invitation dans son agenda qui remplit son planning ») : import d'un .ics Outlook → 2 entrées (visite reconnue sur Caen, réunion), étiquette Outlook ; réimport = mis à jour, pas dupliqué
+const ICS=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Microsoft Corporation//Outlook 16.0 MIMEDIR//EN','BEGIN:VEVENT','UID:040000008200E00074C5B7101A82E00800000000AAA@outlook','DTSTART;TZID=Romance Standard Time:20261006T100000','DTEND;TZID=Romance Standard Time:20261006T113000','SUMMARY:Réunion de chantier Caen','LOCATION:Rue des Lilas\\, Caen','DESCRIPTION:Avec le MOE\\nPV à préparer','END:VEVENT','BEGIN:VEVENT','UID:BBB@outlook','DTSTART:20261007T140000Z','DTEND:20261007T150000Z','SUMMARY:Point hebdo direction','END:VEVENT','BEGIN:VEVENT','UID:CCC@outlook','DTSTART;VALUE=DATE:20261009','DTEND;VALUE=DATE:20261010','SUMMARY:Formation SST','STATUS:CANCELLED','END:VEVENT','END:VCALENDAR'].join('\r\n');
+await page.setInputFiles('#eq-app [data-agimport]',{name:'outlook.ics',mimeType:'text/calendar',buffer:Buffer.from(ICS,'utf8')});await wait(1200);
+out=await page.evaluate(()=>{const app=document.getElementById('eq-app');const cards=[...app.querySelectorAll('.eq-agday')];const txt=i=>cards[i].textContent.replace(/\s+/g,' ').trim();return {toast:document.getElementById('toast').textContent,n:app.querySelectorAll('.eq-ag').length,mar:txt(1),mer:txt(2),ven:txt(4),tags:app.querySelectorAll('.eq-ag .eq-tag').length};});
+const reg2=calls.filter(c=>c.fn==='registre_set'&&c.kind==='agenda'&&c.patch.src==='outlook');out.reg=reg2.map(c=>[c.patch.d,c.patch.type,c.patch.site,c.patch.h0,c.patch.h1,c.patch.uid]);
+await page.setInputFiles('#eq-app [data-agimport]',{name:'outlook.ics',mimeType:'text/calendar',buffer:Buffer.from(ICS.replace('Point hebdo direction','Point hebdo direction (salle 2)'),'utf8')});await wait(1200);
+out.again=await page.evaluate(()=>({toast:document.getElementById('toast').textContent,n:document.querySelectorAll('#eq-app .eq-ag').length,mer:[...document.querySelectorAll('#eq-app .eq-agday')][2].textContent.replace(/\s+/g,' ').trim()}));
+console.log('5b) import Outlook :',JSON.stringify(out));
+C.c5b=/Outlook importé : 2 nouveaux/.test(out.toast)&&out.n===3&&/10 h 00 – 11 h 30/.test(out.mar)&&/Réunion de chantier Caen/.test(out.mar)&&/Caen — Rue des Lilas/.test(out.mar)&&/Avec le MOE/.test(out.mar)&&/Point hebdo direction/.test(out.mer)&&!/Formation SST/.test(out.ven)&&out.tags===2
+  &&reg2.length===2&&out.reg.some(r=>r[0]==='2026-10-06'&&r[1]==='visite'&&r[2]==='SRV_A'&&r[3]==='10:00'&&r[4]==='11:30')&&out.reg.some(r=>r[0]==='2026-10-07'&&r[1]==='reunion'&&r[5]==='BBB@outlook')
+  &&/0 nouveau · 2 mis à jour/.test(out.again.toast)&&out.again.n===3&&/salle 2/.test(out.again.mer);
+// ── 5c) hiérarchie : Ethan (responsable d'exploitation, admin) voit « La semaine de » Paul (chef) en lecture seule ; Paul ne voit personne
+out=await page.evaluate(()=>{const sel=document.querySelector('#eq-app [data-chg=agWho]');return {sel:!!sel,opts:sel?[...sel.options].map(o=>o.textContent):[]};});
+await page.evaluate(()=>{const sel=document.querySelector('#eq-app [data-chg=agWho]');sel.value='paul.durand@scr-soudure.fr';sel.dispatchEvent(new Event('change',{bubbles:true}));});await wait(400);
+out.paul=await page.evaluate(()=>{const app=document.getElementById('eq-app');return {h2:(app.querySelector('h2.vt')||{}).textContent,plus:app.querySelectorAll('[data-act=agnew]').length,rm:app.querySelectorAll('[data-act=agrm]').length,imp:!!app.querySelector('[data-agimport]'),days:app.querySelectorAll('.eq-agday').length,sites:/Caen/.test(app.textContent)};});
+await page.evaluate(()=>{const sel=document.querySelector('#eq-app [data-chg=agWho]');sel.value='';sel.dispatchEvent(new Event('change',{bubbles:true}));});await wait(300);
+out.back=await page.evaluate(()=>({h2:(document.querySelector('#eq-app h2.vt')||{}).textContent,plus:document.querySelectorAll('#eq-app [data-act=agnew]').length}));
+console.log('5c) hiérarchie :',JSON.stringify(out));
+C.c5c=out.sel&&out.opts.some(t=>/Paul DURAND — Chef de chantier/.test(t))&&/Semaine de Paul DURAND/.test(out.paul.h2)&&/lecture seule/.test(out.paul.h2)&&out.paul.plus===0&&out.paul.rm===0&&!out.paul.imp&&out.paul.days===5&&/Ma semaine/.test(out.back.h2)&&out.back.plus===5;
 // ── 6) 👁 voir comme Paul (lecture seule) : « Ma semaine » de Paul est vide, ＋ refuse
 await page.evaluate(()=>{document.getElementById('btnHome').click();});await wait(300);
 await page.evaluate(()=>{const sel=document.getElementById('homeAs');sel.value='acc:u-2';sel.dispatchEvent(new Event('change',{bubbles:true}));});await wait(500);
 await page.evaluate(()=>document.getElementById('hbAct').click());await wait(400);
 await openHub();await page.evaluate(()=>{const b=[...document.querySelectorAll('#eq-app .ac-row')].find(x=>/Ma semaine/.test(x.textContent));b&&b.click();});await wait(400);
-out=await page.evaluate(()=>{const app=document.getElementById('eq-app');const b=app.querySelector('[data-act=agnew]');const r={view:/Ma semaine/.test((app.querySelector('h2.vt')||{}).textContent),n:app.querySelectorAll('.eq-ag').length,plus:!!b};if(b)b.click();return r;});await wait(500);
+out=await page.evaluate(()=>{const app=document.getElementById('eq-app');const b=app.querySelector('[data-act=agnew]');const r={view:/Ma semaine/.test((app.querySelector('h2.vt')||{}).textContent),n:app.querySelectorAll('.eq-ag').length,plus:!!b,sel:!!app.querySelector('[data-chg=agWho]')};if(b)b.click();return r;});await wait(500);
 out.form=await page.evaluate(()=>!!document.getElementById('ag-form'));out.toast=await page.evaluate(()=>document.getElementById('toast').textContent);
 console.log('6) voir comme Paul :',JSON.stringify(out));
-C.c6=out.view&&out.n===0&&out.plus&&!out.form&&/rien n'est modifié/.test(out.toast);
+C.c6=out.view&&out.n===0&&out.plus&&!out.form&&/rien n'est modifié/.test(out.toast)&&!out.sel;
 const bad=Object.entries(C).filter(([k,v])=>!v).map(([k])=>k);console.log(bad.length?'RESULTAT: ECHEC '+bad.join(','):'RESULTAT: TOUT VERT');console.log(logs.length?logs:'[]');
 await browser.close();

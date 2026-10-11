@@ -1089,7 +1089,7 @@ function renderPlan(){if(typeof linkTraceurBranches==='function')linkTraceurBran
   if(!isEmpty)tools.push(`<button class="btn sm" id="btnReport">📋 ${isTr?'Rapport du tracé':'Rapport d\'import'}</button>`);
   if(!isEmpty&&isTr&&can('weld.extra'))tools.push(`<button class="btn sm ${state.extraPose?'on':''}" id="btnExtraWeld" style="${state.extraPose?'background:#1c3d6b;color:#fff;border-color:#1c3d6b':''}">${state.extraPose?'✕ Annuler l\'ajout':'➕ Soudure supplémentaire'}</button>`); // barre coupée sur place : une soudure de plus, sans passer par le traceur (Ethan 07/10)
   if(can('site.tracer')){if(!isTr&&!isEmpty)tools.push(`<button class="btn sm ${state.tool?'on':''}" id="btnTool">${state.tool?'✓ Fin de modification':'✥ Modifier le calepinage'}</button>`);
-    tools.push(`<button class="btn sm" id="btnTraceur">✎ Traceur : ${isTr?'modifier ce réseau':'créer un réseau'}</button>`);if(isTr)tools.push(`<button class="btn sm" id="btnNewTraceur">＋ Nouveau réseau</button>`);}
+    if(isTr)tools.push(`<button class="btn sm" id="btnTraceur">✎ Traceur : modifier ce réseau</button>`);} /* 12/10 (Ethan) : un réseau se crée depuis l'affaire (Entreprise → Affaires → Dessiner le projet), pas d'ici ; ici on ne fait que modifier celui du chantier */
   if(!isEmpty&&can('site.versions'))tools.push(`<button class="btn sm" id="btnVersions">⏱ Versions</button>`);if(!isEmpty&&can('site.delete'))tools.push(`<button class="btn sm" id="btnDelSite" style="color:#d03b3b">🗑 Supprimer ce chantier</button>`);
   if(!isEmpty&&can('conv.post'))tools.push(`<button class="btn sm ${state.convPose?'on':''}" id="btnConvNote" style="${state.convPose?'background:#1c3d6b;color:#fff;border-color:#1c3d6b':''}">${state.convPose?'✕ Annuler la note':'📍 Note sur le plan'}</button>`); // conversation : note géoréférencée (08/10)
   $('#planTools').innerHTML=tools.join('');$('#planTools').style.display=tools.length?'':'none';canvas.classList.toggle('tracing',state.tracing);
@@ -2844,7 +2844,7 @@ function applyTabRights(){if(!tabAllowed(state.tab)){state.tab='plan';}document.
 /* 12/10 — NOUVELLE VENTILATION DU CHANTIER (maquette validée) : trois facettes au lieu de douze onglets côte à côte.
    📐 PLAN (plein écran, barre d'onglets cachée, bouton « ＋ Poser ») · 🏕 VIE DU CHANTIER (bureau, conversation, stock, QSE, dossier, export, pointage, profil) · 🔧 TECHNIQUE (DH, hydro, phasage, modifs, liste, récap, catalogue).
    Les onglets existent toujours (mêmes ids, mêmes vues) : la facette ne fait que choisir lesquels sont affichés dans la barre du bas. */
-const FACET_OF={plan:'plan',bureau:'vie',conv:'vie',stock:'vie',qse:'vie',admin:'vie',export:'vie',pointage:'vie',profil:'vie',liste:'tech',bouclage:'tech',hydro:'tech',phasage:'tech',ts:'tech',recap:'tech',catalogue:'tech',__more:'tech'};
+const FACET_OF={plan:'plan',bureau:'vie',conv:'vie',qse:'vie',admin:'vie',export:'vie',pointage:'vie',profil:'vie',stock:'tech',liste:'tech',bouclage:'tech',hydro:'tech',phasage:'tech',ts:'tech',recap:'tech',catalogue:'tech',__more:'tech'}; /* 12/10 (Ethan) : Stock dans Technique ; Pointage / Profil plus dans le chantier (Moi) */
 const facetOf=t=>FACET_OF[t]||'tech';
 state.lastTab={vie:'bureau',tech:'bouclage'};
 function siteProgress(){let total=0,done=0;Object.values(state.lines||{}).forEach(l=>{['A','R'].forEach(c=>{const cd=l.cond&&l.cond[c];if(!cd)return;cd.joints.forEach(j=>{total++;if(['soudee','controlee','manchonnee'].includes(j.status))done++;});});});return total?{total,done,pct:Math.round(100*done/total)}:null;}
@@ -2856,7 +2856,7 @@ function renderSiteHead(){const h=$('#siteHead');if(!h)return;const on=state.scr
   $$('#facets [data-facet]').forEach(b=>b.classList.toggle('on',b.dataset.facet===f));
   const tb=$('#tabbar');if(tb){tb.style.display=f==='plan'?'none':'';$$('#tabbar [data-tab]').forEach(b=>{const t=b.dataset.tab;const okF=facetOf(t)===f;b.classList.toggle('fhide',!okF);});}
   const fab=$('#planFab');if(fab)fab.style.display=(f==='plan'&&state.screen==='site'&&(can('phasage.edit')||can('stock.edit')||can('conv.post')||can('site.tracer')))?'':'none';}
-function goFacet(f){if(f==='plan')state.tab='plan';else{const want=state.lastTab[f];const order=f==='vie'?['bureau','conv','stock','qse','admin','export','pointage','profil']:['bouclage','hydro','phasage','ts','liste','recap','catalogue'];const okT=t=>{const b=document.querySelector('#tabbar [data-tab="'+t+'"]');return tabAllowed(t)&&b&&b.style.display!=='none';}; /* display inline = masqué par lightTabs (⋯) ou les droits ; la classe fhide de la facette précédente ne compte pas */state.tab=(want&&okT(want))?want:(order.find(okT)||'bureau');}
+function goFacet(f){if(f==='plan')state.tab='plan';else{const want=state.lastTab[f];const order=f==='vie'?['bureau','conv','qse','admin','export']:['bouclage','hydro','stock','phasage','ts','liste','recap','catalogue'];const okT=t=>{const b=document.querySelector('#tabbar [data-tab="'+t+'"]');return tabAllowed(t)&&b&&b.style.display!=='none';}; /* display inline = masqué par lightTabs (⋯) ou les droits ; la classe fhide de la facette précédente ne compte pas */state.tab=(want&&okT(want))?want:(order.find(okT)||'bureau');}
   if(state.tab!=='plan')state.phFocus=null;closeSheet();closeMenu();renderAll();}
 $('#facets').addEventListener('click',e=>{const b=e.target.closest('[data-facet]');if(b)goFacet(b.dataset.facet);});
 function toggleExtraPose(){if(!can('weld.extra')){toast('Réservé au chef / bureau');return;}state.extraPose=!state.extraPose;if(state.extraPose){closeSheet();state.tab='plan';renderAll();toast(state.view.k*sheet().ppm<7?'Zoome sur la barre concernée, puis touche-la à l\'endroit de la soudure':'Touche la barre (aller ou retour) à l\'endroit exact de la soudure supplémentaire');}renderPlan();}
@@ -2907,7 +2907,7 @@ const siteSel=$('#siteSel');{const hidden=JSON.parse(localStorage.getItem('trace
 Object.entries(SITES).forEach(([id,S])=>{const o=document.createElement('option');o.value=id;o.textContent=S.name;siteSel.appendChild(o);});
 if(!Object.keys(SITES).length){SITES.__vide={id:'__vide',name:'Aucun chantier — crée un réseau avec le traceur',lines:[],w:100,h:100,sheetType:'plain'};const o=document.createElement('option');o.value='__vide';o.textContent=SITES.__vide.name;siteSel.appendChild(o);}
 siteSel.addEventListener('change',e=>{openSiteFromHome(e.target.value).then(ok=>{if(ok)toast('Chantier : '+NET.name);});});
-const wantSite=new URLSearchParams(location.search).get('site');if(wantSite)history.replaceState(null,'',location.pathname);
+const wantSite=new URLSearchParams(location.search).get('site');const wantAff=new URLSearchParams(location.search).get('aff');if(wantSite)history.replaceState(null,'',location.pathname);
 const lastSite=localStorage.getItem('trace:lastSite'); // dernier chantier ouvert sur cet appareil (carte « Reprendre » de l'accueil)
 state.siteId=(wantSite&&SITES[wantSite])?wantSite:(lastSite&&SITES[lastSite])?lastSite:Object.keys(SITES)[0];siteSel.value=state.siteId;
 setupSite(state.siteId);renderAll();requestAnimationFrame(()=>{fitView();renderPlan();});
@@ -2915,7 +2915,8 @@ setupSite(state.siteId);renderAll();requestAnimationFrame(()=>{fitView();renderP
 loadHandoffs().then(async hs=>{hs.forEach(net=>{if(isHidden(net))return;if(SITES.__vide){delete SITES.__vide;const o=[...siteSel.options].find(x=>x.value==='__vide');if(o)o.remove();}addSiteOption(net);});
   try{const sb=await sandboxLoadSite();if(sb){if(SITES.__vide){delete SITES.__vide;const o=[...siteSel.options].find(x=>x.value==='__vide');if(o)o.remove();}addSiteOption(sb);}}catch(e){console.warn(e);} /* bac à sable : chantier de démo gardé sur l'appareil */
   if(wantSite){try{localStorage.setItem('trace:skipLogin','1');}catch(e){} // arrivé par le traceur : plus d'écran de connexion imposé au prochain lancement
-    if(SITES[wantSite]){if(state.siteId!==wantSite){siteSel.value=wantSite;await switchSite(wantSite);}showScreen('site');}
+    if(SITES[wantSite]){if(state.siteId!==wantSite){siteSel.value=wantSite;await switchSite(wantSite);}showScreen('site');
+      if(wantAff){try{await affLoad();const a=affGet(wantAff);if(a){if(!(a.sites||[]).includes(wantSite))regSet('affaire',wantAff,{sites:(a.sites||[]).concat([wantSite])});toast('Chantier lié à l\'affaire '+wantAff);}}catch(e){console.warn(e);}} /* 12/10 : tracé depuis l'affaire → lié à l'affaire au retour */}
     else{state.pendingOpen=wantSite;showScreen('home');renderHome();toast('Chantier en cours de récupération depuis le serveur…');}}
   else{const u=await sync.user().catch(()=>null);const seen=localStorage.getItem('trace:skipLogin');
     if(u||seen){if(!state.userOpened)showScreen('home');}else{showScreen('login');} /* un chantier déjà ouvert entre-temps (lien, test) n'est pas recouvert par l'accueil */
@@ -3116,7 +3117,7 @@ function homeListHTML(metas){const q=(state.homeQ||'').toLowerCase();let list=me
   return `<input class="homeSearch" id="homeQ" placeholder="🔍 Rechercher un chantier…" value="${esc(state.homeQ||'')}">
     <div class="homeSorts">${[['recent','Récents'],['az','A → Z'],['pct','Avancement']].map(([v,l])=>`<button data-sort="${v}" class="${sort===v?'on':''}">${l}</button>`).join('')}</div>
     ${list.map(siteCardHTML).join('')||'<div class="muted" style="font-size:13px;padding:8px 2px">Aucun chantier ne correspond.</div>'}
-    ${canNew?`<button class="siteNew" id="homeNew">＋ Nouveau chantier (tracer un réseau ou importer un DXF)</button>`:''}`;}
+    ${canNew?`<button class="siteNew" id="homeNew">＋ Nouveau chantier (importer un plan DXF / PDF)</button>`:''}`;}
 // Ouverture depuis l'accueil (07/10) : voile « Ouverture… » dans TOUS les cas (retour visuel immédiat au doigt), délai maxi sur le chargement serveur,
 // double tap ignoré, et aucune erreur silencieuse : un échec enlève le voile et dit pourquoi — plus jamais bloqué à l'accueil sans rien voir.
 // Ouverture depuis l'accueil (07/10) : voile « Ouverture… » dans TOUS les cas (retour visuel immédiat au doigt) avec bouton Annuler, délai maxi sur le
@@ -3158,8 +3159,8 @@ $('#homeBody').addEventListener('click',e=>{
   const dsh=e.target.closest('[data-dash]');if(dsh){e.stopPropagation();espaceDash(dsh.dataset.dash);return;} /* ⑤ tableau de bord du chantier (encadrement) */
   const o=e.target.closest('[data-open]');if(o){openSiteFromHome(o.dataset.open);return;}
   const so=e.target.closest('[data-sort]');if(so){state.homeSort=so.dataset.sort;renderHome();return;}
-  if(e.target.id==='homeNew'){openModal(`<h3>Nouveau chantier</h3><div class="actions"><button class="btn primary block" id="nwTrace">✎ Tracer un réseau (traceur)</button><button class="btn block" id="nwImport">📄 Importer un plan (DXF / PDF)</button><button class="btn block" data-close>Annuler</button></div>`);
-    $('#nwTrace').onclick=()=>{location.href='./traceur.html?site=new';};
+  if(e.target.id==='homeNew'){openModal(`<h3>Nouveau chantier</h3><div class="hint" style="margin-top:0">Un réseau se dessine depuis son affaire : Entreprise → Affaires → la fiche → Chantiers liés → « Dessiner le projet ». Ici : un plan existant.</div><div class="actions"><button class="btn block" id="nwImport">📄 Importer un plan (DXF / PDF)</button><button class="btn block" data-close>Annuler</button></div>`);
+    /* 12/10 : plus de « Tracer un réseau » ici (affaire) */
     $('#nwImport').onclick=async()=>{closeModal();const vid=Object.keys(SITES).find(k=>k==='__vide')||state.siteId;await openSiteFromHome('__vide')||showScreen('site');openImport();};return;}});
 $('#homeBody').addEventListener('input',e=>{if(e.target.id==='homeQ'){state.homeQ=e.target.value;const list=$('#homeBody');const pos=e.target.selectionStart;renderHome();const q2=$('#homeQ');if(q2){q2.focus();q2.setSelectionRange(pos,pos);}}});
 $('#homeAva').addEventListener('click',()=>{const u=state.cloudUser,pr=state.profile;
@@ -3230,7 +3231,7 @@ initEspace({state,sync,kv,toast,rights:a=>effectiveRights(a),current:()=>current
   userName:()=>(me()||{}).name||state.userId,userKey:()=>userKeyOf(),via:()=>actingAs()?state.profile.name:'', /* même clé que les émargements QSE ; via = qui agit réellement (admin « agir comme ») */
   createAccess:o=>createAccess(o),reloadAccounts:()=>listAccounts(), /* 12/10 : « raccourci rapide » du planning — un administrateur crée l'accès directement */
   seen:id=>{try{return localStorage.getItem('trace:convSeen:'+id)||'';}catch(e){return '';}},
-  traceur:()=>{location.href='./traceur.html?site=new';},
+  traceur:aff=>{location.href='./traceur.html?site=new'+(aff?'&aff='+encodeURIComponent(aff):'');}, /* 12/10 : le traceur ne s'ouvre que depuis l'affaire (le chantier tracé s'y lie au retour) ou depuis le chantier (modifier son réseau) */
   gaine:dn=>gaineMM(dn), /* enveloppe standard d'un DN (catalogue) : manchons « DN150/250 » */
   saveMissions, /* objectifs du jour (④) */
   traceAgg, /* chiffrage : soudures / ml par DN d'un tracé */ /* planning (re)chargé : les cartes de l'accueil se grisent selon la semaine */

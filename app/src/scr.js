@@ -9,7 +9,7 @@
 import {nOn} from './next.js';
 let A=null;
 export function initScr(api){A=api;}
-export function scrInject(mk){if(nOn('pointage'))mk('pointage','Pointage');if(nOn('profil'))mk('profil','Profil');}
+export function scrInject(mk){/* 12/10 (Ethan : « on peut enlever pointage et profil des onglets chantier, c'est géré ailleurs ») : plus d'onglet dans le chantier — le pointage se fait dans Moi → Heures (espace.js), le profil dans Moi (avatar, fiche). Les vues restent rendues par scrRenderTab si on y arrive par un lien. */}
 export function scrRenderTab(tab){if(tab==='pointage'&&nOn('pointage')){renderPointage();return true;}if(tab==='profil'&&nOn('profil')){renderProfil();return true;}return false;}
 const isoD=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 const today=()=>isoD(new Date());

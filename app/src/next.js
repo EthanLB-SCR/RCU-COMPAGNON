@@ -11,8 +11,7 @@ import {qhsFor,qhsBlockHTML,qhsParcours,qhsTriggerOpen,qhsRuns,qhsSheetHTML,qhsC
 let A=null; // API fournie par app.js (state, NET, sync, openModal, toast, esc…)
 const FEATS=[
  // ['admin', …] : Dossier administratif DÉFINITIF depuis le 09/10 — onglet « Dossier » (droit dossier.edit) : DT / DICT, plans exé, qualifications, PGC, PPSPS, planning, habilitations, BL, accueil ; fichiers au serveur ; un BL importé au stock s'y classe tout seul.
- ['pointage','Pointage heures & production (SCR interne)','Chacun pointe sa journée (début géolocalisé, pause, reprise, fin ; départ du chantier = inter-chantier) ; production du jour prise sur le plan ; le chef déclare après coup, valide ou corrige ; le conducteur valide en second. Onglet « Pointage ».'],
- ['profil','Profil opérateur (SCR interne)','Avatar aux couleurs de l’entreprise, points, trophées et médailles (soudures, manchons, fils, jours au-dessus de la cadence, QSE signés, pointage non contesté, pauses), mes heures validées. Onglet « Profil ».'],
+ /* 12/10 : « Pointage » et « Profil » du chantier retirés (Ethan) — remplacés par Moi → Heures et Moi (avatar, fiche, habilitations) ; les deux options ne sont plus proposées */
 ];
 // Export DOE : DÉFINITIF depuis le 07/10 soir (Ethan : « passe en définitif ») — devenu l'onglet « Export » (src/doe.js) : carnet de soudage et manchonnage avec report sur plan, planches numérotées, photos par n° de soudure, plan interactif hors ligne, zip.
 // QSE : DÉFINITIF depuis le 07/10 (Ethan : « l'onglet qui était en test QSE, rends-le définitif ») — toujours présent, plus d'interrupteur.
@@ -28,12 +27,12 @@ export function initNext(api){A=api;initScr(api);initAccueil(api);
 }
 // ---------- panneau d'activation (home) ----------
 export function nextHomeHTML(role){if(role!=='chef'&&role!=='bureau')return '';const on=FEATS.filter(f=>nOn(f[0])).length;
-  return `<button class="btn ghost" id="nextBtn" style="font-size:12px">⏳ Nouveautés en attente ${on?'· '+on+'/'+FEATS.length+' actives':'('+FEATS.length+')'}</button>`;}
+  return `<button class="btn ghost" id="nextBtn" style="font-size:12px">⏳ ${FEATS.length?'Nouveautés en attente '+(on?'· '+on+'/'+FEATS.length+' actives':'('+FEATS.length+')'):'Nouveautés · à concevoir ('+BACKLOG.length+')'}</button>`;}
 export function nextBindHome(){const b=document.getElementById('nextBtn');if(b)b.onclick=()=>{
   A.openModal(`<h3 style="margin-top:0">Nouveautés en attente</h3>
    <p class="hint" style="margin-top:0">Codées et testées, mais INACTIVES tant que tu ne les allumes pas. Active-les une par une, vérifie tranquillement, redis-moi. (L'appli se recharge à chaque bascule.)</p>
-   ${FEATS.map(f=>`<label style="display:flex;gap:8px;align-items:flex-start;padding:8px;border:1.5px solid var(--line);border-radius:10px;margin:6px 0;cursor:pointer;${nOn(f[0])?'background:#f2fbf2;border-color:#9fd49f':''}"><input type="checkbox" data-nextf="${f[0]}" ${nOn(f[0])?'checked':''} style="margin-top:3px"><span><b>${f[1]}</b><br><span class="hint">${f[2]}</span></span></label>`).join('')}
-   <div style="margin:10px 0 4px;font-size:12.5px"><b>Rendu définitif :</b> QSE, Modifs / marché, barre d'onglets allégée, Export DOE (07/10), Dossier administratif (09/10).</div>
+   ${FEATS.length?'':'<p class="hint">Rien en attente : tout ce qui était en test est définitif ou a trouvé sa place (pointage et profil : dans « Moi », 12/10).</p>'}${FEATS.map(f=>`<label style="display:flex;gap:8px;align-items:flex-start;padding:8px;border:1.5px solid var(--line);border-radius:10px;margin:6px 0;cursor:pointer;${nOn(f[0])?'background:#f2fbf2;border-color:#9fd49f':''}"><input type="checkbox" data-nextf="${f[0]}" ${nOn(f[0])?'checked':''} style="margin-top:3px"><span><b>${f[1]}</b><br><span class="hint">${f[2]}</span></span></label>`).join('')}
+   <div style="margin:10px 0 4px;font-size:12.5px"><b>Rendu définitif :</b> QSE, Modifs / marché, barre d'onglets allégée, Export DOE (07/10), Dossier administratif (09/10). <b>Déplacé :</b> pointage → Moi → Heures, profil → Moi (12/10).</div>
    <h4 style="margin:10px 0 4px">À concevoir (SCR interne, pas dans la version vendue)</h4>${BACKLOG.map(b=>`<div style="padding:8px;border:1.5px dashed var(--line);border-radius:10px;margin:6px 0"><b>${b[0]}</b><br><span class="hint">${b[1]}</span></div>`).join('')}
    <div class="actions"><button class="btn block" data-close>Fermer</button></div>`);
   document.querySelectorAll('#modal [data-nextf]').forEach(cb=>cb.onchange=()=>{const o={...NEXTF};if(cb.checked)o[cb.dataset.nextf]=1;else delete o[cb.dataset.nextf];try{localStorage.setItem('trace:next',JSON.stringify(o));}catch(e){}location.reload();});};}
