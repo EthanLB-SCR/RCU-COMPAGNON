@@ -25,9 +25,10 @@ export const qhsTopic=id=>qhsTopics().find(t=>t.id===id)||null;
 export function qhsRuns(){return regAll('qhs').filter(r=>r&&!r.deleted&&r.date&&r.topic);}
 export const qhsCovers=(r,siteId)=>Array.isArray(r.sites)&&(r.sites.includes('*')||r.sites.includes(siteId));
 export function qhsFor(siteId,date){date=date||todayIso();return qhsRuns().filter(r=>r.date===date&&qhsCovers(r,siteId)).sort((a,b)=>String(a.at||'').localeCompare(String(b.at||'')));}
-export function qhsTrigger(o){const id='QH'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);const t=qhsTopic(o.topic);
-  regSet('qhs',id,{topic:o.topic,title:t?t.title:o.topic,date:o.date||todayIso(),sites:o.sites&&o.sites.length?o.sites:['*'],note:o.note||'',by:A.userName?A.userName():'',at:new Date().toISOString()});return id;}
-export function qhsCancel(id){regSet('qhs',id,{deleted:true,deletedAt:new Date().toISOString(),deletedBy:A.userName?A.userName():''});}
+export function qhsTrigger(o){const id='QH'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);const t=qhsTopic(o.topic);const sites=o.sites&&o.sites.length?o.sites:['*'];
+  regSet('qhs',id,{topic:o.topic,title:t?t.title:o.topic,date:o.date||todayIso(),sites,note:o.note||'',by:A.userName?A.userName():'',at:new Date().toISOString()},{local:sites.every(x=>String(x).startsWith('demo_'))}); /* bac à sable : un quart d'heure sur un chantier de démo reste sur l'appareil */return id;}
+const sbRun=r=>!!(r&&Array.isArray(r.sites)&&r.sites.length&&r.sites.every(x=>String(x).startsWith('demo_'))); /* séance du bac à sable : jamais au serveur */
+export function qhsCancel(id){const r=qhsRuns().find(x=>x.id===id);regSet('qhs',id,{deleted:true,deletedAt:new Date().toISOString(),deletedBy:A.userName?A.userName():''},{local:sbRun(r)});}
 /* ── signatures ── */
 export const qhsSig=(runId,key)=>key?regGet('qhsig',runId+'|'+key):null;
 export const qhsSigsOf=(runId,siteId)=>regAll('qhsig').filter(s=>s&&s.run===runId&&!s.deleted&&(!siteId||!s.site||s.site===siteId)).sort((a,b)=>String(a.at||'').localeCompare(String(b.at||'')));
@@ -98,9 +99,9 @@ export function qhsCloseOpen(run,opts){opts=opts||{};const sigs=qhsSigsOf(run.id
    <label class="f" style="margin-top:6px">Signature animateur <span class="dim">(${esc(A.userName?A.userName():'')})</span></label>${sigPadHTML('qhc-pad')}
    <div class="actions" style="margin-top:8px"><button class="btn primary block" id="qhc-ok">Clore la séance</button><button class="btn block" id="qhc-save">Enregistrer le retour sans clore</button><button class="btn block" id="qhc-clear">Effacer le trait</button><button class="btn block" data-close>Annuler</button></div>`);
   const pad=sigPadInit('qhc-pad');document.getElementById('qhc-clear').onclick=()=>pad.clear();
-  document.getElementById('qhc-save').onclick=()=>{regSet('qhs',run.id,{retour:document.getElementById('qhc-retour').value.trim()});A.closeModal();A.toast('Retour enregistré');if(opts.after)opts.after();};
+  document.getElementById('qhc-save').onclick=()=>{regSet('qhs',run.id,{retour:document.getElementById('qhc-retour').value.trim()},{local:sbRun(run)});A.closeModal();A.toast('Retour enregistré');if(opts.after)opts.after();};
   document.getElementById('qhc-ok').onclick=()=>{if(!pad.drawn()){A.toast('La signature de l\'animateur (un trait au doigt)');return;}
-    regSet('qhs',run.id,{retour:document.getElementById('qhc-retour').value.trim(),closedAt:new Date().toISOString(),animSig:{name:A.userName?A.userName():'',at:new Date().toISOString(),img:pad.png()}});A.closeModal();A.toast('Séance close — feuille d\'émargement à jour');if(opts.after)opts.after();};}
+    regSet('qhs',run.id,{retour:document.getElementById('qhc-retour').value.trim(),closedAt:new Date().toISOString(),animSig:{name:A.userName?A.userName():'',at:new Date().toISOString(),img:pad.png()}},{local:sbRun(run)});A.closeModal();A.toast('Séance close — feuille d\'émargement à jour');if(opts.after)opts.after();};}
 export function qhsSheetHTML(run,siteId,siteName){const t=qhsTopic(run.topic)||{};const sigs=qhsSigsOf(run.id,siteId);const VF=Array.isArray(t.vf)&&t.vf.length?t.vf:null;
   const body=`${t.slogan?`<div class="card soft"><b>Je m’engage :</b> ${esc(t.slogan)}.</div>`:''}<h2>Sujet</h2><div>${t.html||''}</div>${VF?`<h2>Vrai / faux</h2><ul>${VF.map(([q,a])=>`<li>${esc(q)} — <b>${a==='V'?'VRAI':a==='F'?'FAUX':'VRAI et FAUX'}</b></li>`).join('')}</ul>`:Array.isArray(t.qs)&&t.qs.length?`<h2>Questions</h2><ul>${t.qs.map(q=>`<li>${esc(q)}</li>`).join('')}</ul>`:''}
    <h2>Je m’engage — participations (${sigs.length})</h2><table class="em"><tr><th>Nom</th><th>Date</th><th>${VF?'Quiz':''}</th><th>Les retours de cet échange</th><th>Signature</th></tr>${sigs.map(s=>`<tr><td><b>${esc(s.name)}</b>${s.by?'<div class="dim">accueilli par '+esc(s.by)+'</div>':''}</td><td>${dhFR(s.at)}</td><td>${s.total?(s.score||0)+' / '+s.total:''}</td><td>${esc(s.retour||'')}</td><td>${s.img?`<img src="${s.img}">`:''}</td></tr>`).join('')}${Array.from({length:Math.max(0,6-sigs.length)}).map(()=>'<tr><td style="height:36px"></td><td></td><td></td><td></td><td></td></tr>').join('')}</table>

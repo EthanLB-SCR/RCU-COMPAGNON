@@ -48,7 +48,7 @@ await page.evaluate(()=>{window.TRACE.showScreen('home');window.TRACE.renderHome
 out=await page.evaluate(()=>({tab:document.querySelector('#htAdmin').style.display!=='none'}));
 await page.click('#htAdmin');await page.waitForTimeout(600);
 out.view=await page.evaluate(()=>({title:/Administrateur/.test(body()),nav:document.querySelectorAll('#homeBody .admNav button').length,newBtn:!!document.querySelector('#admNew'),bulk:!!document.querySelector('#admBulk'),q:!!document.querySelector('#admQ'),hors:/Hors serveur/.test(body()),nextHidden:!document.querySelector('#homeNext')||document.querySelector('#homeNext').style.display==='none'}));
-console.log('3a) onglet ⚙ :',JSON.stringify(out));C.c3a=out.tab&&out.view.title&&out.view.nav===3&&out.view.newBtn&&out.view.bulk&&out.view.q&&out.view.hors&&out.view.nextHidden;
+console.log('3a) onglet ⚙ :',JSON.stringify(out));C.c3a=out.tab&&out.view.title&&out.view.nav===4/* Personnes, Postes, Qui peut quoi, Bac à sable (10/10) */&&out.view.newBtn&&out.view.bulk&&out.view.q&&out.view.hors&&out.view.nextHidden;
 await page.click('#admNew');await page.waitForTimeout(300);
 await page.fill('#an-prenom','Mehdi');await page.fill('#an-nom','Interim');await page.fill('#an-email','mehdi.interim@gmail.com');await page.selectOption('#an-poste','soudeur');await page.selectOption('#an-type','interim');await page.waitForTimeout(150);
 out=await page.evaluate(()=>{const sites=document.querySelector('#an-sites');const cb=document.querySelector('[data-ansite]');if(cb)cb.click();return {sitesShown:sites&&sites.style.display!=='none',hasSite:!!cb,grouped:document.querySelectorAll('#an-poste optgroup').length};});

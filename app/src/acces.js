@@ -158,7 +158,7 @@ const persona=u=>normAccount({id:'l:'+u.id,name:u.name,role:u.role,poste:u.role,
 export function currentAccount(){if(!A)return null;const S=A.state;
   if(S.profile){const real=normAccount(S.profile);if(S.userId==='__me'||!real.admin)return real;
     if(String(S.userId).startsWith('acc:')){const id=String(S.userId).slice(4);const acc=(S.accounts||[]).find(a=>String(a.id)===id);if(!acc)return real;return {...acc,test:true};} // 🧪 tester comme une VRAIE personne (profil ou invitation)
-    const u=(A.users()||[]).find(x=>x.id===S.userId);if(!u)return real;const p=persona(u);p.test=true;return p;}
+    const u=(A.users()||[]).find(x=>x.id===S.userId);if(!u)return real;const p=persona(u);p.test=!S.sandbox;p.sandbox=!!S.sandbox;return p;} /* bac à sable (10/10) : on AGIT comme le personnage de démo (rien ne part au serveur) ; sinon lecture seule */
   const u=(A.users()||[]).find(x=>x.id===S.userId)||(A.users()||[])[0];if(!u)return null;return persona(u);}
 export const isTesting=()=>{const a=currentAccount();return !!(a&&a.test);};
 let cache={key:'',rights:null};
@@ -209,9 +209,9 @@ export async function renderAdminHome(el){if(!el)return;if(!isAdmin()){el.innerH
   paint();}
 function paint(){const el=admEl;if(!el)return;const me=currentAccount();
   el.innerHTML=`<div class="admHead"><div><h3 style="margin:0">⚙ Administrateur</h3><div class="hint">${admServer?'Comptes du serveur — ce que tu règles ici vaut sur tous les appareils.':'<b>Hors serveur</b> : comptes et réglages gardés sur cet appareil tant que tu n\'es pas connecté (et que <code>sql/comptes_acces_v2.sql</code> n\'est pas passé dans Supabase).'}</div></div>
-    <div class="admNav"><button data-av="people" class="${AD.view==='people'?'on':''}">👥 Personnes <b>${admRows.length}</b></button><button data-av="postes" class="${AD.view==='postes'?'on':''}">🧩 Postes</button><button data-av="who" class="${AD.view==='who'?'on':''}">🔎 Qui peut quoi ?</button></div></div>
-    ${AD.view==='people'?peopleHTML(me):AD.view==='postes'?postesHTML():whoHTML()}`;
-  bind(el,me);}
+    <div class="admNav"><button data-av="people" class="${AD.view==='people'?'on':''}">👥 Personnes <b>${admRows.length}</b></button><button data-av="postes" class="${AD.view==='postes'?'on':''}">🧩 Postes</button><button data-av="who" class="${AD.view==='who'?'on':''}">🔎 Qui peut quoi ?</button>${A.sandboxHTML?`<button data-av="sandbox" class="${AD.view==='sandbox'?'on':''}">🧪 Bac à sable${A.state&&A.state.sandbox?' <b>●</b>':''}</button>`:''}</div></div>
+    ${AD.view==='people'?peopleHTML(me):AD.view==='postes'?postesHTML():AD.view==='sandbox'&&A.sandboxHTML?A.sandboxHTML():whoHTML()}`;
+  bind(el,me);if(AD.view==='sandbox'&&A.sandboxBind)A.sandboxBind(el);} /* 10/10 : bac à sable (données de test injectables / retirables, jamais envoyées au serveur) */
 /* ----- vue PERSONNES ----- */
 function peopleHTML(me){const rows=filtered();const nI=admRows.filter(r=>r.type==='interim').length,nV=admRows.filter(r=>r.type==='visiteur').length,nOff=admRows.filter(r=>!r.active).length,nAdm=admRows.filter(r=>r.admin).length,nInv=admRows.filter(r=>r.invite).length;
   return `<div class="card"><div class="admActions"><button class="btn primary" id="admNew">➕ Créer un accès</button><button class="btn" id="admBulk">📋 Plusieurs d'un coup</button></div>

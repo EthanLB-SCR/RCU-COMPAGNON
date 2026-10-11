@@ -1,5 +1,5 @@
 // PLANNING — retours d'Ethan du 10/10 (midi) : recherche + filtres dans « À placer », deux équipes (A / B / C) sur un même chantier, chef de chantier
-// sur deux chantiers « en autonomie » (chip distincte), étiquette d'équipe gardée à la reprise de la semaine ; rien d'ancien ne change (placer, jours, retirer).
+// sur deux chantiers « en autonomie » (chip distincte), étiquette d'équipe gardée à la reprise de la semaine, un gars sur deux chantiers dans sa semaine (jours déplacés ou en plus) ; rien d'ancien ne change (placer, jours, retirer).
 import { chromium } from 'playwright';
 const BASE=process.env.BASE||'http://localhost:8765';
 const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
@@ -28,22 +28,23 @@ console.log('1) recherche + filtres :',JSON.stringify(out));
 C.c1=out.q&&out.chips.includes('Soudeurs')&&out.chips.includes('Chefs')&&out.chips.includes('Intérim')&&out.tray.length>=3&&out.search.join()==='Karim B.'&&out.none&&out.cleared===out.tray.length&&out.filt.tray.join()==='Julien R.'&&/Manchonneurs/.test(out.filt.active)&&out.back===out.tray.length;
 // ── 2) deux équipes sur Caen : Karim → équipe A, Julien → équipe B ; en-têtes de groupe ; changement d'équipe depuis la carte de la personne
 const place=async(who,team)=>{await page.evaluate(({who2,team2})=>{const c=[...document.querySelectorAll('#eq-app .eq-pltray .eq-plchip')].find(x=>new RegExp(who2).test(x.textContent));c.querySelector('.eq-plmain').click();},{who2:who,team2:team});await wait(200);
-  if(team!==undefined)await page.evaluate(t=>{[...document.querySelectorAll('#eq-app .eq-plsite[data-drop=demo_caen] .eq-opts .chip')].find(c=>c.textContent.trim()===(t?'Équipe '+t:'— sans équipe')).click();},team);await wait(200);
+  if(team!==undefined)await page.evaluate(t=>{[...document.querySelectorAll('#eq-app .eq-plsite[data-drop=demo_caen] .eq-teams .eq-tb')].find(c=>c.textContent.trim()===(t||'—')).click();},team);await wait(200);
   await page.evaluate(()=>document.querySelector('#eq-app .eq-plsite[data-drop=demo_caen] [data-act=plput]').click());await wait(250);};
 await place('Karim','A');await place('Julien','B');
 out=await page.evaluate(()=>{const T=window.TRACE;const P=T.espace.planning();const wk=Object.keys(P)[0];const aff=P[wk].aff;const card=document.querySelector('#eq-app .eq-plsite[data-drop=demo_caen]');return {wk,karim:aff['l:karim']['eq:demo_caen'],julien:aff['l:julien']['eq:demo_caen'],days:Object.keys(aff['l:karim']).filter(k=>/^\d{4}/.test(k)).length,heads:[...card.querySelectorAll('.eq-plteam')].map(h=>h.textContent.replace(/\s+/g,' ').trim()),badges:[...card.querySelectorAll('.eq-team')].map(b=>b.className+':'+b.textContent),count:card.querySelector('.eq-plcount').textContent};});
 await page.evaluate(()=>{[...document.querySelectorAll('#eq-app .eq-plsite[data-drop=demo_caen] .eq-plchip')].find(x=>/Julien/.test(x.textContent)).querySelector('.eq-plmain').click();});await wait(200);
-await page.evaluate(()=>{[...document.querySelectorAll('#eq-app .eq-pledit .chip')].find(c=>/Équipe A/.test(c.textContent)).click();});await wait(250);
+out.choices=await page.evaluate(()=>[...document.querySelectorAll('#eq-app .eq-pledit .eq-tb')].map(b=>b.textContent.trim())); /* discret : —, les équipes en place (A, B) et la suivante (C) seulement */
+await page.evaluate(()=>{[...document.querySelectorAll('#eq-app .eq-pledit .eq-tb')].find(c=>c.textContent.trim()==='A').click();});await wait(250);
 out.after=await page.evaluate(()=>{const T=window.TRACE;const P=T.espace.planning();const wk=Object.keys(P)[0];const aff=P[wk].aff;const card=document.querySelector('#eq-app .eq-plsite[data-drop=demo_caen]');return {julien:aff['l:julien']['eq:demo_caen'],heads:[...card.querySelectorAll('.eq-plteam')].map(h=>h.textContent.replace(/\s+/g,' ').trim())};});
 console.log('2) deux équipes :',JSON.stringify(out));
-C.c2=out.karim==='A'&&out.julien==='B'&&out.days===5&&out.heads.length===2&&/^Équipe A · 1$/.test(out.heads[0])&&/^Équipe B · 1$/.test(out.heads[1])&&out.badges.join()==='eq-team t-A:A,eq-team t-B:B'&&out.count==='2'&&out.after.julien==='A'&&out.after.heads.length===1&&/^Équipe A · 2$/.test(out.after.heads[0]);
+C.c2=out.karim==='A'&&out.julien==='B'&&out.days===5&&out.heads.length===2&&/^Équipe A · 1$/.test(out.heads[0])&&/^Équipe B · 1$/.test(out.heads[1])&&out.badges.join()==='eq-team t-A:A,eq-team t-B:B'&&out.count==='2'&&out.choices.join()==='—,A,B,C'&&out.after.julien==='A'&&out.after.heads.length===1&&/^Équipe A · 2$/.test(out.after.heads[0]);
 // ── 3) chef sur deux chantiers : Ethan placé sur Caen puis Rennes → chip « en autonomie : aussi sur … » sur les deux cartes, liseré (classe multi) ; chef de ce chantier
 await place('Ethan',''); /* Caen, sans équipe */
 await page.evaluate(()=>{const c=[...document.querySelectorAll('#eq-app .eq-plsite[data-drop=demo_caen] .eq-plchip')].find(x=>/Ethan/.test(x.textContent));c.querySelector('.eq-plmain').click();});await wait(200); /* ouvre ses jours : il est complet, donc plus dans le plateau → on le re-place par glisser : simulé par plsel depuis la carte ? non : on passe par le planning direct */
 await page.evaluate(()=>{const T=window.TRACE;const P=T.espace.planning();const wk=Object.keys(P)[0];const o=Object.assign({},P[wk].aff['l:ethan']);Object.keys(o).filter(k=>/^\d{4}/.test(k)).forEach(d=>{o[d]=[...o[d],'demo_rennes'];});T.espace.savePlanning(wk,{'l:ethan':o});});await wait(100);await openPlanning();
-out=await page.evaluate(()=>{const q=id=>{const c=[...document.querySelectorAll('#eq-app .eq-plsite[data-drop='+id+'] .eq-plchip')].find(x=>/Ethan/.test(x.textContent));return c?{multi:c.classList.contains('multi'),chef:c.classList.contains('chef'),role:(c.querySelector('small')||{}).textContent}:null;};return {caen:q('demo_caen'),rennes:q('demo_rennes'),karim:(()=>{const c=[...document.querySelectorAll('#eq-app .eq-plsite[data-drop=demo_caen] .eq-plchip')].find(x=>/Karim/.test(x.textContent));return {multi:c.classList.contains('multi'),role:(c.querySelector('small')||{}).textContent};})()};});
+out=await page.evaluate(()=>{const q=id=>{const c=[...document.querySelectorAll('#eq-app .eq-plsite[data-drop='+id+'] .eq-plchip')].find(x=>/Ethan/.test(x.textContent));return c?{multi:c.classList.contains('multi'),chef:c.classList.contains('chef'),role:(c.querySelector('small')||{}).textContent,first:document.querySelector('#eq-app .eq-plsite[data-drop='+id+'] .eq-plchip')===c,inChefs:!!c.closest('.eq-plchefs')}:null;};return {caen:q('demo_caen'),rennes:q('demo_rennes'),karim:(()=>{const c=[...document.querySelectorAll('#eq-app .eq-plsite[data-drop=demo_caen] .eq-plchip')].find(x=>/Karim/.test(x.textContent));return {multi:c.classList.contains('multi'),role:(c.querySelector('small')||{}).textContent};})()};});
 console.log('3) chef en autonomie sur deux chantiers :',JSON.stringify(out));
-C.c3=out.caen&&out.caen.multi&&out.caen.chef&&/en autonomie/.test(out.caen.role)&&/aussi sur Rennes/.test(out.caen.role)&&out.rennes&&out.rennes.multi&&/aussi sur Caen/.test(out.rennes.role)&&!out.karim.multi&&!/autonomie/.test(out.karim.role);
+C.c3=out.caen&&out.caen.multi&&out.caen.chef&&out.caen.first&&out.caen.inChefs /* le chef toujours en tête, même sans équipe */&&/en autonomie/.test(out.caen.role)&&/aussi sur Rennes/.test(out.caen.role)&&out.rennes&&out.rennes.multi&&/aussi sur Caen/.test(out.rennes.role)&&!out.karim.multi&&!/autonomie/.test(out.karim.role);
 // ── 4) reprise de la semaine passée : l'étiquette d'équipe suit ; retirer du chantier efface l'étiquette
 await page.evaluate(()=>{[...document.querySelectorAll('#eq-app [data-act=plweek]')].find(b=>/Semaine prochaine/.test(b.textContent)).click();});await wait(250);
 await page.evaluate(()=>document.querySelector('#eq-app [data-act=plcopy]').click());await wait(300);
@@ -52,6 +53,23 @@ await page.evaluate(()=>{[...document.querySelectorAll('#eq-app .eq-plsite[data-
 await page.evaluate(()=>document.querySelector('#eq-app [data-act=plrm]').click());await wait(250);
 out.rm=await page.evaluate(()=>{const T=window.TRACE;const P=T.espace.planning();const wks=Object.keys(P).sort();const aff=P[wks[wks.length-1]].aff;return {karim:aff['l:karim']?Object.keys(aff['l:karim']):null,tray:[...document.querySelectorAll('#pl-tray .eq-plchip')].some(c=>/Karim/.test(c.textContent))};});
 console.log('4) reprise de semaine + retrait :',JSON.stringify(out));
-C.c4=out.wks===2&&out.karim==='A'&&out.julien==='A'&&/^Équipe A · 2$/.test(out.heads[0]||'')&&out.rm.karim===null&&out.rm.tray;
+C.c4=out.wks===2&&out.karim==='A'&&out.julien==='A'&&out.heads.length===1&&/^Équipe A · 2$/.test(out.heads[0]||'')&&out.rm.karim===null&&out.rm.tray;
+// ── 5) un gars sur deux chantiers dans sa semaine (Ethan : « je n'ai plus l'option ? ») : Julien (Caen toute la semaine) → « ↔ Aussi sur un autre chantier » → Rennes → panneau des jours :
+//       jeudi = déplacé (il quitte Caen ce jour-là) ; « en plus » coché + vendredi = sur les deux le même jour (chip « jongle entre les deux »)
+await page.evaluate(()=>{[...document.querySelectorAll('#eq-app [data-act=plweek]')].find(b=>/Cette semaine/.test(b.textContent)).click();});await wait(250);
+await page.evaluate(()=>{[...document.querySelectorAll('#eq-app .eq-plsite[data-drop=demo_caen] .eq-plchip')].find(x=>/Julien/.test(x.textContent)).querySelector('.eq-plmain').click();});await wait(200);
+out={also:await page.evaluate(()=>{const b=document.querySelector('#eq-app [data-act=plsel]');return b?b.textContent:null;})};
+await page.evaluate(()=>document.querySelector('#eq-app [data-act=plsel]').click());await wait(200);
+await page.evaluate(()=>document.querySelector('#eq-app .eq-plsite[data-drop=demo_rennes] [data-act=plput]').click());await wait(300);
+out.panel=await page.evaluate(()=>{const p=document.querySelector('#eq-app .eq-plsite[data-drop=demo_rennes] .eq-pledit');return p?{days:[...p.querySelectorAll('[data-act=pladd]')].map(b=>b.dataset.v.split('|')[2]),plus:!!p.querySelector('[data-act=plsplit][type=checkbox]'),msg:document.querySelector('#toast').textContent}:null;});
+await page.evaluate(()=>document.querySelector('#eq-app [data-act=pladd][data-v="l:julien|demo_rennes|2026-10-08"]').click());await wait(250);
+out.jeudi=await page.evaluate(()=>{const o=window.TRACE.espace.planning()['2026-W41'].aff['l:julien'];return {j:o['2026-10-08'],v:o['2026-10-09'],eqCaen:o['eq:demo_caen']};});
+await page.evaluate(()=>document.querySelector('#eq-app [data-act=plsplit][type=checkbox]').click());await wait(250);
+await page.evaluate(()=>document.querySelector('#eq-app [data-act=pladd][data-v="l:julien|demo_rennes|2026-10-09"]').click());await wait(250);
+out.vendredi=await page.evaluate(()=>{const o=window.TRACE.espace.planning()['2026-W41'].aff['l:julien'];const chip=[...document.querySelectorAll('#eq-app .eq-plsite[data-drop=demo_rennes] .eq-plchip')].find(x=>/Julien/.test(x.textContent));return {j:o['2026-10-08'],v:o['2026-10-09'],lun:o['2026-10-05'],multi:chip&&chip.classList.contains('multi'),role:chip?(chip.querySelector('small')||{}).textContent:''};});
+await page.evaluate(()=>{[...document.querySelectorAll('#eq-app [data-act=plsplit]')].find(b=>/Terminé/.test(b.textContent)).click();});await wait(200);
+out.closed=await page.evaluate(()=>!document.querySelector('#eq-app .eq-plsite[data-drop=demo_rennes] .eq-pledit'));
+console.log('5) un gars sur deux chantiers dans sa semaine :',JSON.stringify(out));
+C.c5=/Aussi sur un autre chantier/.test(out.also||'')&&out.panel&&out.panel.days.join()==='2026-10-05,2026-10-06,2026-10-07,2026-10-08,2026-10-09'&&out.panel.plus&&/coche les jours/.test(out.panel.msg)&&out.jeudi.j.join()==='demo_rennes'&&out.jeudi.v.join()==='demo_caen'&&out.jeudi.eqCaen==='A'&&out.vendredi.j.join()==='demo_rennes'&&out.vendredi.v.join()==='demo_caen,demo_rennes'&&out.vendredi.lun.join()==='demo_caen'&&out.vendredi.multi&&/aussi sur Caen/.test(out.vendredi.role)&&out.closed;
 const bad=Object.entries(C).filter(([k,v])=>!v).map(([k])=>k);console.log(bad.length?'RESULTAT: ECHEC '+bad.join(','):'RESULTAT: TOUT VERT');console.log(logs.length?logs:'[]');
 await browser.close();
