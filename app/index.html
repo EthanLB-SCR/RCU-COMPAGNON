@@ -569,6 +569,18 @@
 .eq-plchip.sel{border-color:var(--st-soudee);box-shadow:0 0 0 2px var(--st-soudee)}
 .eq-plchip.dragging{opacity:.45}.eq-plchip.dim{opacity:.28}
 .eq-plchip.enc{border-style:dashed;border-color:#1f6fd0;background:#f1f6fd}.eq-plchip.chef{border-color:#eb6834}.eq-plchip.multi{box-shadow:inset 3px 0 0 #6b4bd6}.eq-plchefs{margin-bottom:2px}
+/* 11/10 : objectifs des équipes — même lecture que le planning (chantier → équipes → gens), objectifs sous chaque équipe */
+.eq-objteam{margin-top:4px}
+.eq-objpeople{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 2px}
+.eq-objp{display:inline-flex;align-items:center;gap:5px;padding:3px 9px 3px 4px;border:1px solid var(--line);border-radius:999px;background:var(--page);font-size:12.5px}
+.eq-objp .eq-av{transform:scale(.68);transform-origin:center;margin:-6px -5px -6px -6px}.eq-objp .ini{width:22px;height:22px;font-size:9px}
+.eq-objh{color:var(--ink);font-weight:600}
+.eq-objnone{padding:4px 0 0}
+.eq-objrow.done .eq-t{text-decoration:line-through;color:var(--muted)}
+.eq-objn{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#eb6834;color:#fff;font-size:10px;font-style:normal;font-weight:700;margin-left:4px}
+.eq-filtres .chip.active .eq-objn{background:#fff;color:#eb6834}
+.eq-objform{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--plane)}
+.eq-plchip.multi:not(.chef){box-shadow:inset 3px 0 0 #f0a030}
 .eq-team{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:6px;font-size:10.5px;font-weight:800;font-style:normal;margin-left:6px;color:#fff;background:#8a877f;vertical-align:middle}.eq-plteam{font-size:11.5px;color:var(--muted);margin:8px 0 -2px;padding-left:8px;border-left:3px solid #8a877f}
 .eq-teams{display:flex;gap:4px;align-items:center;flex-wrap:wrap}.eq-teams .eq-s{margin-right:2px}.eq-tb{width:30px;height:30px;border-radius:999px;border:1.5px solid var(--line);background:#fff;font:inherit;font-size:12px;font-weight:800;color:var(--ink2);cursor:pointer;padding:0}.eq-tb.on{color:#fff;background:var(--ink);border-color:var(--ink)}
 .t-A.eq-team,.eq-tb.t-A.on{background:#1f6fd0;border-color:#1f6fd0}.eq-plteam.t-A{border-color:#1f6fd0}.t-B.eq-team,.eq-tb.t-B.on{background:#eb6834;border-color:#eb6834}.eq-plteam.t-B{border-color:#eb6834}.t-C.eq-team,.eq-tb.t-C.on{background:#2a9d5c;border-color:#2a9d5c}.eq-plteam.t-C{border-color:#2a9d5c}.t-D.eq-team,.eq-tb.t-D.on{background:#6b4bd6;border-color:#6b4bd6}.eq-plteam.t-D{border-color:#6b4bd6}.t-E.eq-team,.eq-tb.t-E.on{background:#0e9aa7;border-color:#0e9aa7}.eq-plteam.t-E{border-color:#0e9aa7}.t-F.eq-team,.eq-tb.t-F.on{background:#8a5a2b;border-color:#8a5a2b}.eq-plteam.t-F{border-color:#8a5a2b}.t-G.eq-team,.eq-tb.t-G.on{background:#d6368f;border-color:#d6368f}.eq-plteam.t-G{border-color:#d6368f}.t-H.eq-team,.eq-tb.t-H.on{background:#7a8a1f;border-color:#7a8a1f}.eq-plteam.t-H{border-color:#7a8a1f}.t-I.eq-team,.eq-tb.t-I.on{background:#14213d;border-color:#14213d}.eq-plteam.t-I{border-color:#14213d}.t-J.eq-team,.eq-tb.t-J.on{background:#6b6b66;border-color:#6b6b66}.eq-plteam.t-J{border-color:#6b6b66} /* 10/10 : équipes A → J (10 max) discrètes : pastille + liseré, lettres rondes ; encadrement en conduite de travaux (pointillé bleu), chef en autonomie (liseré violet) */
@@ -580,6 +592,9 @@
 .eq-pldots i.on{background:var(--ink);color:#fff}
 .eq-pldots i.other{background:#fff;border:2px solid var(--muted);color:var(--muted)}
 .eq-pldots i.free{background:#fdebe3;color:#9a3410;border:1.5px dashed #eb6834}
+.eq-pldots i.warn{box-shadow:0 0 0 2px #f0a030;background:#9a3410}
+.eq-warn{color:#9a3410;font-weight:700}
+.eq-opts .chip.warn{border-color:#f0a030;box-shadow:inset 0 0 0 1px #f0a030}
 .eq-pledit{padding:4px 10px 10px;border-top:1px dashed var(--line)}
 .eq-pledit .chip{font-size:12.5px}
 .eq-plsite{transition:box-shadow .12s,border-color .12s}

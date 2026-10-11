@@ -1,0 +1,20 @@
+import { chromium } from 'playwright';
+const BASE='http://localhost:8765';
+const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
+const ctx=await browser.newContext({viewport:{width:430,height:1100},deviceScaleFactor:2});const page=await ctx.newPage();
+const wait=ms=>page.waitForTimeout(ms);
+await page.clock.install({time:new Date(2026,9,9,8,30,0)});
+await page.goto(BASE+'/index.html');await wait(600);await page.evaluate(()=>{localStorage.clear();});await page.evaluate(()=>new Promise(r=>{try{const q=indexedDB.deleteDatabase('trace-kv');q.onsuccess=q.onerror=q.onblocked=()=>r();}catch(e){r();}}));
+await page.reload();await wait(1200);const s=await page.$('#loginSkip');if(s&&await s.isVisible())await s.click();await wait(700);
+await page.evaluate(()=>{const T=window.TRACE;const src=T.sites[Object.keys(T.sites).find(k=>k!=='__vide'&&T.sites[k]&&T.sites[k].lines)];const x=JSON.parse(JSON.stringify(src));x.id='demo_caen';x.name='Caen — Presqu\'île';x.fiche={ville:'Caen',secteur:'ouest',chef:'l:ethan'};x.conv={msgs:[],seq:1};x.qse={docs:[]};x.missions={'2026-10-09':[{id:'m1',type:'soud',label:'Souder le tronçon 1',h:6,who:[],team:'A',by:'Ethan L.',at:'2026-10-09T07:00:00Z',tr:[{line:'L1',m0:25,m1:100}],trName:'Feeder · PK 25 → 100'},{id:'m2',type:'dech',label:'Décharger le camion de 10 h',h:2,who:[],by:'Ethan L.',at:'2026-10-09T07:00:00Z'}]};T.sites.demo_caen=x;
+  const js=['2026-10-05','2026-10-06','2026-10-07','2026-10-08','2026-10-09'];const o=t=>Object.assign(Object.fromEntries(js.map(d=>[d,['demo_caen']])),t?{['eq:demo_caen']:t}:{});T.espace.savePlanning('2026-W41',{'l:karim':o('A'),'l:julien':o('B'),'l:ethan':o('')});T.renderHome();});
+await page.evaluate(async()=>{const T=window.TRACE;T.state.userId='ethan';T.renderHome();document.getElementById('htExpl').click();await new Promise(r=>setTimeout(r,200));[...document.querySelectorAll('#eq-app .ac-row')].find(x=>/Objectifs des équipes/.test(x.textContent)).click();});await wait(400);
+await page.evaluate(()=>{const c=[...document.querySelectorAll('#eq-app .eq-objsite')].find(x=>/Caen/.test(x.textContent));c.scrollIntoView();});await wait(200);
+await page.screenshot({path:'/root/repo/app/test/shot_objectifs_equipes.png'});
+
+await page.evaluate(()=>{document.querySelector('#eq-app [data-act=objadd][data-v="demo_caen|B"]').click();});await wait(300);
+await page.evaluate(()=>{const f=document.querySelector('#eq-app .eq-objform');f.scrollIntoView({block:'center'});});await wait(200);
+await page.screenshot({path:'/root/repo/app/test/shot_objectifs_form.png'});
+await page.evaluate(async()=>{const T=window.TRACE;T.state.userId='karim';document.getElementById('htHome').click();T.renderHome();});await wait(400);
+await page.screenshot({path:'/root/repo/app/test/shot_objectifs_karim.png'});
+await browser.close();
