@@ -167,12 +167,12 @@ async function meteoFetch(c){let ll=c.ll;if(!ll&&c.ville)ll=await geocode(c.vill
   const r=await fetch(u);if(!r.ok)throw new Error('open-meteo '+r.status);const j=await r.json();const d=j.daily||{};const days={};
   (d.time||[]).forEach((t,i)=>{const tmax=+(d.temperature_2m_max||[])[i],mm=+((d.precipitation_sum||[])[i]||0),pct=+((d.precipitation_probability_max||[])[i]||0),code=+((d.weathercode||[])[i]||0);if(!isFinite(tmax))return;days[t]=[meteoKind(tmax,mm,pct,code),Math.round(tmax),Math.round(mm*10)/10,code];});
   return {at:Date.now(),ll,ville:c.ville||'',days};}
-let meteoBusy=false,meteoT=null;
+let meteoBusy=false,meteoT=null,METEO_ERR='';
 function meteoEnsure(){clearTimeout(meteoT);meteoT=setTimeout(()=>meteoRefresh().catch(e=>console.warn(e)),300);}
 async function meteoRefresh(){if(meteoBusy||typeof fetch!=='function'||(typeof navigator!=='undefined'&&navigator.onLine===false))return;
   const now=Date.now();const list=(DATA?DATA.chantiers:[]).filter(c=>!c.bureau&&(c.ll||c.ville)).filter(c=>{const m=METEO_STORE[c.id];if(m&&m.failAt&&now-m.failAt<METEO_RETRY)return false;return !(m&&m.at&&now-m.at<METEO_TTL&&m.days);}).slice(0,40);
   if(!list.length)return;meteoBusy=true;let changed=false;
-  try{for(const c of list){try{const m=await meteoFetch(c);if(m){METEO_STORE[c.id]=m;changed=true;}else{METEO_STORE[c.id]=Object.assign({},METEO_STORE[c.id]||{},{failAt:now});}}catch(e){console.warn('météo',c.id,e);METEO_STORE[c.id]=Object.assign({},METEO_STORE[c.id]||{},{failAt:now});}}}
+  try{for(const c of list){try{const m=await meteoFetch(c);if(m){METEO_STORE[c.id]=m;changed=true;}else{METEO_STORE[c.id]=Object.assign({},METEO_STORE[c.id]||{},{failAt:now});}}catch(e){console.warn('météo',c.id,e);METEO_ERR=String(e&&e.message||e);METEO_STORE[c.id]=Object.assign({},METEO_STORE[c.id]||{},{failAt:now});}}}
   finally{meteoBusy=false;}
   if(changed){kvSet('trace:meteo',METEO_STORE);if(ROOT&&document.contains(ROOT))render();}}
 /* ════════════════════════════════════════════════════════════════════
@@ -845,6 +845,7 @@ function tuileJour(me,d,sel){
     <span class="eq-jour-m">${M?M[0]:'·'}</span><span class="eq-s">${mt?mt.t+' °C':i?'—':'repos'}</span>
     ${i&&KIT&&avPoste(me)?`<span class="eq-av">${avatarMedaillon(avJour(me,d,i).cfg,40,M?M[2]:'#E3E8EF')}</span>`:''}
     ${ids.map(x=>{const c=site(x),n=c.nom.split(' — ');return `<span class="eq-jour-c"><b>${esc(n[0])}</b>${n[1]?'<br>'+esc(n[1]):c.nom.includes(c.ville)||c.bureau?'':'<br>'+esc(c.ville)}</span>`}).join('')}
+    ${(()=>{const n=ids.reduce((a,x)=>a+missionsOf(netOf(x),d).filter(m=>espaceMissionFor(m,me.id,x,d)).length,0);return n?`<span class="eq-tag eq-jour-obj" title="${n} objectif${n>1?'s':''}">🎯 ${n}</span>`:'';})()}
     ${d===DATA.today?'<span class="eq-tag">auj.</span>':''}</button>`;
 }
 function cJour(me,d){
@@ -852,7 +853,9 @@ function cJour(me,d){
   const corps=ids.map((i,n)=>{
     const c=site(i),avec=avecMoi(me,i,d);
     const resp=[[c.chef,'Chef de chantier'],[c.conducteur,'Conducteur de travaux']].filter(x=>x[0]&&x[0]!==me.id);
+    const ms=missionsOf(netOf(i),d).filter(m=>espaceMissionFor(m,me.id,i,d)); /* 11/10 (Ethan) : « le gars doit voir ses objectifs à la journée, avec un raccourci pour voir sur le plan ce que ça représente » */
     return `<div class="eq-plan-site">${ids.length>1?`<div class="eq-lab" style="margin-top:0">Chantier ${n+1} sur ${ids.length}</div>`:''}${scene(me,d,i)}
+      ${ms.length?`<div class="eq-lab">🎯 ${auj?'Tes objectifs du jour':'Tes objectifs '+fJour(d).slice(0,4)} · ${esc(missionsTxt(ms))}</div><div class="eq-list">${ms.map(m=>`<div class="eq-row eq-objrow${m.done?' done':''}"><span class="ic" style="font-size:18px;width:28px;text-align:center">${mtype(m.type)[2]}</span><span class="eq-grow"><span class="eq-t">${esc(m.label||mtype(m.type)[1])}${m.done?' <span class="eq-tag" style="color:#15673a">✓ faite</span>':''}</span><span class="eq-s">${hTxt(m.h)} estimées${m.team?' · équipe '+esc(m.team):''}${objOnPlan(m)?' · '+esc(objPlanTxt(Object.assign({_site:i},m))):''}${m.by?' · posé par '+esc(m.by):''}</span></span>${objOnPlan(m)?`<button class="btn sm" data-act="objgo" data-v="${esc(i)}|${esc(m.id)}" title="Voir sur le plan (en surbrillance 🎯)">🗺</button>`:''}</div>`).join('')}</div>`:''}
       ${resp.length?`<div class="eq-lab">Responsables du chantier</div><div class="eq-list">${resp.map(([id,role])=>htmlPersRow(pers(id),role)).join('')}</div>`:''}
       <div class="eq-lab">Tes compagnons · ${avec.length}</div>
       <div class="eq-list">${avec.map(p=>htmlPersRow(p,poste(p).label)).join('')||'<div class="eq-s">Personne d\'autre de prévu.</div>'}</div>
@@ -1077,7 +1080,7 @@ function vOrga(me){
     <div class="eq-nav"><button class="btn" data-act="plweek" data-v="${k-1}">◀</button><div class="eq-filtres" style="padding:0;flex:1">${[[-1,'Semaine passée'],[0,'Cette semaine'],[1,'Semaine prochaine'],[2,'Dans 2 semaines']].map(([n,t])=>`<button class="chip${k===n?' active':''}" data-act="plweek" data-v="${n}">${t}</button>`).join('')}</div><button class="btn" data-act="plweek" data-v="${k+1}">▶</button></div>
     <div class="card"><div class="eq-2sel"><div><label class="f" style="margin-top:0">Secteur</label><select class="f" data-chg="plSect"><option value=""${sect===''?' selected':''}>Tous les secteurs</option>${Object.keys(SECTEURS).map(x=>`<option value="${x}"${sect===x?' selected':''}>${SECTEURS[x]}</option>`).join('')}</select></div>
       <div><label class="f" style="margin-top:0">Semaine</label><div class="eq-plprog${pct>=100?' ok':''}"><b>${places} / ${mine.length}</b> placé${places>1?'s':''} toute la semaine${joursLibres?' · <b style="color:#9a3410">'+joursLibres+' jour'+(joursLibres>1?'s':'')+' à pourvoir</b>':''}${pct>=100&&mine.length?' · 🎉 tout le monde est placé':''}<span class="eq-prog"><i style="width:${pct}%"></i></span></div></div></div>
-      <div class="eq-acts" style="margin:10px 0 0"><button class="btn" data-act="plcopy" data-v="${wk}">↩ Reprendre la semaine passée</button><button class="btn${S.plEnc?' primary':''}" data-act="plenc">${S.plEnc?'✓ ':''}Avec l'encadrement</button>${me.admin?`<button class="btn" data-act="plstrict" title="Règle d'accès des gars qui ne sont pas placés">${PL_RULES.strict?'🔒 Non placé = rien':'🔓 Non placé = tout voir'}</button>`:''}</div>
+      <div class="eq-acts" style="margin:10px 0 0"><button class="btn" data-act="plcopy" data-v="${wk}">↩ Reprendre la semaine passée</button><button class="btn${S.plEnc?' primary':''}" data-act="plenc">${S.plEnc?'✓ ':''}Avec l'encadrement</button>${me.admin?`<button class="btn" data-act="plstrict" title="Règle d'accès des gars qui ne sont pas placés">${PL_RULES.strict?'🔒 Non placé = rien':'🔓 Non placé = tout voir'}</button>`:''}<button class="btn" data-act="meteo" title="Recharger la météo des chantiers (Open-Meteo)">☀ Météo</button></div>
       <div class="hint" style="margin-top:6px">Touche une personne puis un chantier (ou glisse-la). Toucher une personne placée règle ses jours. Les gars n'ouvrent dans l'appli que les chantiers de leur semaine et de la précédente.</div></div>
     <div class="eq-cols eq-2b"><div>
       <div class="card eq-pltray${selP?' sel':''}" data-drop="tray"><h3>À placer <span class="hint">· ${aPlacer.length}${aPlacer.some(estPlace)?' · dont '+aPlacer.filter(estPlace).length+' en partie':''}${S.plPoste?' · filtre':''}</span></h3>
@@ -1309,7 +1312,7 @@ function cMesDebours(me){const L=dbDe(me.id);return `<div class="card"><h3>🧾 
 /* 11/10 (Ethan) : « le menu objectifs doit reprendre visuellement le planning : les équipes, le chantier, et tu mets l'objectif que tu veux à l'équipe » ;
    « des notions de jours : un chef qui a anticipé peut planifier la semaine de son équipe » ; « poser sur plan : soit des soudures (2 d'affilée = un tronçon, 4 d'affilée = le tronçon des 4), soit début / fin » */
 const objOnPlan=m=>!!(m&&((Array.isArray(m.tr)&&m.tr.length)||(Array.isArray(m.welds)&&m.welds.length)));
-const objPlanTxt=m=>{if(!objOnPlan(m))return '';const n=Array.isArray(m.welds)?m.welds.length:0;const pr=n&&A.objProgress?A.objProgress(m._site||S.objSite,m.welds):null;return (m.tr&&m.tr.length?'📐 '+(m.trName||'tronçon sur le plan'):'')+(n?(m.tr&&m.tr.length?' · ':'')+'🔧 '+n+' soudure'+(n>1?'s':'')+(pr&&pr.n?' ('+pr.done+'/'+pr.n+' ✓)':''):'');};
+const objPlanTxt=m=>{if(!objOnPlan(m))return '';const pr=A.objProgress?A.objProgress(m._site||S.objSite,m):null;const n=pr&&pr.n?pr.n:(Array.isArray(m.welds)?m.welds.length:0);const lab=m.type==='manch'?'manchon':'soudure';return (m.tr&&m.tr.length?'📐 '+(m.trName||'tronçon sur le plan'):'')+(n?(m.tr&&m.tr.length?' · ':'')+'🔧 '+n+' '+lab+(n>1?'s':'')+(pr&&pr.n?' ('+pr.done+'/'+pr.n+' ✓)':''):'');}; /* 11/10 : le nombre de soudures que le tronçon induit, et l'avancement (manchonnage : manchons posés) */
 /* à qui s'adresse une mission : personnes ciblées, sinon l'équipe (lettre du planning ce jour-là), sinon tout le chantier */
 export function espaceMissionFor(m,key,siteId,day){if(!m)return false;if(Array.isArray(m.who)&&m.who.length)return m.who.includes(key);if(m.team){const aff=(PLANNING[weekKey(day)]||{}).aff||{};return teamOf(aff,key,siteId)===m.team;}return true;}
 function vObjectifs(me){const k=S.objWeek||0;const js=semaineDe(k);const today=todayIso();const day=S.objDay&&js.includes(S.objDay)?S.objDay:(js.includes(today)?today:js[0]);S.objDay=day;const wk=weekKey(day);const affD=(PLANNING[wk]||{}).aff||{};
@@ -1510,6 +1513,8 @@ const ACT={
   gdweek(v){S.gdWeek=+v;render()},
   rpweek(v){S.rpWeek=+v;render()},
   rpcsv(v){const csv=rapportCSV(v);const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const u=URL.createObjectURL(blob);const el=document.createElement('a');el.href=u;el.download=(v==='paie'?'variables_paie_S':'rapport_S')+numSemaine(semaineDe(S.rpWeek||0)[0])+'.csv';document.body.appendChild(el);el.click();el.remove();setTimeout(()=>URL.revokeObjectURL(u),2000);msg('Export CSV prêt (Excel, séparateur ;)')},
+  objgo(v){const [id,mid]=v.split('|');if(A.objFocus)A.objFocus(id,mid);},
+  meteo(){Object.values(METEO_STORE).forEach(m=>{if(m){delete m.failAt;delete m.at;}});METEO_ERR='';msg('Météo : mise à jour…');meteoRefresh().then(()=>{const L=(DATA?DATA.chantiers:[]).filter(c=>!c.bureau);const ok=L.filter(c=>METEO_STORE[c.id]&&METEO_STORE[c.id].days);const miss=L.filter(c=>!(METEO_STORE[c.id]&&METEO_STORE[c.id].days));render();msg(miss.length?'Météo : '+ok.length+' chantier'+(ok.length>1?'s':'')+' à jour · sans météo : '+miss.slice(0,4).map(c=>c.nom+(c.ll||c.ville?'':' (ni position ni ville dans la fiche)')).join(', ')+(METEO_ERR?' · erreur : '+METEO_ERR:''):'Météo à jour pour '+ok.length+' chantier'+(ok.length>1?'s':''));}).catch(e=>msg('Météo : '+(e&&e.message||e)));}, /* 11/10 (Ethan : « je ne vois plus la météo ») : rechargement à la main + diagnostic */ /* raccourci « voir sur le plan » depuis Ta semaine / l'accueil */
   objweek(v){S.objWeek=Math.max(-8,Math.min(8,+v));S.objDay=null;S.objSite=null;render()},
   objday(v){S.objDay=v;S.objSite=null;render()},
   objadd(v){if(viewing()){viewOnly();return;}const [site,team]=String(v||'').split('|');S.objSite=site||null;S.objTeam=team||'';S.objTeamSel=null;render();if(site)setTimeout(()=>{const f=document.querySelector('#eq-app .eq-objform');if(f)f.scrollIntoView({block:'nearest',behavior:'smooth'});},50)},
