@@ -15,7 +15,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 export const docKey=acc=>acc?((acc.email||'').toLowerCase()||String(acc.id||'')):'';
 const dFR=x=>x?new Date(x).toLocaleDateString('fr-FR'):'';
 const dhFR=x=>x?new Date(x).toLocaleDateString('fr-FR')+' '+new Date(x).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):'';
-export const KINDS={reglement:'Règlement intérieur',note:'Note de service',flash:'Flash info sécurité',accueil_entreprise:'Accueil nouvel arrivant',politique:'Politique / charte',autre:'Document'};
+export const KINDS={reglement:'Règlement intérieur',note:'Note de service',flash:'Flash info sécurité',accueil_entreprise:'Accueil nouvel arrivant',politique:'Politique / charte',info:'Communication interne',presentation:'Présentation de l\'entreprise',autre:'Document'}; /* 12/10 soir : info / presentation = à lire, sans signature (req.none) */
 /* 10/10 (retour Ethan) : les notes de service seront des PDF importés, à dérouler en entier avant de signer (comme le PPSPS) ; les flash info (presqu'accidents, sécurité) se signent par tous les postes exploitation */
 export const EXPLOITATION_POSTES=POSTES_DEF.filter(p=>p[2]==='encadrement'||p[2]==='terrain').map(p=>p[0]);
 export const isPdfDoc=d=>!!(d&&(d.url||d.data));
@@ -30,7 +30,7 @@ export function docsAll(){const rows=regAll('doc');const ids=new Set(rows.map(r=
 export function docsArchived(){return regAll('doc').filter(d=>d&&d.active===false);}
 export const docById=id=>docsAll().find(d=>d.id===id)||docsArchived().find(d=>d.id===id)||null;
 // à qui s'applique un document : tous / postes / types de compte — un visiteur ne signe rien
-export function docApplies(d,acc){if(!acc||acc.poste==='visiteur'||acc.active===false)return false;const r=d.req||{all:true};if(r.all)return true;if(Array.isArray(r.postes)&&r.postes.includes(acc.poste))return true;if(Array.isArray(r.types)&&r.types.includes(acc.type||'salarie'))return true;return false;}
+export function docApplies(d,acc){if(!acc||acc.poste==='visiteur'||acc.active===false)return false;const r=d.req||{all:true};if(r.none)return false; /* communication interne, présentation : rien à signer */if(r.all)return true;if(Array.isArray(r.postes)&&r.postes.includes(acc.poste))return true;if(Array.isArray(r.types)&&r.types.includes(acc.type||'salarie'))return true;return false;}
 export function docsFor(acc){return docsAll().filter(d=>docApplies(d,acc));}
 export const docSig=(docId,key)=>regGet('docsig',docId+'|'+key);
 export function docsTodo(acc){if(!acc)return [];const k=docKey(acc);return docsFor(acc).filter(d=>!docSig(d.id,k));}
@@ -57,7 +57,7 @@ export async function mountPdfReader(file,host,alt,btn,onRead){const url=file.ur
     readGate(host,btn,()=>onRead('pdfjs'));}
   catch(e){console.warn('PDF',e);fallback();}}
 /* ── ouverture d'un document : lecture (règlement, note) ou questionnaire (accueil entreprise), puis signature ── */
-export function docOpen(docId,acc){const d=docById(docId);if(!d||!A)return;acc=acc||A.current();const key=docKey(acc);const mine=docSig(d.id,key);const act=!!(A.acting&&A.acting());const ro=(A.viewing&&A.viewing())||act; /* 12/10 : « agir comme » fait tout… sauf signer à la place de la personne (attestation personnelle) */
+export function docOpen(docId,acc){const d=docById(docId);if(!d||!A)return;acc=acc||A.current();const key=docKey(acc);const mine=docSig(d.id,key);const act=!!(A.acting&&A.acting());const noSign=!!(d.req&&d.req.none);const ro=(A.viewing&&A.viewing())||act||noSign; /* 12/10 : « agir comme » fait tout… sauf signer à la place de la personne (attestation personnelle) */
   const isQ=Array.isArray(d.qs)&&d.qs.length;const name=acc?(acc.name||acc.email||''):'';const pdf=!isQ&&isPdfDoc(d);
   const body=isQ
     ?`<div class="dr-q">${d.intro?`<p class="hint">${esc(d.intro)}</p>`:''}${d.qs.map((q,i)=>`<label class="dr-qi"><input type="checkbox" data-q="${i}" ${mine?'checked disabled':''}><span><b>${i+1}</b> ${esc(q)}</span></label>`).join('')}</div>`
@@ -65,7 +65,7 @@ export function docOpen(docId,acc){const d=docById(docId);if(!d||!A)return;acc=a
     :`<div class="dr-body" id="dr-body"><div class="dr-doc">${d.html||'<p>(document vide)</p>'}</div></div>`;
   A.openModal(`<h3 style="margin-top:0">${esc(d.title)} <span class="hint">· ${esc(KINDS[d.kind]||d.kind)}${d.version?' · '+esc(d.version):''}</span></h3>
    ${body}
-   ${mine?`<div class="okbox" style="margin-top:8px">✓ Signé par ${esc(mine.name||name)} le ${dhFR(mine.at)}.</div>`:ro?`<div class="warnbox" style="margin-top:8px">${act?`La signature est <b>personnelle</b> : ${esc(name)} signe lui-même (sur son téléphone, ou sur le tien depuis son compte). Tu agis comme lui pour tout le reste.`:'Lecture seule : tu regardes l\'appli comme quelqu\'un d\'autre.'}</div>`:
+   ${mine?`<div class="okbox" style="margin-top:8px">✓ Signé par ${esc(mine.name||name)} le ${dhFR(mine.at)}.</div>`:noSign?'':ro?`<div class="warnbox" style="margin-top:8px">${act?`La signature est <b>personnelle</b> : ${esc(name)} signe lui-même (sur son téléphone, ou sur le tien depuis son compte). Tu agis comme lui pour tout le reste.`:'Lecture seule : tu regardes l\'appli comme quelqu\'un d\'autre.'}</div>`:
      `<div id="dr-step1" style="margin-top:8px"><button class="btn block" id="dr-read" data-ok="${isQ?'✓ Tous les points sont confirmés — je signe':'✓ J\'ai lu en entier — je signe'}" disabled>${isQ?'Confirme chaque point pour pouvoir signer':pdf?'Déroule le document jusqu\'à la dernière page':'Déroule jusqu\'en bas pour pouvoir signer'}</button></div>
       <div id="dr-step2" style="display:none;margin-top:8px"><div class="okbox" style="margin:0 0 6px">Tu signes en tant que <b>${esc(name)}</b>.</div>${sigPadHTML('dr-pad')}<div class="actions" style="margin-top:8px"><button class="btn primary block" id="dr-ok">Valider ma signature</button><button class="btn block" id="dr-clear">Effacer le trait</button></div></div>`}
    <div class="actions" style="margin-top:8px"><button class="btn block" data-close>Fermer</button></div>`);
@@ -88,7 +88,7 @@ export function docsListHTML(acc){const k=docKey(acc);const mine=docsFor(acc);co
     ${mine.filter(d=>docSig(d.id,k)).length?`<div class="ac-h"><b>Signés</b><span>${mine.filter(d=>docSig(d.id,k)).length}</span></div>${mine.filter(d=>docSig(d.id,k)).map(row).join('')}`:''}
     <div class="hint" style="margin-top:8px">Un document se lit en entier (déroule jusqu'en bas) puis se signe au doigt. Le questionnaire d'accueil se confirme point par point.</div>`;}
 /* ── Exploitation → Documents d'entreprise (administrateur, QSE) : liste, qui a signé, nouvelle note de service, archivage ── */
-export function docsAdminHTML(people){people=people||[];const all=docsAll();const arch=docsArchived();
+export function docsAdminHTML(people){people=people||[];const all=docsAll().filter(d=>!(d.req&&d.req.none));const arch=docsArchived(); /* 12/10 soir : les infos / la présentation (sans signature) vivent dans Communication interne */
   const row=d=>{const sigs=docSigsOf(d.id);const conc=people.filter(p=>docApplies(d,p));const signed=conc.filter(p=>sigs.some(s=>s.key===docKey(p)));const pc=conc.length?Math.round(100*signed.length/conc.length):0;
     return `<button class="ac-row" data-act="docadm" data-v="${esc(d.id)}"><span class="ic" style="background:#e8f0fb">${d.kind==='accueil_entreprise'?'🦺':d.kind==='flash'?'⚡':d.kind==='note'?'📌':'📘'}</span><span class="tx"><b>${esc(d.title)}</b><small>${esc(KINDS[d.kind]||d.kind)}${d.version?' · '+esc(d.version):''} · ${esc(reqLabel(d))} · <b>${signed.length} / ${conc.length}</b> signé${signed.length>1?'s':''} (${pc} %)</small></span>${conc.length-signed.length?`<span class="ac-n">${conc.length-signed.length}</span>`:'<span class="ac-chk ok">✓</span>'}<span class="chev">›</span></button>`;};
   /* 10/10 (retour Ethan) : RH et direction voient QUI n'a pas signé ses documents obligatoires — par personne, les documents manquants */

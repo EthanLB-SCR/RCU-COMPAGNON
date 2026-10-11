@@ -42,5 +42,7 @@ async function regLoad_(kind){if(!PEND.length){const p=await kvGet('trace:regPen
     await regFlush();}
   LOADED.add(kind);emit(kind);}
 export const regPending=()=>PEND.slice();
+/* 12/10 soir : recharger un registre depuis le serveur (après une écriture faite côté serveur, ex. synchro Outlook) */
+export async function regReload(kind){if(!A.state.cloudUser||!A.sync.listRegistre)return false;const rows=await A.sync.listRegistre([kind]);if(!rows)return false;rows.forEach(r=>{if(PEND.some(w=>w.kind===kind&&w.id===r.id))return;put(kind,r.id,r.data||{},r.updated_at);});kvSet('trace:reg:'+kind,ROWS[kind]||{});LOADED.add(kind);emit(kind);return true;}
 /* bac à sable (10/10) : retirer de l'appareil les lignes de test (jamais envoyées : personnages de démo, chantiers demo_…) */
 export function regPurge(kind,pred){const R=ROWS[kind]||{};let n=0;Object.keys(R).forEach(id=>{try{if(pred(id,R[id].data||{})){delete R[id];n++;}}catch(e){}});PEND=PEND.filter(w=>!(w.kind===kind&&!ROWS[kind][w.id]&&pred(w.id,w.patch||{})));kvSet('trace:reg:'+kind,ROWS[kind]||{});kvSet('trace:regPending',PEND);if(n)emit(kind);return n;}
