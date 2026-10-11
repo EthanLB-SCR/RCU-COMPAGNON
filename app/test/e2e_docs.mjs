@@ -8,6 +8,7 @@ const ctx=await browser.newContext({viewport:{width:430,height:900}});const page
 const logs=[];page.on('pageerror',e=>logs.push('PAGEERROR: '+e.message.slice(0,300)));page.on('console',m=>{if(m.type()==='error'&&!/supabase|Failed to fetch|net::ERR|404|WebSocket/i.test(m.text()))logs.push(m.text().slice(0,200));});
 page.on('dialog',d=>d.accept().catch(()=>{}));
 const C={};const wait=ms=>page.waitForTimeout(ms);
+await page.clock.install({time:new Date(2026,9,9,8,30,0)}); /* vendredi 09/10/2026 : le week-end, le planning s'ouvre sur la semaine suivante (11/10) — la date du test ne doit pas en dépendre */
 await page.goto(BASE+'/index.html');await wait(600);await page.evaluate(()=>{localStorage.clear();});await page.evaluate(()=>new Promise(r=>{try{const q=indexedDB.deleteDatabase('trace-kv');q.onsuccess=q.onerror=q.onblocked=()=>r();}catch(e){r();}}));
 await page.reload();await wait(1200);
 const skip=async()=>{const s=await page.$('#loginSkip');if(s&&await s.isVisible())await s.click();await wait(700);};await skip();
