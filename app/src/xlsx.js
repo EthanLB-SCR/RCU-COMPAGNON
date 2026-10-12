@@ -1,0 +1,71 @@
+// xlsx.js — lecture (et petite écriture) de classeurs Excel SANS bibliothèque, dans le navigateur ET dans Node (tests) : zip (répertoire central) +
+// DecompressionStream('deflate-raw') + XML lu à la regex (pas de DOMParser côté Node). Sert au classeur de chiffrage (prix.js), à la DPGF du client (lecture et
+// écriture des PU dans SON fichier, mise en forme conservée) et aux imports de commande. 13/10/2026.
+const td=new TextDecoder();
+export async function zipEntries(buf){const dv=new DataView(buf);const u8=new Uint8Array(buf);let eocd=-1;for(let i=buf.byteLength-22;i>=Math.max(0,buf.byteLength-70000);i--){if(dv.getUint32(i,true)===0x06054b50){eocd=i;break;}}if(eocd<0)throw new Error('zip : fin de répertoire introuvable');
+  const n=dv.getUint16(eocd+10,true),cd=dv.getUint32(eocd+16,true);const out={};let p=cd;
+  for(let k=0;k<n;k++){if(dv.getUint32(p,true)!==0x02014b50)break;const method=dv.getUint16(p+10,true),crc=dv.getUint32(p+16,true),csize=dv.getUint32(p+20,true),usize=dv.getUint32(p+24,true),nl=dv.getUint16(p+28,true),el=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true),off=dv.getUint32(p+42,true);const name=td.decode(u8.subarray(p+46,p+46+nl));
+    const lnl=dv.getUint16(off+26,true),lel=dv.getUint16(off+28,true);const start=off+30+lnl+lel;out[name]={name,method,crc,csize,usize,data:u8.subarray(start,start+csize)};p+=46+nl+el+cl;}
+  return out;}
+export async function inflateBytes(e){if(e.method===0)return e.data;if(typeof DecompressionStream==='undefined')throw new Error('Ce navigateur ne sait pas décompresser');const ds=new DecompressionStream('deflate-raw');const w=ds.writable.getWriter();w.write(e.data);w.close();return new Uint8Array(await new Response(ds.readable).arrayBuffer());}
+export async function inflate(e){return td.decode(await inflateBytes(e));}
+export async function deflateBytes(u8){if(typeof CompressionStream==='undefined')return null;const cs=new CompressionStream('deflate-raw');const w=cs.writable.getWriter();w.write(u8);w.close();return new Uint8Array(await new Response(cs.readable).arrayBuffer());}
+/* ── XML minimal ── */
+export const xmlUnesc=s=>String(s||'').replace(/&#x([0-9a-f]+);/gi,(m,h)=>String.fromCodePoint(parseInt(h,16))).replace(/&#(\d+);/g,(m,d)=>String.fromCodePoint(+d)).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&').replace(/_x000a_/g,'\n').replace(/_x000d_/g,'');
+export const xmlEsc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const attr=(tag,name)=>{const m=tag.match(new RegExp('\\s'+name+'="([^"]*)"'));return m?xmlUnesc(m[1]):null;};
+export const colIdx=c=>[...String(c).toUpperCase()].reduce((n,ch)=>n*26+(ch.charCodeAt(0)-64),0); /* A=1 */
+export const colName=i=>{let s='';while(i>0){const r=(i-1)%26;s=String.fromCharCode(65+r)+s;i=Math.floor((i-1)/26);}return s;};
+export const splitRef=a=>{const m=String(a).match(/^([A-Z]+)(\d+)$/);return m?{c:colIdx(m[1]),r:+m[2]}:null;};
+function sharedStrings(xml){const out=[];const re=/<si>([\s\S]*?)<\/si>/g;let m;while((m=re.exec(xml))){const ts=[];const rt=/<t[^>]*>([\s\S]*?)<\/t>/g;let t;while((t=rt.exec(m[1])))ts.push(xmlUnesc(t[1]));out.push(ts.join(''));}return out;}
+/* cellules d'une feuille : {addr:{v,f,t}} — v = valeur (nombre, texte, booléen), f = formule (les formules partagées sont dépliées à partir de leur maître) */
+function parseSheet(xml,SS){const cells={};const shared={};const re=/<c\s([^>]*?)(\/>|>([\s\S]*?)<\/c>)/g;let m;let maxR=0;
+  while((m=re.exec(xml))){const tag=' '+m[1];const inner=m[3]||'';const r=attr(tag,'r');if(!r)continue;const t=attr(tag,'t');let f=null;const fm=inner.match(/<f([^>]*)(?:\/>|>([\s\S]*?)<\/f>)/);
+    if(fm){const si=attr(fm[1]||'','si');const txt=fm[2]!==undefined?xmlUnesc(fm[2]):'';const isShared=/t="shared"/.test(fm[1]||'');if(isShared){if(txt){shared[si]=txt;f=txt;}else f=shared[si]||null;}else f=txt||null;}
+    let v=null;const vm=inner.match(/<v>([\s\S]*?)<\/v>/);
+    if(t==='s'){v=vm?(SS[+vm[1]]??''):'';}else if(t==='inlineStr'){const im=inner.match(/<t[^>]*>([\s\S]*?)<\/t>/);v=im?xmlUnesc(im[1]):'';}else if(t==='str'){v=vm?xmlUnesc(vm[1]):'';}else if(t==='b'){v=vm?vm[1]==='1':null;}else if(t==='e'){v=null;}else{v=vm?+vm[1]:null;if(vm&&!isFinite(v))v=null;}
+    cells[r]={v,f,t:t||null};const sr=splitRef(r);if(sr&&sr.r>maxR)maxR=sr.r;}
+  return {cells,maxR};}
+export class Sheet{constructor(name,parsed){this.name=name;this.cells=parsed.cells;this.maxR=parsed.maxR;}
+  get(a){const c=this.cells[a];return c?c.v:null;} f(a){const c=this.cells[a];return c?c.f:null;} has(a){return !!this.cells[a]&&this.cells[a].v!==null&&this.cells[a].v!=='';}
+  at(c,r){return this.get(colName(c)+r);} str(a){const v=this.get(a);return v===null||v===undefined?'':String(v);} num(a){const v=this.get(a);return typeof v==='number'?v:(v===''||v===null||v===undefined?null:(isFinite(+v)?+v:null));}
+  /* ligne r sous forme de tableau de valeurs de la colonne c0 à c1 */
+  row(r,c0,c1){const out=[];for(let c=c0;c<=c1;c++)out.push(this.at(c,r));return out;}
+  rowStr(r){const vals=Object.keys(this.cells).filter(a=>splitRef(a).r===r).map(a=>this.cells[a].v).filter(v=>v!==null&&v!=='');return vals;}
+  /* cherche la première cellule dont le texte commence par s (colonne A par défaut) */
+  find(s,col){const want=String(s).toLowerCase();for(let r=1;r<=this.maxR;r++){const v=this.at(col||1,r);if(typeof v==='string'&&v.trim().toLowerCase().startsWith(want))return r;}return -1;}}
+/* ── classeur ── */
+export async function openXlsx(src){const buf=src instanceof ArrayBuffer?src:(src.arrayBuffer?await src.arrayBuffer():src.buffer);const Z=await zipEntries(buf);const read=async n=>Z[n]?await inflate(Z[n]):null;
+  const wbx=await read('xl/workbook.xml');if(!wbx)throw new Error('pas un classeur Excel');const rels=await read('xl/_rels/workbook.xml.rels')||'';
+  const relMap={};(rels.match(/<Relationship\s[^>]*>/g)||[]).forEach(t=>{const id=attr(t,'Id'),tg=attr(t,'Target');if(id&&tg)relMap[id]=tg.replace(/^\/?xl\//,'').replace(/^\//,'');});
+  const sheets=[];(wbx.match(/<sheet\s[^>]*>/g)||[]).forEach((t,i)=>{const name=attr(t,'name');const rid=attr(t,'r:id')||attr(t,'id');const tg=relMap[rid]||(Z['xl/worksheets/sheet'+(i+1)+'.xml']?'worksheets/sheet'+(i+1)+'.xml':null); /* sans _rels (fichiers minimalistes) : feuille N = sheetN.xml */if(name&&tg)sheets.push({name,path:'xl/'+tg.replace(/^xl\//,''),hidden:/state="hidden"/.test(t)});});
+  const names={};(wbx.match(/<definedName\s[^>]*>[^<]*<\/definedName>/g)||[]).forEach(t=>{const n=attr(t,'name');const ref=xmlUnesc(t.replace(/^<definedName[^>]*>/,'').replace(/<\/definedName>$/,''));if(n&&!names[n])names[n]=ref;});
+  const SS=Z['xl/sharedStrings.xml']?sharedStrings(await read('xl/sharedStrings.xml')):[];
+  const tables=[];for(const n of Object.keys(Z)){if(!/^xl\/tables\/table\d+\.xml$/.test(n))continue;const x=await read(n);const tt=x.match(/<table\s[^>]*>/);if(!tt)continue;const cols=(x.match(/<tableColumn\s[^>]*>/g)||[]).map(c=>attr(c,'name'));tables.push({name:attr(tt[0],'name'),ref:attr(tt[0],'ref'),cols,file:n});}
+  /* feuille porteuse de chaque table : via xl/worksheets/_rels/sheetN.xml.rels */
+  for(const t of tables){const fn=t.file.replace(/^xl\/tables\//,'');for(const s of sheets){const rn=s.path.replace(/worksheets\/(sheet\d+\.xml)$/,'worksheets/_rels/$1.rels');const rx=Z[rn]?await read(rn):'';if(rx&&new RegExp('Target="(\\.\\./tables/|/xl/tables/|tables/)'+fn.replace('.','\\.')+'"').test(rx)){t.sheet=s.name;break;}}} /* Excel écrit ../tables/tableN.xml, openpyxl /xl/tables/tableN.xml */
+  const cache={};
+  return {Z,sheets,names,tables,SS,async sheet(name){if(cache[name])return cache[name];const s=sheets.find(x=>x.name===name);if(!s)return null;const xml=await read(s.path);const sh=new Sheet(name,parseSheet(xml,SS));cache[name]=sh;return sh;},
+    /* valeur d'un nom défini pointant une cellule : 'Base FO'!$B$251 */
+    async named(n){const ref=names[n];if(!ref)return undefined;const m=ref.match(/^'?([^'!]+)'?!\$?([A-Z]+)\$?(\d+)$/);if(!m)return undefined;const sh=await this.sheet(m[1]);return sh?sh.get(m[2]+m[3]):undefined;},
+    /* lignes d'une table nommée : [{col:valeur}] */
+    async table(n){const t=tables.find(x=>x.name===n);if(!t||!t.sheet)return null;const sh=await this.sheet(t.sheet);const [a,b]=t.ref.split(':');const A=splitRef(a),B=splitRef(b);const rows=[];for(let r=A.r+1;r<=B.r;r++){const o={};let any=false;t.cols.forEach((c,i)=>{const v=sh.at(A.c+i,r);o[c]=v;if(v!==null&&v!=='')any=true;});if(any)rows.push(o);}return {name:n,cols:t.cols.slice(),rows,sheet:t.sheet,ref:t.ref};}};}
+/* ── écriture : remplacer des valeurs de cellules dans une feuille et re-zipper (le reste du classeur est recopié tel quel : styles, formules, autres feuilles) ── */
+function crc32(u8){let c,crc=0xFFFFFFFF;for(let i=0;i<u8.length;i++){c=(crc^u8[i])&0xFF;for(let k=0;k<8;k++)c=c&1?(c>>>1)^0xEDB88320:c>>>1;crc=(crc>>>8)^c;}return (crc^0xFFFFFFFF)>>>0;}
+export function setCellsXml(xml,values){/* values = {A1: number|string} : la cellule existe → remplacée (t et v), sinon créée dans sa ligne (ligne créée si absente) */
+  const byRow={};Object.keys(values).forEach(a=>{const s=splitRef(a);if(s)(byRow[s.r]=byRow[s.r]||[]).push(a);});
+  const cellXml=(a,v)=>{const sm=xml.match(new RegExp('<c r="'+a+'"([^>]*?)(/>|>[\\s\\S]*?</c>)'));const st=sm?(sm[1].match(/\ss="(\d+)"/)||[])[1]:null;const sa=st?' s="'+st+'"':'';return typeof v==='number'?`<c r="${a}"${sa}><v>${v}</v></c>`:`<c r="${a}"${sa} t="inlineStr"><is><t>${xmlEsc(v)}</t></is></c>`;};
+  Object.keys(byRow).forEach(r=>{const rowRe=new RegExp('<row r="'+r+'"([^>]*?)(/>|>([\\s\\S]*?)</row>)');const rm=xml.match(rowRe);
+    if(rm){let inner=rm[3]||'';byRow[r].forEach(a=>{const re=new RegExp('<c r="'+a+'"[^>]*?(/>|>[\\s\\S]*?</c>)');const nx=cellXml(a,values[a]);if(re.test(inner))inner=inner.replace(re,nx);else{/* insérer à sa place (ordre des colonnes) */const cs=[...inner.matchAll(/<c r="([A-Z]+)\d+"/g)].map(x=>x[1]);const ci=colIdx(a.replace(/\d+/,''));let pos=inner.length;for(const m of inner.matchAll(/<c r="([A-Z]+)\d+"[^>]*?(\/>|>[\s\S]*?<\/c>)/g)){if(colIdx(m[1])>ci){pos=m.index;break;}}inner=inner.slice(0,pos)+nx+inner.slice(pos);}});
+      xml=xml.replace(rowRe,`<row r="${r}"${rm[1].replace(/\s+spans="[^"]*"/,'')}>${inner}</row>`);}
+    else{const nx=byRow[r].sort((a,b)=>colIdx(a.replace(/\d+/,''))-colIdx(b.replace(/\d+/,''))).map(a=>cellXml(a,values[a])).join('');/* avant la première ligne de numéro supérieur, sinon avant </sheetData> */let done=false;const rows=[...xml.matchAll(/<row r="(\d+)"/g)];const after=rows.find(m=>+m[1]>+r);if(after){xml=xml.slice(0,after.index)+`<row r="${r}">${nx}</row>`+xml.slice(after.index);done=true;}if(!done)xml=xml.replace('</sheetData>',`<row r="${r}">${nx}</row></sheetData>`);}});
+  return xml;}
+export async function rezip(Z,replaced){/* replaced = {entryName: Uint8Array|string} ; les autres entrées sont recopiées compressées telles quelles */
+  const parts=[];const cdir=[];let offset=0;const enc=new TextEncoder();
+  const names=Object.keys(Z);for(const name of names){const e=Z[name];let data,method,csize,usize,crc;
+    if(replaced&&replaced[name]!==undefined){const raw=typeof replaced[name]==='string'?enc.encode(replaced[name]):replaced[name];usize=raw.length;crc=crc32(raw);const def=await deflateBytes(raw);if(def&&def.length<raw.length){data=def;method=8;}else{data=raw;method=0;}csize=data.length;}
+    else{data=e.data;method=e.method;csize=e.csize;usize=e.usize;crc=e.crc;}
+    const nameB=enc.encode(name);const lh=new Uint8Array(30+nameB.length);const dv=new DataView(lh.buffer);dv.setUint32(0,0x04034b50,true);dv.setUint16(4,20,true);dv.setUint16(6,0x0800,true);dv.setUint16(8,method,true);dv.setUint16(10,0,true);dv.setUint16(12,0x21,true);dv.setUint32(14,crc,true);dv.setUint32(18,csize,true);dv.setUint32(22,usize,true);dv.setUint16(26,nameB.length,true);dv.setUint16(28,0,true);lh.set(nameB,30);
+    parts.push(lh,data);const cd=new Uint8Array(46+nameB.length);const cv=new DataView(cd.buffer);cv.setUint32(0,0x02014b50,true);cv.setUint16(4,20,true);cv.setUint16(6,20,true);cv.setUint16(8,0x0800,true);cv.setUint16(10,method,true);cv.setUint16(12,0,true);cv.setUint16(14,0x21,true);cv.setUint32(16,crc,true);cv.setUint32(20,csize,true);cv.setUint32(24,usize,true);cv.setUint16(28,nameB.length,true);cv.setUint16(30,0,true);cv.setUint16(32,0,true);cv.setUint16(34,0,true);cv.setUint16(36,0,true);cv.setUint32(38,0,true);cv.setUint32(42,offset,true);cd.set(nameB,46);cdir.push(cd);offset+=lh.length+data.length;}
+  const cdLen=cdir.reduce((s,x)=>s+x.length,0);const eocd=new Uint8Array(22);const ev=new DataView(eocd.buffer);ev.setUint32(0,0x06054b50,true);ev.setUint16(8,cdir.length,true);ev.setUint16(10,cdir.length,true);ev.setUint32(12,cdLen,true);ev.setUint32(16,offset,true);
+  const all=parts.concat(cdir,[eocd]);const tot=all.reduce((s,x)=>s+x.length,0);const out=new Uint8Array(tot);let p=0;all.forEach(x=>{out.set(x,p);p+=x.length;});return out;}
