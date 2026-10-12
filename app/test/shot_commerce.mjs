@@ -1,0 +1,27 @@
+// Captures du dossier de A à Z (13/10) : Dossier, Lecture (note à deux destinations), Chiffrage prérempli, Mémoire, DPGF, Offre — téléphone et tablette.
+import { chromium } from 'playwright';
+const BASE='http://localhost:8765';
+const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
+const ctx=await browser.newContext({viewport:{width:900,height:1100},deviceScaleFactor:1.5});const page=await ctx.newPage();page.on('dialog',d=>d.accept().catch(()=>{}));
+const errs=[];page.on('pageerror',e=>errs.push(e.message));
+const wait=ms=>page.waitForTimeout(ms);const shot=n=>page.screenshot({path:'/root/repo/app/test/shot_commerce_'+n+'.png'});
+await page.clock.install({time:new Date(2026,9,9,8,30,0)});
+await page.goto(BASE+'/index.html');await wait(600);await page.evaluate(()=>{localStorage.clear();});await page.reload();await wait(1200);const s=await page.$('#loginSkip');if(s&&await s.isVisible())await s.click();await wait(700);
+await page.evaluate(()=>{const T=window.TRACE;T.state.userId='ethan';T.renderHome();document.getElementById('htCom').click();});await wait(300);
+const click=async(v)=>{await page.evaluate(v=>{const b=document.querySelector(`#eq-app [data-act=af][data-v="${v}"]`);if(b)b.click();},v);await wait(300);};
+const set=async(sel,val)=>page.evaluate(([s,v])=>{const el=document.querySelector(s);if(!el)return false;el.value=v;el.dispatchEvent(new Event('change',{bubbles:true}));return true;},[sel,val]);
+await click('new|');await page.evaluate(()=>{document.getElementById('afn-num').value='O2610-07';document.getElementById('afn-nom').value='Lorient — Kerentrech';document.getElementById('afn-client').value='DALKIA';document.getElementById('afn-ville').value='Lorient';document.getElementById('afn-etat').value='devis';});await click('create|');await click('tab|dossier');
+for(const [k,v] of [['dateReponse','2026-10-23'],['questions','2026-10-16'],['delai','22 semaines'],['criteres','prix 60 % · valeur technique 40 %'],['procedure','MAPA, lots séparés'],['lot','Lot 2 · réseau acier pré-isolé'],['moa','DALKIA — Lorient Agglomération'],['moe','SETEC Énergie']])await set(`#eq-app [data-afcs=${k}]`,v);
+await click('tache|visite');await page.evaluate(()=>{document.getElementById('afd-cat').value='DCE · CCTP / règlement';document.getElementById('afd-name').value='CCTP lot 2 · réseau pré-isolé';});await click('dceadd|');await page.evaluate(()=>{document.getElementById('afd-cat').value='DCE · DPGF / BPU';document.getElementById('afd-name').value='DPGF lot 2.xlsx';});await click('dceadd|');
+await page.evaluate(()=>window.scrollTo(0,0));await shot('1_dossier');
+await click('tab|lecture');await page.evaluate(()=>{document.querySelector('#eq-app [data-act=af][data-v^="dcenote|"]').click();});await wait(250);
+await page.evaluate(()=>{document.getElementById('dn-ref').value='p. 12 · art. 4.2';document.getElementById('dn-extrait').value='série 2, conformes à l\'EN 253, tubes de 12 m';document.getElementById('dn-texte').value='Série 2 imposée, variante série 3 autorisée (RC) : chiffrer en série 2, proposer la série 3 en variante';document.querySelector('#modal input[name=dn-dest][value=memoire]').checked=true;});await shot('2_note_modale');
+await page.evaluate(()=>document.getElementById('dn-ok').click());await wait(300);
+await page.evaluate(()=>{document.querySelector('#eq-app [data-act=af][data-v^="dcenote|"]').click();});await wait(250);await page.evaluate(()=>{document.getElementById('dn-ref').value='p. 17 · art. 4.5';document.getElementById('dn-extrait').value='10 % des soudures feront l\'objet d\'un contrôle radiographique';document.getElementById('dn-texte').value='Radio 10 % et non 5 % : chapitre contrôles';document.querySelector('#modal input[name=dn-dest][value=risque]').checked=true;document.getElementById('dn-ok').click();});await wait(300);
+await click('qadd|');await set('#eq-app [data-afqr="0|dn"]','250');await set('#eq-app [data-afqr="0|soud"]','304');await set('#eq-app [data-afqr="0|ml"]','1240');await click('qadd|');await set('#eq-app [data-afqr="1|dn"]','150');await set('#eq-app [data-afqr="1|soud"]','96');await set('#eq-app [data-afqr="1|ml"]','380');await set('#eq-app [data-afq=ml]','1820');
+await page.evaluate(()=>window.scrollTo(0,0));await shot('2_lecture');
+await click('qprefill|');await page.evaluate(()=>window.scrollTo(0,0));await shot('3_chiffrage');
+await click('tab|memoire');await click('mplan|');await click('msec|2');await click('mvars|');await page.evaluate(()=>window.scrollTo(0,0));await shot('4_memoire');
+await click('tab|dpgf');await page.setInputFiles('#eq-app [data-afdpgf]','/root/repo/app/test/fixture_dpgf.xlsx');await wait(900);await click('dprep|');await page.evaluate(()=>window.scrollTo(0,0));await shot('5_dpgf');
+await click('tab|offre');await click('opiece|ae');await click('opiece|dpgf');await click('opiece|attest');await page.evaluate(()=>window.scrollTo(0,0));await shot('6_offre');
+console.log('ok',errs);await browser.close();
