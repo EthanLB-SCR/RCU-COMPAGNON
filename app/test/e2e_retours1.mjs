@@ -130,8 +130,8 @@ out.suivi=await page.evaluate(()=>{const t=document.getElementById('eq-app').tex
 console.log('4) contrôle chantier + suivi :',JSON.stringify(out));
 C.c4=out.leg.length===4&&/^C Conforme/.test(out.leg[0])&&/Karim B\./.test(out.pres)&&out.chef&&out.cond&&out.lieu==='Caen'&&out.ph===32&&out.afterPhoto.thumbs===1&&out.afterPhoto.nc&&out.afterPhoto.act&&out.saved.by==='Ethan L.'&&out.saved.chef==='Ethan L.'&&out.saved.conducteur==='Sophie M.'&&/Karim B\./.test(out.saved.presents)&&out.saved.nc===1&&out.saved.photos===1&&out.saved.list&&out.report.t&&out.report.chef&&out.report.cond&&out.report.img===1&&out.report.leg&&out.suivi.obj&&out.suivi.who&&out.suivi.caen&&out.suivi.row;
 // ── 5) textes de prévention (retours Ethan) + règlement intérieur intégral
-out=await page.evaluate(()=>{const P=window.TRACE.docs.prevention||null;return P?{jug:/jugulaire/.test(P.epi.html),repas:/dans son véhicule/.test(P.hygiene.html)&&/jamais ailleurs/.test(P.hygiene.html),angers:/Angers/.test(P.circulation.html)}:null;});
+out=await page.evaluate(()=>{const P=window.TRACE.docs.prevention||null;return P?{jug:/jugulaire/.test(P.epi.html),repas:/repas/i.test(P.hygiene.html) /* 13/10 (Ethan, feuille 09-10) : « rien sur les repas » → plus aucune mention */,angers:/Angers/.test(P.circulation.html)}:null;});
 console.log('5) textes de prévention :',JSON.stringify(out));
-C.c5=!!out&&!out.jug&&out.repas&&!out.angers;
+C.c5=!!out&&!out.jug&&!out.repas&&!out.angers;
 const bad=Object.entries(C).filter(([k,v])=>!v).map(([k])=>k);console.log(bad.length?'RESULTAT: ECHEC '+bad.join(','):'RESULTAT: TOUT VERT');console.log(logs.length?logs:'[]');
 await browser.close();

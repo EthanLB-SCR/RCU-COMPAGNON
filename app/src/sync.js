@@ -16,7 +16,7 @@ const session = async () => { if (!sb) return null; try { const r = await withTi
 const ok = async () => !!(await session())
 // parties du chantier que le traceur ne produit pas : quand un plan est ré-enregistré (traceur) ou renvoyé (appli), la version du SERVEUR l'emporte pour elles
 // (conversation, stock, QSE, pointage… faits depuis d'autres appareils ou par d'autres personnes) ; orientations des tubes fusionnées (serveur gagne par tube, les tubes connus seulement ici sont gardés)
-export const SHARED_PARTS = ['conv', 'stock', 'qse', 'pointage', 'undoLog', 'dhData', 'extraWelds', 'hydro', 'phasage', 'admin', 'dossier', 'missions']
+export const SHARED_PARTS = ['conv', 'stock', 'qse', 'pointage', 'undoLog', 'dhData', 'extraWelds', 'hydro', 'phasage', 'admin', 'dossier', 'missions', 'fourniture']
 export function mergeServerParts(local, srv) { const out = { ...local }; SHARED_PARTS.forEach(k => { if (srv && srv[k] !== undefined) out[k] = srv[k] }); const lp = local && local.elPos && typeof local.elPos === 'object' ? local.elPos : {}; const sp = srv && srv.elPos && typeof srv.elPos === 'object' ? srv.elPos : {}; if (Object.keys(lp).length || Object.keys(sp).length) out.elPos = { ...lp, ...sp }; return out }
 export const sync = {
   available: () => !!sb,

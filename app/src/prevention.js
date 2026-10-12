@@ -12,7 +12,7 @@ export const ACCUEIL_CHANTIER_Q=[
  'Je connais les horaires de travail, les référents du chantier et les contacts secours',
  'Je sais comment réagir en cas d’accident et j’ai compris mon droit de retrait',
  'J’ai compris les consignes incendie (risques hors emprise, protection des réseaux). Je sais où sont les extincteurs et couvertures antifeu',
- 'Je connais les règles d’hygiène : sanitaires, eau, savon, essuie-mains, pauses repas',
+ 'Je connais les règles d’hygiène : sanitaires, eau, savon, essuie-mains', /* 13/10 (Ethan) : rien sur les repas */
  'J’ai compris les consignes de stationnement, de barriérage, de clôture et de zone d’emprise',
  'J’ai compris le fonctionnement de la base vie et du stockage (tubes, consommables, produits chimiques), la gestion des déchets, l’organisation des engins et du carburant'];
 // modules de prévention rattachés aux points (1 = PPSPS lui-même, 2 = pièces de la personne : pas de module)
@@ -64,10 +64,10 @@ export const PREVENTION={
   H('Réseaux voisins')+L('Un réseau gaz marqué au sol change tout : pas de point chaud sans dégagement du réseau et accord du chef de chantier ; détection en cas de doute.','Fuite de gaz : stop, éloignement, pas de flamme ni d’étincelle, 18 / 112, exploitant.')+
   H('Si ça prend')+L('Donner l’alerte, attaquer le départ de feu avec l’extincteur SI c’est sans risque, sinon évacuer vers le point de rassemblement et appeler le 18.','Ne jamais arroser un feu de métal ou une installation électrique sous tension.')+
   OK(P('Je sais où sont les extincteurs et la couverture antifeu de mon poste, je protège les abords avant chaque point chaud et je surveille après.'))},
- hygiene:{title:'Hygiène, base vie et pauses',html:
-  P('Le chantier dispose de sanitaires, d’eau, de savon et d’essuie-mains : c’est une obligation, pas un confort. Les repas se prennent à la base vie (ou dans son véhicule) — jamais ailleurs : ni dans la fouille, ni sur l’emprise, ni dans les locaux du client.')+
-  L('Lavage des mains avant de manger, après la mousse, les résines, les graisses et après la fouille.','Eau potable disponible, en quantité, protégée du soleil ; vigilance canicule (pauses à l’ombre, boire régulièrement).','Sanitaires propres : c’est l’affaire de tous ; signale tout manque (eau, savon, papier) au chef de chantier.','Pause repas aux horaires fixés ; pas d’alcool, pas de stupéfiants sur le chantier ni dans les véhicules (règlement intérieur, articles 2.2.2 et 2.2.3).','Interdiction de fumer ou de vapoter près des produits inflammables et pendant les opérations de découpe, soudage, manchonnage et manutention.','En grand déplacement : hébergement en dur obligatoire (jamais la nuit dans le véhicule ou la base vie), à moins de 30 km du chantier.')+
-  OK(P('Je sais où sont les sanitaires, l’eau et la base vie, et je respecte les règles d’hygiène et de pause du chantier.'))},
+ hygiene:{title:'Hygiène et base vie',html:
+  P('Le chantier dispose de sanitaires, d’eau, de savon et d’essuie-mains : c’est une obligation, pas un confort.')+
+  L('Lavage des mains après la mousse, les résines, les graisses et après la fouille.','Eau potable disponible, en quantité, protégée du soleil ; vigilance canicule (pauses à l’ombre, boire régulièrement).','Sanitaires propres : c’est l’affaire de tous ; signale tout manque (eau, savon, papier) au chef de chantier.','Pas d’alcool, pas de stupéfiants sur le chantier ni dans les véhicules (règlement intérieur, articles 2.2.2 et 2.2.3).','Interdiction de fumer ou de vapoter près des produits inflammables et pendant les opérations de découpe, soudage, manchonnage et manutention.','En grand déplacement : hébergement en dur obligatoire (jamais la nuit dans le véhicule ou la base vie), à moins de 30 km du chantier.')+
+  OK(P('Je sais où sont les sanitaires, l’eau et la base vie, et je respecte les règles d’hygiène du chantier.'))},
  circulation:{title:'Stationnement, barriérage, clôture et zone d’emprise',html:
   P('Nos chantiers sont en ville, sur ou le long de voies ouvertes : la circulation (voitures, bus, vélos, piétons) est le premier risque exporté. L’emprise est le périmètre dans lequel on a le droit de travailler ; en dehors, on est un piéton comme les autres.')+
   H('Emprise et clôture')+L('Clôture ou barriérage continu, lesté, signalétique à jour (panneaux, feux, déviation piétonne) : on remet en place ce qu’on déplace, tous les soirs on referme.','Les piétons gardent toujours un cheminement protégé ; les vélos aussi (pistes cyclables coupées = itinéraire balisé).','Rien ne dépasse de l’emprise : tubes, déblais, câbles de soudure, flexibles.')+

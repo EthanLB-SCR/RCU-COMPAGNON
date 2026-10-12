@@ -9,7 +9,7 @@ export function dnOfOd(od){od=+od;if(!isFinite(od))return null;let best=null,d=1
 
 // « pu » = la mousse comptée en UN seul produit A+B (demande Ethan 25/08 : A et B vont toujours ensemble, 1 dose par manchon).
 // puA / puB / puKit restent lus (anciennes données, BL fournisseurs) mais retombent tous sur la même case de stock.
-export const K_LABEL={pipe:'Barre',bend:'Coude',tee:'Té',reducer:'Réduction',sleeve:'Manchon',sleeveEnd:'Manchon fin de ligne',dhec:'Joint d\'extrémité (DHEC)',wall:'Passage de mur',kit:'Kit fin de ligne',pu:'Mousse PU (A+B)',puA:'Mousse PU (A+B)',puB:'Mousse PU (A+B)',puKit:'Mousse PU (A+B)',acc:'Accessoire'};
+export const K_LABEL={valve:'Vanne',steelbend:'Courbe acier',bypass:'By-pass',pipe:'Barre',bend:'Coude',tee:'Té',reducer:'Réduction',sleeve:'Manchon',sleeveEnd:'Manchon fin de ligne',dhec:'Joint d\'extrémité (DHEC)',wall:'Passage de mur',kit:'Kit fin de ligne',pu:'Mousse PU (A+B)',puA:'Mousse PU (A+B)',puB:'Mousse PU (A+B)',puKit:'Mousse PU (A+B)',acc:'Accessoire'};
 export const isPU=k=>k==='pu'||k==='puA'||k==='puB'||k==='puKit';
 // libellé court d'une ligne de stock (uniforme quel que soit le fournisseur)
 export function stockLabel(l){
@@ -22,6 +22,7 @@ export function stockLabel(l){
   if(l.kind==='dhec')return `DHEC Ø ${l.gaine||l.dn}`;
   if(l.kind==='wall')return `Passage de mur Ø ${l.gaine||l.dn}`;
   if(l.kind==='kit')return `Kit fin de ligne DN${l.dn}`;
+  if(l.kind==='valve')return `Vanne DN${l.dn}`;if(l.kind==='steelbend')return `Courbe acier ${l.angle||90}° DN${l.dn}`;if(l.kind==='bypass')return `By-pass DN${l.dn}`; // 13/10 : pièces de l'onglet Fourniture
   if(isPU(l.kind))return 'Mousse PU (A+B)'+(l.dn?' DN'+l.dn:'')+(l.gaine?' · Ø'+l.gaine:'');
   return l.label||'Divers';
 }
@@ -88,14 +89,14 @@ export function parseBL(text){
 // ---------- agrégats ----------
 // stock = {zones:[{id,name,...}],lots:[{id,zone,key,label,kind,dn,dn2,gaine,len,angle,qty}],takes:[{zone,key,qty,...}]}
 export function zoneAgg(stock,zoneId){const m=new Map();
-  (stock.lots||[]).filter(l=>l.zone===zoneId).forEach(l=>{const cur=m.get(l.key)||{key:l.key,label:l.label,kind:l.kind,dn:l.dn,dn2:l.dn2,gaine:l.gaine,len:l.len,angle:l.angle,qty:0,pend:0,taken:0};
+  (stock.lots||[]).filter(l=>(l.zone||null)===zoneId).forEach(l=>{const cur=m.get(l.key)||{key:l.key,label:l.label,kind:l.kind,dn:l.dn,dn2:l.dn2,gaine:l.gaine,len:l.len,angle:l.angle,qty:0,pend:0,taken:0};
     if(l.pend)cur.pend+=l.qty;else cur.qty+=l.qty;m.set(l.key,cur);}); // pend = camion PRÉVU : attendu, pas encore en stock (validation au pointage)
   (stock.takes||[]).filter(t=>t.zone===zoneId).forEach(t=>{ // le prélèvement porte la clé de RAPPROCHEMENT (matchKey) : on impute au lot correspondant
     let cur=m.get(t.key)||[...m.values()].find(v=>matchKey(v)===t.key||(t.key.startsWith('sleeve:')&&(v.kind==='sleeve'||v.kind==='sleeveEnd')&&matchKey(v).startsWith('sleeve:')&&(matchKey(v)===t.key||!v.dn))||(/^pu(:|$)/.test(t.key)&&isPU(v.kind)&&(matchKey(v)==='pu:'||t.key==='pu')));
     if(cur)cur.taken+=t.qty||1;else m.set('take:'+t.key,{key:t.key,label:t.label||t.key,qty:0,taken:t.qty||1});});
   m.forEach(v=>{v.reste=v.qty-v.taken;});return [...m.values()];}
 export function globalAgg(stock){const m=new Map();
-  (stock.zones||[]).forEach(z=>zoneAgg(stock,z.id).forEach(a=>{const cur=m.get(a.key)||{...a,qty:0,pend:0,taken:0,reste:0};cur.qty+=a.qty;cur.pend+=a.pend||0;cur.taken+=a.taken;cur.reste+=a.reste;m.set(a.key,cur);}));
+  [...(stock.zones||[]).map(z=>z.id),null].forEach(zid=>zoneAgg(stock,zid).forEach(a=>{ /* 13/10 : + camions annoncés sans zone (Fourniture : zone choisie à l'arrivée) */const cur=m.get(a.key)||{...a,qty:0,pend:0,taken:0,reste:0};cur.qty+=a.qty;cur.pend+=a.pend||0;cur.taken+=a.taken;cur.reste+=a.reste;m.set(a.key,cur);}));
   return [...m.values()];}
 // statut RÉEL d'une zone : du stock validé → ok (verte) ; seulement des lots attendus → prévue (hachurée) ; sinon son statut posé
 export function zoneStatusOf(stock,z){const lots=(stock.lots||[]).filter(l=>l.zone===z.id);if(lots.some(l=>!l.pend))return 'ok';if(lots.some(l=>l.pend))return 'prevu';return z.status||'ok';}

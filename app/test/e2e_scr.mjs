@@ -27,7 +27,7 @@ await page.evaluate(()=>document.querySelector('#facets [data-facet=tech]').clic
 await page.setViewportSize({width:390,height:844});await page.waitForTimeout(300);out.phone=await vis();await page.setViewportSize({width:900,height:940});await page.waitForTimeout(200);
 await page.evaluate(()=>document.querySelector('#tabbar [data-tab="stock"]').click());await page.waitForTimeout(300);out.stock=await vis();
 console.log('2) facettes :',JSON.stringify(out));
-C.c2=out.facet==='vie'&&out.vis.join()==='bureau,conv,admin,qse,export'&&out.tech.facet==='tech'&&out.tech.vis.join()==='bouclage,hydro,stock,phasage,ts,__more'&&!out.tech.scroll&&!out.phone.scroll&&out.stock.tab==='stock'&&out.stock.facet==='tech';
+C.c2=out.facet==='vie'&&out.vis.join()==='bureau,conv,admin,qse,export'&&out.tech.facet==='tech'&&out.tech.vis.join()==='bouclage,hydro,stock,fourniture,phasage,ts,__more' /* 13/10 : + Fourniture */&&!out.tech.scroll&&!out.phone.scroll&&out.stock.tab==='stock'&&out.stock.facet==='tech';
 // ── 3) « Nouveautés » : plus d'option pointage / profil (chef)
 await page.evaluate(()=>{window.TRACE.showScreen('home');window.TRACE.state.homeTab='list';window.TRACE.renderHome();});await page.waitForTimeout(400);
 out=await page.evaluate(()=>{const b=document.getElementById('nextBtn');if(!b)return {btn:false};b.click();const m=document.getElementById('modal');return {btn:true,txt:b.textContent,opts:document.querySelectorAll('#modal [data-nextf]').length,moved:/pointage → Moi/.test(m.textContent),backlog:document.querySelectorAll('#modal [style*=dashed]').length};});
