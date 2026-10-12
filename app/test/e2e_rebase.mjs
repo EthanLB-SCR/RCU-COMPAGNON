@@ -5,7 +5,7 @@
 // ③ le traceur ne reprend plus l'origine d'un plan éloigné. Unités : rebaseSite / buildBackground en Node.
 import { chromium } from 'playwright';
 import {rebaseSite,farOffset} from '../src/rebase.js';
-import {geoOfSite,planToLonLat} from '../src/geo.js';
+import {geoOfSite,planToLonLat,fixGeoPts} from '../src/geo.js';
 import {parseDXF,buildBackground} from '../src/dxfimport.js';
 const BASE=process.env.BASE||'http://localhost:8765';
 const C={};
@@ -20,6 +20,13 @@ const C={};
    &&Math.abs(a[0]-b[0])<1e-9&&Math.abs(a[1]-b[1])<1e-9&&farOffset(r)===null&&net.lines[0].axis[0][1]===Y;
  const dxf=(x0,y0)=>{const L=[];const line=(p,q,s,t)=>L.push('0','LINE','8','RESEAU','10',String(p),'20',String(q),'30','0','11',String(s),'21',String(t),'31','0');for(let i=0;i<30;i++)line(x0+i*10,y0,x0+i*10+10,y0);return ['0','SECTION','2','HEADER','9','$INSUNITS','70','6','0','ENDSEC','0','SECTION','2','ENTITIES',...L,'0','ENDSEC','0','EOF'].join('\n');};
  const R1=buildBackground(parseDXF(dxf(1380500,8212300)),{netLayers:['RESEAU'],margin:200});const R2=buildBackground(parseDXF(dxf(1353400,6227800)),{netLayers:['RESEAU'],margin:200,keepOrigin:R1.origin});const R3=buildBackground(parseDXF(dxf(1380700,8212500)),{netLayers:['RESEAU'],margin:200,keepOrigin:R1.origin});
+ // 13/10 soir (Ethan : « depuis que j'ai recentré, Nantes n'est plus bien placé sur la carte ») : les REPÈRES du calage (pts.plan) suivent ; un chantier recentré avant
+ // la correction (repères restés dans l'ancien repère) se répare à l'affichage (fixGeoPts : le repère est replacé par le calage lui-même)
+ {const g0=geoOfSite(net);const pt=[X+5,Y+2];const ll0=planToLonLat(g0,pt);const n2=JSON.parse(JSON.stringify(net));n2.geo.pts=[{plan:pt.slice(),ll:ll0}];const r2=rebaseSite(n2,off.dx,off.dy);
+  const stale=JSON.parse(JSON.stringify(r2));stale.geo.pts[0].plan=pt.slice();const nfix=fixGeoPts(stale.geo);const healthy=JSON.parse(JSON.stringify(r2));const nfix0=fixGeoPts(healthy.geo);
+  C.u_calage=r2.geo.pts[0].plan[0]===X+5-off.dx&&r2.geo.pts[0].plan[1]===Y+2-off.dy&&JSON.stringify(r2.geo.pts[0].ll)===JSON.stringify(ll0)
+   &&nfix===1&&Math.abs(stale.geo.pts[0].plan[0]-(X+5-off.dx))<0.01&&Math.abs(stale.geo.pts[0].plan[1]-(Y+2-off.dy))<0.01&&nfix0===0&&JSON.stringify(healthy.geo.pts)===JSON.stringify(r2.geo.pts);
+  console.log('0b) calage :',JSON.stringify({pts:r2.geo.pts[0].plan,stale:stale.geo.pts[0].plan,nfix,nfix0}));}
  C.u_traceur=R2.originReset===true&&R2.originFar>1.9e6&&R2.drawing.every(d=>!d.pts||d.pts.every(p=>Math.abs(p[0])<1000&&Math.abs(p[1])<1000))&&R3.originReset===false&&R3.origin===R1.origin;
  console.log('0) unités :',JSON.stringify({u_rebase:C.u_rebase,u_traceur:C.u_traceur,dist:off.dist}));}
 // ── navigateur : réseau tracé à 1 985 km de l'origine (comme Nantes avec l'origine de Saint-Lô)
@@ -60,25 +67,36 @@ C.c2=/Recentrer le repère du plan/.test(out.modal)&&/1 985 km/.test(out.modal)&
 //      sur la carte, numéros et statuts gardés, plus de bandeau
 const sbId=await page.evaluate(async()=>{const T=window.TRACE;const src=T.net;const x=JSON.parse(JSON.stringify(T.sites[src.id]));x.id='demo_far';x.name='Nantes loin (bac à sable)';
   ['geo','stock','conv','fourniture','hydro'].forEach(k=>{x[k]=JSON.parse(JSON.stringify(src[k]));});
+  {const L0=x.lines[0].axis;const pA=[L0[0][0]+10,L0[0][1]],pB=[L0[0][0]+110,L0[0][1]];x.geo.pts=[pA,pB].map(p=>({plan:p,ll:T.geo.planToLonLat({crs:x.geo.crs,aff:x.geo.aff},p).map(v=>+v.toFixed(7))}));x.geo.by='test';} /* calage à la main : 2 repères posés sur le réseau */
   const w=x.lines[0].cond.A.welds[0];x.sbWelds={[w.weldId]:{weld_id:w.weldId,line_id:x.lines[0].id,cond:'A',status:'soudee',data:{events:[],photos:[]}}};T.sites.demo_far=x;await T.go('demo_far');await new Promise(r=>setTimeout(r,500));return T.net.id;});
 await view(120);
-const before2=await page.evaluate(()=>{const T=window.TRACE;const j=T.state.lines.L1.cond.A.joints[0];const p=T.state.lines.L1.cond.A.els[0].to;const v=T.state.view;const g=T.siteGeo();return {id:T.net.id,weld:j.weldId,status:j.status,scr:[p.x*v.k+v.tx,p.y*v.k+v.ty],ll:T.geo.planToLonLat(g,[p.x,p.y]),nWelds:T.net.lines.reduce((s,L)=>s+L.cond.A.welds.length+L.cond.R.welds.length,0)};});
+const before2=await page.evaluate(()=>{const T=window.TRACE;const j=T.state.lines.L1.cond.A.joints[0];const p=T.state.lines.L1.cond.A.els[0].to;const v=T.state.view;const g=T.siteGeo();return {home:T.rebase.homeLL('demo_far'),id:T.net.id,weld:j.weldId,status:j.status,scr:[p.x*v.k+v.tx,p.y*v.k+v.ty],ll:T.geo.planToLonLat(g,[p.x,p.y]),nWelds:T.net.lines.reduce((s,L)=>s+L.cond.A.welds.length+L.cond.R.welds.length,0)};});
 await page.evaluate(()=>document.querySelector('#planPills [data-pill=recenter]').click());await wait(250);await page.evaluate(()=>document.getElementById('rcOk').click());await wait(900);
 const ok=await page.evaluate(()=>!window.TRACE.rebase.far());
 const after=await page.evaluate(()=>{const T=window.TRACE;const N=T.net;if(N.id!=='demo_far')return {ok:false,id:N.id};const l=T.state.lines.L1;const j=l.cond.A.joints[0];const p=l.cond.A.els[0].to;const v=T.state.view;const g=T.siteGeo();
   const box=N.lines.reduce((b,L)=>{(L.axis||[]).forEach(q=>{b[0]=Math.min(b[0],q[0]);b[1]=Math.min(b[1],q[1]);b[2]=Math.max(b[2],q[0]);b[3]=Math.max(b[3],q[1]);});return b;},[1e12,1e12,-1e12,-1e12]);
   const cands=(T.ts.candidates()||[]).map(c=>c.kind);
-  return {ok:true,weld:j.weldId,status:j.status,scr:[p.x*v.k+v.tx,p.y*v.k+v.ty],ll:T.geo.planToLonLat(g,[p.x,p.y]),box,stock:[N.stock.zones[0].x,N.stock.zones[0].y],conv:N.conv.msgs[0].pos,fz:N.fourniture.zones[0].poly[0],water:[N.hydro.water[0].x,N.hydro.water[0].y],marche:N.marche&&N.marche.lines[0].axis[0],cands,pill:!!document.querySelector('#planPills [data-pill=recenter]'),rebased:(N.rebased||[]).length,nWelds:N.lines.reduce((s,L)=>s+L.cond.A.welds.length+L.cond.R.welds.length,0)};});
+  return {ok:true,home:T.rebase.homeLL('demo_far'),pts:N.geo&&N.geo.pts&&N.geo.pts[0]&&N.geo.pts[0].plan,weld:j.weldId,status:j.status,scr:[p.x*v.k+v.tx,p.y*v.k+v.ty],ll:T.geo.planToLonLat(g,[p.x,p.y]),box,stock:[N.stock.zones[0].x,N.stock.zones[0].y],conv:N.conv.msgs[0].pos,fz:N.fourniture.zones[0].poly[0],water:[N.hydro.water[0].x,N.hydro.water[0].y],marche:N.marche&&N.marche.lines[0].axis[0],cands,pill:!!document.querySelector('#planPills [data-pill=recenter]'),rebased:(N.rebased||[]).length,nWelds:N.lines.reduce((s,L)=>s+L.cond.A.welds.length+L.cond.R.welds.length,0)};});
 await view(120);after.p120=await pix();await view(19.6);after.p196=await pix();
 after.toast=await page.evaluate(()=>(document.getElementById('toast')||{}).textContent||'');console.log('3) après :',JSON.stringify({ok,sbId,before2,after}));
 const dy=Y-after.box[1];
 C.c3=ok===true&&sbId==='demo_far'&&before2.status==='soudee'&&after.weld===before2.weld&&after.status==='soudee'&&after.nWelds===before2.nWelds&&Math.abs(after.box[1])<500&&Math.abs(after.box[0])<500&&Math.hypot(after.scr[0]-before2.scr[0],after.scr[1]-before2.scr[1])<1
   &&Math.abs(after.ll[0]-before2.ll[0])<1e-7&&Math.abs(after.ll[1]-before2.ll[1])<1e-7&&/Repère recentré/.test(after.toast)&&Math.abs(after.stock[1]-(Y+70-dy))<0.01&&Math.abs(after.conv[1]-(Y+5-dy))<0.01&&Math.abs(after.fz[1]-(Y-5-dy))<0.01&&Math.abs(after.water[1]-(Y+8-dy))<0.01
   &&after.marche&&Math.abs(after.marche[1]-(Y-dy))<0.01&&!after.cands.includes('geo')&&!after.pill&&after.rebased===1&&after.p120.orange>60&&after.p196.dark>500;
+// 3b) carte des chantiers : l'épingle (calculée sur les repères du calage) ne bouge pas au recentrage (bug du 13/10 : elle partait à ~2 000 km → chantier « non localisé »)
+C.c3b=Array.isArray(before2.home)&&Array.isArray(after.home)&&Math.abs(before2.home[0]-after.home[0])<1e-6&&Math.abs(before2.home[1]-after.home[1])<1e-6&&before2.home[1]>47&&before2.home[1]<47.5&&Array.isArray(after.pts)&&Math.abs(after.pts[1]-(Y-dy))<0.01;
+console.log('3b) épingle accueil :',JSON.stringify({avant:before2.home,apres:after.home,repere:after.pts}));
 // ── 4) le recentrage est gardé (copie de l'appareil) : rechargement de la page → toujours recentré, pas de bandeau
 await page.evaluate(()=>{localStorage.setItem('trace:sandbox','1');});await page.reload();await wait(1500);const sk=await page.$('#loginSkip');if(sk&&await sk.isVisible()){await sk.click();await wait(600);}
 out=await page.evaluate(async()=>{const T=window.TRACE;const id=T.sites.demo_far?'demo_far':null;if(!id)return {id:null,ids:Object.keys(T.sites)};await T.go(id);await new Promise(r=>setTimeout(r,700));T.state.tab='plan';T.renderAll();return {id,y:T.net.lines[0].axis[0][1],status:T.state.lines.L1.cond.A.joints[0].status,pill:!!document.querySelector('#planPills [data-pill=recenter]')};});
 console.log('4) rechargé :',JSON.stringify(out));
 C.c4=out.id==='demo_far'&&Math.abs(out.y)<500&&out.status==='soudee'&&!out.pill;
+// ── 5) chantier recentré AVANT la correction (comme Nantes avec le build 92c3f2) : repères du calage restés dans l'ancien repère → l'épingle se remet en place
+out=await page.evaluate(([Y,dy])=>{const T=window.TRACE;const s=T.sites.demo_far;if(!s||!s.geo||!s.geo.pts)return {ok:false};const ok0=T.rebase.homeLL('demo_far');
+  s.geo.pts.forEach(q=>{q.plan=[q.plan[0],q.plan[1]+dy];}); /* état laissé par l'ancien recentrage */
+  const m={id:'demo_far_meta',geo:JSON.parse(JSON.stringify(s.geo)),bgo:s.traceur&&s.traceur.bgOrigin,w:s.w,h:s.h,nbox:s.nbox}; /* méta serveur (chantier pas ouvert sur cet appareil) */
+  const meta=T.rebase.homeLL(m);return {ok:true,ok0,meta,home:T.rebase.homeLL('demo_far'),pts:s.geo.pts[0].plan};},[Y,dy]);
+console.log('5) réparation :',JSON.stringify(out));
+C.c5=out.ok&&[out.ok0,out.meta,out.home].every(h=>Array.isArray(h)&&Math.abs(h[0]-before2.home[0])<1e-6&&Math.abs(h[1]-before2.home[1])<1e-6)&&Math.abs(out.pts[1]-(Y-dy))<0.01;
 const bad=Object.entries(C).filter(([k,v])=>!v).map(([k])=>k);console.log(bad.length?'RESULTAT: ECHEC '+bad.join(','):'RESULTAT: TOUT VERT');console.log(logs.length?logs:'[]');
 await browser.close();

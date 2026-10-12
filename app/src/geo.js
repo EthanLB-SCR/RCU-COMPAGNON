@@ -21,10 +21,18 @@ export function detectCRS(X,Y){const cands=[];
    aff : affine plan (unités de la feuille, y vers le bas) → CRS : X = a·x + b·y + e ; Y = c·x + d·y + f.
    Sources, par priorité : net.geo (calage enregistré) ; l'origine DXF conservée à l'import (net.traceur.bgOrigin ou net.origin) + détection du système. */
 export function geoOfSite(net){if(!net)return null;
-  if(net.geo&&net.geo.crs&&CRS[net.geo.crs]&&net.geo.aff)return {crs:net.geo.crs,aff:net.geo.aff,auto:false,label:CRS[net.geo.crs].name+' (calage enregistré)'};
+  if(net.geo&&net.geo.crs&&CRS[net.geo.crs]&&net.geo.aff){fixGeoPts(net.geo);return {crs:net.geo.crs,aff:net.geo.aff,auto:false,label:CRS[net.geo.crs].name+' (calage enregistré)'};}
   const o=(net.traceur&&net.traceur.bgOrigin)||net.origin||null;if(!o||!isFinite(o.x0)||!isFinite(o.y1))return null;
   const w=net.w||0,h=net.h||0;const crs=detectCRS(o.x0+w/2,o.y1-h/2);if(!crs)return null;
   return {crs,aff:{a:1,b:0,e:o.x0,c:0,d:-1,f:o.y1},auto:true,label:CRS[crs].name+' (détecté sur le DXF)'};}
+/* fixGeoPts(geo) — 13/10 (Ethan, Nantes Géraudière : « depuis que j'ai recentré, plus bien placé sur la carte ») : le recentrage du repère décalait le calage
+   (affine) mais pas les REPÈRES du calage (pts[].plan, posés sur le réseau) → l'épingle de la carte des chantiers, calculée sur ces repères, partait à ~2 000 km.
+   Un repère dont la position plan ne correspond plus à son point carte (> 1 km : un calage à 1 ou 2 repères est exact sur ses repères) est replacé par le
+   calage lui-même. Les chantiers déjà recentrés se remettent en place à l'affichage, sans refaire le calage. Rend le nombre de repères corrigés. */
+export function fixGeoPts(geo){if(!geo||!Array.isArray(geo.pts)||!geo.aff||!CRS[geo.crs])return 0;let n=0;
+  geo.pts.forEach(q=>{if(!q||!Array.isArray(q.plan)||!Array.isArray(q.ll)||q.plan.length<2||q.ll.length<2)return;let p;
+    try{p=lonLatToPlan(geo,+q.ll[0],+q.ll[1]);}catch(e){return;}if(!p||!isFinite(p[0])||!isFinite(p[1]))return;
+    if(!(Math.hypot(p[0]-(+q.plan[0]),p[1]-(+q.plan[1]))<=1000)){q.plan=[+p[0].toFixed(3),+p[1].toFixed(3)];n++;}});return n;}
 // Web Mercator en mètres (EPSG:3857) : repère de travail du mode « carte » (calage à la main) — jamais un repère de stockage
 CRS['EPSG:3857']={code:'EPSG:3857',name:'Web Mercator',fwd:(lon,lat)=>{const la=Math.max(-85.05,Math.min(85.05,lat))*D2R;return [RM*lon*D2R,RM*Math.log(Math.tan(Math.PI/4+la/2))];},inv:(x,y)=>[x/RM*R2D,(2*Math.atan(Math.exp(y/RM))-Math.PI/2)*R2D]};
 export const crsName=code=>CRS[code]?CRS[code].name:code;

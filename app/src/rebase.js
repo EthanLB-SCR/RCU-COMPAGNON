@@ -3,7 +3,7 @@
 // de l'origine du repère. Deux effets dans Chrome : (1) plus rien n'est dessiné quand une valeur de transformation dépasse ~2^25 px (réparé dans la vue :
 // « scale(k) translate(…) ») ; (2) les coordonnées SVG sont lues en flottants 32 bits : à 2·10^6 m le pas est de 12,5 cm → bouts d'acier, fils et manchons
 // faux de près. Recentrer = décaler TOUTES les coordonnées du chantier (réseau, fond DXF, tracé marché, stock, notes, zones de fourniture, hydraulique,
-// modifications, annotations) du même vecteur, et corriger d'autant le géoréférencement (affine, origine du DXF) : la carte reste au même endroit, les
+// modifications, annotations, repères du calage) du même vecteur, et corriger d'autant le géoréférencement (affine, origine du DXF) : la carte reste au même endroit, les
 // soudures gardent leurs numéros (tout ce qui est rangé au PK ne bouge pas). Module pur (sans DOM), testé en Node.
 const R3=v=>+(+v).toFixed(3);
 export const FAR_LIM=5e4; // réseau à plus de 50 km de l'origine du repère : anormal (un plan normal tient dans quelques km), à recentrer
@@ -39,6 +39,8 @@ export function rebaseSite(net0,dx,dy){const net=JSON.parse(JSON.stringify(net0|
   if(net.bbox)net.bbox=BOX(net.bbox);if(net.nbox)net.nbox=BOX(net.nbox);
   // géoréférencement enregistré (calage) : X = a·x + b·y + e → e + a·dx + b·dy (idem f)
   if(net.geo&&net.geo.aff&&typeof net.geo.aff==='object'){const A=net.geo.aff;if([A.a,A.b,A.c,A.d,A.e,A.f].every(v=>typeof v==='number')){A.e=A.e+A.a*dx+A.b*dy;A.f=A.f+A.c*dx+A.d*dy;}}
+  // repères du calage (posés sur le réseau, servent à l'épingle de la carte des chantiers) : la position plan suit, le point carte (ll) ne bouge pas — oubli corrigé le 13/10
+  if(net.geo&&Array.isArray(net.geo.pts))net.geo.pts.forEach(q=>{if(q&&Array.isArray(q.plan))q.plan=P(q.plan);});
   // parties du chantier posées sur le plan
   if(net.marche&&Array.isArray(net.marche.lines))net.marche.lines.forEach(x=>{if(x&&x.axis)x.axis=PL(x.axis);});
   if(net.stock&&typeof net.stock==='object'){(net.stock.zones||[]).forEach(XY);(net.stock.moves||[]).forEach(m=>{if(!m)return;if(m.from)m.from=P(m.from);if(m.to)m.to=P(m.to);});}
