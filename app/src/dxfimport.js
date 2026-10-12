@@ -312,7 +312,10 @@ export function buildBackground(dxf,opts={}){
   const report0={traits:0,texts:0,fills:0,images:images.map(i=>i.path),proxies,ignored:{...dropped,...ignored},layersOff:Object.values(LD).filter(L=>L.off||L.frozen).length,truncatedBlocks:dxf.truncated||[],units:f};
   if(!zone)return {drawing:[],bbox:[0,0,0,0],origin:{x0:0,y1:0},truncated:false,units:1,stats:{traits:0,net:0,texts:0},report:report0};
   // 4) repère : origine arrondie à 100 m (ou celle imposée), y vers le haut du plan (SVG y vers le bas → inversé), mètres
-  const X0=zone.x0*f,Y1=zone.y1*f;const origin=opts.keepOrigin||{x0:Math.floor(X0/100)*100-30,y1:Math.ceil(Y1/100)*100+30};const T=p=>[+(p[0]*f-origin.x0).toFixed(2),+(origin.y1-p[1]*f).toFixed(2)];
+  /* 13/10 (Nantes Géraudière) : l'origine du plan PRÉCÉDENT n'est gardée que si ce plan-ci est dans le même secteur (< 50 km) — même plan rechargé, version à jour :
+     le tracé déjà fait reste calé. Un plan d'une autre ville / zone Lambert CC prend SON origine (sinon réseau à ~2 000 km de l'origine du repère : l'affichage lâche). */
+  const X0=zone.x0*f,Y1=zone.y1*f;const own={x0:Math.floor(X0/100)*100-30,y1:Math.ceil(Y1/100)*100+30};const ko=opts.keepOrigin;
+  const keepOk=!!(ko&&isFinite(ko.x0)&&isFinite(ko.y1)&&Math.abs(X0-ko.x0)<5e4&&Math.abs(Y1-ko.y1)<5e4);const origin=keepOk?ko:own;const originReset=!!(ko&&!keepOk);const T=p=>[+(p[0]*f-origin.x0).toFixed(2),+(origin.y1-p[1]*f).toFixed(2)];
   const zx0=zone.x0*f-M,zy0=zone.y0*f-M,zx1=zone.x1*f+M,zy1=zone.y1*f+M;const inZone=p=>{const x=p[0]*f,y=p[1]*f;return x>=zx0&&x<=zx1&&y>=zy0&&y<=zy1;};
   // 5) sélection : tout le dessin ; sous la limite de points : réseau d'abord, puis la zone principale (± marge), puis le reste — du plus long au plus court, simplifié
   const keep=[];traits.forEach(t=>{const L=len(t.pts)*f;if(L<minLen)return;t.L=L;t.z=t.pts.some(inZone)?0:1;keep.push(t);});
@@ -323,7 +326,7 @@ export function buildBackground(dxf,opts={}){
   let nT=0;if(withTexts&&!truncated){const tk=texts.filter(t=>t.h*f>=0.03&&t.h*f<200).map(t=>({...t,z:inZone([t.x,t.y])?0:1}));tk.sort((a,b)=>(b.net-a.net)||(a.z-b.z));for(const t of tk){if(n+4>cap){truncated=true;break;}const p=T([t.x,t.y]);const o={layer:t.layer,text:t.text,x:p[0],y:p[1],h:+(t.h*f).toFixed(3),rot:+(t.rot||0).toFixed(1),c:t.c,net:t.net};if(t.a!=='start')o.a=t.a;if(t.va)o.va=t.va;if(t.n>1)o.n=t.n;if(t.tl)o.tl=+(t.tl*f).toFixed(3);if(t.wf)o.wf=+t.wf.toFixed(2);if(t.ls)o.ls=+t.ls.toFixed(2);out.push(o);n+=4;nT++;}}
   const q0=T([zone.x0,zone.y1]),q1=T([zone.x1,zone.y0]);const bb=[Math.min(q0[0],q1[0]),Math.min(q0[1],q1[1]),Math.max(q0[0],q1[0]),Math.max(q0[1],q1[1])];
   const imgOut=images.map(im=>({path:im.path,pts:im.pts.map(T),layer:im.layer}));
-  return {drawing:out,bbox:bb,origin,truncated,units:f,images:imgOut,stats:{traits:out.length-nT-nF,net:out.filter(d=>d.net&&d.pts&&!d.fill).length,texts:nT,fills:nF,total:traits.length,kept:keep.length,cells:zone.cells,points:n},
+  return {drawing:out,bbox:bb,origin,originReset,originFar:originReset?Math.round(Math.hypot(X0-ko.x0,Y1-ko.y1)):0,truncated,units:f,images:imgOut,stats:{traits:out.length-nT-nF,net:out.filter(d=>d.net&&d.pts&&!d.fill).length,texts:nT,fills:nF,total:traits.length,kept:keep.length,cells:zone.cells,points:n},
     report:{...report0,traits:out.length-nT-nF,texts:nT,fills:nF,textsTotal:texts.length,fillsTotal:fills.length,truncated,colors:[...new Set(out.map(d=>d.c||d.fill).filter(Boolean))].length}};
 }
 // ---------- rendu SVG d'un fond de plan (traceur et appli) : hachures dessous, traits groupés par (couleur, épaisseur, type), textes dessus ----------

@@ -137,7 +137,7 @@ const devAt=i=>{const q=chain[i+1],p=chain[i];if(!q||!p||q.unknown||p.unknown)re
 /* ================= vue ================= */
 const svg=$('#svg'),world=$('#world'),under=$('#under'),net=$('#net'),over=$('#over'),canvas=$('#canvas');
 const view={k:1,tx:0,ty:0};let showPlan=true;const EX=1.7;
-function applyView(){world.setAttribute('transform',`translate(${view.tx} ${view.ty}) scale(${view.k})`);$('#zi').textContent=`1 m ≈ ${fmt(view.k)} px`;}
+function applyView(){world.setAttribute('transform',`scale(${view.k}) translate(${view.tx/view.k} ${view.ty/view.k})`); /* même matrice, valeurs petites (Chrome n'affiche plus rien au-delà de ~2^25) */$('#zi').textContent=`1 m ≈ ${fmt(view.k)} px`;}
 function fit(){const [x0,y0,x1,y1]=SUB.bbox;const cw=canvas.clientWidth,ch=canvas.clientHeight;const m=8;const k=Math.min(cw/(x1-x0+2*m),ch/(y1-y0+2*m));view.k=k;view.tx=(cw-(x1-x0)*k)/2-x0*k;view.ty=(ch-(y1-y0)*k)/2-y0*k;applyView();render();}
 const pathD=pts=>pts.map((p,i)=>(i?'L':'M')+p.x.toFixed(3)+' '+p.y.toFixed(3)).join(' ');
 function sub(pl,m0,m1){const L=plen(pl);m0=Math.max(0,Math.min(L,m0));m1=Math.max(m0,Math.min(L,m1));const at=m=>{let d=0;for(let i=1;i<pl.length;i++){const a=pl[i-1],b=pl[i];const s=Math.hypot(b.x-a.x,b.y-a.y);if(d+s>=m||i===pl.length-1){const t=s?Math.max(0,Math.min(1,(m-d)/s)):0;return {x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};}d+=s;}return pl[pl.length-1];};const out=[at(m0)];let d=0;for(let i=1;i<pl.length-1;i++){d+=Math.hypot(pl[i].x-pl[i-1].x,pl[i].y-pl[i-1].y);if(d>m0&&d<m1)out.push(pl[i]);}out.push(at(m1));return out;}
