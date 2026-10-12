@@ -46,7 +46,7 @@ out=await page.evaluate(()=>{const q=id=>{const c=[...document.querySelectorAll(
 console.log('3) chef en autonomie sur deux chantiers :',JSON.stringify(out));
 C.c3=out.caen&&out.caen.multi&&out.caen.chef&&out.caen.first&&out.caen.inChefs /* le chef toujours en tête, même sans équipe */&&/en autonomie/.test(out.caen.role)&&/aussi sur Rennes/.test(out.caen.role)&&out.rennes&&out.rennes.multi&&/aussi sur Caen/.test(out.rennes.role)&&!out.karim.multi&&!/autonomie/.test(out.karim.role);
 // ── 4) reprise de la semaine passée : l'étiquette d'équipe suit ; retirer du chantier efface l'étiquette
-await page.evaluate(()=>{[...document.querySelectorAll('#eq-app [data-act=plweek]')].find(b=>/Semaine prochaine/.test(b.textContent)).click();});await wait(250);
+await page.evaluate(()=>{[...document.querySelectorAll('#eq-app [data-act=plweek]')].find(b=>b.dataset.v==='1').click(); /* 13/10 : navigateur de semaine */});await wait(250);
 await page.evaluate(()=>document.querySelector('#eq-app [data-act=plcopy]').click());await wait(300);
 out=await page.evaluate(()=>{const T=window.TRACE;const P=T.espace.planning();const wks=Object.keys(P).sort();const aff=P[wks[wks.length-1]].aff;return {wks:wks.length,karim:aff['l:karim']&&aff['l:karim']['eq:demo_caen'],julien:aff['l:julien']&&aff['l:julien']['eq:demo_caen'],heads:[...document.querySelectorAll('#eq-app .eq-plsite[data-drop=demo_caen] .eq-plteam')].map(h=>h.textContent.replace(/\s+/g,' ').trim())};});
 await page.evaluate(()=>{[...document.querySelectorAll('#eq-app .eq-plsite[data-drop=demo_caen] .eq-plchip')].find(x=>/Karim/.test(x.textContent)).querySelector('.eq-plmain').click();});await wait(200);
@@ -57,7 +57,7 @@ C.c4=out.wks===2&&out.karim==='A'&&out.julien==='A'&&out.heads.length===1&&/^Éq
 // ── 5) un gars sur deux chantiers dans sa semaine (Ethan 10/10 : « je n'ai plus l'option ? » ; 11/10 : « recocher un jour déjà coché ailleurs enlevait l'autre chantier : il faut garder les deux
 //       avec un indicateur ⚠ deux chantiers le même jour, ça peut être fait exprès ») : Julien (Caen toute la semaine) → « ↔ Aussi sur un autre chantier » → Rennes → panneau des jours :
 //       jeudi coché = Caen ET Rennes (⚠), re-touché = retiré de Rennes ; pour qu'il quitte Caen ce jour-là : décocher jeudi sur la carte de Caen
-await page.evaluate(()=>{[...document.querySelectorAll('#eq-app [data-act=plweek]')].find(b=>/Cette semaine/.test(b.textContent)).click();});await wait(250);
+await page.evaluate(()=>{[...document.querySelectorAll('#eq-app [data-act=plweek]')].find(b=>b.dataset.v==='0').click();});await wait(250);
 await page.evaluate(()=>{[...document.querySelectorAll('#eq-app .eq-plsite[data-drop=demo_caen] .eq-plchip')].find(x=>/Julien/.test(x.textContent)).querySelector('.eq-plmain').click();});await wait(200);
 out={also:await page.evaluate(()=>{const b=document.querySelector('#eq-app [data-act=plsel]');return b?b.textContent:null;})};
 await page.evaluate(()=>document.querySelector('#eq-app [data-act=plsel]').click());await wait(200);

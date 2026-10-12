@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>TRACÉ · maquette Commerce — chiffrage de A à Z</title>
+<meta name="description" content="Maquette cliquable (rien n'est enregistré) : import du dossier → lecture des pièces → chiffrage V2B → mémoire technique → DPGF → offre.">
+<style>
+:root{--ink:#14213d;--ink2:#5d6270;--muted:#8a8f9c;--line:#dfe3ea;--page:#f4f5f8;--surface:#fff;--or:#eb6834;--or2:#fff1ea;--ok:#15673a;--okbg:#e6f5ec;--warn:#7a5200;--warnbg:#fff4d6;--bad:#9b2c22;--badbg:#fdeae7;--blue:#1f6fd0;--bluebg:#e8f0fb;--r:14px}
+*{box-sizing:border-box}html,body{margin:0;background:var(--page);color:var(--ink);font:14px/1.4 Inter,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+button,input,select,textarea{font:inherit;color:inherit}
+.top{position:sticky;top:0;z-index:5;background:var(--ink);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.top .logo{font-weight:800;letter-spacing:1px;font-size:15px}.top .logo i{display:inline-block;width:26px;height:8px;background:var(--or);border-radius:4px;margin-right:8px;transform:skewX(-20deg)}
+.top .aff{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.top .aff b{font-size:16px}.top .aff span{opacity:.8;font-size:12.5px}
+.top .tag{background:rgba(255,255,255,.14);border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600}.top .tag.or{background:var(--or);color:#fff}
+.top .right{margin-left:auto;display:flex;gap:8px;align-items:center;font-size:12.5px}.top .right b{font-size:15px}
+.maq{background:#fff7e6;border-bottom:1px solid #f3dfb0;color:#6a4b00;padding:7px 16px;font-size:12.5px}
+.wrap{display:grid;grid-template-columns:230px 1fr;min-height:calc(100vh - 92px)}
+.steps{background:var(--surface);border-right:1px solid var(--line);padding:14px 10px;position:sticky;top:92px;height:calc(100vh - 92px);overflow:auto}
+.steps h4{margin:4px 8px 10px;font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted)}
+.step{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;background:none;border:0;border-radius:12px;padding:9px 10px;cursor:pointer;margin-bottom:2px}
+.step:hover{background:var(--page)}.step.on{background:var(--or2)}
+.step .n{flex:none;width:26px;height:26px;border-radius:50%;background:var(--page);border:1.5px solid var(--line);display:grid;place-items:center;font-weight:800;font-size:12px}
+.step.on .n{background:var(--or);border-color:var(--or);color:#fff}.step.done .n{background:var(--okbg);border-color:#9fd1b4;color:var(--ok)}
+.step b{display:block;font-size:13.5px}.step small{display:block;color:var(--ink2);font-size:11.5px;margin-top:1px}
+.steps .legend{margin:16px 8px 0;font-size:11.5px;color:var(--muted);line-height:1.5}
+main{padding:18px 22px 60px;min-width:0}
+.pane{display:none}.pane.on{display:block}
+h1{font-size:22px;margin:0 0 4px}h1 .hint{font-weight:500;color:var(--ink2);font-size:13px}
+h2{font-size:15px;margin:0 0 8px}h3{font-size:13.5px;margin:0 0 6px}
+.lead{color:var(--ink2);margin:0 0 14px;max-width:900px}
+.grid{display:grid;gap:14px}.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}.g31{grid-template-columns:1.2fr .8fr}.g13{grid-template-columns:.9fr 1.4fr}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;min-width:0}
+.card h2 .hint,.card h3 .hint{font-weight:500;color:var(--muted);font-size:12px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:0 0 14px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}.stat b{display:block;font-size:19px;letter-spacing:-.3px}.stat small{color:var(--ink2);font-size:11.5px}
+.stat.ok{border-color:#9fd1b4;background:var(--okbg)}.stat.warn{border-color:#f0d58a;background:var(--warnbg)}.stat.bad{border-color:#f0b6ad;background:var(--badbg)}.stat.or{border-color:#f7c3ad;background:var(--or2)}
+.chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 11px;font-size:12.5px;font-weight:600;cursor:pointer}
+.chip.active,.chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}.chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 13px;font-weight:600;font-size:13px;cursor:pointer;min-height:38px}
+.btn.primary{background:var(--or);color:#fff;border-color:var(--or)}.btn.dark{background:var(--ink);color:#fff;border-color:var(--ink)}.btn.sm{min-height:30px;padding:3px 9px;font-size:12px}
+.acts{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tag{display:inline-block;border-radius:6px;padding:2px 7px;font-size:11px;font-weight:700;letter-spacing:.2px}
+.tag.ok{background:var(--okbg);color:var(--ok)}.tag.warn{background:var(--warnbg);color:var(--warn)}.tag.bad{background:var(--badbg);color:var(--bad)}.tag.blue{background:var(--bluebg);color:var(--blue)}.tag.grey{background:#eef0f4;color:var(--ink2)}.tag.or{background:var(--or2);color:#b84a1c}
+table{border-collapse:collapse;width:100%;font-size:12.5px}th{text-align:left;font-size:11px;color:var(--ink2);text-transform:uppercase;letter-spacing:.4px;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:6px 8px;border-bottom:1px solid #eef0f4;vertical-align:middle}td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}tr.tot td{font-weight:800;background:#fafbfd;border-top:2px solid var(--ink)}tr.sub td{font-weight:700;background:#fafbfd}
+td input,td select{width:100%;border:1px solid transparent;background:transparent;border-radius:6px;padding:4px 6px}td input.ed,td select.ed{background:var(--or2);border-color:#f7c3ad;text-align:right;font-variant-numeric:tabular-nums}td input.ed:focus{outline:2px solid var(--or)}
+.ed-note{font-size:11.5px;color:var(--ink2)}.ed-note i{display:inline-block;width:12px;height:12px;background:var(--or2);border:1px solid #f7c3ad;border-radius:3px;vertical-align:-2px;margin-right:4px}
+.drop{border:2px dashed #c9cfdb;border-radius:14px;padding:26px 16px;text-align:center;color:var(--ink2);background:#fbfbfd}.drop b{display:block;color:var(--ink);font-size:14px;margin-bottom:4px}
+.files{display:flex;flex-direction:column;gap:6px}.file{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.file .ic{width:34px;height:40px;border-radius:6px;display:grid;place-items:center;font-size:10.5px;font-weight:800;color:#fff;flex:none}.file .tx{flex:1;min-width:0}.file .tx b{display:block;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.file .tx small{color:var(--ink2);font-size:11.5px}
+.pdf{background:#fff;border:1px solid var(--line);border-radius:10px;padding:18px 22px;font:13px/1.55 Georgia,"Times New Roman",serif;color:#222;max-height:520px;overflow:auto}
+.pdf h5{font:700 13px/1.3 Inter,sans-serif;margin:14px 0 6px;color:var(--ink)}.pdf p{margin:0 0 8px}.pdf .hl{background:#fff2a8;border-bottom:2px solid #e8c431;cursor:pointer;padding:0 2px}.pdf .hl.r{background:#fde3d7;border-color:#eb6834}.pdf .hl.m{background:#dff3e6;border-color:#15673a}.pdf .hl.q{background:#e6eefc;border-color:#1f6fd0}
+.note{border-left:4px solid var(--line);padding:8px 10px;background:var(--surface);border-radius:0 10px 10px 0;margin-bottom:8px;font-size:12.5px}.note.c{border-color:var(--or)}.note.m{border-color:var(--ok)}.note.r{border-color:var(--bad)}.note.q{border-color:var(--blue)}.note small{display:block;color:var(--muted);font-size:11px}.note b{font-size:12px}
+.qty{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}.qty .q{background:var(--page);border-radius:10px;padding:8px 10px}.qty .q b{display:block;font-size:17px}.qty .q small{color:var(--ink2);font-size:11.5px}
+.sec{display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;background:var(--surface);cursor:pointer}.sec.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}.sec .tx{flex:1}.sec b{display:block;font-size:13px}.sec small{color:var(--ink2);font-size:11.5px}
+.editor{min-height:300px;border:1px solid var(--line);border-radius:10px;padding:14px 16px;font-size:13.5px;line-height:1.6;background:#fff}.editor h5{margin:0 0 8px;font-size:15px}.editor .var{background:var(--bluebg);color:var(--blue);border-radius:4px;padding:0 4px;font-weight:600}.editor .todo{background:var(--warnbg);color:var(--warn);border-radius:4px;padding:0 4px}
+.blocs .b{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:6px;font-size:12.5px;background:var(--surface)}.blocs .b b{display:block;font-size:12.5px}.blocs .b small{color:var(--muted)}
+.check{display:flex;flex-direction:column;gap:6px}.check label{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);cursor:pointer}.check input{margin-top:3px}
+.bar{height:8px;border-radius:4px;background:#e9ecf2;overflow:hidden}.bar i{display:block;height:100%;background:var(--or)}
+.ver{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 10px}.ver .chip.active{background:var(--or);border-color:var(--or)}
+.foot{margin-top:18px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.hint{font-size:12px;color:var(--ink2)}.warnbox{background:var(--warnbg);border:1px solid #f0d58a;border-radius:10px;padding:8px 10px;font-size:12.5px;color:#5c3f00}.okbox{background:var(--okbg);border:1px solid #9fd1b4;border-radius:10px;padding:8px 10px;font-size:12.5px;color:var(--ok)}
+.kv{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--ink2)}.kv b{color:var(--ink)}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:999px;font-weight:600;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:9}.toast.show{opacity:1}
+@media(max-width:900px){.wrap{grid-template-columns:1fr}.steps{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);display:flex;gap:4px;overflow-x:auto;padding:8px 10px}.steps h4,.steps .legend{display:none}.step{flex:none;width:auto;padding:7px 10px}.step small{display:none}.g2,.g3,.g31,.g13{grid-template-columns:1fr}main{padding:14px 12px 60px}.top .right{margin-left:0}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="logo"><i></i>TRACÉ · Commerce</div>
+  <div class="aff"><b>O2610-07 · Lorient — Kerentrech</b><span>DALKIA · extension du réseau de chaleur · secteur Ouest</span><span class="tag or">Devis & chiffrage</span><span class="tag">v2 du chiffrage</span></div>
+  <div class="right"><span>Remise de l'offre</span><b>ven. 23/10</b><span class="tag">J-10</span><span>Chargé d'affaires : <b>Sophie M.</b></span></div>
+</header>
+<div class="maq">🧪 <b>Maquette cliquable</b> — rien n'est enregistré. Les six étapes sont dans l'ordre d'un dossier réel. Les cases <span class="ed-note"><i></i>orange</span> se modifient et recalculent les totaux (méthode SCR, tableau V2B). Deux personnes dans la vraie vie : le chargé d'affaires (dossier, lecture, mémoire, DPGF) et le chiffreur / bureau d'études (chiffrage) — les deux travaillent dans la même affaire.</div>
+<div class="wrap">
+  <nav class="steps" id="steps">
+    <h4>Le dossier de A à Z</h4>
+    <button class="step done" data-step="dossier"><span class="n">1</span><span><b>Dossier</b><small>import du DCE, pièces classées, délais</small></span></button>
+    <button class="step done" data-step="lecture"><span class="n">2</span><span><b>Lecture des pièces</b><small>surligner, noter, quantités repérées</small></span></button>
+    <button class="step on" data-step="chiffrage"><span class="n">3</span><span><b>Chiffrage V2B</b><small>zones · DN · cadences · chapitres · vente</small></span></button>
+    <button class="step" data-step="memoire"><span class="n">4</span><span><b>Mémoire technique</b><small>blocs SCR, adapté au dossier</small></span></button>
+    <button class="step" data-step="dpgf"><span class="n">5</span><span><b>DPGF</b><small>le bordereau du client, rempli depuis le chiffrage</small></span></button>
+    <button class="step" data-step="offre"><span class="n">6</span><span><b>Offre</b><small>synthèse, pièces, remise, négociation</small></span></button>
+    <div class="legend">Chaque étape alimente la suivante : les quantités repérées en lecture préremplissent le chiffrage ; le chiffrage remplit la DPGF et les cadences du mémoire ; l'offre reprend tout. Une nouvelle version du chiffrage (négociation, alignement technique) garde la précédente.</div>
+  </nav>
+  <main>
+    <!-- ───────────── 1 · DOSSIER ───────────── -->
+    <section class="pane" id="p-dossier">
+      <h1>1 · Le dossier <span class="hint">· import du DCE, pièces classées, qui fait quoi, quand</span></h1>
+      <p class="lead">Tu déposes le DCE tel que tu le reçois (zip de la plateforme, dossier Drive, mails). L'appli déballe, reconnaît les pièces par leur nom et leur contenu, les range, lit les dates de la consultation et pose les tâches. L'archive d'origine est gardée telle quelle.</p>
+      <div class="stats"><div class="stat ok"><b>14</b><small>pièces reconnues</small></div><div class="stat warn"><b>2</b><small>à classer à la main</small></div><div class="stat"><b>23/10</b><small>remise de l'offre · J-10</small></div><div class="stat"><b>16/10</b><small>date limite des questions</small></div><div class="stat or"><b>1 820 ml</b><small>tranchée (lu dans le DPGF)</small></div></div>
+      <div class="grid g31">
+        <div>
+          <div class="card"><h2>Pièces du dossier <span class="hint">· reconnues automatiquement, à vérifier</span></h2>
+            <div class="drop" id="drop"><b>Déposer le DCE ici</b>zip de la plateforme, dossier, PDF, Excel, DWG — ou <button class="btn sm" onclick="demoImport()">▶ simuler un import</button></div>
+            <div class="files" style="margin-top:10px" id="files"></div>
+          </div>
+        </div>
+        <div>
+          <div class="card" style="margin-bottom:14px"><h2>La consultation <span class="hint">· lu dans le RC</span></h2>
+            <div class="kv"><span>Maître d'ouvrage <b>DALKIA — Lorient Agglomération</b></span><span>MOE <b>SETEC Énergie</b></span><span>Procédure <b>MAPA, lots séparés</b></span><span>Lot <b>2 · Réseau acier pré-isolé</b></span><span>Variante <b>autorisée (série 2 → série 3)</b></span><span>Visite de site <b>obligatoire · 14/10 9 h</b></span><span>Questions <b>jusqu'au 16/10</b></span><span>Remise <b>23/10 12 h</b></span><span>Délai d'exécution <b>22 semaines</b></span><span>Critères <b>prix 60 % · valeur technique 40 %</b></span></div>
+          </div>
+          <div class="card" style="margin-bottom:14px"><h2>Tâches posées <span class="hint">· à l'import</span></h2>
+            <div class="check">
+              <label><input type="checkbox" checked><span><b>Visite de site</b> — 14/10 9 h, Sophie M. + Marc D. (conducteur) · dans Ma semaine</span></label>
+              <label><input type="checkbox"><span><b>Lecture CCTP + DPGF</b> — Sophie M., avant le 15/10</span></label>
+              <label><input type="checkbox"><span><b>Questions au MOE</b> — avant le 16/10 (2 repérées en lecture)</span></label>
+              <label><input type="checkbox"><span><b>Chiffrage v1</b> — Bureau d'études, pour le 19/10</span></label>
+              <label><input type="checkbox"><span><b>Mémoire technique</b> — Sophie M., pour le 21/10</span></label>
+              <label><input type="checkbox"><span><b>DPGF + AE signés, dépôt sur la plateforme</b> — 23/10 avant 12 h</span></label>
+            </div>
+          </div>
+          <div class="card"><h2>Qui travaille dessus</h2><div class="kv"><span>Chargé d'affaires <b>Sophie M.</b></span><span>Chiffrage <b>Bureau d'études (Yann L.)</b></span><span>Conducteur pressenti <b>Marc D.</b></span><span>Relecture <b>Ethan L.</b></span></div><div class="hint" style="margin-top:8px">Tout le monde voit l'affaire dans Commerce ; les notifications (visite, questions, échéances) tombent dans « Aujourd'hui » de chacun.</div></div>
+        </div>
+      </div>
+      <div class="foot"><span class="hint">Étape suivante : lire les pièces et repérer ce qui compte.</span><button class="btn primary" onclick="go('lecture')">Lire les pièces →</button></div>
+    </section>
+
+    <!-- ───────────── 2 · LECTURE ───────────── -->
+    <section class="pane" id="p-lecture">
+      <h1>2 · Lecture des pièces <span class="hint">· surligner, noter, envoyer au bon endroit · quantités repérées</span></h1>
+      <p class="lead">La pièce s'ouvre à gauche. Tu surlignes un passage : il devient une note avec sa page et son article, et tu dis où elle va — <span class="tag or">→ chiffrage</span> <span class="tag ok">→ mémoire</span> <span class="tag bad">⚠ risque</span> <span class="tag blue">? question MOE</span>. Les quantités lues (DPGF, plans, tracé) s'accumulent dans « Quantités repérées » et préremplissent le chiffrage.</p>
+      <div class="chips" id="piecechips"><button class="chip active">CCTP · lot 2</button><button class="chip">DPGF</button><button class="chip">CCAP</button><button class="chip">RC</button><button class="chip">Plans (6)</button><button class="chip">Profils en long</button><button class="chip">PPSPS cadre</button></div>
+      <div class="grid g13">
+        <div>
+          <div class="card"><h3>CCTP — lot 2 · Réseau acier pré-isolé <span class="hint">· 48 pages · page 17</span></h3>
+            <div class="pdf" id="pdf">
+              <h5>4.2 — Tubes et pièces pré-isolées</h5>
+              <p>Les canalisations seront en acier pré-isolé <span class="hl" data-k="c" data-t="Série 2 imposée, variante série 3 autorisée (RC) : chiffrer en série 2, proposer la série 3 en variante">série 2, conformes à l'EN 253, tubes de 12 m</span>, gaine PEHD, fils d'alarme intégrés. Fournisseur agréé par le maître d'œuvre. Les pièces spéciales (coudes, tés, réductions, points fixes) sont pré-isolées d'usine.</p>
+              <h5>4.5 — Assemblage par soudage</h5>
+              <p>Les soudures bout à bout seront exécutées par des <span class="hl m" data-k="m" data-t="Soudeurs qualifiés EN ISO 9606-1 : joindre les QS au mémoire (bloc « Moyens humains »)">soudeurs qualifiés selon EN ISO 9606-1</span>, procédé 111 ou 141 selon DMOS validé. <span class="hl r" data-k="r" data-t="Contrôle radio 10 % (et non 5 % comme d'habitude) : impact sur le chapitre Contrôles">10 % des soudures feront l'objet d'un contrôle radiographique</span>, choix des joints par le maître d'œuvre. Toute soudure non conforme sera refaite aux frais de l'entreprise, contrôle à 100 % de la série suivante.</p>
+              <h5>4.7 — Manchons et rétraction</h5>
+              <p>Les jonctions de gaine seront réalisées par <span class="hl c" data-k="c" data-t="Manchons électrosoudables (pas thermo-rétractables) : prix manchon à revoir, fournisseur à consulter">manchons électrosoudables</span> avec contrôle d'étanchéité à l'air (0,2 bar, 2 min) avant injection de mousse. Les fils d'alarme seront raccordés et testés à chaque jonction.</p>
+              <h5>5.1 — Épreuves</h5>
+              <p>Épreuve hydraulique à <span class="hl" data-k="c" data-t="1,5 × PS, 24 h par tronçon : prévoir les vacations et l'eau (chapitre Essais)">1,5 fois la pression de service pendant 24 heures</span> par tronçon, PV contradictoire avec le maître d'œuvre. Le rinçage et le remplissage sont à la charge de l'entreprise.</p>
+              <h5>6.3 — Tranchée et remblais</h5>
+              <p><span class="hl q" data-k="q" data-t="Qui fait la tranchée ? Lot 1 (GC) d'après le RC, mais le CCTP lot 2 parle de « fourniture et pose en tranchée ouverte » : question au MOE avant le 16/10">La fourniture et la pose en tranchée ouverte</span> incluent le lit de pose en sable 0/4, le remblai en sable jusqu'à 10 cm au-dessus de la génératrice supérieure et le grillage avertisseur. Les terrassements sont au lot 1.</p>
+              <p class="hint" style="font-family:Inter,sans-serif">… (clique un passage surligné pour voir sa note ; sélectionner un texte créerait une note dans la vraie appli)</p>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="card" style="margin-bottom:14px"><h3>Notes de lecture <span class="hint">· 6 · par destination</span></h3>
+            <div class="chips"><button class="chip active" onclick="filterNotes('',this)">Toutes</button><button class="chip" onclick="filterNotes('c',this)">→ chiffrage 3</button><button class="chip" onclick="filterNotes('m',this)">→ mémoire 1</button><button class="chip" onclick="filterNotes('r',this)">⚠ risque 1</button><button class="chip" onclick="filterNotes('q',this)">? MOE 1</button></div>
+            <div id="notes"></div>
+            <div class="hint">Les notes « chiffrage / risque » s'affichent en tête du chiffrage ; « mémoire » dans le mémoire ; « ? MOE » partent dans le courrier de questions.</div>
+          </div>
+          <div class="card"><h3>Quantités repérées <span class="hint">· DPGF + plans + tracé</span></h3>
+            <div class="qty">
+              <div class="q"><b>1 820 ml</b><small>tranchée (aller + retour = 3 640 ml de tube)</small></div>
+              <div class="q"><b>304</b><small>soudures DN 250 (profils + plans)</small></div>
+              <div class="q"><b>96</b><small>soudures DN 150</small></div>
+              <div class="q"><b>140</b><small>soudures DN 100 (branchements)</small></div>
+              <div class="q"><b>24 · 6 · 4</b><small>coudes · tés · réductions</small></div>
+              <div class="q"><b>8</b><small>vannes pré-isolées (DN 250 ×2, DN 150 ×2, DN 100 ×4)</small></div>
+              <div class="q"><b>540</b><small>manchons (= soudures)</small></div>
+              <div class="q"><b>12</b><small>sous-stations raccordées</small></div>
+            </div>
+            <div class="acts" style="margin-top:10px"><button class="btn sm" onclick="toast('Tracé ouvert sur le plan du MOE : les soudures et longueurs se recalculent depuis le dessin')">✎ Vérifier avec le tracé</button><button class="btn sm" onclick="toast('Quantités envoyées : le chiffrage est prérempli (zones Rue de Kerentrech, Rue du Port, branchements)')">→ Préremplir le chiffrage</button></div>
+            <div class="hint" style="margin-top:8px">Source de chaque chiffre gardée (DPGF ligne 2.1, plan PL-03…). Si le tracé donne autre chose que le DPGF, l'écart est signalé : c'est souvent là qu'on gagne ou qu'on perd.</div>
+          </div>
+        </div>
+      </div>
+      <div class="foot"><button class="btn" onclick="go('dossier')">← Dossier</button><button class="btn primary" onclick="go('chiffrage')">Chiffrer →</button></div>
+    </section>
+
+    <!-- ───────────── 3 · CHIFFRAGE ───────────── -->
+    <section class="pane on" id="p-chiffrage">
+      <h1>3 · Chiffrage <span class="hint">· méthode SCR, tableau V2B · zones → DN → cadences → chapitres → prix de vente</span></h1>
+      <p class="lead">Le tableau reprend ta feuille « Prix base fourniture » : prix du pouce = (taux horaire × heures × soudeurs) ÷ (cadence × pouces), manchon, autocontrôle, radios, déchets, puis les chapitres achat → vente et la RCFA du client. Tu modifies une cadence ou un taux : tout se recalcule, la DPGF aussi.</p>
+      <div class="ver"><span class="hint">Versions :</span><button class="chip" onclick="toast('v1 · 12/10 · estimation rapide · 560 k€ (gardée telle quelle)')">v1 · estimation rapide</button><button class="chip active">v2 · après lecture CCTP</button><button class="btn sm" onclick="toast('v3 créée : la v2 est gardée telle quelle, on repart dessus (10 versions au maximum)')">＋ Nouvelle version</button><span class="hint">· motif : négociation, alignement technique, variante</span></div>
+      <div class="warnbox" style="margin-bottom:12px">Notes de lecture pour le chiffrage : <b>contrôle radio 10 %</b> (CCTP 4.5) · <b>manchons électrosoudables</b> (4.7) · <b>épreuve 1,5 × PS, 24 h par tronçon</b> (5.1) · <b>série 2, variante série 3</b> (4.2) · ⚠ tranchée : lot 1 ou lot 2 ? (question MOE) — <i>chaque note se coche quand elle est prise en compte</i>.</div>
+      <div class="stats" id="chiffStats"></div>
+      <div class="card" style="margin-bottom:14px"><h2>Hypothèses <span class="hint">· base de prix SCR, modifiable par affaire</span></h2>
+        <div style="overflow:auto"><table id="hypo"><tr><th>Taux horaire chargé</th><th>Heures / jour</th><th>Soudeurs / équipe</th><th>Autocontrôle</th><th>Déchets</th><th>Radios (part des soudures)</th><th>Vacation radio</th><th>Marge</th><th>RCFA client</th></tr>
+        <tr><td><input class="ed" id="h-taux" value="85,32"> €/h</td><td><input class="ed" id="h-h" value="10"></td><td><input class="ed" id="h-s" value="3"></td><td><input class="ed" id="h-auto" value="5"> %</td><td><input class="ed" id="h-dech" value="10"> %</td><td><input class="ed" id="h-rad" value="10"> %</td><td><input class="ed" id="h-vac" value="450"> € / 9 clichés</td><td><input class="ed" id="h-marge" value="8"> %</td><td><select class="ed" id="h-rcfa"><option value="5">Coriance · 5 %</option><option value="4">Engie · 4 %</option><option value="3.5" selected>Dalkia · 3,5 %</option><option value="1">EHTP · 1 %</option><option value="0">Autre · 0 %</option></select></td></tr></table></div>
+        <div class="ed-note" style="margin-top:6px"><i></i>Prix du pouce = (taux × heures × soudeurs) ÷ (cadence × pouces). Manchon = (taux × heures) ÷ cadence × 0,85. Autocontrôle = % du coût soudure. Radios = part des soudures × PU radio par DN + vacations.</div>
+      </div>
+      <div class="card" style="margin-bottom:14px"><h2>Zones · lots <span class="hint">· une table par DN, préremplie par la lecture</span></h2>
+        <div class="chips" id="zones"><button class="chip active">Rue de Kerentrech · DN 250</button><button class="chip">Rue du Port · DN 150</button><button class="chip">Branchements · DN 100</button><button class="chip" onclick="toast('Zone ajoutée (vide) : DN, soudures, ml')">＋ zone / lot</button></div>
+        <div style="overflow:auto"><table id="dn">
+          <tr><th>DN</th><th class="num">Pouces</th><th class="num">Soudures</th><th class="num">Cadence / j</th><th class="num">Jours</th><th class="num">Prix du pouce</th><th class="num">Soudure</th><th class="num">Manchon</th><th class="num">Autocontrôle</th><th class="num">PU radio</th><th class="num">Radios</th><th class="num">Total DN</th></tr>
+        </table></div>
+        <div class="hint" style="margin-top:6px">Vérifié sur Saint-Lô zone bleue : DN 250 × 540 soudures → 172 773 € de soudure, 48 952 € de manchons, 8 639 € d'autocontrôle, 67,5 jours (= le tableau V2B).</div>
+      </div>
+      <div class="grid g2">
+        <div class="card"><h2>Chapitres <span class="hint">· achat</span></h2>
+          <div style="overflow:auto"><table id="chap"></table></div>
+          <div class="hint" style="margin-top:6px">Les lignes « soudure », « manchons », « contrôles » viennent des tables par DN. Le reste se saisit (devis fournisseurs rattachés au DCE).</div>
+        </div>
+        <div class="card"><h2>Récap vente</h2>
+          <table id="recap"></table>
+          <div class="acts" style="margin-top:10px"><button class="btn" onclick="toast('Fiche de chiffrage imprimée (PDF) : hypothèses, tables par DN, chapitres, récap')">🖨 Fiche de chiffrage</button><button class="btn" onclick="toast('Export Excel au format V2B (une feuille par zone + récap)')">⬇ Excel V2B</button><button class="btn primary" onclick="go('dpgf')">Remplir la DPGF →</button></div>
+          <div class="hint" style="margin-top:8px">Comparaison : v1 estimation rapide 560 k€ · budget MOE (lu dans le RC) 610 k€ · notre prix v2 <b id="r-cmp">—</b>.</div>
+        </div>
+      </div>
+      <div class="foot"><button class="btn" onclick="go('lecture')">← Lecture</button><button class="btn primary" onclick="go('memoire')">Mémoire technique →</button></div>
+    </section>
+
+    <!-- ───────────── 4 · MÉMOIRE ───────────── -->
+    <section class="pane" id="p-memoire">
+      <h1>4 · Mémoire technique <span class="hint">· blocs SCR réutilisés, adaptés au dossier, variables remplies depuis le chiffrage</span></h1>
+      <p class="lead">Le plan du mémoire suit les critères de jugement du RC (valeur technique 40 %). Chaque section part d'un bloc SCR déjà écrit (dossiers précédents, validés), avec des <span class="editor" style="display:inline;padding:0;border:0;min-height:0"><span class="var">variables</span></span> remplies automatiquement (cadences, effectifs, délai, DN) et des <span class="editor" style="display:inline;padding:0;border:0;min-height:0"><span class="todo">à adapter</span></span> à écrire pour ce dossier.</p>
+      <div class="stats"><div class="stat ok"><b>6 / 10</b><small>sections prêtes</small></div><div class="stat warn"><b>3</b><small>à adapter</small></div><div class="stat bad"><b>1</b><small>à écrire (méthodo manchons électrosoudables)</small></div><div class="stat"><b>18 p.</b><small>estimation</small></div></div>
+      <div class="grid g13">
+        <div>
+          <div class="card"><h3>Plan du mémoire <span class="hint">· critères du RC</span></h3>
+            <div id="secs"></div>
+            <div class="acts" style="margin-top:8px"><button class="btn sm" onclick="toast('Section ajoutée')">＋ Section</button><button class="btn sm" onclick="toast('Plan réordonné')">↕ Ordre</button></div>
+          </div>
+        </div>
+        <div>
+          <div class="card" style="margin-bottom:14px"><h3 id="sec-title">3 · Méthodologie de soudage et de manchonnage <span class="hint">· bloc SCR « méthodo pré-isolé » · à adapter</span></h3>
+            <div class="editor" id="editor"></div>
+            <div class="acts" style="margin-top:8px"><button class="btn sm" onclick="toast('Variables rafraîchies depuis le chiffrage v2')">⟳ Variables depuis le chiffrage</button><button class="btn sm" onclick="toast('Bloc remplacé par la version « manchons électrosoudables » (dossier Rennes 2025)')">📚 Autre bloc SCR</button><button class="btn sm" onclick="toast('Photos chantier insérées (bibliothèque SCR : DN 250 Saint-Lô)')">🖼 Photos</button><button class="btn sm" onclick="toast('Section marquée prête')">✓ Prête</button></div>
+          </div>
+          <div class="card blocs"><h3>Bibliothèque de blocs SCR <span class="hint">· validés sur des dossiers gagnés</span></h3>
+            <div class="b"><b>Présentation SCR</b><small>mise à jour 09/2026 · chiffres clés, agences, références</small></div>
+            <div class="b"><b>Méthodo pré-isolé · soudage 111 / 141</b><small>Saint-Lô 2026 · gagné · 2 pages</small></div>
+            <div class="b"><b>Méthodo manchons électrosoudables</b><small>Rennes 2025 · gagné · 1 page</small></div>
+            <div class="b"><b>Contrôles : autocontrôle, radios, épreuves</b><small>bloc standard · PV types joints</small></div>
+            <div class="b"><b>QSE : PPSPS, quarts d'heure, accueil chantier</b><small>bloc standard · lié à l'appli (preuves)</small></div>
+            <div class="b"><b>Moyens humains · habilitations</b><small>généré depuis l'annuaire : QS soudeurs à jour, CACES, AIPR</small></div>
+            <div class="b"><b>Moyens matériels</b><small>généré depuis Parc : postes, groupes, fourgons soudeurs</small></div>
+            <div class="acts" style="margin-top:6px"><button class="btn sm" onclick="toast('Export Word (modèle SCR : page de garde, sommaire, pied de page)')">⬇ Word</button><button class="btn sm" onclick="toast('PDF généré')">⬇ PDF</button></div>
+          </div>
+        </div>
+      </div>
+      <div class="foot"><button class="btn" onclick="go('chiffrage')">← Chiffrage</button><button class="btn primary" onclick="go('dpgf')">Remplir la DPGF →</button></div>
+    </section>
+
+    <!-- ───────────── 5 · DPGF ───────────── -->
+    <section class="pane" id="p-dpgf">
+      <h1>5 · DPGF <span class="hint">· le bordereau du client, rempli depuis le chiffrage, rendu dans son format Excel</span></h1>
+      <p class="lead">La DPGF du MOE est importée telle quelle (lignes, unités, quantités). Le chiffrage propose un prix unitaire par ligne (ventilation du prix de vente au prorata des coûts), tu ajustes ligne par ligne, et le total doit tomber sur le prix de vente du chiffrage. L'export remet les prix dans le fichier Excel du client, sans toucher à sa mise en forme.</p>
+      <div class="stats" id="dpgfStats"></div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="acts" style="margin-bottom:8px"><button class="btn sm" onclick="repartir()">⚖ Répartir le prix de vente sur les lignes</button><button class="btn sm" onclick="toast('Arrondis : PU à l’euro, écart reporté sur la ligne la plus grosse')">Arrondir</button><span class="hint">Le client ne voit que PU × quantité. La ventilation, c'est ta stratégie (charger les lignes sûres, alléger celles qui risquent d'être réduites).</span></div>
+        <div style="overflow:auto"><table id="dpgf"></table></div>
+      </div>
+      <div class="grid g2">
+        <div class="card"><h3>Contrôles avant export</h3><div class="check" id="dpgfChecks"></div></div>
+        <div class="card"><h3>Export</h3><div class="acts"><button class="btn primary" onclick="toast('DPGF_Lot2_SCR.xlsx : les PU sont écrits dans le fichier du client, formules et mise en forme conservées')">⬇ Excel du client, rempli</button><button class="btn" onclick="toast('PDF de la DPGF signée (AE)')">⬇ PDF</button></div><div class="hint" style="margin-top:8px">Après attribution, cette DPGF devient le <b>tableau de facturation</b> du dossier : situations mensuelles en % par ligne, avancement, restant — dans Commerce → Dossiers en cours.</div></div>
+      </div>
+      <div class="foot"><button class="btn" onclick="go('memoire')">← Mémoire</button><button class="btn primary" onclick="go('offre')">Préparer l'offre →</button></div>
+    </section>
+
+    <!-- ───────────── 6 · OFFRE ───────────── -->
+    <section class="pane" id="p-offre">
+      <h1>6 · Offre <span class="hint">· synthèse, pièces à remettre, dépôt, puis négociation et versions</span></h1>
+      <p class="lead">Tout ce qui a été produit se retrouve ici : le prix, le délai, le mémoire, la DPGF, l'AE, les attestations. Une fois remise, l'affaire passe « offre remise » ; chaque tour de négociation ou alignement technique crée une nouvelle version du chiffrage (la précédente est gardée). Gagnée → « à débuter » → chantier lié, tableau de facturation ; perdue → la traçabilité reste dans le Reporting.</p>
+      <div class="stats" id="offreStats"></div>
+      <div class="grid g2">
+        <div class="card"><h3>Pièces à remettre <span class="hint">· plateforme MOE, avant le 23/10 12 h</span></h3>
+          <div class="check">
+            <label><input type="checkbox" checked><span><b>Acte d'engagement (AE)</b> — signé, montant = prix de vente · PDF</span></label>
+            <label><input type="checkbox" checked><span><b>DPGF</b> — Excel du client rempli + PDF signé</span></label>
+            <label><input type="checkbox"><span><b>Mémoire technique</b> — 18 p. · 1 section à écrire</span></label>
+            <label><input type="checkbox" checked><span><b>Planning d'exécution</b> — 22 semaines, généré depuis les cadences</span></label>
+            <label><input type="checkbox" checked><span><b>Attestations</b> — URSSAF, assurance, Kbis, QS soudeurs (annuaire, à jour)</span></label>
+            <label><input type="checkbox"><span><b>Variante série 3</b> — chiffrage v2-bis + note de 1 page</span></label>
+          </div>
+          <div class="acts" style="margin-top:10px"><button class="btn primary" onclick="toast('Offre remise : l’affaire passe « offre remise », la date et les pièces sont tracées, le reporting se met à jour')">📤 Marquer l'offre remise</button><button class="btn" onclick="toast('Dossier zip de remise généré (toutes les pièces, nommées comme le RC le demande)')">⬇ Zip de remise</button></div>
+        </div>
+        <div>
+          <div class="card" style="margin-bottom:14px"><h3>Suivi après remise</h3>
+            <div class="note c"><small>19/10 · chiffrage</small><b>v2 remise · <span id="o-montant2">—</span> HT</b> délai 22 semaines, variante série 3 à −14 k€</div>
+            <div class="note q"><small>à venir</small><b>Négociation</b> — chaque tour = nouvelle version (v3…), motif noté, prix et marge recalculés, écart avec la v2 visible</div>
+            <div class="note m"><small>à venir</small><b>Alignement technique</b> — réponses aux questions du MOE, mise à jour du mémoire</div>
+            <div class="note"><small>décision</small><b>Gagnée / perdue</b> — gagnée : dossier en cours, chantier lié (tracé → calepinage), tableau de facturation = la DPGF ; perdue : motif + prix du gagnant si connu, pour le reporting</div>
+          </div>
+          <div class="card"><h3>Ce que le Reporting en garde</h3><div class="kv"><span>Créée le <b>05/10</b></span><span>Remise le <b>23/10</b></span><span>Montant <b id="o-montant">—</b></span><span>Marge <b>8 %</b></span><span>Versions <b>2</b></span><span>Chargé <b>Sophie M.</b></span><span>Chiffreur <b>Yann L.</b></span><span>Temps passé <b>31 h</b></span></div><div class="hint" style="margin-top:8px">Taux de transformation par client, par secteur, par chargé d'affaires ; €/ml et €/soudure par DN pour les prochains chiffrages.</div></div>
+        </div>
+      </div>
+      <div class="foot"><button class="btn" onclick="go('dpgf')">← DPGF</button><button class="btn dark" onclick="go('dossier')">↺ Revoir depuis le début</button></div>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+/* ───────── navigation ───────── */
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+function go(k){$$('.pane').forEach(p=>p.classList.toggle('on',p.id==='p-'+k));$$('.step').forEach(b=>b.classList.toggle('on',b.dataset.step===k));window.scrollTo({top:0,behavior:'smooth'});}
+$$('.step').forEach(b=>b.onclick=()=>go(b.dataset.step));
+let tt;function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2600);}
+const eur=n=>Math.round(n).toLocaleString('fr-FR')+' €';const nb=(n,d=0)=>(+n).toLocaleString('fr-FR',{maximumFractionDigits:d,minimumFractionDigits:d});const num=id=>parseFloat(String($('#'+id).value).replace(',','.').replace(/\s/g,''))||0;
+/* ───────── 1 · dossier : pièces ───────── */
+const FILES=[['PDF','#c0392b','RC_Lot2_Kerentrech.pdf','Règlement de consultation · 9 p.','ok','lu'],['PDF','#c0392b','CCTP_Lot2_reseau_preisole.pdf','CCTP · 48 p. · 6 notes','ok','lu'],['PDF','#c0392b','CCAP.pdf','Clauses administratives · pénalités, RG 5 %, délai de paiement 30 j','ok','lu'],['XLS','#1e7e4a','DPGF_Lot2.xlsx','Bordereau · 14 lignes · 1 820 ml','ok','importé → DPGF'],['DWG','#1f6fd0','PL-01…PL-06_reseau.dwg','6 plans · ouverts dans le traceur','ok','tracé'],['PDF','#c0392b','Profils_en_long.pdf','4 planches','warn','à lire'],['PDF','#c0392b','PPSPS_cadre.pdf','Coordination SPS','ok','→ QSE'],['PDF','#c0392b','AE_Lot2.pdf','Acte d’engagement à compléter','ok','→ offre'],['ZIP','#555','DCE_Kerentrech_lot2.zip','Archive d’origine · 182 Mo · gardée telle quelle','grey','archive'],['?','#7a5200','Annexe_7_divers.pdf','Non reconnu : à classer','warn','à classer']];
+function renderFiles(){$('#files').innerHTML=FILES.map(f=>`<div class="file"><span class="ic" style="background:${f[1]}">${f[0]}</span><span class="tx"><b>${f[2]}</b><small>${f[3]}</small></span><span class="tag ${f[4]}">${f[5]}</span></div>`).join('');}
+renderFiles();
+function demoImport(){toast('Import simulé : 14 pièces reconnues, 2 à classer, dates lues dans le RC, tâches posées');$('#drop').style.borderColor='#15673a';}
+/* ───────── 2 · lecture : notes ───────── */
+const NOTES=[['c','CCTP 4.2 · p. 12','Série 2 imposée, variante série 3 autorisée (RC) : chiffrer en série 2, proposer la série 3 en variante'],['m','CCTP 4.5 · p. 17','Soudeurs qualifiés EN ISO 9606-1 : joindre les QS au mémoire (bloc « Moyens humains »)'],['r','CCTP 4.5 · p. 17','Contrôle radio 10 % (et non 5 % comme d’habitude) : impact sur le chapitre Contrôles'],['c','CCTP 4.7 · p. 18','Manchons électrosoudables (pas thermo-rétractables) : prix manchon à revoir, fournisseur à consulter'],['c','CCTP 5.1 · p. 21','Épreuve 1,5 × PS, 24 h par tronçon : prévoir les vacations et l’eau (chapitre Essais)'],['q','CCTP 6.3 · p. 24','Qui fait la tranchée ? Lot 1 (GC) d’après le RC, mais le CCTP lot 2 parle de « fourniture et pose en tranchée ouverte » : question au MOE avant le 16/10']];
+const DEST={c:'→ chiffrage',m:'→ mémoire',r:'⚠ risque',q:'? question MOE'};
+function renderNotes(f){$('#notes').innerHTML=NOTES.filter(n=>!f||n[0]===f).map(n=>`<div class="note ${n[0]}"><small>${n[1]} · <b>${DEST[n[0]]}</b> · Sophie M.</small>${n[2]}</div>`).join('');}
+function filterNotes(f,b){$$('#piecechips ~ .grid .chips .chip').forEach(x=>x.classList.remove('active'));b.classList.add('active');renderNotes(f);}
+renderNotes('');
+$$('#pdf .hl').forEach(h=>h.onclick=()=>toast(DEST[h.dataset.k]+' · '+h.dataset.t));
+/* ───────── 3 · chiffrage V2B ───────── */
+const DN=[{dn:250,pouces:10,soud:304,cad:8,pu:95},{dn:150,pouces:6,soud:96,cad:11,pu:80},{dn:100,pouces:4,soud:140,cad:14,pu:70}];
+const CH=[['Fourniture tubes et pièces pré-isolées (devis Logstor)',218400,true],['Main-d’œuvre soudage',0,false],['Manchonnage (électrosoudable)',0,false],['Autocontrôle',0,false],['Contrôles radio',0,false],['Épreuves hydrauliques (eau, vacations, PV)',6800,true],['Consommables soudage et déchets',0,false],['Matériel : postes, groupes, fourgons (jours)',0,false],['Grands déplacements (livret § 2.7)',18600,true],['Sous-traitance : lit de pose et remblai sable',24500,true],['Frais de chantier : base vie, clôtures, signalisation',9200,true],['Encadrement et études (conducteur, BE)',14800,true],['Aléas',4000,true]];
+function calcDN(){const taux=num('h-taux'),h=num('h-h'),s=num('h-s'),auto=num('h-auto')/100,rad=num('h-rad')/100,vac=num('h-vac');
+  return DN.map(d=>{const pouce=(taux*h*s)/(d.cad*d.pouces);const soud=pouce*d.pouces*d.soud;const manch=(taux*h)/d.cad*0.85*d.soud;const ac=soud*auto;const nrad=Math.ceil(d.soud*rad);const radios=nrad*d.pu+Math.ceil(nrad/9)*vac;const jours=d.soud/d.cad;return Object.assign({},d,{pouce,soud:d.soud,cout:soud,manch,ac,nrad,radios,jours,total:soud+manch+ac+radios});});}
+function renderChiff(){const R=calcDN();const T=R.reduce((a,x)=>({soud:a.soud+x.soud,cout:a.cout+x.cout,manch:a.manch+x.manch,ac:a.ac+x.ac,radios:a.radios+x.radios,jours:a.jours+x.jours,total:a.total+x.total}),{soud:0,cout:0,manch:0,ac:0,radios:0,jours:0,total:0});
+  $('#dn').innerHTML=`<tr><th>DN</th><th class="num">Pouces</th><th class="num">Soudures</th><th class="num">Cadence / j</th><th class="num">Jours</th><th class="num">Prix du pouce</th><th class="num">Soudure</th><th class="num">Manchon</th><th class="num">Autocontrôle</th><th class="num">PU radio</th><th class="num">Radios</th><th class="num">Total DN</th></tr>`+R.map((x,i)=>`<tr><td><b>DN ${x.dn}</b></td><td class="num">${x.pouces}"</td><td class="num"><input class="ed" data-dn="${i}" data-k="soud" value="${x.soud}"></td><td class="num"><input class="ed" data-dn="${i}" data-k="cad" value="${x.cad}"></td><td class="num">${nb(x.jours,1)}</td><td class="num">${nb(x.pouce,2)} €</td><td class="num">${eur(x.cout)}</td><td class="num">${eur(x.manch)}</td><td class="num">${eur(x.ac)}</td><td class="num"><input class="ed" data-dn="${i}" data-k="pu" value="${x.pu}"></td><td class="num">${eur(x.radios)} <span class="hint">(${x.nrad})</span></td><td class="num"><b>${eur(x.total)}</b></td></tr>`).join('')+`<tr class="tot"><td>Total</td><td></td><td class="num">${T.soud}</td><td></td><td class="num">${nb(T.jours,1)} j</td><td></td><td class="num">${eur(T.cout)}</td><td class="num">${eur(T.manch)}</td><td class="num">${eur(T.ac)}</td><td></td><td class="num">${eur(T.radios)}</td><td class="num">${eur(T.total)}</td></tr>`;
+  $$('#dn input.ed').forEach(i=>i.onchange=()=>{const d=DN[+i.dataset.dn];d[i.dataset.k]=parseFloat(String(i.value).replace(',','.'))||0;renderChiff();});
+  const dech=num('h-dech')/100;const conso=T.soud*18*(1+dech);const mat=T.jours*(3*42+180);
+  const rows=CH.map(c=>{let v=c[1];if(c[0].startsWith('Main'))v=T.cout;else if(c[0].startsWith('Manchonnage'))v=T.manch;else if(c[0].startsWith('Autocontrôle'))v=T.ac;else if(c[0].startsWith('Contrôles'))v=T.radios;else if(c[0].startsWith('Consommables'))v=conso;else if(c[0].startsWith('Matériel'))v=mat;return [c[0],v,c[2]];});
+  const achat=rows.reduce((a,r)=>a+r[1],0);const marge=num('h-marge')/100,rcfa=parseFloat($('#h-rcfa').value)/100;const vente=achat/(1-marge);const prix=vente/(1-rcfa);const ml=1820;
+  $('#chap').innerHTML=`<tr><th>Chapitre</th><th class="num">Achat</th><th class="num">%</th></tr>`+rows.map((r,i)=>`<tr><td>${r[0]}${r[2]?' <span class="tag grey">saisi</span>':' <span class="tag or">calculé</span>'}</td><td class="num">${r[2]?`<input class="ed" data-ch="${i}" value="${nb(r[1])}">`:eur(r[1])}</td><td class="num">${nb(100*r[1]/achat,1)} %</td></tr>`).join('')+`<tr class="tot"><td>Total achat</td><td class="num">${eur(achat)}</td><td class="num">100 %</td></tr>`;
+  $$('#chap input.ed').forEach(i=>i.onchange=()=>{CH[+i.dataset.ch][1]=parseFloat(String(i.value).replace(/\s/g,'').replace(',','.'))||0;renderChiff();});
+  $('#recap').innerHTML=`<tr><td>Total achat</td><td class="num">${eur(achat)}</td></tr><tr><td>Vente = achat ÷ (1 − ${nb(marge*100)} %)</td><td class="num">${eur(vente)}</td></tr><tr><td>Marge</td><td class="num">${eur(vente-achat)}</td></tr><tr><td>RCFA ${$('#h-rcfa').selectedOptions[0].textContent}</td><td class="num">${eur(prix-vente)}</td></tr><tr class="tot"><td>Prix de vente HT</td><td class="num">${eur(prix)}</td></tr><tr><td>€ / ml de tranchée</td><td class="num">${nb(prix/ml)} €</td></tr><tr><td>€ / soudure (moyen)</td><td class="num">${nb(prix/T.soud)} €</td></tr><tr><td>Délai à ces cadences (1 équipe)</td><td class="num">${nb(T.jours/5,1)} semaines · <span class="hint">2 équipes : ${nb(T.jours/10,1)}</span></td></tr>`;
+  $('#chiffStats').innerHTML=`<div class="stat or"><b>${eur(prix)}</b><small>prix de vente HT · v2</small></div><div class="stat"><b>${eur(achat)}</b><small>achat</small></div><div class="stat ok"><b>${nb(marge*100)} %</b><small>marge · ${eur(vente-achat)}</small></div><div class="stat"><b>${T.soud}</b><small>soudures · ${nb(T.jours,1)} jours de soudage</small></div><div class="stat"><b>${nb(prix/ml)} €</b><small>par ml de tranchée</small></div><div class="stat ${prix>610000?'warn':'ok'}"><b>${prix>610000?'+':''}${nb(100*(prix/610000-1),1)} %</b><small>vs budget MOE 610 k€</small></div>`;
+  $('#r-cmp').textContent=eur(prix);$('#o-montant').textContent=eur(prix);$('#o-montant2').textContent=eur(prix);STATE.prix=prix;STATE.achat=achat;renderDpgf();renderOffre();}
+$$('#hypo .ed').forEach(i=>i.onchange=renderChiff);
+const STATE={prix:0,achat:0};
+/* ───────── 4 · mémoire ───────── */
+const SECS=[['1','Présentation de SCR','bloc à jour',' ok','prête'],['2','Compréhension du projet et contraintes du site','à écrire pour ce dossier','warn','à adapter'],['3','Méthodologie de soudage et de manchonnage','bloc SCR + manchons électrosoudables','warn','à adapter'],['4','Moyens humains et habilitations','généré depuis l’annuaire','ok','prête'],['5','Moyens matériels','généré depuis Parc','ok','prête'],['6','Qualité : autocontrôle, radios 10 %, épreuves','bloc standard + CCTP 4.5 / 5.1','warn','à adapter'],['7','Sécurité, PPSPS, quarts d’heure, accueil','bloc standard · preuves TRACÉ','ok','prête'],['8','Planning d’exécution 22 semaines','généré depuis les cadences','ok','prête'],['9','Environnement, déchets, nuisances','bloc standard','ok','prête'],['10','Références récentes en réseau de chaleur','liste depuis le Reporting','bad','à écrire']];
+function renderSecs(){$('#secs').innerHTML=SECS.map((s,i)=>`<div class="sec${i===2?' on':''}" onclick="toast('Section ${s[0]} ouverte')"><span class="n" style="width:24px;font-weight:800;color:var(--muted)">${s[0]}</span><span class="tx"><b>${s[1]}</b><small>${s[2]}</small></span><span class="tag ${s[3].trim()}">${s[4]}</span></div>`).join('');}
+renderSecs();
+$('#editor').innerHTML=`<h5>3 · Méthodologie de soudage et de manchonnage</h5><p>Les canalisations en acier pré-isolé <span class="var">série 2 · DN 100 à DN 250</span> seront assemblées par soudage bout à bout, procédé <span class="var">111 (électrode enrobée) · passes de fond en 141</span>, selon les DMOS SCR n° <span class="var">DMOS-04 et DMOS-07</span> joints en annexe. Les équipes sont composées de <span class="var">3 soudeurs qualifiés EN ISO 9606-1</span> et d'un manchonneur, encadrées par un chef de chantier.</p><p>Cadences prévues : <span class="var">8 soudures/jour en DN 250, 11 en DN 150, 14 en DN 100</span>, soit <span class="var">67,5 jours</span> de soudage pour <span class="var">540 soudures</span>, compatibles avec le délai de <span class="var">22 semaines</span> avec <span class="var">2 équipes</span> en période de pointe.</p><p>Jonctions : <span class="todo">À adapter — manchons électrosoudables (CCTP 4.7) : décrire la préparation de la gaine, la soudure du manchon, le contrôle d'étanchéité à l'air 0,2 bar / 2 min, l'injection de mousse et le raccordement des fils d'alarme. Reprendre le bloc Rennes 2025.</span></p><p>Chaque soudure est identifiée sur le plan dans TRACÉ (n° de joint, soudeur, date, contrôles) ; le dossier des ouvrages exécutés est produit depuis l'application : carnet de soudures, radios, PV d'épreuves, photos.</p>`;
+/* ───────── 5 · DPGF ───────── */
+const DP=[['1.1','Installation de chantier, base vie, signalisation','ft',1,0,'fixe'],['1.2','Études d’exécution, DMOS, plans de calepinage','ft',1,0,'fixe'],['2.1','Fourniture et pose tube acier pré-isolé série 2 DN 250, en tranchée','ml',1240,0,'soud'],['2.2','Fourniture et pose tube acier pré-isolé série 2 DN 150','ml',380,0,'soud'],['2.3','Fourniture et pose tube acier pré-isolé série 2 DN 100 (branchements)','ml',200,0,'soud'],['2.4','Coude pré-isolé, toutes orientations','u',24,0,'piece'],['2.5','Té pré-isolé','u',6,0,'piece'],['2.6','Réduction pré-isolée','u',4,0,'piece'],['2.7','Vanne pré-isolée DN 100 à DN 250, avec regard','u',8,0,'piece'],['3.1','Manchon de jonction, contrôle d’étanchéité, fils d’alarme','u',540,0,'manch'],['3.2','Contrôle radiographique (10 % des soudures)','u',54,0,'rad'],['3.3','Épreuve hydraulique par tronçon, PV','u',6,0,'fixe'],['4.1','Raccordement en sous-station (pénétration, point fixe)','u',12,0,'fixe'],['5.1','Dossier des ouvrages exécutés (DOE)','ft',1,0,'fixe']];
+const POIDS={'1.1':.022,'1.2':.018,'2.1':.47,'2.2':.11,'2.3':.085,'2.4':.03,'2.5':.012,'2.6':.006,'2.7':.028,'3.1':.085,'3.2':.018,'3.3':.012,'4.1':.045,'5.1':.009};
+let DPGF_PU={};
+function repartir(){const P=STATE.prix;DP.forEach(l=>{DPGF_PU[l[0]]=Math.round(P*POIDS[l[0]]/l[3]);});renderDpgf();toast('Prix de vente réparti sur les 14 lignes (stratégie SCR : tubes chargés, forfaits allégés)');}
+function renderDpgf(){if(!Object.keys(DPGF_PU).length)DP.forEach(l=>{DPGF_PU[l[0]]=Math.round(STATE.prix*POIDS[l[0]]/l[3]);});const tot=DP.reduce((a,l)=>a+DPGF_PU[l[0]]*l[3],0);const ecart=tot-STATE.prix;
+  $('#dpgf').innerHTML=`<tr><th>N°</th><th>Désignation (texte du client)</th><th>U</th><th class="num">Quantité</th><th class="num">PU HT</th><th class="num">Total HT</th><th>Source</th></tr>`+DP.map(l=>`<tr><td>${l[0]}</td><td>${l[1]}</td><td>${l[2]}</td><td class="num">${nb(l[3])}</td><td class="num"><input class="ed" data-dp="${l[0]}" value="${nb(DPGF_PU[l[0]])}"></td><td class="num">${eur(DPGF_PU[l[0]]*l[3])}</td><td><span class="tag ${({soud:'or',manch:'or',rad:'or',piece:'blue',fixe:'grey'})[l[5]]}">${({soud:'chiffrage · soudure + fourniture',manch:'chiffrage · manchons',rad:'chiffrage · radios',piece:'fourniture + pose',fixe:'forfait'})[l[5]]}</span></td></tr>`).join('')+`<tr class="tot"><td></td><td>Total DPGF HT</td><td></td><td></td><td></td><td class="num">${eur(tot)}</td><td>${Math.abs(ecart)<1?'<span class="tag ok">= prix de vente</span>':`<span class="tag ${Math.abs(ecart)>500?'bad':'warn'}">écart ${ecart>0?'+':''}${eur(ecart)} vs chiffrage</span>`}</td></tr>`;
+  $$('#dpgf input.ed').forEach(i=>i.onchange=()=>{DPGF_PU[i.dataset.dp]=parseFloat(String(i.value).replace(/\s/g,'').replace(',','.'))||0;renderDpgf();});
+  $('#dpgfStats').innerHTML=`<div class="stat or"><b>${eur(tot)}</b><small>total DPGF HT</small></div><div class="stat"><b>${eur(STATE.prix)}</b><small>prix de vente du chiffrage v2</small></div><div class="stat ${Math.abs(ecart)<1?'ok':Math.abs(ecart)>500?'bad':'warn'}"><b>${ecart>0?'+':''}${eur(ecart)}</b><small>écart à résorber</small></div><div class="stat"><b>14</b><small>lignes · format du MOE conservé</small></div><div class="stat"><b>${nb(tot/1820)} €</b><small>par ml de tranchée</small></div>`;
+  $('#dpgfChecks').innerHTML=[[Math.abs(ecart)<1,'Total DPGF = prix de vente du chiffrage'],[true,'Toutes les lignes ont un prix (aucune à 0)'],[true,'Quantités = celles du fichier du client (non modifiées)'],[DPGF_PU['2.1']>DPGF_PU['2.2'],'Cohérence : PU DN 250 > DN 150 > DN 100'],[false,'Variante série 3 : DPGF bis (−14 k€) — à faire'],[true,'Montant de l’AE = total DPGF']].map(c=>`<label><input type="checkbox" ${c[0]?'checked':''} disabled><span>${c[1]}</span></label>`).join('');}
+/* ───────── 6 · offre ───────── */
+function renderOffre(){$('#offreStats').innerHTML=`<div class="stat or"><b>${eur(STATE.prix)}</b><small>prix de vente HT · v2</small></div><div class="stat"><b>22 sem.</b><small>délai proposé</small></div><div class="stat ok"><b>4 / 6</b><small>pièces prêtes</small></div><div class="stat warn"><b>J-10</b><small>remise ven. 23/10 12 h</small></div><div class="stat"><b>−14 k€</b><small>variante série 3 (en option)</small></div>`;}
+renderChiff();
+</script>
+</body>
+</html>

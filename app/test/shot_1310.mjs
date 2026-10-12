@@ -1,0 +1,25 @@
+// Captures du 13/10 : navigateur de semaine (Ma semaine avec Outlook relié, Production par équipe, Planning) — hors connexion, personnages de démo.
+import { chromium } from 'playwright';
+const BASE='http://localhost:8765';
+const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
+const ctx=await browser.newContext({viewport:{width:430,height:1000},deviceScaleFactor:2,hasTouch:true,isMobile:true});const page=await ctx.newPage();
+const errs=[];page.on('pageerror',e=>errs.push(e.message));page.on('dialog',d=>d.accept().catch(()=>{}));
+const wait=ms=>page.waitForTimeout(ms);const shot=n=>page.screenshot({path:'/root/repo/app/test/shot_1310_'+n+'.png'});
+await page.clock.install({time:new Date(2026,9,9,8,30,0)});
+await page.goto(BASE+'/index.html');await wait(600);await page.evaluate(()=>{localStorage.clear();});await page.reload();await wait(1200);const s=await page.$('#loginSkip');if(s&&await s.isVisible())await s.click();await wait(700);
+await page.evaluate(()=>{const T=window.TRACE;const src=T.sites[Object.keys(T.sites).find(k=>k!=='__vide'&&T.sites[k]&&T.sites[k].lines)];const mk=(id,name,ville,extra)=>{if(T.sites[id])return;const x=JSON.parse(JSON.stringify(src));x.id=id;x.name=name;x.fiche=Object.assign({ville,secteur:'ouest'},extra||{});T.sites[id]=x;};mk('demo_caen','Caen — Presqu\'île','Caen',{chef:'l:ethan'});mk('demo_rennes','Rennes — Baud-Chardonnet','Rennes');});
+const go=async(tab)=>{await page.evaluate(t=>{const T=window.TRACE;T.state.userId='ethan';T.renderHome();document.getElementById(t).click();},tab);await wait(450);};
+const row=async(re)=>{await page.evaluate(re=>{const bk=document.querySelector('#eq-app .ac-back');if(bk)bk.click();const b=[...document.querySelectorAll('#eq-app .ac-row')].find(x=>new RegExp(re).test(x.textContent));b&&b.click();},re);await wait(450);};
+await go('htSites');await go('htEq');await row('Planning des équipes');
+await page.evaluate(()=>{const c=[...document.querySelectorAll('#eq-app .eq-pltray .eq-plchip')].find(x=>/Karim/.test(x.textContent));if(c){c.querySelector('.eq-plmain').click();document.querySelector('#eq-app .eq-plsite[data-drop=demo_caen] [data-act=plput]').click();}});await wait(300);
+await page.evaluate(()=>window.scrollTo(0,0));await shot('planning_nav');
+await row('Ma semaine');
+await page.evaluate(()=>{window.prompt=()=>'https://outlook.office365.com/owa/calendar/abc/calendar.ics';document.querySelector('#eq-app [data-act=aglink]').click();});await wait(400);
+await page.evaluate(()=>{document.querySelector('#eq-app [data-act=agnew][data-v="2026-10-06"]').click();});await wait(250);
+await page.evaluate(()=>{document.getElementById('ag-site').value='demo_caen';document.getElementById('ag-h0').value='09:00';document.getElementById('ag-h1').value='10:30';document.getElementById('ag-note').value='PV de réception tranchée';document.querySelector('#eq-app [data-act=agok]').click();});await wait(400);
+await page.evaluate(()=>{const T=window.TRACE;T.reg.pending();});
+await page.evaluate(()=>window.scrollTo(0,0));await shot('ma_semaine_nav');
+await page.evaluate(()=>{document.querySelector('#eq-app [data-act=agday][data-v="2026-10-06"]').click();});await wait(600);await shot('ma_semaine_jour');
+await row('Production par équipe');await page.evaluate(()=>window.scrollTo(0,0));await shot('production_nav');
+console.log('ok',errs);
+await browser.close();
