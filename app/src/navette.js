@@ -55,6 +55,21 @@ export function buildNavette(o){const ym=o.ym;const W=navWeeks(ym);const day=o.d
     while(d<=last){const x=day(d)||{};const h=x.hours!==null&&x.hours!==undefined&&isFinite(+x.hours)?r2(+x.hours):null;lines.push({kind:'regul',d,j:JL[DT(d).getDay()],n:+d.slice(8),chantier:firstR?'Régul. HS et dépla. sur '+nxt:'',hours:h});if(firstR)regulTo=nxt;firstR=false;d=addDay(d,1);}}
   const hs={h125:r2(weeks.reduce((s,w)=>s+w.hs125,0)),h150:r2(weeks.reduce((s,w)=>s+w.hs150,0)),report:r2(weeks.reduce((s,w)=>s+w.report,0))};
   return {ym,mois:MOIS_NAV[+ym.slice(5)-1],annee:+ym.slice(0,4),nom:o.nom||'',prenom:o.prenom||'',adresse:o.adresse||'',contrat:C,weeks,lines,tot,ar,hs,regulTo,today:o.today||'',cpt:o.cpt||null};} /* cpt : soldes connus pour pré-remplir (recup, cet, report, prime) */
+/* ── COMPTEURS D'HEURES PAR PERSONNE (13/10, Ethan : « rajouter les compteurs d'heures que l'on ne traite pas jusque-là ; tout le monde n'a pas le même
+   compteur → dans les paramètres du profil ; je te donnerai un classeur pour importer les soldes déjà stockés »). Registre « cpth » (id = clé de la personne) :
+   {contrat (h / semaine), on:{clé:true}, labels:{clé « x_… »: libellé} (compteurs ajoutés), soldes:{clé:{h, at, by}}, primes:[{id, at, h, by, note}]}.
+   « report » (heures au-delà de 48 h / semaine) se calcule tout seul depuis le pointage ; les autres = soldes tenus par les RH (saisis ou importés). ── */
+export const CPT_H=[
+ {k:'recup',label:'Récupération',desc:'heures à récupérer en repos (le « compteur fin de mois » de la navette)'},
+ {k:'cet',label:'CET',desc:'compte épargne temps (heures épargnées)'},
+ {k:'report',label:'Heures à reporter',desc:'au-delà de '+HEBDO_MAX+' h par semaine ; vidable en prime',auto:true}];
+/* solde « à reporter » au jour « upto » (inclus) : solde saisi (h, au) + excédents au-delà de 48 h des semaines terminées (dimanche ≤ upto) depuis cette date
+   (au plus 52 semaines ; sans solde saisi : 26 semaines en arrière) − primes versées depuis. weekTotal(lundi) → heures de la semaine (lundi → samedi) ou null */
+export function reportBalance(sol,primes,upto,weekTotal){upto=String(upto).slice(0,10);const at=sol&&sol.at?String(sol.at).slice(0,10):null;let h=sol&&isFinite(+sol.h)?+sol.h:0;let ex=0,pr=0;
+  let d=at?addDay(at,1):addDay(upto,-7*26);d=addDay(d,(8-DT(d).getDay())%7);
+  for(let n=0;n<52&&addDay(d,6)<=upto;n++,d=addDay(d,7)){const t=weekTotal?+weekTotal(d):0;if(isFinite(t)&&t>HEBDO_MAX)ex+=t-HEBDO_MAX;}
+  (primes||[]).forEach(m=>{const ma=m&&String(m.at||'').slice(0,10);if(ma&&(!at||ma>at)&&ma<=upto)pr+=+m.h||0;});
+  return {h:r2(h+ex-pr),sol:sol&&isFinite(+sol.h)?+sol.h:null,at,ex:r2(ex),pr:r2(pr)};}
 /* navetteSheet(N, name) → feuille pour makeStyledXlsx : mise en page du modèle, formules Excel (totaux, heures sup, compteurs) */
 export function navetteSheet(N,name){const cells={};const merges=[];const heights={};const S=(a,v,s,f)=>{cells[a]={v,s,f};};
   const up=t=>String(t||'').toLocaleUpperCase('fr-FR');

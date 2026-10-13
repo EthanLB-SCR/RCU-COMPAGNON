@@ -15,7 +15,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 export const docKey=acc=>acc?((acc.email||'').toLowerCase()||String(acc.id||'')):'';
 const dFR=x=>x?new Date(x).toLocaleDateString('fr-FR'):'';
 const dhFR=x=>x?new Date(x).toLocaleDateString('fr-FR')+' '+new Date(x).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):'';
-export const KINDS={reglement:'Règlement intérieur',note:'Note de service',flash:'Flash info sécurité',accueil_entreprise:'Accueil nouvel arrivant',politique:'Politique / charte',info:'Communication interne',presentation:'Présentation de l\'entreprise',autre:'Document'}; /* 12/10 soir : info / presentation = à lire, sans signature (req.none) */
+export const KINDS={reglement:'Règlement intérieur',note:'Note de service',flash:'Flash info sécurité',accueil_entreprise:'Accueil nouvel arrivant',politique:'Politique / charte',info:'Communication interne',presentation:'Présentation de l\'entreprise',livret:'Livret d\'accueil (extrait)',autre:'Document'}; /* 12/10 soir : info / presentation = à lire, sans signature (req.none) */
 /* 10/10 (retour Ethan) : les notes de service seront des PDF importés, à dérouler en entier avant de signer (comme le PPSPS) ; les flash info (presqu'accidents, sécurité) se signent par tous les postes exploitation */
 export const EXPLOITATION_POSTES=POSTES_DEF.filter(p=>p[2]==='encadrement'||p[2]==='terrain').map(p=>p[0]);
 export const isPdfDoc=d=>!!(d&&(d.url||d.data));
