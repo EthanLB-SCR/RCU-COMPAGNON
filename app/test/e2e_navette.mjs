@@ -13,14 +13,14 @@ import { buildNavette, navetteSheet, NAV_STYLES } from '../src/navette.js';
 const calc=file=>{try{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'navlo_'));execFileSync('soffice',['-env:UserInstallation=file://'+dir+'/profil','--headless','--convert-to','csv:Text - txt - csv (StarCalc):59,34,76,1,,0,false,true,false,false,false,-1',file,'--outdir',dir],{timeout:120000,stdio:'ignore'});
   return fs.readdirSync(dir).filter(n=>/\.csv$/.test(n)).sort().map(n=>fs.readFileSync(path.join(dir,n),'utf8').split(/\r?\n/).map(l=>l.split(';')));}catch(e){return null;}};
 // ── 0) unités : plafond de 48 h par semaine (13/10 nuit, Ethan : « s'ils font plus ça va dans un compteur heures à reporter, qu'on peut vider en prime »)
-//      semaine à 50 h → 8 h à 125 % + 5 h à 150 % + 2 h à reporter ; 47,5 h → 8 + 4,5 ; compteur à reporter : 3 (mois d'avant) + 2 − 1 (prime) = 4
+//      semaine à 50 h → 8 h à 125 % + 5 h à 150 % + 2 h à reporter ; 47,5 h → 8 + 4,5 ; compteur à reporter : 3 (mois d'avant) + 2 × 1,5 (majorées à l'entrée, 13/10 f) − 1 (prime) = 5
 const C0={};{const H={'2026-09-07':10,'2026-09-08':10,'2026-09-09':10,'2026-09-10':10,'2026-09-11':10,'2026-09-14':9.5,'2026-09-15':9.5,'2026-09-16':9.5,'2026-09-17':9.5,'2026-09-18':9.5};
   const day=d=>{const k=new Date(d+'T12:00').getDay();const w=k>=1&&k<=5&&!!H[d];return {sites:w?[{nom:'CAEN',km:190,idf:false}]:[],worked:w,hours:H[d]??null,N:0,L:0,D:0,ar:0,cas:0};};
   const N=buildNavette({ym:'2026-09',nom:'Test',prenom:'Plafond',adresse:'',day,cpt:{report:3,prime:1}});const sh=navetteSheet(N);const f=path.join(os.tmpdir(),'nav48_'+process.pid+'.xlsx');fs.writeFileSync(f,await makeStyledXlsx([sh],NAV_STYLES));
   const R0=calc(f);const L=R0&&R0[0];const v=(r,c)=>L&&L[r-1]?L[r-1][c.charCodeAt(0)-65]:undefined;const w37=N.weeks.find(w=>w.n===37);
-  const out0={model:[w37.total,w37.hs125,w37.hs150,w37.report],hs:N.hs,lo:L?{hs:[v(22,'I'),v(23,'I'),v(23,'J')],w38:[v(30,'I'),v(31,'I'),v(31,'J')],box:[v(sh.refs.rPrev,'I'),v(sh.refs.rMois,'I'),v(sh.refs.rPrime,'I'),v(sh.refs.rFin,'I')]}:null};try{fs.unlinkSync(f);}catch(e){}
+  const out0={model:[w37.total,w37.hs125,w37.hs150,w37.report],hs:N.hs,lo:L?{hs:[v(22,'I'),v(23,'I'),v(23,'J')],w38:[v(30,'I'),v(31,'I'),v(31,'J')],box:[v(sh.refs.rPrev,'I'),v(sh.refs.rMois,'I'),v(sh.refs.rEnt,'I'),v(sh.refs.rPrime,'I'),v(sh.refs.rFin,'I')]}:null};try{fs.unlinkSync(f);}catch(e){}
   console.log('0) plafond 48 h :',JSON.stringify(out0));
-  C0.u48=JSON.stringify(out0.model)==='[50,8,5,2]'&&out0.hs.h125===16&&out0.hs.h150===9.5&&out0.hs.report===2&&(!out0.lo||(JSON.stringify(out0.lo.hs)==='["8","5","2"]'&&JSON.stringify(out0.lo.w38)==='["8","4.5","0"]'&&JSON.stringify(out0.lo.box)==='["3","2","1","4"]'));}
+  C0.u48=JSON.stringify(out0.model)==='[50,8,5,2]'&&out0.hs.h125===16&&out0.hs.h150===9.5&&out0.hs.report===2&&(!out0.lo||(JSON.stringify(out0.lo.hs)==='["8","5","2"]'&&JSON.stringify(out0.lo.w38)==='["8","4.5","0"]'&&JSON.stringify(out0.lo.box)==='["3","2","3","1","5"]'));}
 const BASE=process.env.BASE||'http://localhost:8765';
 const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
 const ctx=await browser.newContext({viewport:{width:1100,height:1000},acceptDownloads:true});const page=await ctx.newPage();
@@ -72,7 +72,7 @@ C.c2=/^Navette_.*Julien.*_2026-09\.xlsx$/i.test(out.name||'')&&/^NOM : /.test(ou
   &&JSON.stringify(out.head)===JSON.stringify(['TYPE CAS','IND. TPS DE TRAJET','HOTEL','HOTEL IDF','REPAS','CHANTIER','NB HEURES','NB KM'])
   &&JSON.stringify(out.l7)===JSON.stringify(['D',30,1,1])&&out.l8[0]==='CAS 2'&&out.l8[1]===0.5&&out.l8[2]==='L'&&out.l8[3]===31&&out.l8[4]===1&&out.l8[5]===2&&/^CAEN/.test(out.l8[6])&&out.l8[7]===8.5&&/^\d+ KM\/GD$/.test(out.l8[8])
   &&/^BAYEUX/.test(out.l9[0])&&out.l9[1]===8.5&&/^\d+ KM$/.test(out.l9[2])&&JSON.stringify(out.l12)===JSON.stringify([0.5,1,9.5])
-  &&out.tot36[0]==='TOTAL SEMAINE - 36'&&out.tot36[1]==='SUM(I8:I12)'&&out.tot36[2]==='CONTRAT 35H'&&out.hs[0]==='HEURES SUP - 125%'&&out.hs[1]==='MIN(MAX(MIN(I13,48)-35,0),8)'&&out.hs[2]==='HEURES SUP - 150%'&&out.hs[3]==='MAX(MIN(I13,48)-43,0)'&&out.rep==='MAX(I13-48,0)'&&out.repBox>0
+  &&out.tot36[0]==='TOTAL SEMAINE - 36'&&out.tot36[1]==='SUM(I8:I12)'&&out.tot36[2]==='CONTRAT 35H'&&out.hs[0]==='HEURES SUP - 125%'&&out.hs[1]==='MAX(MIN(I13,43)-35,0)'/* 13/10 (f) : rang absolu (36e → 125 %, 44e → 150 %) */&&out.hs[2]==='HEURES SUP - 150%'&&out.hs[3]==='MAX(MIN(I13,48)-43,0)'&&out.rep==='MAX(I13-48,0)'&&out.repBox>0
   &&out.regul===40&&out.last===37&&out.sum[0]==='SUM(E7:E42)'&&out.sum[1]==='SUM(G7:G42)'&&out.ind[0]==='INDEM TRAJET 15€'&&out.ind[1]==='SUMIF(K7:K42,2,B7:B42)'&&out.box>0&&/^Pré-rempli par TRACÉ le 13\/10\/2026/.test(out.note||'');
 // ── 3) formules recalculées (LibreOffice, comme Excel à l'ouverture) : totaux, trajets, heures sup, compteurs
 const R=X1?calc(X1.file):null;const lo=!!R;const S0=R&&R[0];const cell=(r,c)=>S0&&S0[r-1]?S0[r-1][c.charCodeAt(0)-65]:undefined;const lab=(re)=>S0?S0.findIndex(l=>re.test(l[7]||'')):-1;

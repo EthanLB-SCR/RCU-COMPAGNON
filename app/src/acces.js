@@ -73,6 +73,8 @@ export const PERMS=[
  ['site.delete','Supprimer un chantier','Bureau'],
  ['team.view','Voir l\'équipe (noms, postes)','Équipe'],
  ['planning.edit','Planning : placer les équipes sur les chantiers de la semaine, fiche chantier (secteur, chef, conducteur)','Équipe'], // 09/10 soir : conducteurs, responsables d'exploitation, direction — pas le chef de chantier (planning imposé)
+ ['rh.voir','RH : voir les contrats (heures / semaine), compteurs d\'heures et cas de déplacement forcés — d\'office : gérant, direction, RH','Équipe'], // 13/10 (Ethan) : « visibles que par le gérant et la direction, moi et RH »
+ ['rh.edit','RH : modifier les contrats, compteurs d\'heures (soldes, plafond, repos, primes, import) et cas de déplacement forcés — d\'office : RH','Équipe'], // « … et modifiables que par moi et RH » (Ethan = administrateur)
  ['affaires.view','Affaires : voir les affaires, chiffrages, situations et facturation','Commerce'], // nuit 09→10/10 : volet commerce (chargés d'affaires, direction, exploitation)
  ['affaires.edit','Affaires : créer et modifier (affaire, DCE, chiffrage, situations, facturation)','Commerce'],
  ['prix.edit','Base de prix SCR : modifier (taux, cadences, fournitures, paramètres, paniers) — d\'office : le gérant ; les autres au cas par cas','Commerce'], // 13/10 (Ethan) : « consultable et modifiable par moi, Jérôme et le gérant »
@@ -109,6 +111,8 @@ export const DEFAULT_RIGHTS={
  visiteur:pick('plan.view'),
 };
 Object.keys(DEFAULT_RIGHTS).forEach(k=>{if(k!=='gerant')DEFAULT_RIGHTS[k]={...DEFAULT_RIGHTS[k],'prix.edit':false};}); // base de prix : le gérant d'office ; l'administrateur a tout ; Jérôme & co : ajustement personnel
+const RH_VOIR=['gerant','dir_adjointe','dir_technique','resp_rh','assist_rh','charge_dev_rh'],RH_EDIT=['resp_rh','assist_rh','charge_dev_rh']; /* mêmes listes côté serveur : sql/retours_13-10f.sql, can_rh() */
+Object.keys(DEFAULT_RIGHTS).forEach(k=>{DEFAULT_RIGHTS[k]={...DEFAULT_RIGHTS[k],'rh.voir':RH_VOIR.includes(k),'rh.edit':RH_EDIT.includes(k)};}); // contrats, compteurs, cas forcés : gérant + direction voient, RH modifient ; l'administrateur (Ethan) a tout
 // plafond par type de compte : un intérimaire garde le pur opérationnel, un visiteur regarde
 export const TYPE_CAP={
  salarie:null,
@@ -153,7 +157,7 @@ export function roleFor(acc){const e=effectiveRights(acc);if(acc.admin||e['site.
   return acc.poste==='manchonneur'?'manchonneur':'soudeur';}
 // compte RÉEL (profil serveur), sans tenir compte d'un personnage de test
 export function realAccount(){if(!A||!A.state.profile)return null;return normAccount(A.state.profile);}
-const persona=u=>normAccount({id:'l:'+u.id,name:u.name,role:u.role,poste:u.role,admin:u.id==='ethan',type:'salarie',active:true,local:true});
+const persona=u=>normAccount({id:'l:'+u.id,name:u.name,role:u.role,poste:u.poste||u.role,admin:u.id==='ethan',type:'salarie',active:true,local:true});
 // compte courant : profil serveur si connecté — sauf 🧪 MODE TEST : un ADMINISTRATEUR connecté qui choisit un personnage (sélecteur du chantier) voit l'appli avec
 // les droits de ce personnage (Ethan 08/10 : « avec un profil soudeur j'ai pu en supprimer 4 sans parler de crédit » — le personnage changeait la signature, pas les droits).
 // Un compte non administrateur ne peut pas jouer un personnage (il resterait lui-même). Hors connexion : le personnage de démo (Ethan L. = administrateur).

@@ -27,7 +27,8 @@ k as (select
   coalesce((select bool_or(position($m$'prix'$m$ in src) > 0) from fn where n = 'registre_set'), false) and coalesce((select bool_or(position($m$'prix'$m$ in coalesce(qual,'')) > 0) from pg_policies where schemaname = 'public' and tablename = 'registre' and policyname = 'registre_read'), false) as prix,
   (case when to_regclass('public.registre') is null then 0 else (xpath('/row/n/text()', query_to_xml($q$select count(*) as n from public.registre where kind = 'doc' and id like 'bloc\_mem\_%'$q$, false, true, '')))[1]::text::int end) as blocs,
   coalesce((select bool_or(position($m$'cpth'$m$ in src) > 0) from fn where n = 'registre_set'), false) and coalesce((select bool_or(position($m$'cpth'$m$ in coalesce(qual,'')) > 0) from pg_policies where schemaname = 'public' and tablename = 'registre' and policyname = 'registre_read'), false) as cpth,
-  coalesce((select bool_or(position('can_prix' in src) > 0) from fn where n = 'registre_set'), false) and exists (select 1 from fn where n = 'can_prix') as prixdroit
+  coalesce((select bool_or(position('can_prix' in src) > 0) from fn where n = 'registre_set'), false) and exists (select 1 from fn where n = 'can_prix') as prixdroit,
+  coalesce((select bool_or(position('can_rh' in src) > 0) from fn where n = 'registre_set'), false) and exists (select 1 from fn where n = 'can_rh') and coalesce((select bool_or(position('can_rh' in coalesce(qual,'')) > 0) from pg_policies where schemaname = 'public' and tablename = 'registre' and policyname = 'registre_read'), false) as rhdroit
 )
 select v.num as "n°", v.script as "SQL", case when v.ok then '✅ passé' else '❌ ' || v.quoi end as "état"
 from k, lateral (values
@@ -51,6 +52,7 @@ from k, lateral (values
   (18, 'retours_13-10b.sql (prix + paniers)', k.prix, 'à passer'),
   (19, 'blocs_memoire_scr.sql (optionnel)', k.blocs >= 10, 'optionnel (' || k.blocs || ' blocs sur 10)'),
   (20, 'retours_13-10d.sql (compteurs d''heures)', k.cpth, 'à passer'),
-  (21, 'retours_13-10e.sql (base de prix : droit « modifier »)', k.prixdroit, 'à passer (inclut 13-10d)')
+  (21, 'retours_13-10e.sql (base de prix : droit « modifier »)', k.prixdroit, 'à passer (inclut 13-10d)'),
+  (22, 'retours_13-10f.sql (contrats, compteurs, cas forcés : RH)', k.rhdroit, 'à passer (inclut 13-10e et 13-10d)')
 ) v(num, script, ok, quoi)
 order by v.num;

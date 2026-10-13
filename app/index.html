@@ -360,6 +360,21 @@
 /* 13/10 soir : grands déplacements jour par jour (espace.js) — calendrier dim → sam, navette, bandeau « Mon déplacement », réglage d'un jour */
 .gd-rts{display:flex;flex-wrap:wrap;gap:6px}.gd-rt{border-collapse:collapse;font-size:11px;margin:2px 0}.gd-rt th,.gd-rt td{border:1px solid var(--line);padding:2px 5px;text-align:center}.gd-rt th:first-child,.gd-rt td:first-child{text-align:left;font-weight:700}.gd-rt th{background:var(--soft,#f4f4f2)}
 .cpt-row.off .eq-t{color:var(--ink2)}.cpt-row .eq-chk{display:flex;align-items:center;min-width:40px;min-height:40px;justify-content:center}.cpt-row .eq-chk input{width:20px;height:20px}
+.cpt-blk{display:block;border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin:6px 0;background:#fff}
+.cpt-blk.off{background:var(--page)}
+.cpt-head{display:flex;align-items:flex-start;gap:6px}
+.cpt-head .eq-grow{display:flex;flex-direction:column;gap:3px;min-width:0}
+.cpt-gauge{display:block;height:7px;border-radius:4px;background:#ecebe5;overflow:hidden;max-width:260px}
+.cpt-gauge i{display:block;height:100%;background:#2e9d5b;border-radius:4px}
+.cpt-gauge.warn i{background:#e0a100}.cpt-gauge.full i{background:#c0392b}
+.cpt-acts{margin:6px 0 0;flex-wrap:wrap}
+.cpt-mvs{margin-top:6px;border-top:1px dashed var(--line);padding-top:4px}
+.cpt-mv{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12.5px;color:var(--ink2);min-height:32px}
+.cpt-mv.futur{opacity:.75}
+.cpt-mv .eq-x{border:0;background:none;color:#9b2c22;font-size:16px;min-width:40px;min-height:40px;cursor:pointer}
+.cpt-wk{margin-top:6px}.cpt-wk summary{cursor:pointer;font-size:13px;min-height:38px;display:flex;align-items:center;gap:4px}
+table.cpt-tab td .cpt-gauge{margin:3px 0 0 auto;max-width:110px}
+.cpt-imp textarea{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
 .mynav .ac-stats{flex-wrap:wrap}.gd-explain .gd-regles{padding:4px 0}
 .gd-cal{margin-top:6px}.gd-head{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;font-size:11px;font-weight:700;color:var(--ink2);text-align:center;margin-bottom:2px}
 .gd-wk{margin-top:8px}.gd-wkh{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;font-size:12px;margin-bottom:3px}.gd-wkh .btn.sm{min-height:28px;padding:2px 8px}
