@@ -2950,6 +2950,19 @@ $('#btnHelp').addEventListener('click',()=>openModal(`<h2>TRACÉ v0.5 — chanti
  <p><b>Base fournisseurs</b> : gaine à la taille catalogue du fournisseur du chantier (série d'isolation), position des fils selon le fournisseur (LOGSTOR au sommet, Nordic 10 h / 2 h ailleurs), types de manchons.</p>
  <p>Zoome (pince, molette, double-tap, +) : de loin l'avancement, puis les manchons, les n°, les fils. 👁 (à côté du zoom) : choisis ce qui s'affiche (noms des pièces, longueurs, pastilles, n°, manchons, fils, fond) pour épurer une zone. Tape un manchon ou une barre. Schéma de bouclage par ligne. Avancement, photos et raccordements : fictifs.</p><div class="actions" style="margin-top:8px"><button class="btn primary block" data-close>Compris</button></div>`));
 let tt;function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2600);}
+/* 13/10 nuit (Ethan, capture « Début des travaux 10/10/0001 » : « pour rentrer l'année tu mets un chiffre et tu sors de la date ») : un champ date tapé au clavier
+   envoie un changement dès que la date est valide — dès le 1er chiffre de l'année (0002) — et l'appli enregistrait puis redessinait le formulaire : la frappe était
+   coupée (reproduit : « 10102026 » donnait 10/10/0002). Pour TOUS les champs date / heure de l'appli : pendant la frappe au clavier, rien n'est transmis ; la valeur
+   part à la sortie du champ (ou Entrée), et seulement si l'année a ses 4 chiffres (sinon retour à la valeur d'avant + message). Le calendrier (souris, téléphone)
+   reste immédiat. */
+(()=>{const DT=new Set(['date','datetime-local','month','week','time']);const isDT=el=>el instanceof HTMLInputElement&&DT.has(el.type);const keyAt=new WeakMap(),dirty=new WeakSet(),before=new WeakMap();
+  document.addEventListener('focusin',e=>{if(isDT(e.target))before.set(e.target,e.target.value);},true);
+  document.addEventListener('keydown',e=>{const el=e.target;if(!isDT(el))return;if(e.key==='Enter'){if(dirty.has(el)){e.preventDefault();el.blur();}return;}if(e.key.length===1||['Backspace','Delete','ArrowUp','ArrowDown'].includes(e.key))keyAt.set(el,Date.now());},true);
+  const guard=e=>{const el=e.target;if(!isDT(el)||e.__dtOk)return;if(Date.now()-(keyAt.get(el)||0)<1500){e.stopImmediatePropagation();e.stopPropagation();dirty.add(el);}}; /* pas de test du focus : en passant d'une case à l'autre (mois → année), Chrome envoie « change » alors que document.activeElement vaut un instant <body> (mesuré) */
+  window.addEventListener('input',guard,true);window.addEventListener('change',guard,true);
+  document.addEventListener('focusout',e=>{const el=e.target;if(!isDT(el)||!dirty.has(el))return;dirty.delete(el);const was=before.get(el)||'';
+    if(el.value&&el.type!=='time'&&+String(el.value).slice(0,4)<1900){el.value=was;try{toast('Date incomplète : tape l\'année sur 4 chiffres (ex. 2026)');}catch(x){}return;}
+    if(el.value===was)return;['input','change'].forEach(t=>{const ev=new Event(t,{bubbles:true});ev.__dtOk=true;el.dispatchEvent(ev);});},true);})();
 const siteSel=$('#siteSel');{const hidden=JSON.parse(localStorage.getItem('trace:hiddenSites')||'[]');hidden.forEach(id=>{delete SITES[id];});Object.keys(hiddenMap()).forEach(id=>{if(SITES[id]&&isHidden(SITES[id]))delete SITES[id];});}
 Object.entries(SITES).forEach(([id,S])=>{const o=document.createElement('option');o.value=id;o.textContent=S.name;siteSel.appendChild(o);});
 if(!Object.keys(SITES).length){SITES.__vide={id:'__vide',name:'Aucun chantier — crée un réseau avec le traceur',lines:[],w:100,h:100,sheetType:'plain'};const o=document.createElement('option');o.value='__vide';o.textContent=SITES.__vide.name;siteSel.appendChild(o);}

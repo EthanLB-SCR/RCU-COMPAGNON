@@ -8,7 +8,19 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { execFileSync } from 'child_process';
-import { openXlsx } from '../src/xlsx.js';
+import { openXlsx, makeStyledXlsx } from '../src/xlsx.js';
+import { buildNavette, navetteSheet, NAV_STYLES } from '../src/navette.js';
+const calc=file=>{try{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'navlo_'));execFileSync('soffice',['-env:UserInstallation=file://'+dir+'/profil','--headless','--convert-to','csv:Text - txt - csv (StarCalc):59,34,76,1,,0,false,true,false,false,false,-1',file,'--outdir',dir],{timeout:120000,stdio:'ignore'});
+  return fs.readdirSync(dir).filter(n=>/\.csv$/.test(n)).sort().map(n=>fs.readFileSync(path.join(dir,n),'utf8').split(/\r?\n/).map(l=>l.split(';')));}catch(e){return null;}};
+// ── 0) unités : plafond de 48 h par semaine (13/10 nuit, Ethan : « s'ils font plus ça va dans un compteur heures à reporter, qu'on peut vider en prime »)
+//      semaine à 50 h → 8 h à 125 % + 5 h à 150 % + 2 h à reporter ; 47,5 h → 8 + 4,5 ; compteur à reporter : 3 (mois d'avant) + 2 − 1 (prime) = 4
+const C0={};{const H={'2026-09-07':10,'2026-09-08':10,'2026-09-09':10,'2026-09-10':10,'2026-09-11':10,'2026-09-14':9.5,'2026-09-15':9.5,'2026-09-16':9.5,'2026-09-17':9.5,'2026-09-18':9.5};
+  const day=d=>{const k=new Date(d+'T12:00').getDay();const w=k>=1&&k<=5&&!!H[d];return {sites:w?[{nom:'CAEN',km:190,idf:false}]:[],worked:w,hours:H[d]??null,N:0,L:0,D:0,ar:0,cas:0};};
+  const N=buildNavette({ym:'2026-09',nom:'Test',prenom:'Plafond',adresse:'',day,cpt:{report:3,prime:1}});const sh=navetteSheet(N);const f=path.join(os.tmpdir(),'nav48_'+process.pid+'.xlsx');fs.writeFileSync(f,await makeStyledXlsx([sh],NAV_STYLES));
+  const R0=calc(f);const L=R0&&R0[0];const v=(r,c)=>L&&L[r-1]?L[r-1][c.charCodeAt(0)-65]:undefined;const w37=N.weeks.find(w=>w.n===37);
+  const out0={model:[w37.total,w37.hs125,w37.hs150,w37.report],hs:N.hs,lo:L?{hs:[v(22,'I'),v(23,'I'),v(23,'J')],w38:[v(30,'I'),v(31,'I'),v(31,'J')],box:[v(sh.refs.rPrev,'I'),v(sh.refs.rMois,'I'),v(sh.refs.rPrime,'I'),v(sh.refs.rFin,'I')]}:null};try{fs.unlinkSync(f);}catch(e){}
+  console.log('0) plafond 48 h :',JSON.stringify(out0));
+  C0.u48=JSON.stringify(out0.model)==='[50,8,5,2]'&&out0.hs.h125===16&&out0.hs.h150===9.5&&out0.hs.report===2&&(!out0.lo||(JSON.stringify(out0.lo.hs)==='["8","5","2"]'&&JSON.stringify(out0.lo.w38)==='["8","4.5","0"]'&&JSON.stringify(out0.lo.box)==='["3","2","1","4"]'));}
 const BASE=process.env.BASE||'http://localhost:8765';
 const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
 const ctx=await browser.newContext({viewport:{width:1100,height:1000},acceptDownloads:true});const page=await ctx.newPage();
@@ -21,7 +33,7 @@ await page.route(u=>/(^|\.)geopf\.fr$/.test(u.hostname),route=>{const url=new UR
   route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});});
 await page.route(u=>u.hostname==='geo.api.gouv.fr',route=>route.fulfill({status:200,contentType:'application/json',body:'[]'}));
 await page.route(u=>/open-meteo\.com$/.test(u.hostname),route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({results:[],daily:{time:[],weathercode:[],temperature_2m_max:[],precipitation_sum:[],precipitation_probability_max:[]}})}));
-const C={};const wait=ms=>page.waitForTimeout(ms);
+const C=Object.assign({},C0);const wait=ms=>page.waitForTimeout(ms);
 await page.clock.install({time:new Date(2026,9,13,8,30,0)}); /* mardi 13/10/2026 */
 await page.goto(BASE+'/index.html');await wait(600);await page.evaluate(()=>{localStorage.clear();localStorage.setItem('trace:wide','1');});await page.evaluate(()=>new Promise(r=>{try{const q=indexedDB.deleteDatabase('trace-kv');q.onsuccess=q.onerror=q.onblocked=()=>r();}catch(e){r();}}));
 await page.reload();await wait(1200);{const s=await page.$('#loginSkip');if(s&&await s.isVisible())await s.click();await wait(700);}
@@ -53,18 +65,16 @@ const wb=X1?await openXlsx(new Uint8Array(fs.readFileSync(X1.file)).buffer):null
 const g=a=>sh?sh.get(a):null,f=a=>sh?sh.f(a):null;const rowOf=(col,re)=>{if(!sh)return -1;for(let r=1;r<=sh.maxR;r++){const v=sh.get(col+r);if(typeof v==='string'&&re.test(v))return r;}return -1;};
 out={name:X1&&X1.name,sheet:wb&&wb.sheets.map(s=>s.name),nom:g('H2'),mois:g('J2'),adr:g('H4'),head:['A6','B6','E6','F6','G6','H6','I6','J6'].map(g),
   l7:['C7','D7','E7','G7'].map(g),l8:['A8','B8','C8','D8','E8','G8','H8','I8','J8'].map(g),l9:['H9','I9','J9'].map(g),l12:['B12','G12','I12'],tot36:[g('H13'),f('I13'),g('J13')],hs:[g('H14'),f('I14'),g('H15'),f('I15')],
-  regul:rowOf('H',/^Régul\. HS et dépla\. sur octobre$/),last:rowOf('H',/^TOTAL SEMAINE - 39$/),sum:[f('E43'),f('G43')],ind:[g('A47'),f('C47')],box:rowOf('H',/^COMPTEUR FIN DE MOIS$/),note:g('A'+(rowOf('A',/^Pré-rempli par TRACÉ/)))};
+  regul:rowOf('H',/^Régul\. HS et dépla\. sur octobre$/),last:rowOf('H',/^TOTAL SEMAINE - 39$/),sum:[f('E43'),f('G43')],ind:[g('A47'),f('C47')],box:rowOf('H',/^COMPTEUR FIN DE MOIS$/),rep:f('J15'),repBox:rowOf('H',/^HEURES À REPORTER \(> 48 h \/ semaine\)$/),note:g('A'+(rowOf('A',/^Pré-rempli par TRACÉ/)))};
 out.l12=['B12','G12','I12'].map(g);
 console.log('2) navette (Excel) :',JSON.stringify(out));
 C.c2=/^Navette_.*Julien.*_2026-09\.xlsx$/i.test(out.name||'')&&/^NOM : /.test(out.nom||'')&&out.mois==='MOIS DE : SEPTEMBRE'&&/^ADRESSE : 4 RUE DES ESSAIS - 35000 RENNES$/.test(out.adr||'')
   &&JSON.stringify(out.head)===JSON.stringify(['TYPE CAS','IND. TPS DE TRAJET','HOTEL','HOTEL IDF','REPAS','CHANTIER','NB HEURES','NB KM'])
   &&JSON.stringify(out.l7)===JSON.stringify(['D',30,1,1])&&out.l8[0]==='CAS 2'&&out.l8[1]===0.5&&out.l8[2]==='L'&&out.l8[3]===31&&out.l8[4]===1&&out.l8[5]===2&&/^CAEN/.test(out.l8[6])&&out.l8[7]===8.5&&/^\d+ KM\/GD$/.test(out.l8[8])
   &&/^BAYEUX/.test(out.l9[0])&&out.l9[1]===8.5&&/^\d+ KM$/.test(out.l9[2])&&JSON.stringify(out.l12)===JSON.stringify([0.5,1,9.5])
-  &&out.tot36[0]==='TOTAL SEMAINE - 36'&&out.tot36[1]==='SUM(I8:I12)'&&out.tot36[2]==='CONTRAT 35H'&&out.hs[0]==='HEURES SUP - 125%'&&out.hs[1]==='MIN(MAX(I13-35,0),8)'&&out.hs[2]==='HEURES SUP - 150%'&&out.hs[3]==='MAX(I13-43,0)'
+  &&out.tot36[0]==='TOTAL SEMAINE - 36'&&out.tot36[1]==='SUM(I8:I12)'&&out.tot36[2]==='CONTRAT 35H'&&out.hs[0]==='HEURES SUP - 125%'&&out.hs[1]==='MIN(MAX(MIN(I13,48)-35,0),8)'&&out.hs[2]==='HEURES SUP - 150%'&&out.hs[3]==='MAX(MIN(I13,48)-43,0)'&&out.rep==='MAX(I13-48,0)'&&out.repBox>0
   &&out.regul===40&&out.last===37&&out.sum[0]==='SUM(E7:E42)'&&out.sum[1]==='SUM(G7:G42)'&&out.ind[0]==='INDEM TRAJET 15€'&&out.ind[1]==='SUMIF(K7:K42,2,B7:B42)'&&out.box>0&&/^Pré-rempli par TRACÉ le 13\/10\/2026/.test(out.note||'');
 // ── 3) formules recalculées (LibreOffice, comme Excel à l'ouverture) : totaux, trajets, heures sup, compteurs
-const calc=file=>{try{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'navlo_'));execFileSync('soffice',['-env:UserInstallation=file://'+dir+'/profil','--headless','--convert-to','csv:Text - txt - csv (StarCalc):59,34,76,1,,0,false,true,false,false,false,-1',file,'--outdir',dir],{timeout:120000,stdio:'ignore'});
-  return fs.readdirSync(dir).filter(n=>/\.csv$/.test(n)).sort().map(n=>fs.readFileSync(path.join(dir,n),'utf8').split(/\r?\n/).map(l=>l.split(';')));}catch(e){return null;}};
 const R=X1?calc(X1.file):null;const lo=!!R;const S0=R&&R[0];const cell=(r,c)=>S0&&S0[r-1]?S0[r-1][c.charCodeAt(0)-65]:undefined;const lab=(re)=>S0?S0.findIndex(l=>re.test(l[7]||'')):-1;
 out=lo?{sem:[13,21,29,37].map(r=>cell(r,'I')),hs125:[14,22,30,38].map(r=>cell(r,'I')),hs150:[15,23,31,39].map(r=>cell(r,'I')),tot:['E','F','G'].map(c=>cell(43,c)),ind:[cell(47,'C'),cell(48,'C'),cell(49,'C')],
   hsm:[S0[lab(/^NB HEURES 125%$/)][8],S0[lab(/^NB HEURES 150%$/)][8]],fin:S0[lab(/^Compteur fin de mois$/)][8]}:{lo:false};
