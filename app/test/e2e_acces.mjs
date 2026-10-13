@@ -133,8 +133,9 @@ await page.evaluate(()=>window.TRACE.showScreen('login'));await page.waitForTime
 out=await page.evaluate(()=>({pwd:!!document.querySelector('#loginPwd'),go:document.querySelector('#loginGo').textContent,first:!!document.querySelector('#loginFirst'),otp:!!document.querySelector('#loginOtp'),ver:/version \d{2}\/\d{2}\/\d{4}/.test(document.querySelector('#loginVer').textContent)}));
 await page.fill('#loginEmail','pas-une-adresse');await page.click('#loginGo');await page.waitForTimeout(200);out.bad=await page.evaluate(()=>document.querySelector('#loginHint').textContent);
 await page.fill('#loginEmail','karim@scr.fr');await page.fill('#loginPwd','');await page.click('#loginGo');await page.waitForTimeout(200);out.noPwd=await page.evaluate(()=>document.querySelector('#loginHint').textContent);
-await page.fill('#loginPwd','abc');await page.click('#loginFirst');await page.waitForTimeout(200);out.short=await page.evaluate(()=>document.querySelector('#loginHint').textContent);
-console.log('8) écran de connexion :',JSON.stringify(out));C.c8=out.pwd&&/Se connecter/.test(out.go)&&out.first&&out.otp&&out.ver&&/invalide/.test(out.bad)&&/Mot de passe manquant/.test(out.noPwd)&&/6 caractères/.test(out.short);
+await page.fill('#loginPwd','abc');await page.click('#loginFirst');await page.waitForTimeout(200);out.first2=await page.evaluate(()=>({t:(document.querySelector('#loginAlt .loginAlt-t')||{}).textContent,hint:document.querySelector('#loginHint').textContent,email:(document.querySelector('#lgEmail')||{}).value})); /* 13/10 soir : « créer mon mot de passe » ouvre l'écran code + mot de passe (e2e_motdepasse) */
+await page.click('#lgBack');await page.waitForTimeout(150);
+console.log('8) écran de connexion :',JSON.stringify(out));C.c8=out.pwd&&/Se connecter/.test(out.go)&&out.first&&out.otp&&out.ver&&/invalide/.test(out.bad)&&/Mot de passe manquant/.test(out.noPwd)&&out.first2.t==='CRÉER MON MOT DE PASSE'&&/code de confirmation/.test(out.first2.hint)&&out.first2.email==='karim@scr.fr';
 // ── 9) affichage large depuis l'accueil : bouton ⤢, mémorisé, liste en grille ; retour
 await page.evaluate(()=>{window.TRACE.showScreen('home');window.TRACE.renderHome();});await page.waitForTimeout(200);
 out=await page.evaluate(()=>({btn:!!document.querySelector('#homeWide'),wide0:document.querySelector('#app').classList.contains('wide')}));

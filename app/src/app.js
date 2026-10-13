@@ -2986,7 +2986,9 @@ async function openUsersModal(){const rows=await sync.listProfiles();if(!rows.le
    <div class="actions" style="margin-top:8px"><button class="btn block" data-close>Fermer</button></div>`);
   $('#modal').querySelectorAll('[data-uid]').forEach(el=>{el.addEventListener('change',async()=>{const uid=el.dataset.uid;const row=rows.find(r=>r.id===uid);if(!row)return;const role=$('#modal').querySelector(`select[data-uid="${uid}"]`).value;const active=$('#modal').querySelector(`input[data-uid="${uid}"]`).checked;const err=await sync.adminSetUser(uid,role,active);toast(err?('Refusé : '+err):'Compte mis à jour');});});}
 sync.onAuth(async u=>{state.cloudUser=u;if(u){state.profile=await sync.profile();if(state.profile){state.userId='__me';}try{await loadPosteRights();}catch(e){console.warn(e);}listAccounts().then(()=>{syncRoleSel();if(state.screen==='home'&&(state.homeTab==='espace'||state.homeTab==='entreprise'))renderHome();}).catch(e=>console.warn(e)); /* liste des comptes pour tout le monde (tâches « pour », mode test de l'admin) */espaceLoad(); /* fiches personne + pointages + planning (Mon espace) ; le planning chargé, onLoaded regrise les cartes de l'accueil */docsLoad().then(()=>{if(state.screen==='home')renderHome();}).catch(e=>console.warn(e));qhsLoad().then(()=>{if(state.screen==='home')renderHome();}).catch(e=>console.warn(e));affLoad().catch(e=>console.warn(e));flotteLoad().catch(e=>console.warn(e));cmdLoad().catch(e=>console.warn(e));flushMissions().catch(e=>console.warn(e));}else{state.profile=null;state.accounts=null;if(state.userId==='__me'||String(state.userId).startsWith('acc:'))state.userId=USERS[0].id;}syncRoleSel();renderCloud(); // comptes v2 : les droits des postes (serveur) sont chargés avant tout affichage
-  if(u&&state.screen==='login'){showScreen('home');renderHome();} // connexion par mot de passe (08/10) : pas de rechargement de page comme avec le lien e-mail → on quitte l'écran de connexion ici
+  if(u&&state.screen==='login'&&!state.lgBusy){showScreen('home');renderHome();} // connexion par mot de passe (08/10) : pas de rechargement de page comme avec le lien e-mail → on quitte l'écran de connexion ici ; 13/10 soir : pas pendant la création du mot de passe (le code validé connecte AVANT que le mot de passe soit posé)
+  if(u&&!state.lgBusy)pwSetupCheck(u);
+  if(u&&u.email){try{localStorage.setItem('trace:lastEmail',u.email);}catch(e){}}
   if(u){rtSubscribe(state.siteId);pullRemote(state.siteId);
     // liste LÉGÈRE des chantiers du serveur (métas) — les plans complets ne sont chargés qu'à l'ouverture
     let metas=null;try{metas=await sync.listSiteMeta();}catch(e){console.warn(e);}
@@ -3012,7 +3014,7 @@ document.addEventListener('visibilitychange',async()=>{if(document.visibilitySta
 const logoSVG=(c1,c2,sz)=>`<svg width="${sz}" height="${sz}" viewBox="0 0 48 48"><g fill="none" stroke-linecap="round"><path d="M6 30 L20 30" stroke="${c1}" stroke-width="7"/><path d="M28 18 L42 18" stroke="${c1}" stroke-width="7"/><path d="M20 30 Q24 30 24 26 L24 22 Q24 18 28 18" stroke="${c1}" stroke-width="7"/><circle cx="24" cy="24" r="5.2" fill="${c2}"/></g></svg>`;
 $('#loginLogo').innerHTML=logoSVG('#0b0b0b','#eb6834',72);$('#homeLogo').innerHTML=logoSVG('#0b0b0b','#eb6834',26);
 state.screen='site';state.homeTab=localStorage.getItem('trace:homeTab')||'accueil'; /* refonte 09/10 soir : l'appli s'ouvre sur l'ACCUEIL GÉNÉRAL (maquette validée) */state.homeQ='';state.homeSort='recent';state.serverMetas=[];state.homeStats=null;state.homePin=null;state.pendingOpen=null;
-function showScreen(sc){state.screen=sc;$('#loginView').classList.toggle('show',sc==='login');$('#homeView').classList.toggle('show',sc==='home');{const h=$('#siteHead');if(h)h.style.display=(sc==='site'&&NET&&NET.id!=='__vide')?'':'none';const fb=$('#planFab');if(fb&&sc!=='site')fb.style.display='none';if(sc==='site')try{renderSiteHead();}catch(e){}}}
+function showScreen(sc){state.screen=sc;if(sc==='login'){const le=document.getElementById('loginEmail');if(le&&!le.value){try{le.value=localStorage.getItem('trace:lastEmail')||'';}catch(e){}}} /* 13/10 soir : l'e-mail de la dernière connexion est repris (avec des gants, on ne le retape pas) */$('#loginView').classList.toggle('show',sc==='login');$('#homeView').classList.toggle('show',sc==='home');{const h=$('#siteHead');if(h)h.style.display=(sc==='site'&&NET&&NET.id!=='__vide')?'':'none';const fb=$('#planFab');if(fb&&sc!=='site')fb.style.display='none';if(sc==='site')try{renderSiteHead();}catch(e){}}}
 // carte des chantiers (accueil) : vraie carte IGN « plan éteint » (direction B validée le 20/08), web mercator, zoom/glisser/pincer, regroupement
 // centre lon/lat d'un chantier : depuis sa copie complète si elle est là, sinon depuis la méta serveur
 // centre du RÉSEAU d'un chantier (repère plan) : médiane des milieux de lignes — insensible à un cartouche, un fond étendu ou une ligne partie à des km
@@ -3227,27 +3229,91 @@ $('#homeAva').addEventListener('click',()=>{const u=state.cloudUser,pr=state.pro
     <div class="actions">${isAdmin()?'<button class="btn block" id="accUsers">⚙ Administrateur (comptes, droits)</button>':''}<button class="btn block" id="accName">✎ Mon nom affiché</button><button class="btn block" id="accPwd">🔑 Définir / changer mon mot de passe</button><button class="btn block" id="accOut" style="color:#d03b3b">Se déconnecter</button><button class="btn block" data-close>Fermer</button></div>`);
   const bu=$('#accUsers');if(bu)bu.onclick=()=>{closeModal();state.homeTab='admin';renderHome();};
   $('#accName').onclick=async()=>{const n=prompt('Ton nom affiché :',pr&&pr.name||'');if(!n)return;await sync.setMyName(n.trim());state.profile=await sync.profile();closeModal();renderHome();};
-  $('#accPwd').onclick=async()=>{const p1=prompt('Nouveau mot de passe (6 caractères minimum) :');if(p1===null)return;if(p1.length<6){toast('Trop court : 6 caractères minimum');return;}const p2=prompt('Retape-le pour confirmer :');if(p2!==p1){toast('Les deux saisies diffèrent');return;}try{await sync.setPassword(p1);toast('Mot de passe enregistré — tu peux te connecter avec, en plus du code e-mail');closeModal();}catch(e){toast('Impossible : '+(e&&e.message||e));}}; // compte créé par lien e-mail (avant le 08/10) : se donner un mot de passe
+  $('#accPwd').onclick=()=>pwModal({email:u.email}); // 13/10 soir : deux saisies avec l'œil (avant : deux prompt() où l'on ne voyait pas ce qu'on tapait)
   $('#accOut').onclick=async()=>{await sync.logout();state.cloudUser=null;state.profile=null;state.serverMetas=[];state.homeStats=null;closeModal();renderHome();showScreen('login');};});
 // connexion (08/10, comptes et accès) : e-mail + mot de passe ; première connexion = création du mot de passe (l'accès a été créé par l'administrateur) ; repli : code / lien par e-mail
 const BUILD=typeof __BUILD__!=='undefined'?__BUILD__:'dev'; /* tampon posé par vite.config.js : « jj/mm/aaaa · empreinte » — pour savoir en un coup d'œil quelle version tourne (Ctrl+F5 fait ?) */
 {const lv=$('#loginVer');if(lv)lv.textContent='· version '+BUILD;}
 const loginEm=()=>{const em=($('#loginEmail').value||'').trim();if(!em||!em.includes('@')){$('#loginHint').innerHTML='<b>Adresse invalide.</b>';return null;}return em;};
-const loginErr=e=>{const m=String(e&&e.message||e||'');return /invalid login/i.test(m)?'E-mail ou mot de passe incorrect.':/email not confirmed/i.test(m)?'Adresse pas encore confirmée : ouvre le mail reçu, puis reconnecte-toi.':/already registered/i.test(m)?'Un compte existe déjà avec cet e-mail : connecte-toi avec ton mot de passe (ou « Code par e-mail »).':/password/i.test(m)&&/6|short|weak/i.test(m)?'Mot de passe trop court (6 caractères minimum).':m||'Impossible (hors ligne ?)';};
-$('#loginGo').addEventListener('click',async()=>{const em=loginEm();if(!em)return;const pw=$('#loginPwd').value||'';if(!pw){$('#loginHint').innerHTML='<b>Mot de passe manquant.</b> Première fois ? « Créer mon mot de passe ». Sans mot de passe : « Code par e-mail ».';return;}
-  $('#loginGo').disabled=true;$('#loginHint').textContent='Connexion…';
-  try{await sync.loginPassword(em,pw);$('#loginHint').innerHTML='<b>Connecté ✓</b>';showScreen('home');renderHome();}
-  catch(e){$('#loginHint').innerHTML='<b>'+esc(loginErr(e))+'</b>';}
+/* 13/10 soir : petit œil (afficher / masquer le mot de passe saisi) — connexion, création, changement de mot de passe */
+const EYE='<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF='<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 19c-7 0-11-7-11-7a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 7 11 7a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+const pwField=(id,ph,ac)=>`<div class="pwbox"><input class="f" id="${id}" type="password" autocomplete="${ac||'new-password'}" placeholder="${esc(ph||'')}"><button type="button" class="pweye" data-pweye aria-pressed="false" aria-label="Afficher le mot de passe" title="Afficher le mot de passe">${EYE}</button></div>`;
+document.addEventListener('click',e=>{const b=e.target&&e.target.closest?e.target.closest('[data-pweye]'):null;if(!b)return;e.preventDefault();const inp=b.parentElement&&b.parentElement.querySelector('input');if(!inp)return;
+  const show=inp.type==='password';inp.type=show?'text':'password';b.innerHTML=show?EYE_OFF:EYE;b.setAttribute('aria-pressed',show?'true':'false');const t=show?'Masquer le mot de passe':'Afficher le mot de passe';b.setAttribute('aria-label',t);b.title=t;});
+const loginErr=e=>{const m=String(e&&e.message||e||'');const n=(m.match(/at least (\d+) char/i)||[])[1];
+  return /invalid login/i.test(m)?'E-mail ou mot de passe incorrect. Pas encore de mot de passe, ou oublié : « créer mon mot de passe ».'
+    :/email not confirmed/i.test(m)?'Adresse pas encore confirmée : « créer mon mot de passe » t\'envoie un code.'
+    :/token has expired|otp.*(expired|invalid)|invalid.*(otp|token)|expired.*(code|token)/i.test(m)?'Code faux ou périmé : vérifie les 6 chiffres, ou redemande un code.'
+    :/rate limit|security purposes|only request this after|too many/i.test(m)?'Trop de demandes rapprochées : attends une minute avant de redemander un code.'
+    :/signups? not allowed|signup.*disabled/i.test(m)?'Création de compte fermée sur le serveur : demande à l\'administrateur de créer ton accès.'
+    :/different from the old password|same.?password/i.test(m)?'C\'est déjà ton mot de passe : tu peux te connecter avec.'
+    :n?'Mot de passe trop court ('+n+' caractères minimum).'
+    :/should contain|weak|pwned|leaked/i.test(m)?'Mot de passe refusé par le serveur (trop simple ou trop courant) : mélange lettres, chiffres et un symbole.'
+    :/already registered/i.test(m)?'Un compte existe déjà avec cet e-mail : « créer mon mot de passe » t\'envoie un code pour le définir.'
+    :/failed to fetch|network|hors ligne/i.test(m)?'Pas de connexion au serveur : réessaie avec du réseau.'
+    :m||'Impossible (hors ligne ?)';};
+const lgHint=h=>{$('#loginHint').innerHTML=h;};const LOGIN_HINT0=$('#loginHint').innerHTML;
+$('#loginGo').addEventListener('click',async()=>{const em=loginEm();if(!em)return;const pw=$('#loginPwd').value||'';if(!pw){lgHint('<b>Mot de passe manquant.</b> Première fois ou oublié : « créer mon mot de passe ». Sans mot de passe : « Code par e-mail ».');return;}
+  $('#loginGo').disabled=true;lgHint('Connexion…');
+  try{await sync.loginPassword(em,pw);lgHint('<b>Connecté ✓</b>');showScreen('home');renderHome();}
+  catch(e){lgHint('<b>'+esc(loginErr(e))+'</b>');}
   $('#loginGo').disabled=false;});
-$('#loginFirst').addEventListener('click',async()=>{const em=loginEm();if(!em)return;const pw=$('#loginPwd').value||'';if(pw.length<6){$('#loginHint').innerHTML='<b>Choisis un mot de passe</b> (6 caractères minimum) dans la case, puis retouche ce bouton.';$('#loginPwd').focus();return;}
-  $('#loginFirst').disabled=true;$('#loginHint').textContent='Création du compte…';
-  try{const r=await sync.signUp(em,pw);$('#loginHint').innerHTML=r&&r.needsConfirm?'<b>Compte créé ✓</b><br>Un e-mail de confirmation vient de partir : ouvre-le, puis connecte-toi avec ton mot de passe.':'<b>Compte créé ✓</b> — connecté.';if(r&&!r.needsConfirm){showScreen('home');renderHome();}}
-  catch(e){$('#loginHint').innerHTML='<b>'+esc(loginErr(e))+'</b>';}
-  $('#loginFirst').disabled=false;});
-$('#loginOtp').addEventListener('click',async()=>{const em=loginEm();if(!em)return;$('#loginOtp').disabled=true;$('#loginHint').textContent='Envoi du lien…';
-  try{await sync.login(em);$('#loginHint').innerHTML='<b>Lien envoyé ✓</b><br>Ouvre le mail SUR CET APPAREIL et touche le lien.';}
-  catch(e){$('#loginHint').innerHTML='<b>Envoi impossible</b> (hors ligne ?). Réessaie, ou continue hors connexion.';}
-  $('#loginOtp').disabled=false;});
+/* 13/10 soir (Ethan : « la création de mot de passe ne marche pas en l'état : ça met compte créé, mais après le mot de passe ne marche pas ; seule la connexion avec code
+   fonctionne, et une fois dans l'appli tu crées ton mot de passe — il faut que ça marche dès l'accueil ») : la création (ou le mot de passe oublié) passe par le CODE
+   reçu par e-mail, puis le mot de passe est posé sur le compte — en un seul écran, depuis l'accueil. Si le mail n'affiche qu'un lien : on le touche sur cet appareil,
+   l'appli s'ouvre connectée et demande le mot de passe (repère « trace:pwdSetup », 3 h). */
+const LG={mode:null,sent:false,email:'',verified:false};
+function lgShow(mode){LG.mode=mode;LG.sent=false;LG.verified=false;LG.email=($('#loginEmail').value||'').trim();state.lgBusy=false;
+  if(!mode){$('#loginAlt').style.display='none';$('#loginMain').style.display='';lgHint(LOGIN_HINT0);return;}
+  $('#loginMain').style.display='none';$('#loginAlt').style.display='';lgHint(mode==='pwd'?'Un code de confirmation va arriver par e-mail : il prouve que l\'adresse est à toi, puis tu choisis ton mot de passe.':'Un code arrive par e-mail : tape-le ici (ou touche le lien du mail sur cet appareil).');lgRender();}
+function lgRender(){const pwd=LG.mode==='pwd';const A=$('#loginAlt');
+  A.innerHTML=`<div class="loginAlt-t">${pwd?'CRÉER MON MOT DE PASSE':'CONNEXION PAR CODE'}</div>
+    <div class="loginStep">1 · Ton e-mail</div><input id="lgEmail" type="email" inputmode="email" autocomplete="username" placeholder="prenom.nom@scr.fr" value="${esc(LG.email)}">
+    <button class="${LG.sent?'btn sm':'go'}" id="lgSend" style="${LG.sent?'width:100%;margin-top:6px':''}">${LG.sent?'Renvoyer un code':'Recevoir mon code par e-mail'}</button>
+    ${LG.sent?`<div class="loginStep">2 · Le code à 6 chiffres reçu par e-mail</div><input id="lgCode" class="codeIn" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="••••••">
+      ${pwd?`<div class="loginStep">3 · Ton mot de passe (6 caractères minimum)</div>${pwField('lgPw1','nouveau mot de passe','new-password')}<div style="margin-top:6px">${pwField('lgPw2','retape-le','new-password')}</div>`:''}
+      <button class="go" id="lgOk">${pwd?'Valider et me connecter':'Me connecter'}</button>
+      <div class="hint2" style="margin-top:6px">Pas de code dans le mail, seulement un lien ? Touche-le <b>sur cet appareil</b> : l'appli s'ouvre connectée${pwd?' et te demande ton mot de passe':''}.</div>`:''}
+    <button class="loginBack" id="lgBack">← Retour à la connexion</button>`;
+  $('#lgBack').onclick=()=>{state.lgBusy=false;try{localStorage.removeItem('trace:pwdSetup');}catch(e){}lgShow(null);};
+  const bs=$('#lgSend');bs.onclick=async()=>{const em=($('#lgEmail').value||'').trim();if(!em||!em.includes('@')){lgHint('<b>Adresse invalide.</b>');return;}LG.email=em;$('#loginEmail').value=em;
+    if(pwd){try{localStorage.setItem('trace:pwdSetup',JSON.stringify({email:em.toLowerCase(),at:Date.now()}));}catch(e){}}
+    bs.disabled=true;lgHint('Envoi du code…');
+    try{await sync.login(em);LG.sent=true;lgRender();lgHint('<b>Code envoyé ✓</b> à '+esc(em)+' — regarde tes mails (et les indésirables). Valable environ 1 heure.');const c=$('#lgCode');if(c)c.focus();}
+    catch(e){bs.disabled=false;lgHint('<b>'+esc(loginErr(e))+'</b>');}};
+  $('#lgEmail').addEventListener('keydown',e=>{if(e.key==='Enter')bs.click();});
+  const bo=$('#lgOk');if(!bo)return;
+  bo.onclick=async()=>{const code=($('#lgCode').value||'').replace(/\D/g,'');const a=pwd?$('#lgPw1').value||'':'',b=pwd?$('#lgPw2').value||'':'';
+    if(!LG.verified&&code.length<6){lgHint('<b>Tape le code à 6 chiffres</b> reçu par e-mail.');return;}
+    if(pwd&&a.length<6){lgHint('<b>Mot de passe trop court</b> : 6 caractères minimum.');return;}if(pwd&&a!==b){lgHint('<b>Les deux mots de passe diffèrent.</b> Touche l\'œil pour les vérifier.');return;}
+    bo.disabled=true;state.lgBusy=true; /* pas de bascule automatique vers l'accueil tant que le mot de passe n'est pas posé */
+    try{if(!LG.verified){lgHint('Vérification du code…');try{localStorage.removeItem('trace:pwdSetup');}catch(e){}await sync.verifyCode(LG.email,code);LG.verified=true;}
+      if(pwd){lgHint('Enregistrement du mot de passe…');await sync.setPassword(a);}
+      state.lgBusy=false;LG.mode=null;$('#loginAlt').style.display='none';$('#loginMain').style.display='';$('#loginPwd').value='';lgHint(pwd?'<b>Mot de passe enregistré ✓</b> — connecté.':'<b>Connecté ✓</b>');
+      showScreen('home');renderHome();if(pwd)toast('🔑 Mot de passe enregistré : la prochaine fois, ton e-mail et ce mot de passe suffisent');}
+    catch(e){bo.disabled=false;if(!LG.verified&&pwd){try{localStorage.setItem('trace:pwdSetup',JSON.stringify({email:LG.email.toLowerCase(),at:Date.now()}));}catch(e2){}}
+      lgHint('<b>'+esc(loginErr(e))+'</b>'+(LG.verified&&pwd?'<br>Ton code est validé : choisis un autre mot de passe et retouche « Valider », ou <a href="#" id="lgLater">entre dans l\'appli</a> (tu le définiras plus tard : 🔑 dans ton compte).':''));
+      const lt=$('#lgLater');if(lt)lt.onclick=ev=>{ev.preventDefault();state.lgBusy=false;LG.mode=null;$('#loginAlt').style.display='none';$('#loginMain').style.display='';showScreen('home');renderHome();};
+      if(!LG.verified)state.lgBusy=false;}};
+  [$('#lgCode'),$('#lgPw2')].forEach(x=>{if(x)x.addEventListener('keydown',e=>{if(e.key==='Enter')bo.click();});});}
+$('#loginFirst').addEventListener('click',()=>lgShow('pwd'));
+$('#loginOtp').addEventListener('click',()=>lgShow('otp'));
+/* 13/10 soir : fenêtre « mot de passe » (après le lien du mail, ou 🔑 dans le compte) — deux saisies, l'œil sur chacune */
+function pwModal(o){o=o||{};openModal(`<h3 style="margin-top:0">🔑 ${o.first?'Choisis ton mot de passe':'Définir / changer mon mot de passe'}</h3>
+    <div class="muted" style="font-size:12.5px;margin-bottom:6px">${esc(o.email||'')}${o.first?' · la prochaine fois, tu te connecteras avec ton e-mail et ce mot de passe (le code par e-mail marche toujours).':''}</div>
+    <label class="f">Nouveau mot de passe (6 caractères minimum)</label>${pwField('pwm-1','nouveau mot de passe','new-password')}
+    <label class="f" style="margin-top:6px">Retape-le</label>${pwField('pwm-2','retape le mot de passe','new-password')}
+    <div class="hint" id="pwm-hint" style="margin-top:6px"></div>
+    <div class="actions"><button class="btn primary block" id="pwm-ok">Enregistrer mon mot de passe</button><button class="btn block" data-close>${o.first?'Plus tard':'Annuler'}</button></div>`);
+  const ok=$('#pwm-ok');ok.onclick=async()=>{const a=$('#pwm-1').value||'',b=$('#pwm-2').value||'';const h=$('#pwm-hint');
+    if(a.length<6){h.innerHTML='<b>Trop court</b> : 6 caractères minimum.';return;}if(a!==b){h.innerHTML='<b>Les deux saisies diffèrent.</b> Touche l\'œil pour les vérifier.';return;}
+    ok.disabled=true;h.textContent='Enregistrement…';try{await sync.setPassword(a);closeModal();toast('🔑 Mot de passe enregistré — connecte-toi avec ton e-mail et ce mot de passe');}catch(e){h.innerHTML='<b>'+esc(loginErr(e))+'</b>';ok.disabled=false;}};
+  $('#pwm-2').addEventListener('keydown',e=>{if(e.key==='Enter')ok.click();});}
+/* connecté par le LIEN du mail après « créer mon mot de passe » (même appareil, moins de 3 h, même e-mail) : on demande le mot de passe tout de suite */
+function pwSetupCheck(u){let f=null;try{f=JSON.parse(localStorage.getItem('trace:pwdSetup')||'null');}catch(e){f=null;}if(!f||!u)return;try{localStorage.removeItem('trace:pwdSetup');}catch(e){}
+  if(!(Date.now()-(+f.at||0)<3*3600e3)||String(f.email||'').toLowerCase()!==String(u.email||'').toLowerCase())return;
+  setTimeout(()=>{if(state.cloudUser)pwModal({first:true,email:u.email});},900);}
 $('#loginEmail').addEventListener('keydown',e=>{if(e.key==='Enter')$('#loginPwd').focus();});$('#loginPwd').addEventListener('keydown',e=>{if(e.key==='Enter')$('#loginGo').click();});
 $('#loginSkip').addEventListener('click',e=>{e.preventDefault();localStorage.setItem('trace:skipLogin','1');renderHome();showScreen('home');});
 document.addEventListener('click',e=>{if(e.target.id==='hbLogin'){e.preventDefault();showScreen('login');}if(e.target.id==='hbMe'){e.preventDefault();state.userId='__me';syncRoleSel();renderCloud();renderHome();toast('De retour sur ton compte');}

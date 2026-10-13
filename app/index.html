@@ -164,6 +164,13 @@
   .loginCard input{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 12px;font-size:16px;background:var(--page);margin-top:5px}
   .loginCard .go{width:100%;margin-top:10px;background:#eb6834;border:0;color:#fff;border-radius:10px;padding:12px;font-weight:700;font-size:14.5px}
   .loginCard .hint2{margin-top:9px;font-size:11px;color:var(--ink2);text-align:center;line-height:1.45}
+  /* 13/10 soir : petit œil pour voir le mot de passe saisi (connexion, création, changement) */
+  .pwbox{position:relative;width:100%}.pwbox input{padding-right:48px!important}
+  .pweye{position:absolute;right:3px;top:50%;transform:translateY(-50%);margin-top:2px;width:42px;height:42px;border:0;background:none;color:var(--ink2);display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:9px}
+  .pweye:active,.pweye[aria-pressed="true"]{color:#eb6834}
+  .loginAlt-t{font-size:11.5px;color:var(--ink2);font-weight:700;letter-spacing:.05em;margin-bottom:2px}.loginStep{font-size:12px;color:var(--ink);font-weight:700;margin-top:9px}
+  .loginCard .codeIn{letter-spacing:.35em;font-size:20px;text-align:center;font-weight:700}
+  .loginBack{background:none;border:0;color:var(--ink2);font-size:12px;margin-top:8px;cursor:pointer;text-decoration:underline}
   .loginFoot{font-size:10.5px;color:var(--muted);margin-top:14px}
   .homeHead{display:flex;align-items:center;gap:8px;padding:12px 14px 6px}
   .homeHead b{letter-spacing:.1em}
@@ -895,12 +902,15 @@ body.cm-win{margin:0;background:#ecebe5;height:100vh;display:flex;flex-direction
       <div class="word">TRACÉ</div>
       <div class="base">Suivi de soudage & manchonnage<br>des réseaux de chaleur</div>
       <div class="loginCard">
+        <div id="loginMain">
         <label>CONNEXION</label>
         <input id="loginEmail" type="email" inputmode="email" autocomplete="username" placeholder="prenom.nom@scr.fr">
-        <input id="loginPwd" type="password" autocomplete="current-password" placeholder="mot de passe" style="margin-top:6px">
+        <div class="pwbox" style="margin-top:6px"><input id="loginPwd" type="password" autocomplete="current-password" placeholder="mot de passe"><button type="button" class="pweye" data-pweye aria-pressed="false" aria-label="Afficher le mot de passe" title="Afficher le mot de passe"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
         <button class="go" id="loginGo">Se connecter</button>
-        <div style="display:flex;gap:6px;margin-top:6px"><button class="btn sm" id="loginFirst" style="flex:1">Première connexion : créer mon mot de passe</button><button class="btn sm" id="loginOtp" style="flex:1">Code par e-mail</button></div>
-        <div class="hint2" id="loginHint">Ton accès a été créé par l'administrateur avec ton e-mail. Première fois : choisis ton mot de passe. Sans mot de passe : un code arrive par e-mail.</div>
+        <div style="display:flex;gap:6px;margin-top:6px"><button class="btn sm" id="loginFirst" style="flex:1">Première connexion ou oubli : créer mon mot de passe</button><button class="btn sm" id="loginOtp" style="flex:1">Code par e-mail</button></div>
+        </div>
+        <div id="loginAlt" style="display:none"></div>
+        <div class="hint2" id="loginHint">Ton accès a été créé par l'administrateur avec ton e-mail. Première fois (ou mot de passe oublié) : « créer mon mot de passe » — un code de confirmation arrive par e-mail. Sans mot de passe : « Code par e-mail ».</div>
       </div>
       <a href="#" id="loginSkip" style="font-size:12px;color:var(--ink2);margin-top:6px">Continuer hors connexion (chantiers de cet appareil)</a>
       <div class="loginFoot">SCR — Soudure Construction Réseaux <span id="loginVer"></span></div>
