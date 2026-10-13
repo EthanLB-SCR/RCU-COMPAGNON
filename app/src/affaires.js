@@ -164,7 +164,7 @@ export function chiffragePrintHTML(a){const C=calcAffaire(a);const base=Object.a
 export const DEST={chiffrage:'→ chiffrage',memoire:'→ mémoire technique',risque:'⚠ risque / point de vigilance',question:'? question MOE',info:'ℹ info'};
 const mo=b=>b>=1048576?(b/1048576).toFixed(1).replace('.',',')+' Mo':Math.max(1,Math.round(b/1024))+' Ko';
 /* 12/10 : dépôt de fichiers du DCE (zip d'origine gardé tel quel, PDF…) → stockage serveur ; hors connexion ou trop gros → la pièce est créée sans fichier, à relier */
-export async function affFiles(num,files,ctx){return dceFiles(num,files,ctx,{catKey:(()=>{const c=(document.getElementById('afd-cat')||{}).value||'';return /Facturation/.test(c)?'facturation':undefined;})()});} /* 13/10 : zip déballé, pièces classées, gardées sur l'appareil + serveur (dce.js) */
+export async function affFiles(num,files,ctx,o){return dceFiles(num,files,ctx,{open:!!(o&&o.open),catKey:(()=>{const c=(document.getElementById('afd-cat')||{}).value||'';return /Facturation/.test(c)?'facturation':undefined;})()});} /* o.open : la pièce jointe depuis la Lecture s'y ouvre */ /* 13/10 : zip déballé, pièces classées, gardées sur l'appareil + serveur (dce.js) */
 async function affFilesOld(num,files,ctx){const a=affGet(num);if(!a||!ctx.canEdit)return;const L=[...files];let n=0;for(const f of L){const isZip=/\.(zip|7z|rar)$/i.test(f.name);let url=null;
     if(f.size>50*1048576){A.toast(f.name+' : plus de 50 Mo — dépose-le sur le Drive et colle le lien');continue;}
     try{url=A.sync&&A.sync.uploadDoc?await A.sync.uploadDoc('aff_'+String(num).replace(/[^A-Za-z0-9_-]/g,'_'),'dce',f.name,f):null;}catch(e){url=null;}
