@@ -135,7 +135,7 @@ await page.fill('#loginEmail','pas-une-adresse');await page.click('#loginGo');aw
 await page.fill('#loginEmail','karim@scr.fr');await page.fill('#loginPwd','');await page.click('#loginGo');await page.waitForTimeout(200);out.noPwd=await page.evaluate(()=>document.querySelector('#loginHint').textContent);
 await page.fill('#loginPwd','abc');await page.click('#loginFirst');await page.waitForTimeout(200);out.first2=await page.evaluate(()=>({t:(document.querySelector('#loginAlt .loginAlt-t')||{}).textContent,hint:document.querySelector('#loginHint').textContent,email:(document.querySelector('#lgEmail')||{}).value})); /* 13/10 soir : « créer mon mot de passe » ouvre l'écran code + mot de passe (e2e_motdepasse) */
 await page.click('#lgBack');await page.waitForTimeout(150);
-console.log('8) écran de connexion :',JSON.stringify(out));C.c8=out.pwd&&/Se connecter/.test(out.go)&&out.first&&out.otp&&out.ver&&/invalide/.test(out.bad)&&/Mot de passe manquant/.test(out.noPwd)&&out.first2.t==='CRÉER MON MOT DE PASSE'&&/code de confirmation/.test(out.first2.hint)&&out.first2.email==='karim@scr.fr';
+console.log('8) écran de connexion :',JSON.stringify(out));C.c8=out.pwd&&/Se connecter/.test(out.go)&&out.first&&out.otp&&out.ver&&/invalide/.test(out.bad)&&/Mot de passe manquant/.test(out.noPwd)&&out.first2.t==='CRÉER MON MOT DE PASSE'&&/donné par ton responsable/.test(out.first2.hint)&&out.first2.email==='karim@scr.fr';
 // ── 9) affichage large depuis l'accueil : bouton ⤢, mémorisé, liste en grille ; retour
 await page.evaluate(()=>{window.TRACE.showScreen('home');window.TRACE.renderHome();});await page.waitForTimeout(200);
 out=await page.evaluate(()=>({btn:!!document.querySelector('#homeWide'),wide0:document.querySelector('#app').classList.contains('wide')}));

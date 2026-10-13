@@ -38,6 +38,7 @@ const KIND_RULES=[
   ['kit',/kit (de )?fin de ligne|\bkit fdl\b|embout terminal|\bbouchon\b|fond bombe|end ?cap/],
   ['dhec',/\bdhec\b|\bcoiffe\b|capuchon|embout (thermo|d.extremite)|\be-\d{2,4}\b/],
   ['wall',/passage de (mur|cloison)|traversee de (mur|paroi)|manchette de penetration|joint labyrinthe|insert d.etancheite|\bgkd\b|bague d.etancheite|anneau d.etancheite|\bp-\d{2,4}\b/],
+  ['sleeve',/\b(kit|ensemble)\s+(de\s+)?manchons?\b|\bmanchons?\b.*\b(avec|\+|et)\s+(sa\s+|la\s+)?mousse\b/],                                                   // 13/10 (Ethan) : AXIOM « kit manchon avec mousse » = UN manchon, pas de la mousse
   ['pu',/pochette de mousse|\bmousse\b(?!.*cale)|kit (de )?jonction \(produits\)|kit flexible coude|\bkit mousse\b|\bpur\b|\bpu a\b|\bpu b\b/],
   ['reducerJ',/kit reduit|reduktion\s*st|reduction acier|reducteur acier|cone acier/],
   ['sleeve',/\bmanchettes?\b|\bmanchons?\b|ewjoint|\bkit joint\b|\bjoint double etancheite|\bsx-?wp\b|electrosoud|\bthermoretractable\b|\bnte?-\d|\bnh-\d|\bn-\d{2,3}\//],

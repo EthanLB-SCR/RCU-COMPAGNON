@@ -21,7 +21,7 @@ const A=()=>page.evaluate(()=>window.TRACE.affaires.get('O2610-13'));
 const T=()=>page.evaluate(()=>document.getElementById('eq-app').textContent.replace(/\s+/g,' '));
 await page.evaluate(async()=>{const T=window.TRACE;T.state.userId='ethan';T.renderHome();document.getElementById('htCom').click();await new Promise(x=>setTimeout(x,250));
   document.querySelector('#eq-app [data-act=af][data-v="new|"]').click();await new Promise(x=>setTimeout(x,150));document.getElementById('afn-num').value='O2610-13';document.getElementById('afn-nom').value='Points v2';document.getElementById('afn-client').value='CORIANCE';document.getElementById('afn-etat').value='devis';
-  document.querySelector('#eq-app [data-act=af][data-v="create|"]').click();await new Promise(x=>setTimeout(x,250));document.querySelector('#eq-app [data-act=af][data-v="tab|lecture"]').click();await new Promise(x=>setTimeout(x,300));});
+  document.querySelector('#eq-app [data-act=af][data-v="create|"]').click();await new Promise(x=>setTimeout(x,250));document.querySelector('#eq-app [data-act=af][data-v="tab|points"]').click();await new Promise(x=>setTimeout(x,300));});
 // ── 1) sans base de prix : 9 typologies SST + autre ; dates → jours ouvrés, férié, base vie
 await chg('#eq-app [data-afx="pt§sst.on"]',true);await click('ptadd|sst.rows');
 let out={opts:await page.evaluate(()=>[...document.querySelectorAll('#eq-app [data-afx="pt§sst.rows.0.type"] option')].map(o=>o.textContent))};
@@ -32,11 +32,11 @@ C.c1=out.opts.length===10&&['Vannes BS PN25','Vannes BS PN40','Vannes BS brides 
 // ── classeur (jeu d'essai) pour les prix
 await page.evaluate(()=>document.querySelector('#eq-app [data-act=af][data-v="tab|chiffrage"]').click());await wait(300);
 await page.setInputFiles('#eq-app input[data-afprix]',path.join(HERE,'fixture_prix.xlsx'));await wait(1500);
-await page.evaluate(()=>document.querySelector('#eq-app [data-act=af][data-v="tab|lecture"]').click());await wait(400);
+await page.evaluate(()=>document.querySelector('#eq-app [data-act=af][data-v="tab|points"]').click());await wait(400);
 // ── 2) quantités + CND : DN 200 (300 soudures, 400 ml de tranchée) feeder, DN 100 (200 soudures, 300 ml) en antennes ; radio feeder 10 % / antennes 20 %, 9 soud./vac., 2 vacations de raccordement
-await click('qadd|');await chg('#eq-app [data-afqr="0|dn"]','200');await chg('#eq-app [data-afqr="0|soud"]','300');await chg('#eq-app [data-afqr="0|ml"]','400');
+await click('tab|quantites');await click('qadd|');await chg('#eq-app [data-afqr="0|dn"]','200');await chg('#eq-app [data-afqr="0|soud"]','300');await chg('#eq-app [data-afqr="0|ml"]','400');
 await click('qadd|');await chg('#eq-app [data-afqr="1|dn"]','100');await chg('#eq-app [data-afqr="1|soud"]','200');await chg('#eq-app [data-afqr="1|ml"]','300');
-await chg('#eq-app .cm-split [data-afqr="1|nAnt"]','200');
+await click('tab|points');await chg('#eq-app .cm-split [data-afqr="1|nAnt"]','200');
 await chg('#eq-app [data-afx="pt§radio.on"]',true);await chg('#eq-app [data-afx="pt§radio.fdPct"]','10');await chg('#eq-app [data-afx="pt§radio.antPct"]','20');await chg('#eq-app [data-afx="pt§radio.raccVac"]','2');await chg('#eq-app [data-afx="pt§km"]','120');
 out={split:await page.evaluate(()=>[...document.querySelectorAll('#eq-app .cm-split tr.tot td')].map(t=>t.textContent.trim())),cnd:await page.evaluate(()=>{const b=[...document.querySelectorAll('#eq-app .ch-cnd')].find(x=>/Radio/.test(x.textContent));return b?b.textContent.replace(/\s+/g,' '):'';}),labels:await page.evaluate(()=>[...document.querySelectorAll('#eq-app .cm-cndg label')].slice(0,3).map(l=>l.textContent))};
 console.log('2) CND :',JSON.stringify(out));
@@ -76,7 +76,7 @@ out=await page.evaluate(()=>{const T=window.TRACE;const a=T.affaires.get('O2610-
 console.log('6) rinçage par zone :',JSON.stringify(out));
 C.c6=out.two>0&&out.two===out.one;
 // ── 6 b) prestation GLOBALE (13/10, Ethan : « 3 tronçons d'épreuve mais un seul rinçage global ») : une seule fois sur le volume cumulé des tronçons cochés
-await click('tab|lecture');await wait(300);await chg('#eq-app [data-afx="pt§hydro.troncons.1.rincage"]',true);await chg('#eq-app [data-afx="pt§hydro.global.rincage"]',true);
+await click('tab|points');await wait(300);await chg('#eq-app [data-afx="pt§hydro.troncons.1.rincage"]',true);await chg('#eq-app [data-afx="pt§hydro.global.rincage"]',true);
 out={gl:await page.evaluate(()=>{const b=document.querySelector('#eq-app .cm-hglob');const h=[...document.querySelectorAll('#eq-app .hint')].map(x=>x.textContent).find(t=>/^Rinçage global/.test(t))||'';return {bar:b?b.textContent.replace(/\s+/g,' '):'',h,lab:[...document.querySelectorAll('#eq-app .cm-trpr')].map(x=>x.textContent.replace(/\s+/g,' ').trim())[0]||''};})};
 await click('ptprefill|');await wait(500);
 out.calc=await page.evaluate(()=>{const T=window.TRACE;const a=T.affaires.get('O2610-13');const z=JSON.parse(JSON.stringify(a.chiffrage.etudes.find(x=>x.fromPoints)));const calc=e=>T.affaires.calc(Object.assign({},a,{chiffrage:{etudes:[e]}})).etudes[0].r;
@@ -86,7 +86,7 @@ console.log('6 b) rinçage global :',JSON.stringify(out));
 C.c6b=/Rinçage globale/.test(out.gl.bar)&&/^Rinçage global : [\d,]+ m³ \(Tronçon 1, Tronçon 2\)/.test(out.gl.h)&&/Rinçage \(global\)/.test(out.gl.lab)&&out.calc.glob&&out.calc.glob.rincage===true&&out.calc.g===out.calc.one&&out.calc.g<out.calc.per&&(out.calc.ids||[]).join()==='0,1'&&out.calc.ep===out.calc.epPer;
 // ── 7) ancienne saisie (radio « % », rangées d'essai, rinçage global) : reprise sans perte
 await page.evaluate(()=>{const T=window.TRACE;T.affaires.set('O2610-13',{points:{radio:{on:true,pct:15,vac:8,raccFilms:2},hydro:{on:true,rows:[{nom:'Rue A',dn:100,ml:50},{nom:'Rue A',dn:80,ml:20},{nom:'',dn:150,ml:40}]},rincage:{on:true}}});});await wait(300);
-await page.evaluate(()=>document.querySelector('#eq-app [data-act=af][data-v="tab|lecture"]').click());await wait(500);
+await page.evaluate(()=>document.querySelector('#eq-app [data-act=af][data-v="tab|points"]').click());await wait(500);
 out={v:await page.evaluate(()=>({fd:(document.querySelector('#eq-app [data-afx="pt§radio.fdPct"]')||{}).value,ant:(document.querySelector('#eq-app [data-afx="pt§radio.antPct"]')||{}).value,vac:(document.querySelector('#eq-app [data-afx="pt§radio.fdVac"]')||{}).value,tr:[...document.querySelectorAll('#eq-app .cm-tr')].map(t=>({nom:t.querySelector('.cm-tr-h input').value,rows:t.querySelectorAll('tr').length-1,rinc:(t.querySelector('[data-afx$=".rincage"]')||{}).checked}))}))};
 await chg('#eq-app [data-afx="pt§radio.antPct"]','25');out.saved=await A().then(a=>({radio:a.points.radio,tr:a.points.hydro.troncons.map(t=>t.nom+':'+t.rows.length+':'+t.rincage),rows:a.points.hydro.rows,rinc:a.points.rincage}));
 console.log('7) ancienne saisie :',JSON.stringify(out));

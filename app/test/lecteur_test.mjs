@@ -118,4 +118,8 @@ C.c8=eq([numFr('1 234,50'),numFr('4.321,09'),numFr('12345.67'),numFr('4,00')],[1
   &&eq(d8[2].casing,[250,180])&&d8[3].range&&eq(d8[4].casing,[500,140])&&d8[5].angle===90&&codeDims('R-400/630-12').len===12&&codeDims('K-80-180/75').angle===75&&codeDims('TW-400-630/200-355').dn2===200&&codeDims('E-125').casing===125
   &&T8.lines[0].kind==='reducer'&&T8.lines[0].joint===true&&T8.lines[0].dn2===65&&typeOfKind('reducer',true)==='Réduction dans manchon'&&kindOfType('kit réduit')==='reducerJ'
   &&/TOTAL/.test(trameConsigne())&&/Réduction dans manchon/.test(trameConsigne())&&/XX>45/.test(trameConsigne())&&fournisseurOf('Offre LOGSTOR EWJoint')==='LOGSTOR';
+// ── 9) 13/10 (Ethan) : AXIOM écrit « Kit manchon avec mousse » → c'est UN manchon (pas de la mousse PU) ; la pochette de mousse seule reste de la mousse
+const R9=lireRows([['Désignation','Unité','Qté'],['Kit manchon avec mousse DN 100','u','12'],['Kit manchon DN 80 avec sa mousse','u','4'],['Pochette de mousse n° 7 pour manchon DN 100','u','12'],['Manchon NT-100','u','2']]);
+log('9) kit manchon avec mousse',R9.lines.map(l=>[l.kind,l.dn,l.qty]));
+C.c9=R9.lines.length===4&&R9.lines[0].kind==='sleeve'&&R9.lines[0].dn===100&&R9.lines[0].qty===12&&R9.lines[1].kind==='sleeve'&&R9.lines[1].dn===80&&R9.lines[2].kind==='pu'&&R9.lines[3].kind==='sleeve';
 const bad=Object.entries(C).filter(([k,v])=>!v).map(([k])=>k);console.log(bad.length?'RESULTAT: ECHEC '+bad.join(','):'RESULTAT: TOUT VERT');
