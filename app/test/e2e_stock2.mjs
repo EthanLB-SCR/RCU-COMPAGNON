@@ -17,13 +17,14 @@ const L=await page.evaluate(()=>Object.values(window.TRACE.lines).find(l=>!l.par
 await page.evaluate(()=>document.querySelector('#tabbar [data-tab=stock]').click());await page.waitForTimeout(400);
 await page.click('#stk-new');await page.waitForTimeout(300);
 await page.fill('#stk-date','2026-08-28');
+await page.click('#modal [data-iqm="cat"]');await page.waitForTimeout(200); // 13/10 soir : écran d'import commun — la date saisie doit tenir aussi au changement d'onglet
 await page.selectOption('#stk-kind','sleeve');await page.waitForTimeout(150);
 let out=await page.evaluate(()=>({od:(document.querySelector('#stk-od')||{}).textContent||''}));
 console.log('1a) Ø gaine à côté du DN (manchon):',JSON.stringify(out));
 const c1a=/Ø ext\. gaine ≈ \d+ mm/.test(out.od);
 await page.evaluate(()=>{document.querySelector('#stk-qty').value='4';});
 await page.click('#stk-add');await page.waitForTimeout(300); // re-render du modal ICI — la date saisie doit tenir
-out=await page.evaluate(()=>{const rows=[...document.querySelectorAll('#stk-lines tr')].slice(1).map(r=>r.cells[0].textContent.trim()+' ×'+r.querySelector('input').value);
+out=await page.evaluate(()=>{const rows=[...document.querySelectorAll('#stk-lines tr')].slice(1).map(r=>r.cells[0].textContent.trim()+' ×'+r.querySelector('[data-iqq]').value);
   return {rows,date:document.querySelector('#stk-date').value};});
 console.log('1b) manchon + mousse auto, date conservée:',JSON.stringify(out));
 const c1b=out.rows.length===2&&/Manchon DN100 · Ø\d+ ×4/.test(out.rows[0])&&/Mousse PU \(A\+B\) DN100 · Ø\d+ ×4/.test(out.rows[1])&&out.date==='2026-08-28';

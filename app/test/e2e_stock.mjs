@@ -25,6 +25,7 @@ console.log('1) onglet Stock présent:',JSON.stringify(out));
 const c1=out.tab&&out.btn&&out.vide;
 // 2) nouvelle livraison par CATALOGUE : 12 barres DN100 + 4 coudes 90 DN100, déchargé direct → pose de la zone au tap
 await page.click('#stk-new');await page.waitForTimeout(300);
+await page.click('#modal [data-iqm="cat"]');await page.waitForTimeout(200); // 13/10 soir : écran d'import commun — BL / fichier · Coller · Catalogue · Calepinage
 await page.evaluate(()=>{document.querySelector('#stk-kind').value='pipe';document.querySelector('#stk-qty').value='12';});
 await page.click('#stk-add');await page.waitForTimeout(150);
 await page.evaluate(()=>{const k=document.querySelector('#stk-kind');k.value='bend';k.dispatchEvent(new Event('change'));document.querySelector('#stk-qty').value='4';});
@@ -74,9 +75,8 @@ const c6=out.zones===2&&out.bv&&out.q===2&&out.moves===1;
 await page.click('#stkDone');await page.waitForTimeout(300);
 // 7) livraison PRÉVUE par BL (vrai PDF AXIOM) → lignes reconnues → zone hachurée
 await page.click('#stk-new');await page.waitForTimeout(300);
-await page.click('#modal [data-stksrc="bl"]');await page.waitForTimeout(200);
-await page.setInputFiles('#stk-pdf', new URL('./bl/axiom.pdf',import.meta.url).pathname);await page.waitForTimeout(2500);
-out=await page.evaluate(()=>({info:(document.querySelector('#stk-srcbox .hint')||{}).innerHTML||'',lignes:document.querySelectorAll('#stk-lines tr').length-1,barre200:/Barre 12 m DN200/.test(document.querySelector('#modal').textContent)}));
+await page.setInputFiles('#iq-file', new URL('./bl/axiom.pdf',import.meta.url).pathname);await page.waitForTimeout(2500);
+out=await page.evaluate(()=>({info:(document.querySelector('#modal .iq-info')||{}).innerHTML||'',lignes:document.querySelectorAll('#stk-lines tr').length-1,barre200:/Barre 12 m DN200/.test(document.querySelector('#modal').textContent)}));
 console.log('7a) BL AXIOM lu:',JSON.stringify({info:out.info.slice(0,70),lignes:out.lignes,barre200:out.barre200}));
 const c7a=out.lignes===11&&out.barre200&&/AXIOM/.test(out.info);
 await page.click('#stk-ok');await page.waitForTimeout(300);
@@ -106,9 +106,9 @@ out=await page.evaluate(()=>{const s=window.TRACE.net.stock;const liv=s.livs[s.l
 console.log('7d) pointé (2 zones validées, 1 écart, registre + CR):',JSON.stringify(out));
 const c7d=out.liv==='ok'&&out.ecarts===1&&out.pend===0&&out.registre&&out.cr;
 // 8) autres BL réels lus dans le navigateur : LOGSTOR et Renalia
-async function tryBL(file){await page.click('#stk-new');await page.waitForTimeout(250);await page.click('#modal [data-stksrc="bl"]');await page.waitForTimeout(200);
-  await page.setInputFiles('#stk-pdf', new URL('./bl/'+file,import.meta.url).pathname);await page.waitForTimeout(2500);
-  const r=await page.evaluate(()=>({n:document.querySelectorAll('#stk-lines tr').length-1,info:(document.querySelector('#stk-srcbox .hint')||{}).textContent.slice(0,60)}));
+async function tryBL(file){await page.click('#stk-new');await page.waitForTimeout(250);
+  await page.setInputFiles('#iq-file', new URL('./bl/'+file,import.meta.url).pathname);await page.waitForTimeout(2500);
+  const r=await page.evaluate(()=>({n:document.querySelectorAll('#stk-lines tr').length-1,info:(document.querySelector('#modal .iq-info')||{}).textContent.slice(0,60)}));
   await page.evaluate(()=>document.querySelector('#modal [data-close]').click());await page.waitForTimeout(200);return r;}
 const rl=await tryBL('logstor.pdf');const rr=await tryBL('renalia1.pdf');
 console.log('8) BL LOGSTOR / Renalia dans le navigateur:',JSON.stringify({logstor:rl,renalia:rr}));

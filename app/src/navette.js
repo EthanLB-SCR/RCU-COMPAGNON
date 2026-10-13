@@ -9,7 +9,7 @@
 //    chantier est en Île-de-France) et REPAS jour par jour (règles GD de rh.js : cas 2 = 5 nuitées, 10 repas, dimanche soir → vendredi midi) ;
 //  · NB KM : domicile → chantier le 1er jour (« /GD » en grand déplacement), puis seulement les jours sur un autre chantier ;
 //  · en bas : totaux hôtel / hôtel IDF / repas, INDEM TRAJET 15 € / 30 € / 50 € (nombre d'allers-retours par cas 2 / 3 / 4), compteur de récup, HS du mois, HS à payer,
-//    HS à mettre en CET (cases à remplir par les RH), compteur fin de mois.
+//    compteur fin de mois (13/10 soir, Ethan : le CET « on s'en fout » → plus de cases CET).
 import {hsSplit,H125_FROM,H150_FROM,K125,K150,KREP} from './compteurs.js'; // 13/10 (f) : heures sup par RANG (36e → 125 %, 44e → 150 %), compteur majoré
 const pad=n=>String(n).padStart(2,'0');
 const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
@@ -56,14 +56,13 @@ export function buildNavette(o){const ym=o.ym;const W=navWeeks(ym);const day=o.d
     const [y,m]=ym.split('-').map(Number);const last=iso(new Date(y,m,0,12));let d=addDay(lastSun,1);const nxt=MOIS_NAV[m%12].toLowerCase();let firstR=true;
     while(d<=last){const x=day(d)||{};const h=x.hours!==null&&x.hours!==undefined&&isFinite(+x.hours)?r2(+x.hours):null;lines.push({kind:'regul',d,j:JL[DT(d).getDay()],n:+d.slice(8),chantier:firstR?'Régul. HS et dépla. sur '+nxt:'',hours:h});if(firstR)regulTo=nxt;firstR=false;d=addDay(d,1);}}
   const hs={h125:r2(weeks.reduce((s,w)=>s+w.hs125,0)),h150:r2(weeks.reduce((s,w)=>s+w.hs150,0)),report:r2(weeks.reduce((s,w)=>s+w.report,0))};
-  return {ym,mois:MOIS_NAV[+ym.slice(5)-1],annee:+ym.slice(0,4),nom:o.nom||'',prenom:o.prenom||'',adresse:o.adresse||'',contrat:C,weeks,lines,tot,ar,hs,regulTo,today:o.today||'',cpt:o.cpt||null};} /* cpt : soldes connus pour pré-remplir (recup, cet, report, prime) */
+  return {ym,mois:MOIS_NAV[+ym.slice(5)-1],annee:+ym.slice(0,4),nom:o.nom||'',prenom:o.prenom||'',adresse:o.adresse||'',contrat:C,weeks,lines,tot,ar,hs,regulTo,today:o.today||'',cpt:o.cpt||null};} /* cpt : soldes connus pour pré-remplir (recup, report, prime) */
 /* ── COMPTEURS D'HEURES PAR PERSONNE (13/10, Ethan : « rajouter les compteurs d'heures que l'on ne traite pas jusque-là ; tout le monde n'a pas le même
    compteur → dans les paramètres du profil ; je te donnerai un classeur pour importer les soldes déjà stockés »). Registre « cpth » (id = clé de la personne) :
    {contrat (h / semaine), on:{clé:true}, labels:{clé « x_… »: libellé} (compteurs ajoutés), soldes:{clé:{h, at, by}}, primes:[{id, at, h, by, note}]}.
    « report » (heures au-delà de 48 h / semaine) se calcule tout seul depuis le pointage ; les autres = soldes tenus par les RH (saisis ou importés). ── */
 export const CPT_H=[
  {k:'recup',label:'Compteur d\'heures',desc:'heures sup rangées majorées (36e → 1 h 15, 44e → 1 h 30) jusqu\'au plafond ; repos pris ou posé par l\'entreprise',auto:true}, // 13/10 (f) : l'ancien « Récupération » (même clé, même solde)
- {k:'cet',label:'CET',desc:'compte épargne temps (heures épargnées)'},
  {k:'report',label:'Heures à reporter',desc:'au-delà de '+HEBDO_MAX+' h par semaine, majorées ×1,5 ; payées en prime ou replacées sur une semaine plus légère',auto:true}];
 /* solde « à reporter » au jour « upto » (inclus) : solde saisi (h, au) + excédents au-delà de 48 h des semaines terminées (dimanche ≤ upto) depuis cette date
    (au plus 52 semaines ; sans solde saisi : 26 semaines en arrière) − primes versées depuis. weekTotal(lundi) → heures de la semaine (lundi → samedi) ou null */
@@ -113,13 +112,11 @@ export function navetteSheet(N,name){const cells={};const merges=[];const height
   const h125=box('NB HEURES 125%',null,'bv',hs125Rows.length?'SUM('+hs125Rows.map(x=>'I'+x).join(',')+')':'0');const h150=box('NB HEURES 150%',null,'bv',hs150Rows.length?'SUM('+hs150Rows.map(x=>'I'+x).join(',')+')':'0');
   const hTot=box('Total',null,'bvB','I'+h125+'+I'+h150,'bxR');const gTot=box('Total',null,'bvB','I'+cTot+'+I'+hTot,'bxR');S('J'+gTot,'>'+N.contrat+'h','b');r++;
   S('H'+r,'soit HS à payer dans le mois'+(K.on?' (compteur plein)':''),'bh');S('I'+r,null,'bh');merges.push('H'+r+':I'+r);r++;
-  const p125=r,p150=r+1,pTot=r+2,ce0=pTot+3;
-  if(K.on){box('NB HEURES 125%',nv(K.pay125)||0,'bin');box('NB HEURES 150%',nv(K.pay150)||0,'bin');}else{box('NB HEURES 125%',null,'bin','I'+h125+'-I'+ce0);box('NB HEURES 150%',null,'bin','I'+h150+'-I'+(ce0+1));}
+  const p125=r,p150=r+1,pTot=r+2;
+  if(K.on){box('NB HEURES 125%',nv(K.pay125)||0,'bin');box('NB HEURES 150%',nv(K.pay150)||0,'bin');}else{box('NB HEURES 125%',null,'bin','I'+h125);box('NB HEURES 150%',null,'bin','I'+h150);}
   box('Total',null,'bvB','I'+p125+'+I'+p150,'bxR');r++;
-  S('H'+r,'soit HS à mettre en CET','bh');S('I'+r,null,'bh');merges.push('H'+r+':I'+r);S('J'+r,'nb h','b');r++;
-  const e125=box('NB HEURES 125%',0,'bin');const e150=box('NB HEURES 150%',0,'bin');const eTot=box('Total',null,'bvB','I'+e125+'+I'+e150,'bxR');r++;
   S('H'+r,'COMPTEUR FIN DE MOIS','bh');S('I'+r,null,'bh');merges.push('H'+r+':I'+r);r++;
-  const cEnt=box('Entrées au compteur (125 % × 1,25 · 150 % × 1,5)',null,'bv',K125+'*(I'+h125+'-I'+p125+'-I'+e125+')+'+K150+'*(I'+h150+'-I'+p150+'-I'+e150+')');
+  const cEnt=box('Entrées au compteur (125 % × 1,25 · 150 % × 1,5)',null,'bv',K125+'*(I'+h125+'-I'+p125+')+'+K150+'*(I'+h150+'-I'+p150+')');
   const cFin=box('Compteur fin de mois',null,'bvB','I'+cTot+'+I'+cEnt);r++;
   // heures au-delà de 48 h par semaine : compteur « à reporter », majorées × 1,5 à l'entrée ; vidé en prime ou replacé sur une semaine plus légère (cases vertes = RH)
   S('H'+r,'HEURES À REPORTER (> '+HEBDO_MAX+' h / semaine)','bh');S('I'+r,null,'bh');merges.push('H'+r+':I'+r);r++;
@@ -128,7 +125,7 @@ export function navetteSheet(N,name){const cells={};const merges=[];const height
   const rPrime=box('Payées en prime ce mois',nv(K.prime)||0,'bin');const rRepl=box('Replacées sur une semaine plus légère',nv(K.repl)||0,'bin');const rFin=box('Compteur à reporter fin de mois',null,'bvB','I'+rPrev+'+I'+rEnt+'-I'+rPrime+'-I'+rRepl);
   r++;S('A'+r,'Pré-rempli par TRACÉ'+(N.today?' le '+N.today:'')+' (planning, pointage, grands déplacements, compteurs) — à vérifier, compléter et signer. Cases vertes : à remplir par les RH.'+(K.reconstitue?' Compteur reconstitué depuis le pointage (pas de solde de départ importé).':''),'note');merges.push('A'+r+':J'+r);
   return {name:name||(up(N.nom)+' '+up(N.prenom)).trim()||'Navette',cells,merges,heights,widths:[9,9,3,4,7,8,7,30,11,15,4],hidden:[11],fit:true,rows:r,
-    refs:{first,lastRow,totRow,ind0,cPrev,cRec,cTot,h125,h150,hTot,gTot,p125,p150,pTot,e125,e150,eTot,cEnt,cFin,rPrev,rMois,rEnt,rPrime,rRepl,rFin,satRow,hs125Rows,hs150Rows,dayRows}};}
+    refs:{first,lastRow,totRow,ind0,cPrev,cRec,cTot,h125,h150,hTot,gTot,p125,p150,pTot,cEnt,cFin,rPrev,rMois,rEnt,rPrime,rRepl,rFin,satRow,hs125Rows,hs150Rows,dayRows}};}
 /* styles du modèle (orange = colonnes RH, gris = fins de semaine, bleu = cas / trajet, vert = à remplir) */
 export const NAV_STYLES={
   logo:{b:1,sz:26,color:'E8541E',h:'center'},title:{b:1,sz:11,border:1,h:'center'},hl:{b:1,sz:10},

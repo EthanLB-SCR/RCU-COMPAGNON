@@ -1,0 +1,102 @@
+// importq.js — L'ÉCRAN D'IMPORT COMMUN (13/10/2026 soir) : étude fournisseur (Commerce), commande (Fourniture), bon de livraison (Stock).
+// Ethan : « pour importer un quantitatif c'est parfait, simple à comprendre ; il faudrait la même interface pour les imports de commande et de BL dans les onglets
+// Stock et Fourniture » ; et « je pose n'importe quel quantitatif sans l'étape manuelle (Excel + Claude) et ça importe toutes les pièces ».
+// · le fichier du fournisseur (Excel ou PDF avec texte) est lu TOUT SEUL par lecteur.js ; une trame SCR remplie (sur une feuille du classeur, ou collée) passe
+//   en priorité (lecture déterministe, colonne par colonne) ;
+// · l'écran montre : ce qui a été lu (fournisseur, contrôles), la SYNTHÈSE par DN (barres, ml, soudures, coudes, tés, piquages, RÉDUCTIONS, vannes, KITS FIN DE
+//   LIGNE, DHEC, passages de mur), les lignes (modifiables), les lignes à classer, les options (non comptées sauf choix), les lignes ignorées et refusées.
+// Chaque écran garde ses champs (nom, n° de commande ou de BL, date, zone…) et sa façon d'enregistrer ; ce module ne touche à aucune donnée.
+import {parseTrame,trameBoxHTML,wireTrameBox} from './trame.js';
+import {lireClasseur,lirePdf,lireRows,lectureResume,kindLabel,dnGuess} from './lecteur.js';
+import {qsynth} from './qcalc.js';
+import {openXlsx} from './xlsx.js';
+import {pasteRows} from './commerce.js';
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nb=(x,d)=>{x=+x||0;return x.toLocaleString('fr-FR',{maximumFractionDigits:d===undefined?0:d});};
+export const IQ_DNS=[20,25,32,40,50,65,80,100,125,150,200,250,300,350,400,450,500,600];
+export const IQ_KINDS=[['pipe','Barre'],['bend','Coude'],['tee','Té'],['reducer','Réduction'],['reducerJ','Réduction dans manchon'],['valve','Vanne'],['sleeve','Manchon'],['sleeveEnd','Manchon fin de ligne'],['kit','Kit fin de ligne'],['pu','Mousse PU'],['steelbend','Courbe acier'],['bypass','By-pass'],['dhec','DHEC'],['wall','Passage de mur'],['acc','Accessoire']];
+const INCH={20:0.75,25:1,32:1.25,40:1.5,50:2,65:2.5,80:3,100:4,125:5,150:6,200:8,250:10,300:12,350:14,400:16,450:18,500:20,600:24};
+export function iqState(o){return Object.assign({lines:[],unknown:[],options:[],ignored:[],bad:[],meta:{},info:'',src:'',mode:'file',withOpt:false,showLines:false,showMore:0,fichier:''},o||{});}
+/* ── lecture ── */
+export async function iqSheets(src){const wb=await openXlsx(src);const out=[];for(const s of wb.sheets){if(s.hidden)continue;const sh=await wb.sheet(s.name);if(!sh)continue;let maxC=0;
+    Object.keys(sh.cells).forEach(a=>{const m=a.match(/^([A-Z]+)/);if(m){let n=0;for(const ch of m[1])n=n*26+(ch.charCodeAt(0)-64);if(n>maxC)maxC=n;}});maxC=Math.min(maxC,60);
+    const rows=[];for(let r=1;r<=sh.maxR;r++){const row=[];for(let c=1;c<=maxC;c++){const v=sh.at(c,r);row.push(v===null||v===undefined?'':v);}row._r=r;rows.push(row);}out.push({name:s.name,rows});}return out;}
+export async function iqPdfPages(file,loadPdfJs){const lib=await loadPdfJs();const doc=await lib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;const pages=[];
+  for(let p=1;p<=doc.numPages;p++){const pg=await doc.getPage(p);const tc=await pg.getTextContent();pages.push({items:tc.items.filter(it=>it&&it.str!==undefined).map(it=>({x:it.transform[4],y:it.transform[5],w:it.width,h:it.height||Math.abs(it.transform[3]),s:it.str}))});}
+  return pages;}
+export const pagesText=pages=>(pages||[]).map(p=>{const by=new Map();(p.items||[]).forEach(it=>{const y=Math.round(it.y/3)*3;if(!by.has(y))by.set(y,[]);by.get(y).push(it);});return [...by.entries()].sort((a,b)=>b[0]-a[0]).map(([,its])=>its.sort((a,b)=>a.x-b.x).map(i=>i.s).join(' ')).join('\n');}).join('\n'); /* le texte « à plat » (lecteurs de BL de stock.js) */
+const fromTrame=(T,from)=>({src:'trame',lines:T.lines.map(x=>Object.assign({},x)),unknown:[],options:[],ignored:[],bad:T.bad||[],meta:{},mode:'trame SCR'+(from?' · '+from:'')});
+/* un fichier : trame SCR remplie (prioritaire) → sinon lecture automatique ; opts.bl(texte) = lecteur de BL dédié (Stock) essayé d'abord sur un PDF */
+export async function iqReadFile(file,opts){opts=opts||{};const name=file.name||'';
+  if(/\.pdf$/i.test(name)||file.type==='application/pdf'){const pages=await iqPdfPages(file,opts.loadPdfJs);const n=pages.reduce((t,p)=>t+p.items.filter(i=>String(i.s).trim()).length,0);
+    if(!n)return {src:'pdf',empty:true,lines:[],unknown:[],options:[],ignored:[],bad:[],meta:{},mode:'PDF sans texte'};
+    if(opts.bl){const B=opts.bl(pagesText(pages));if(B&&B.lines&&B.lines.length)return Object.assign({src:'bl',unknown:[],options:[],ignored:[],bad:[],meta:{}},B);}
+    const R=lirePdf(pages);R.src='lecteur';return R;}
+  if(/\.xlsx$/i.test(name)){const sheets=await iqSheets(file);let RT=null,T=null;for(const s of sheets){const t=parseTrame(s.rows);if(t&&t.lines.length+t.bad.length){T=t;RT=fromTrame(t,'feuille « '+s.name+' »');break;}}
+    const R=lireClasseur(sheets);R.src='lecteur';if(!RT)return R;if(!R.lines.length)return RT;
+    /* le classeur a les deux (le tableau du fournisseur ET une trame remplie par Claude) : la trame si elle est propre et complète, sinon la lecture automatique ; l'autre reste proposée */
+    const trameOk=!T.bad.length&&T.lines.length>=R.lines.length*0.8;const main=trameOk?RT:R;main.alt=trameOk?R:RT;return main;}
+  const txt=await file.text();return iqReadPaste(txt,name,opts.fallback);}
+export function iqReadPaste(text,from,fallback){const rows=pasteRows(text);const T=parseTrame(rows);if(T)return fromTrame(T,from||'collée');const R=lireRows(rows,{sheet:from||'collé'});R.src='lecteur';R.mode='tableau '+(from?'« '+from+' »':'collé');
+  if(!R.lines.length&&fallback){const F=fallback(rows);if(F&&F.lines&&F.lines.length)return {src:'texte',lines:F.lines.map(x=>Object.assign({},x,{des:x.raw||x.label||''})),unknown:[],options:[],ignored:[],bad:F.bad||[],meta:{},mode:F.mode||'texte'};} /* lignes de texte libre « Tube DN100 12 m 24 » : le lecteur de l'écran (Fourniture) */
+  return R;}
+/* le résultat d'une lecture devient l'état de l'écran (il remplace la lecture précédente) */
+export function iqTake(st,R,file){const norm=x=>{const o={};['kind','dn','dn2','angle','len','gaine','qty','unit','ml','ref','des','label','note','joint','raw','src'].forEach(k=>{if(x[k]!==undefined&&x[k]!==null&&x[k]!=='')o[k]=x[k];});if(!o.des)o.des=x.raw||x.label||'';return o;};
+  st.lines=(R.lines||[]).map(norm);st.unknown=(R.unknown||[]).map(norm);st.options=(R.options||[]).map(norm);st.ignored=R.ignored||[];st.bad=R.bad||[];st.meta=R.meta||{};st.src=R.src||'';st.withOpt=false;st.showMore=0;
+  if(file)st.fichier=file;const n=st.lines.length;st._r=R;st.alt=R.alt||null;
+  st.info=R.empty?'<b style="color:#8a1f1f">PDF sans texte (scanné)</b> : rien à lire — demande l\'Excel au fournisseur, ou saisis les pièces.'
+    :`${R.src==='trame'?'<b>Trame SCR</b>':R.src==='bl'?'<b>BL '+esc(String(R.fmt||'').toUpperCase())+'</b>':R.src==='texte'?'<b>Lignes de texte</b>':'<b>Lecture automatique</b>'}${R.mode&&R.src!=='bl'?' ('+esc(R.mode)+')':''}${st.meta.fournisseur?' · fournisseur reconnu : <b>'+esc(st.meta.fournisseur)+'</b>':''} — ${R.src==='trame'||R.src==='texte'||R.src==='bl'?`${n} ligne${n>1?'s':''} lue${n>1?'s':''}${st.bad.length?' · <b style="color:#7a5200">'+st.bad.length+' refusée'+(st.bad.length>1?'s':'')+'</b>':''}`:esc(lectureResume({lines:st.lines,unknown:st.unknown,options:st.options,ignored:st.ignored}))}. Vérifie la synthèse et les lignes avant d'enregistrer.`;
+  return st;}
+/* lignes comptées : les lignes lues, + les options si on les a cochées */
+export const iqCounted=st=>st.lines.concat(st.withOpt?st.options:[]).filter(x=>x&&x.kind&&+x.qty>0);
+/* ── affichage ── */
+export function iqSourceHTML(st,o){o=o||{};const modes=o.modes||[['file','📄 Fichier du fournisseur'],['paste','📋 Coller']];
+  return `<div class="seg iq-seg" style="display:flex;border:1.5px solid var(--line);border-radius:10px;overflow:hidden;margin:8px 0">${modes.map(([k,t])=>`<div data-iqm="${k}" style="flex:1;text-align:center;padding:7px 4px;font-size:12px;font-weight:700;cursor:pointer;${st.mode===k?'background:var(--ink);color:#fff':''}">${t}</div>`).join('')}</div>
+   ${st.mode==='file'?`<label class="f">${esc(o.fileLabel||'Fichier du fournisseur — Excel ou PDF : lu automatiquement (une trame SCR remplie est lue en priorité)')}</label><input class="f" type="file" id="iq-file" accept="${esc(o.accept||'.xlsx,.pdf,.csv,.txt,application/pdf')}">${o.fileExtra||''}`
+    :st.mode==='paste'?`<label class="f">Colle les lignes copiées depuis Excel, en-tête compris (tableau du fournisseur ou trame SCR remplie)</label><textarea class="f" id="iq-paste" style="min-height:80px" placeholder="Désignation	Quantité	Unité…  ou  Type de pièce	DN	DN 2	Angle (°)	Longueur (m)	Quantité	Unité…"></textarea><button class="btn sm" id="iq-read" style="margin-top:4px">Lire</button>`
+    :(o.otherHTML&&o.otherHTML[st.mode])||''}
+   ${st.mode==='file'||st.mode==='paste'?`<details class="iq-trame" style="margin-top:6px"><summary style="cursor:pointer;font-size:12px" class="dim">La lecture automatique rate des lignes ? → trame type SCR + Claude dans Excel</summary>${trameBoxHTML('open')}</details>`:''}`;}
+const kSel=(v,attr,kinds)=>`<select class="f iq-s" ${attr}>${kinds.map(([k,l])=>`<option value="${k}"${k===v?' selected':''}>${esc(l)}</option>`).join('')}</select>`;
+const dSel=(v,attr)=>`<select class="f iq-s" ${attr}><option value="">—</option>${IQ_DNS.map(d=>`<option value="${d}"${+v===d?' selected':''}>${d}</option>`).join('')}</select>`;
+/* synthèse par DN (qcalc.js) : la même table pour les trois écrans ; DHEC et passages de mur seulement s'il y en a */
+export function iqSynthHTML(lines,meta){const Y=qsynth(lines);if(!Y.rows.length)return '';const hasD=Y.tot.dhec>0,hasM=Y.tot.murs>0;const est=Y.rows.some(r=>r.src==='estimées'&&(r.barres||r.coudes||r.tes));
+  const cols=[['barres','Barres'],['mlTube','ml de tube'],['mlTr','ml de tranchée',1],['soud','Soudures'],['coudes','Coudes'],['tes','Tés'],['piq','Piquages'],['red','Réductions'],['vannes','Vannes'],['kits','Kits fin de ligne']].concat(hasD?[['dhec','DHEC']]:[]).concat(hasM?[['murs','Passages de mur']]:[]);
+  const pouces=Y.rows.reduce((t,r)=>t+r.soud*(INCH[r.dn]||r.dn/25),0);const m=meta||{};const ctl=[];
+  if(m.pouces)ctl.push(`pouces de soudure annoncés par le fournisseur : <b>${nb(m.pouces,1)}</b> · lus ici : <b>${nb(pouces,1)}</b>${Math.abs(pouces-m.pouces)>m.pouces*0.1?' <span class="eq-tag warn">écart &gt; 10 % : vérifie les manchons</span>':' ✓'}`);
+  if(m.lineaire)ctl.push(`linéaire annoncé : <b>${nb(m.lineaire)} m</b> (tubes + coudes) · barres lues : <b>${nb(Y.tot.mlTube)} m</b>`);
+  const tr=m.tranchee&&Object.keys(m.tranchee).length?Object.keys(m.tranchee).map(Number).sort((a,b)=>b-a).map(dn=>{const r=Y.rows.find(x=>x.dn===dn);return `DN${dn} ${nb(m.tranchee[dn])} m${r?' (lu '+nb(r.mlTr)+')':''}`;}).join(' · '):'';if(tr)ctl.push('longueur de tranchée du fournisseur : '+tr);
+  return `<div style="overflow:auto;max-height:34vh"><table class="rc iq-syn"><tr><th>DN</th>${cols.map(c=>`<th>${c[1]}</th>`).join('')}</tr>${Y.rows.map(r=>`<tr><td>DN ${r.dn}</td>${cols.map(([k,,d])=>`<td class="num">${k==='soud'?`<b>${nb(r.soud)}</b>${r.src==='estimées'&&r.soud?' ≈':''}`:r[k]?nb(r[k],d):'<span class="dim">·</span>'}</td>`).join('')}</tr>`).join('')}<tr class="tot"><td>Total</td>${cols.map(([k,,d])=>`<td class="num">${nb(Y.tot[k],d)}</td>`).join('')}</tr></table></div>
+    <div class="hint">Soudures = manchons (1 manchon = 1 soudure ; réduction ou courbe acier dans un manchon : +1)${est?' ; ≈ = pas de manchon à ce DN : estimées par les bouts des pièces':''}. ml de tranchée = ml de tube ÷ 2 (aller + retour).</div>${ctl.length?`<div class="iq-ctl">${ctl.map(c=>`<div>🔎 ${c}</div>`).join('')}</div>`:''}`;}
+export function iqPanelHTML(st,o){o=o||{};const kinds=o.kinds||IQ_KINDS;const L=st.lines;const counted=iqCounted(st);const lim=150+(st.showMore||0);
+  const lineRow=(x,i)=>{const k=x.kind==='reducer'&&x.joint&&kinds.some(z=>z[0]==='reducerJ')?'reducerJ':x.kind;const bend=k==='bend'||k==='steelbend',two=k==='tee'||k==='reducer'||k==='reducerJ';
+    const lab=o.labelOf?o.labelOf(x):'';return `<tr><td class="iq-des">${esc(x.des||x.label||'')}${x.ref?` <span class="dim">· ${esc(x.ref)}</span>`:''}${lab&&lab!==(x.des||x.label)?`<div class="iq-lab">→ ${esc(lab)}</div>`:''}${x.note?`<div class="dim">${esc(x.note)}</div>`:''}${x.kind==='pipe'&&x.ml&&!/ml →/.test(x.note||'')?`<div class="dim">${nb(x.ml,1)} ml → ${nb(x.qty)} barre${x.qty>1?'s':''} de ${x.len||12} m</div>`:''}</td>
+      <td>${kSel(k,`data-iqk="${i}"`,kinds)}</td><td>${x.kind==='acc'?'—':dSel(x.dn,`data-iqd="${i}"`)}</td><td>${bend?`<input class="f iq-n" type="number" min="1" max="90" data-iqx="${i}" value="${esc(x.angle||90)}">`:two?dSel(x.dn2,`data-iqx="${i}"`):'—'}</td>
+      <td><input class="f iq-n" type="number" min="0" step="any" data-iqq="${i}" value="${esc(x.kind==='pipe'&&x.unit==='ml'&&x.ml?x.ml:x.qty)}">${x.kind==='pipe'&&x.unit==='ml'?' <span class="dim">ml</span>':''}</td><td><button class="btn sm" data-iqdel="${i}" style="color:#9b2c22" title="Retirer cette ligne" aria-label="Retirer cette ligne">✕</button></td></tr>`;};
+  const unk=st.unknown;const opt=st.options;
+  const al=st.alt;const altTxt=al?(al.src==='trame'?`Ce classeur contient aussi une trame SCR remplie (${esc(al.mode||'')}) : ${al.lines.length} ligne${al.lines.length>1?'s':''}${al.bad&&al.bad.length?', '+al.bad.length+' refusée'+(al.bad.length>1?'s':''):''}.`:`Lecture automatique du tableau du fournisseur : ${al.lines.length} ligne${al.lines.length>1?'s':''} reconnue${al.lines.length>1?'s':''}${al.unknown&&al.unknown.length?', '+al.unknown.length+' à classer':''}.`):'';
+  return `${st.info?`<div class="hint iq-info" style="margin-top:6px">${st.info}</div>`:''}${al?`<div class="iq-alt">${altTxt} <button class="btn sm" data-iqalt="1">↔ Utiliser ${al.src==='trame'?'la trame':'la lecture automatique'} à la place</button></div>`:''}
+    ${counted.length?`<div class="eq-lab" style="margin-top:8px">Synthèse par DN · ${counted.length} ligne${counted.length>1?'s':''}${st.withOpt&&opt.length?' (options comprises)':''}</div>${iqSynthHTML(counted,st.meta)}`:''}
+    ${L.length?`<details class="iq-lines" data-iqtoggle="showLines"${st.showLines?' open':''}><summary>Lignes lues · ${L.length} — vérifier, corriger le type, le DN, la quantité</summary>${st.showLines?`<div style="overflow:auto;max-height:46vh"><table class="rc iq-tab"${o.tableId?` id="${esc(o.tableId)}"`:''}><tr><th>Ligne du fournisseur</th><th>Pièce</th><th>DN</th><th>DN 2 / °</th><th>Qté</th><th></th></tr>${L.slice(0,lim).map(lineRow).join('')}</table></div>${L.length>lim?`<button class="btn sm" data-iqmore="1" style="margin-top:4px">Afficher ${Math.min(150,L.length-lim)} lignes de plus (${L.length-lim} restantes)</button>`:''}`:''}</details>`:''}
+    ${unk.length?`<details class="iq-unk" open><summary style="color:#7a5200">${unk.length} ligne${unk.length>1?'s':''} à classer — choisis la pièce (sinon elle n'est pas comptée)</summary><table class="rc iq-tab">${unk.map((u,j)=>`<tr><td class="iq-des">${esc(u.des)}${u.ref?` <span class="dim">· ${esc(u.ref)}</span>`:''}</td><td class="num">${nb(u.qty,2)}${u.unit==='ml'?' ml':''}</td><td>${kSel('',`data-iquk="${j}"`,[['','— ne pas compter —']].concat(kinds))}</td><td>${dSel(u.dn,`data-iqud="${j}"`)}</td></tr>`).join('')}</table></details>`:''}
+    ${opt.length?`<details class="iq-opt"><summary>${opt.length} ligne${opt.length>1?'s':''} en OPTION (variante, cales, grillage…) — ${st.withOpt?'<b>comptées</b>':'non comptées'}</summary><label style="display:flex;gap:6px;align-items:center;font-size:12.5px;margin:4px 0"><input type="checkbox" data-iqopt="1"${st.withOpt?' checked':''}> Compter les options avec le reste</label><div class="dim" style="font-size:11px;line-height:1.5">${opt.map(x=>esc((x.kind?kindLabel(x.kind==='reducer'&&x.joint?'reducerJ':x.kind)+' ':'')+(x.dn?'DN'+x.dn+' ':'')+'× '+nb(x.qty,2)+' — '+(x.des||''))).join('<br>')}</div></details>`:''}
+    ${st.ignored.length?`<details class="iq-ign"><summary class="dim">${st.ignored.length} ligne${st.ignored.length>1?'s':''} ignorée${st.ignored.length>1?'s':''} (totaux, transport, études, conditions…)</summary><div class="dim" style="font-size:11px;line-height:1.5">${st.ignored.slice(0,80).map(x=>'<b>'+esc(x.why)+'</b> · '+esc(x.des)).join('<br>')}</div></details>`:''}
+    ${st.bad.length?`<details class="iq-bad" open><summary style="color:#8a1f1f">${st.bad.length} ligne${st.bad.length>1?'s':''} de trame refusée${st.bad.length>1?'s':''} (à corriger dans la trame, ou à saisir)</summary><div class="dim" style="font-size:11px;line-height:1.5">${st.bad.slice(0,40).map(esc).join('<br>')}</div></details>`:''}`;}
+/* ── câblage : lecture du fichier / du collage, modifications des lignes ; rd() = re-rendre la fenêtre ── */
+export function iqWire(root,st,rd,o){o=o||{};if(!root)return;const toast=o.toast||(()=>{});wireTrameBox(root,toast);
+  root.querySelectorAll('[data-iqm]').forEach(b=>b.onclick=()=>{st.mode=b.dataset.iqm;rd();});
+  const fi=root.querySelector('#iq-file');if(fi)fi.onchange=async()=>{const f=fi.files[0];if(!f)return;st.info='Lecture de '+esc(f.name)+'…';rd();
+    try{const R=await iqReadFile(f,{loadPdfJs:o.loadPdfJs,bl:o.bl,fallback:o.fallback});iqTake(st,R,f.name);st.file=f;if(o.onRead)o.onRead(R,f);}catch(e){console.warn(e);st.info='<b style="color:#8a1f1f">Fichier illisible ici</b> ('+esc(e.message||e)+') — colle les lignes depuis Excel.';}rd();};
+  const rb=root.querySelector('#iq-read');if(rb)rb.onclick=()=>{const t=(root.querySelector('#iq-paste')||{}).value||'';if(!t.trim()){toast('Rien à lire : colle les lignes copiées depuis Excel');return;}iqTake(st,iqReadPaste(t,'',o.fallback),'');if(o.onRead)o.onRead(null,null);rd();};
+  root.querySelectorAll('details[data-iqtoggle]').forEach(d=>d.addEventListener('toggle',()=>{const k=d.dataset.iqtoggle;const was=!!st[k];st[k]=d.open;if(d.open&&!was)rd();}));
+  const L=st.lines;const fixK=(x,v)=>{if(v==='reducerJ'){x.kind='reducer';x.joint=true;}else{x.kind=v;delete x.joint;}if(x.kind==='pipe'){if(!x.len)x.len=12;}else if(x.unit==='ml'&&x.kind!=='acc'){x.unit='u';delete x.ml;}if(x.kind==='acc'&&!x.label)x.label=x.des||'Accessoire';if(x.kind!=='acc'&&!x.dn){const g=dnGuess(x.des||'',st.meta&&st.meta.gaines);if(g.dn){x.dn=g.dn;if(g.dn2&&(x.kind==='tee'||x.kind==='reducer'))x.dn2=g.dn2;}}};
+  root.querySelectorAll('[data-iqk]').forEach(s=>s.onchange=()=>{const x=L[+s.dataset.iqk];if(!x)return;fixK(x,s.value);x.note=((x.note||'').replace(/(^| · )corrigée à la main/,'')+' · corrigée à la main').replace(/^ · /,'');rd();});
+  root.querySelectorAll('[data-iqd]').forEach(s=>s.onchange=()=>{const x=L[+s.dataset.iqd];if(x){x.dn=+s.value||undefined;rd();}});
+  root.querySelectorAll('[data-iqx]').forEach(s=>s.onchange=()=>{const x=L[+s.dataset.iqx];if(!x)return;const v=+s.value||0;if(x.kind==='bend'||x.kind==='steelbend')x.angle=v>0&&v<=90?v:90;else x.dn2=v||undefined;rd();});
+  root.querySelectorAll('[data-iqq]').forEach(s=>s.onchange=()=>{const x=L[+s.dataset.iqq];if(!x)return;const v=Math.max(0,+String(s.value).replace(',','.')||0);if(x.kind==='pipe'&&x.unit==='ml'){x.ml=v;x.qty=Math.ceil(v/(x.len||12)-1e-9);}else x.qty=v;rd();});
+  root.querySelectorAll('[data-iqdel]').forEach(b=>b.onclick=()=>{L.splice(+b.dataset.iqdel,1);rd();});
+  root.querySelectorAll('[data-iqmore]').forEach(b=>b.onclick=()=>{st.showMore=(st.showMore||0)+150;rd();});
+  root.querySelectorAll('[data-iquk]').forEach(s=>s.onchange=()=>{const j=+s.dataset.iquk;const u=st.unknown[j];if(!u||!s.value)return;const dnS=root.querySelector(`[data-iqud="${j}"]`);const x={qty:u.qty,unit:u.unit||'u',des:u.des,ref:u.ref,note:'classée à la main'};
+    fixK(x,s.value);const dn=dnS&&+dnS.value||u.dn;if(dn&&x.kind!=='acc')x.dn=dn;if(x.kind==='pipe'){x.len=x.len||12;if(x.unit==='ml'){x.ml=u.qty;x.qty=Math.ceil(u.qty/x.len-1e-9);}}if(x.kind==='bend'||x.kind==='steelbend')x.angle=90;if(x.kind==='acc')x.label=u.des;
+    L.push(x);st.unknown.splice(j,1);st.showLines=true;rd();});
+  const oc=root.querySelector('[data-iqopt]');if(oc)oc.onchange=()=>{st.withOpt=oc.checked;rd();};
+  const ab=root.querySelector('[data-iqalt]');if(ab)ab.onclick=()=>{const nx=st.alt;if(!nx)return;nx.alt=Object.assign({},st._r,{alt:null});iqTake(st,nx,st.fichier);rd();};}
