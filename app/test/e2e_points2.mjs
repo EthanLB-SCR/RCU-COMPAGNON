@@ -75,6 +75,15 @@ C.c5=out.jours.wc===10&&out.jours.benne===10&&out.nbJ===10&&out.cal===11&&out.fe
 out=await page.evaluate(()=>{const T=window.TRACE;const a=T.affaires.get('O2610-13');const z=JSON.parse(JSON.stringify(a.chiffrage.etudes.find(x=>x.fromPoints)));const solo=JSON.parse(JSON.stringify(z));solo.hydro.zones=[z.hydro.zones[0]];const calc=e=>T.affaires.calc(Object.assign({},a,{chiffrage:{etudes:[e]}})).etudes[0].r.postes.rincage.achat;return {two:Math.round(calc(z)),one:Math.round(calc(solo))};});
 console.log('6) rinçage par zone :',JSON.stringify(out));
 C.c6=out.two>0&&out.two===out.one;
+// ── 6 b) prestation GLOBALE (13/10, Ethan : « 3 tronçons d'épreuve mais un seul rinçage global ») : une seule fois sur le volume cumulé des tronçons cochés
+await click('tab|lecture');await wait(300);await chg('#eq-app [data-afx="pt§hydro.troncons.1.rincage"]',true);await chg('#eq-app [data-afx="pt§hydro.global.rincage"]',true);
+out={gl:await page.evaluate(()=>{const b=document.querySelector('#eq-app .cm-hglob');const h=[...document.querySelectorAll('#eq-app .hint')].map(x=>x.textContent).find(t=>/^Rinçage global/.test(t))||'';return {bar:b?b.textContent.replace(/\s+/g,' '):'',h,lab:[...document.querySelectorAll('#eq-app .cm-trpr')].map(x=>x.textContent.replace(/\s+/g,' ').trim())[0]||''};})};
+await click('ptprefill|');await wait(500);
+out.calc=await page.evaluate(()=>{const T=window.TRACE;const a=T.affaires.get('O2610-13');const z=JSON.parse(JSON.stringify(a.chiffrage.etudes.find(x=>x.fromPoints)));const calc=e=>T.affaires.calc(Object.assign({},a,{chiffrage:{etudes:[e]}})).etudes[0].r;
+  const g=calc(z);const per=JSON.parse(JSON.stringify(z));per.hydro.global={};const one=JSON.parse(JSON.stringify(z));one.hydro.global={};one.hydro.zones=[{nom:'tout',rows:z.hydro.zones.flatMap(x=>x.rows),pr:{epreuve:true,rincage:true}}];
+  return {glob:z.hydro.global,g:Math.round(g.postes.rincage.achat),per:Math.round(calc(per).postes.rincage.achat),one:Math.round(calc(one).postes.rincage.achat),ids:(g.detail.hydro.groups.rincage[0]||{}).ids,ep:Math.round(g.postes.epreuve.achat),epPer:Math.round(calc(per).postes.epreuve.achat)};});
+console.log('6 b) rinçage global :',JSON.stringify(out));
+C.c6b=/Rinçage globale/.test(out.gl.bar)&&/^Rinçage global : [\d,]+ m³ \(Tronçon 1, Tronçon 2\)/.test(out.gl.h)&&/Rinçage \(global\)/.test(out.gl.lab)&&out.calc.glob&&out.calc.glob.rincage===true&&out.calc.g===out.calc.one&&out.calc.g<out.calc.per&&(out.calc.ids||[]).join()==='0,1'&&out.calc.ep===out.calc.epPer;
 // ── 7) ancienne saisie (radio « % », rangées d'essai, rinçage global) : reprise sans perte
 await page.evaluate(()=>{const T=window.TRACE;T.affaires.set('O2610-13',{points:{radio:{on:true,pct:15,vac:8,raccFilms:2},hydro:{on:true,rows:[{nom:'Rue A',dn:100,ml:50},{nom:'Rue A',dn:80,ml:20},{nom:'',dn:150,ml:40}]},rincage:{on:true}}});});await wait(300);
 await page.evaluate(()=>document.querySelector('#eq-app [data-act=af][data-v="tab|lecture"]').click());await wait(500);

@@ -25,10 +25,11 @@ export function regSet(kind,id,patch,opts){opts=opts||{};const mode=opts.replace
   if(!opts.local){ /* une écriture en attente sur la même ligne est remplacée par la fusion des deux (le serveur ne verra que le résultat) */
     const i=PEND.findIndex(w=>w.kind===kind&&w.id===id);if(i>=0){const w=PEND[i];PEND[i]={kind,id,patch:mode==='replace'?patch:merge(w.mode==='replace'?w.patch:w.patch,patch,'merge'),mode:w.mode==='replace'?'replace':mode};}else PEND.push({kind,id,patch,mode});
     kvSet('trace:regPending',PEND);clearTimeout(flushT);flushT=setTimeout(()=>regFlush().catch(e=>console.warn(e)),600);}
-  emit(kind);return data;}
+  if(!opts.quiet)emit(kind); /* 13/10 : quiet = enregistré (appareil + serveur) sans redessiner — texte du mémoire tapé dans la page */return data;}
 export function regDelete(kind,id,opts){return regSet(kind,id,{deleted:true,deletedAt:new Date().toISOString(),deletedBy:A.userName?A.userName():''},opts);}
 export async function regFlush(){if(!PEND.length||!A.state.cloudUser||!A.sync.setRegistre)return;const list=PEND.slice();const rest=[];
   for(let i=0;i<list.length;i++){const w=list[i];let ok=false,stop=false;try{const r=await A.sync.setRegistre(w.kind,w.id,w.patch,w.mode);ok=!!r.ok;if(!ok&&r.missing){if(/registre inconnu/i.test(r.error||'')){if(A.toast&&!WARNED[w.kind]){WARNED[w.kind]=1;A.toast('Serveur : passe le SQL sql/'+({prix:'retours_13-10b.sql',panier:'retours_13-10b.sql',cpth:'retours_13-10d.sql'}[w.kind]||'retours_12-10.sql')+' (registre « '+w.kind+' »)');}} /* 12/10 : un registre que le serveur ne connaît pas encore attend, sans bloquer les autres */else{if(A.toast)A.toast('Serveur : passe le SQL sql/nuit_v1.sql (registre)');stop=true;}}
+      else if(!ok&&/droit|réservé/i.test(r.error||'')&&A.toast&&!WARNED['x'+w.kind]){WARNED['x'+w.kind]=1;A.toast('Serveur : écriture refusée — '+String(r.error).replace(/^.*?:\s*/,'').slice(0,140)+' (la modification reste sur cet appareil)');} /* 13/10 (e) : base de prix sans le droit côté serveur */
       if(ok&&r.row&&r.row.data&&!list.some(x=>x!==w&&x.kind===w.kind&&x.id===w.id)){put(w.kind,w.id,r.row.data,r.row.updated_at);kvSet('trace:reg:'+w.kind,ROWS[w.kind]);}}catch(e){console.warn(e);}
     if(stop){rest.push(...list.slice(i));break;}if(!ok)rest.push(w);}
   PEND=rest.concat(PEND.filter(w=>!list.includes(w)));kvSet('trace:regPending',PEND);}

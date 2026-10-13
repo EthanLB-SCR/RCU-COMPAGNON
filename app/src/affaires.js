@@ -6,11 +6,12 @@
 // Données : registre kind « affaire », id = numéro (O2512-04). Droits : affaires.view (voir), affaires.edit (créer / modifier). Une affaire peut être liée à des chantiers tracés.
 import {regAll,regGet,regSet,regLoad,regLoaded} from './reg.js';
 import {initCommerce,STEPS,stepState,noteDests,notesOf,notesBlock,dossierHTML,lectureHTML,memoireHTML,dpgfHTML,offreHTML,commerceAct,commerceInput} from './commerce.js'; // 13/10 : le dossier de A à Z (dossier, lecture, mémoire, DPGF, offre)
-import {initChiffrage,prixBase,calcAffaireV2,chiffrage2HTML,chiffrageAct,chiffrageInput,chiffragePrint2HTML,etudesOf} from './chiffrage.js'; // 13/10 : chiffrage v2 (classeur 26.08.2026 : zones, paniers, base de prix)
+import {initChiffrage,prixBase,calcAffaireV2,chiffrage2HTML,chiffrageAct,chiffrageInput,chiffragePrint2HTML,etudesOf,baseAct,prixPageHTML} from './chiffrage.js'; // 13/10 : chiffrage v2 (classeur 26.08.2026 : zones, paniers, base de prix)
 import {initDce,dossierDceHTML,lecture2HTML,lectureMount,pointsHTML,dceAct,dceInput,dceFiles,CATS,catOf} from './dce.js'; // 13/10 : dossier (zip déballé, versions, mails) et lecture des pièces (visionneuse, surlignages, points techniques)
 import {quantitesHTML} from './commerce.js';
+import {initQsets,qsetsHTML,qsetsAct,qsetsInput} from './qsets.js'; // 13/10 (lot 3) : études fournisseur (trame type SCR), saisie à la main, tracé — comparés, « → Prendre »
 let A=null;
-export function initAffaires(api){A=api;initCommerce(api);const api2=Object.assign({},api,{cur:()=>AS.cur?affGet(AS.cur):null,affGet:id=>affGet(id),affSet:(id,p)=>affSet(id,p),goTab:t=>{AS.tab=t;}});initChiffrage(api2);initDce(api2);}
+export function initAffaires(api){A=api;initCommerce(api);const api2=Object.assign({},api,{cur:()=>AS.cur?affGet(AS.cur):null,affGet:id=>affGet(id),affSet:(id,p)=>affSet(id,p),goTab:t=>{AS.tab=t;}});initChiffrage(api2);initDce(api2);initQsets(api2);}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nb=(x,d)=>{x=+x||0;return x.toLocaleString('fr-FR',{maximumFractionDigits:d===undefined?0:d,minimumFractionDigits:d===undefined?0:d});};
 const eur=x=>nb(x)+' €';
@@ -53,6 +54,7 @@ export const affLoad=()=>regLoad(['affaire','prix','panier']); /* 13/10 : + base
 export const affAll=()=>regAll('affaire').filter(a=>a&&a.num).sort((a,b)=>String(b.num).localeCompare(String(a.num)));
 export const affGet=id=>regGet('affaire',id);
 export function affSet(id,patch){return regSet('affaire',id,patch);}
+export function affSetQuiet(id,patch){return regSet('affaire',id,patch,{quiet:true});} /* 13/10 : sans redessiner (frappe dans le mémoire) */
 export function affNew(num,data){return regSet('affaire',num,Object.assign({num,etat:'preconsult',at:new Date().toISOString(),by:A.userName?A.userName():''},data||{}));}
 export const SECT_LETTER={O:'ouest',I:'idf',S:'sud',W:'sudouest',E:'est'};
 export const parentNum=num=>{const m=String(num||'').match(/^([A-Z]\d{4}-\d{2})/);return m?m[1]:String(num||'');};
@@ -61,7 +63,7 @@ export const isSub=a=>parentNum(a.num)!==String(a.num);
 const AS={view:'list',cur:null,tab:'fiche',etat:'',secteur:'',q:'',zone:0,year:new Date().getFullYear(),newOpen:false,seg:'devis'};
 /* 12/10 soir (Ethan) : l'onglet Commerce — Reporting (traçabilité de toutes les affaires : gagné, facturé, restant) · Devis & chiffrage (en suspens : préconsultation, devis — chiffrage jusqu'à 10 versions,
    tours de négociation, alignement technique) · Dossiers en cours (à débuter, en cours : facturation, tableau client) · Terminés / perdus */
-export const SEGS=[['rep','📊 Reporting',null],['devis','📝 Devis & chiffrage',['preconsult','devis']],['cours','🏗 Dossiers en cours',['a_debuter','en_cours']],['fin','✓ Terminés · perdus',['termine','perdu']]];
+export const SEGS=[['rep','📊 Reporting',null],['devis','📝 Devis & chiffrage',['preconsult','devis']],['cours','🏗 Dossiers en cours',['a_debuter','en_cours']],['fin','✓ Terminés · perdus',['termine','perdu']],['prix','⚙ Base de prix SCR',null]]; /* 13/10 : la base de prix sans ouvrir d'affaire */
 const segEtats=()=>{const sg=SEGS.find(x=>x[0]===AS.seg);return sg?sg[2]:null;};
 export const affState=()=>AS;
 const tag=k=>{const e=etat(k);return `<span class="af-tag" style="background:${e[2]}">${e[1]}</span>`;};
@@ -108,7 +110,7 @@ export function affFicheHTML(me,canEdit,ctx){const a=affGet(AS.cur);if(!a)return
         <div class="eq-acts" style="margin-top:8px"><button class="btn primary" data-act="af" data-v="dceadd|">Ajouter la pièce</button><label class="btn">📎 Déposer un fichier (PDF, zip du DCE…)<input type="file" id="afd-file" data-affile="${esc(a.num)}" style="display:none" multiple></label></div>
         <div class="hint" style="margin-top:6px">Un zip déposé est gardé tel quel comme <b>archive d'origine</b> (jusqu'à 50 Mo par fichier au stockage ; au-delà, un lien Drive / SharePoint). Puis ajoute les pièces utiles une à une (CCTP, DPGF, plans) et pose des <b>notes de lecture</b> (✎, étape 2) : page / article, extrait, une ou plusieurs destinations (chiffrage, mémoire technique, risque, question MOE).</div></div>`:''}</div>`;
     body=dossierHTML(a,canEdit,ctx,dceBody);}
-  else if(AS.tab==='lecture'){body=lecture2HTML(a,canEdit,ctx,pointsHTML(a,canEdit)+quantitesHTML(a,canEdit));setTimeout(()=>{try{lectureMount(affGet(a.num)||a,ctx);}catch(e){console.warn(e);}},0);} /* 13/10 : la visionneuse se monte après le rendu (dce.js) */
+  else if(AS.tab==='lecture'){body=lecture2HTML(a,canEdit,ctx,qsetsHTML(a,canEdit,ctx)+quantitesHTML(a,canEdit)+pointsHTML(a,canEdit)); /* 13/10 : quantités (études, repérées) AVANT les points techniques qui s'en servent (CND, essai hydraulique) */setTimeout(()=>{try{lectureMount(affGet(a.num)||a,ctx);}catch(e){console.warn(e);}},0);} /* 13/10 : la visionneuse se monte après le rendu (dce.js) */
   else if(AS.tab==='memoire')body=memoireHTML(a,canEdit,ctx);
   else if(AS.tab==='dpgf')body=dpgfHTML(a,canEdit,ctx);
   else if(AS.tab==='offre')body=offreHTML(a,canEdit,ctx);
@@ -180,7 +182,9 @@ function dceNoteModal(a,d,ctx){A.openModal(`<h3 style="margin-top:0">Note de lec
   document.getElementById('dn-ok').onclick=()=>{const g=id=>(document.getElementById(id)||{}).value||'';const dests=[...document.querySelectorAll('#modal input[name=dn-dest]:checked')].map(x=>x.value);if(!dests.length){A.toast('Coche au moins une destination');return;}const n={ref:g('dn-ref').trim(),dest:dests[0],dests,extrait:g('dn-extrait').trim(),texte:g('dn-texte').trim(),by:A.userName(),at:new Date().toISOString()};if(!n.extrait&&!n.texte){A.toast('Un extrait ou une note');return;}
     const cur=affGet(a.num);regSet('affaire',a.num,{dce:(cur.dce||[]).map(x=>x.id===d.id?Object.assign({},x,{notes:(x.notes||[]).concat([n])}):x)});A.closeModal();A.toast('Note ajoutée · '+dests.map(x=>DEST[x]||x).join(' · '));if(ctx.render)ctx.render();};}
 export function affAct(v,el,ctx){const [k,arg,arg2,arg3]=String(v).split('|');const a=AS.cur?affGet(AS.cur):null;const canEdit=ctx.canEdit;const say=t=>A.toast&&A.toast(t);
+  if(!a&&AS.seg==='prix'&&baseAct(k,arg,arg2,arg3,Object.assign({},ctx,{page:true})))return; /* 13/10 : page Base de prix SCR */
   if(a&&dceAct(k,arg,arg2,arg3,ctx))return; /* 13/10 : dossier et lecture (dce.js) */
+  if(a&&qsetsAct(k,arg,arg2,ctx))return; /* 13/10 (lot 3) : études fournisseur, saisie, tracé (qsets.js) */
   if(a&&commerceAct(k,arg,arg2,arg3,ctx))return; /* 13/10 : dossier de A à Z (commerce.js) — lecture, mémoire, DPGF, offre */
   if(a&&chiffrageAct(k,arg,arg2,arg3,ctx))return; /* 13/10 : chiffrage v2 (chiffrage.js) */
   const upd=patch=>{if(!a)return;affSet(a.num,patch);};
@@ -219,6 +223,7 @@ export function affAct(v,el,ctx){const [k,arg,arg2,arg3]=String(v).split('|');co
   if(ctx.render)ctx.render();}
 /* ── saisie des champs (data-afin, data-afz, data-afc, data-afb, data-aff, data-afs, data-afzn) ── */
 export function affInput(el,ctx){const d=el.dataset;if(d.afin==='q'){AS.q=el.value;if(ctx.render)ctx.render();return true;}if(d.afin==='newsect'){const n=document.getElementById('afn-num');if(n)n.value=affNextNum(el.value);return true;}
+  if(qsetsInput(el,ctx))return true; /* 13/10 (lot 3) : nom d'une étude, lignes saisies à la main */
   if(dceInput(el,ctx))return true; /* 13/10 : pièces (catégorie, nouvelle version) */
   if(chiffrageInput(el,ctx))return true; /* 13/10 : chiffrage v2 (data-afx, import du classeur data-afprix) */
   if(!ctx.canEdit){if(A.toast)A.toast('Lecture seule : droit « Affaires : créer et modifier » nécessaire');return true;}
@@ -247,6 +252,7 @@ export function affCSV(){const all=affAll();const y=AS.year;const H=['Numéro','
 export function affView(me,ctx){const canEdit=ctx.canEdit;const segBar=`<div class="eq-filtres af-segs">${SEGS.map(([k,l])=>`<button class="chip${AS.seg===k?' active':''}" data-act="af" data-v="seg|${k}">${l}</button>`).join('')}</div>`;
   if(AS.view==='fiche'&&AS.cur)return `<button class="ac-back" data-act="af" data-v="back|">‹ ${esc((SEGS.find(x=>x[0]===AS.seg)||SEGS[1])[1].replace(/^\S+\s/,''))}</button>`+affFicheHTML(me,canEdit,ctx);
   if(AS.seg==='rep')return `<h2 class="vt">Commerce <span class="hint">· reporting : toutes les affaires, le gagné, le facturé, le restant</span></h2>`+segBar+affRecapHTML()+affTraceHTML();
+  if(AS.seg==='prix')return `<h2 class="vt">Commerce <span class="hint">· base de prix SCR</span></h2>`+segBar+prixPageHTML(ctx);
   const sg=SEGS.find(x=>x[0]===AS.seg)||SEGS[1];
   return `<h2 class="vt">Commerce <span class="hint">· ${esc(sg[1].replace(/^\S+\s/,''))}</span></h2>`+segBar+`<div class="hint" style="margin:0 0 6px">${AS.seg==='devis'?'En suspens, ni gagné ni perdu : préconsultations et devis — création de l\'affaire, DCE, chiffrage (jusqu\'à 10 versions : négociation, alignement technique), offre remise.':AS.seg==='cours'?'Affaires gagnées : à débuter et en cours — chantiers liés, tableau de facturation envoyé au client, situations renseignées pour un suivi à jour.':'Dossiers terminés et perdus : la traçabilité reste (chiffrage, facturé, documents).'}</div>`+affListHTML(me,canEdit);}
 /* traçabilité : toutes les affaires créées, une ligne chacune */

@@ -75,6 +75,7 @@ export const PERMS=[
  ['planning.edit','Planning : placer les équipes sur les chantiers de la semaine, fiche chantier (secteur, chef, conducteur)','Équipe'], // 09/10 soir : conducteurs, responsables d'exploitation, direction — pas le chef de chantier (planning imposé)
  ['affaires.view','Affaires : voir les affaires, chiffrages, situations et facturation','Commerce'], // nuit 09→10/10 : volet commerce (chargés d'affaires, direction, exploitation)
  ['affaires.edit','Affaires : créer et modifier (affaire, DCE, chiffrage, situations, facturation)','Commerce'],
+ ['prix.edit','Base de prix SCR : modifier (taux, cadences, fournitures, paramètres, paniers) — d\'office : le gérant ; les autres au cas par cas','Commerce'], // 13/10 (Ethan) : « consultable et modifiable par moi, Jérôme et le gérant »
  ['flotte.manage','Flotte : parc véhicules, contrôles, affectations, alertes','Bureau'], // nuit 09→10/10 : responsable flotte, direction, exploitation
 ];
 export const STEP_PERMS=['weld.step1','weld.step2','weld.step3','weld.step4'];
@@ -107,6 +108,7 @@ export const DEFAULT_RIGHTS={
  resp_flotte:pick(...SOCLE,'stock.edit','flotte.manage'),referent_magasin:pick(...SOCLE,'stock.edit'),
  visiteur:pick('plan.view'),
 };
+Object.keys(DEFAULT_RIGHTS).forEach(k=>{if(k!=='gerant')DEFAULT_RIGHTS[k]={...DEFAULT_RIGHTS[k],'prix.edit':false};}); // base de prix : le gérant d'office ; l'administrateur a tout ; Jérôme & co : ajustement personnel
 // plafond par type de compte : un intérimaire garde le pur opérationnel, un visiteur regarde
 export const TYPE_CAP={
  salarie:null,
