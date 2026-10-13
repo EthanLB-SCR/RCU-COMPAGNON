@@ -85,6 +85,16 @@ console.log('4) refus + réessai :',JSON.stringify(out));C.c4=/⚠️ orientatio
 await page.evaluate(()=>{const T=window.TRACE;const L=Object.values(T.lines)[0];T.openJoint(L.id,'A',4);document.querySelector('#sheet [data-rota="-90"]').click();});await page.waitForTimeout(2600);
 out={rots:await rotOf(),entry:(sites[SID].data.elPos||{})[Object.keys(sites[SID].data.elPos||{}).find(k=>/P5$|\|A\|[^|]*$/.test(k)&&(sites[SID].data.elPos[k]||{}).rot===0)]||null,srv:srvElPos()};
 console.log('4b) remis droit :',JSON.stringify(out));C.c4b=out.rots[4]===0&&!!out.entry&&out.entry.rot===0&&out.srv===5;
+// ── 4c) 13/10 soir (Ethan, sur le poste de Sofiane : « un message d'erreur d'un truc pas envoyé au serveur qu'on n'arrive pas à enlever ») : refus pour DROITS →
+//        « ✕ Abandonner (reprendre la version du serveur) » : la modification quitte l'appareil, la pastille disparaît, le tube revient comme sur le serveur ; rien n'est écrit
+V3='refuse';const srv4c=JSON.stringify(sites[SID].data.elPos||{});const r4c=await rotOf();await rotate(2,90);
+out={r0:r4c[2],before:{rots:await rotOf(),pending:await page.evaluate(()=>window.TRACE.syncPending())}};
+await page.evaluate(()=>document.querySelector('#syncWarn').click());await page.waitForTimeout(200);
+out.btn=await page.evaluate(()=>{const b=document.querySelector('#modal [data-syncdrop]');return b?{k:b.dataset.syncdrop,t:b.textContent}:null;});
+const n4c=rpcs.length;await page.evaluate(()=>document.querySelector('#modal [data-syncdrop]').click());await page.waitForTimeout(1500);
+out.after={rots:await rotOf(),pending:await page.evaluate(()=>window.TRACE.syncPending()),pillGone:await page.evaluate(()=>getComputedStyle(document.querySelector('#syncWarn')).display==='none'),toast:await page.evaluate(()=>document.querySelector('#toast').textContent),srvSame:JSON.stringify(sites[SID].data.elPos||{})===srv4c,rpcs:rpcs.length-n4c};
+V3='ok';console.log('4c) abandonner :',JSON.stringify(out));
+C.c4c=out.before.rots[2]===(out.r0+90)%360&&out.before.pending.includes('elPos')&&out.btn&&out.btn.k==='elPos'&&/Abandonner/.test(out.btn.t)&&out.after.rots[2]===out.r0&&!out.after.pending.length&&out.after.pillGone&&/Abandonné : orientation des tubes/.test(out.after.toast)&&out.after.srvSame&&out.after.rpcs===0;
 // ── 5) rechargement : un 5e tube tourné depuis un autre appareil (serveur plus récent) → à l'ouverture, les 5 rotations sont là
 {const r=sites[SID];const L=await page.evaluate(()=>{const T=window.TRACE;const L=Object.values(T.lines)[0];return {id:L.id,el:L.cond.A.els[6].id};});r.data.elPos={...r.data.elPos,[L.id+'|A|'+L.el]:{rot:180,flip:0,td:0}};r.updated_at=new Date(Date.now()+8000).toISOString();}
 const nBefore=calls.length;await page.reload();await page.waitForTimeout(800);try{await page.waitForFunction(()=>window.TRACE&&window.TRACE.state.cloudUser,null,{timeout:5000});}catch(e){}

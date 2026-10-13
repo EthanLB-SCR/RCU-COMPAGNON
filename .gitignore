@@ -13,3 +13,11 @@ app/test/bl/
 
 # 10/10 : documents sources lourds dans app/docs (annexe 5 quarts d heure, 33 Mo) — pas dans le depot
 app/docs/*.pdf
+
+# 13/10/2026 : DONNÉES INTERNES SCR — jamais dans le dépôt (il est public, et GitHub Pages sert tous ses fichiers).
+# Fichiers d'import (RH, accès, flotte, affaires, mémoire…) : à garder dans C:\Users\EthanLEBIHAN\Dev\SCR-PRIVE (hors du dépôt).
+app/sql/*import*.sql
+app/sql/blocs_memoire*.sql
+app/sql/liste_*
+prive/
+SCR-PRIVE/

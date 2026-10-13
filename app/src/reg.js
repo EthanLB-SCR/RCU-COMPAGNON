@@ -10,6 +10,7 @@ let PEND=[];              // [{kind, id, patch, mode}] en attente de réseau
 const LISTENERS=new Set();
 const LOADED=new Set();
 let flushT=null;const WARNED={};
+const REFUSED={}; // 13/10 soir : écritures refusées par le serveur pour une question de DROITS — gardées (le droit peut arriver), listées avec « Abandonner » (pastille ⚠️ de l'appli)
 export function initReg(api){A=api;}
 export function onReg(cb){LISTENERS.add(cb);return ()=>LISTENERS.delete(cb);}
 function emit(kind){LISTENERS.forEach(cb=>{try{cb(kind);}catch(e){console.warn(e);}});}
@@ -29,10 +30,14 @@ export function regSet(kind,id,patch,opts){opts=opts||{};const mode=opts.replace
 export function regDelete(kind,id,opts){return regSet(kind,id,{deleted:true,deletedAt:new Date().toISOString(),deletedBy:A.userName?A.userName():''},opts);}
 export async function regFlush(){if(!PEND.length||!A.state.cloudUser||!A.sync.setRegistre)return;const list=PEND.slice();const rest=[];
   for(let i=0;i<list.length;i++){const w=list[i];let ok=false,stop=false;try{const r=await A.sync.setRegistre(w.kind,w.id,w.patch,w.mode);ok=!!r.ok;if(!ok&&r.missing){if(/registre inconnu/i.test(r.error||'')){if(A.toast&&!WARNED[w.kind]){WARNED[w.kind]=1;A.toast('Serveur : passe le SQL sql/'+({prix:'retours_13-10b.sql',panier:'retours_13-10b.sql',cpth:'retours_13-10d.sql'}[w.kind]||'retours_12-10.sql')+' (registre « '+w.kind+' »)');}} /* 12/10 : un registre que le serveur ne connaît pas encore attend, sans bloquer les autres */else{if(A.toast)A.toast('Serveur : passe le SQL sql/nuit_v1.sql (registre)');stop=true;}}
-      else if(!ok&&/droit|réservé/i.test(r.error||'')&&A.toast&&!WARNED['x'+w.kind]){WARNED['x'+w.kind]=1;A.toast('Serveur : écriture refusée — '+String(r.error).replace(/^.*?:\s*/,'').slice(0,140)+' (la modification reste sur cet appareil)');} /* 13/10 (e) : base de prix sans le droit côté serveur */
+      else if(!ok&&/droit|réservé|inactif|permission|policy/i.test(r.error||'')){REFUSED[w.kind+'|'+w.id]={kind:w.kind,id:w.id,error:String(r.error||'').slice(0,160),at:Date.now()};if(A.toast&&!WARNED['x'+w.kind]){WARNED['x'+w.kind]=1;A.toast('Serveur : écriture refusée — '+String(r.error).replace(/^.*?:\s*/,'').slice(0,140)+' (gardée sur cet appareil : ⚠️ en haut pour l\'abandonner)');}} /* 13/10 (e) : base de prix sans le droit côté serveur ; 13/10 soir : abandon possible */
+      if(ok)delete REFUSED[w.kind+'|'+w.id];
       if(ok&&r.row&&r.row.data&&!list.some(x=>x!==w&&x.kind===w.kind&&x.id===w.id)){put(w.kind,w.id,r.row.data,r.row.updated_at);kvSet('trace:reg:'+w.kind,ROWS[w.kind]);}}catch(e){console.warn(e);}
     if(stop){rest.push(...list.slice(i));break;}if(!ok)rest.push(w);}
-  PEND=rest.concat(PEND.filter(w=>!list.includes(w)));kvSet('trace:regPending',PEND);}
+  PEND=rest.concat(PEND.filter(w=>!list.includes(w)));kvSet('trace:regPending',PEND);if(A.onRefused)try{A.onRefused();}catch(e){}}
+/* 13/10 soir : refus pour droits — la liste, et « Abandonner » (l'écriture quitte la file d'attente, la ligne reprend la valeur du serveur) */
+export const regRefused=()=>Object.values(REFUSED).filter(x=>PEND.some(w=>w.kind===x.kind&&w.id===x.id));
+export async function regDrop(kind,id){PEND=PEND.filter(w=>!(w.kind===kind&&w.id===id));delete REFUSED[kind+'|'+id];kvSet('trace:regPending',PEND);if(ROWS[kind])delete ROWS[kind][id];try{await regReload(kind);}catch(e){}emit(kind);if(A.onRefused)try{A.onRefused();}catch(e){}}
 // chargement : miroir de l'appareil puis serveur (si connecté) ; une écriture en attente garde la main sur sa ligne
 const loading={};
 export function regLoad(kinds){kinds=Array.isArray(kinds)?kinds:[kinds];return Promise.all(kinds.map(k=>loading[k]||(loading[k]=regLoad_(k).catch(e=>console.warn(e)).finally(()=>{delete loading[k];}))));}

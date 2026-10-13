@@ -108,6 +108,7 @@ async function espaceLoad_(){
   LOADED=true;if(ROOT&&document.contains(ROOT))render();if(A.onLoaded)try{A.onLoaded();}catch(e){console.warn(e);}
   if(!DATA)DATA=buildData();meteoEnsure();}
 export const espaceState=()=>({people:PEOPLE,pointages:POINTAGES,pending:PENDING,loaded:LOADED,S});
+export function espaceInvalidate(){DATA=null;} /* 13/10 soir : la liste des comptes arrive (annuaire, invités) → noms et équipes recalculés au prochain affichage (Bureau du chantier compris) */
 /* ── PRODUCTION RÉELLE (refonte ②, 09/10 nuit) : lue dans les fiches de soudure des chantiers chargés sur l'appareil — étape 1 faite par X = 1 soudure (DN du joint),
    étape 2 = DH / fils, étape 3 = 1 manchon (DN tube / enveloppe) ; par personne (nom signé = nom du compte) et par jour. Rien à saisir. ── */
 const jointsOf=net=>{const out=[];const L=net&&net._lines?Object.values(net._lines):[];L.forEach(l=>{if(!l||!l.cond)return;['A','R'].forEach(c=>{const C=l.cond[c];if(!C||!Array.isArray(C.joints))return;C.joints.forEach(j=>{const e=Array.isArray(C.els)?C.els[j.idx]:null;out.push({j,l,dn:String(j.dn||(e&&e.dn)||l.dn||'?')});});});});return out;};
