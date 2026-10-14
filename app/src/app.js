@@ -3,6 +3,7 @@ import DB from './db.json';
 import {createPieceEngine} from './pieces.js';
 import CATALOGUE from './catalogue.json';
 import {parseDXF,parseDXFFile,analyze,buildSite,buildSiteJBTP,drawingOf,buildDrawing,previewSVG,drawingSVG,drawingBBoxes,decimateDrawing} from './dxfimport.js';
+import {sheetImagesSVG} from './plans.js'; // 14/10 (multi-plans) : images de fond (plusieurs, chacune avec son calage : position, rotation, échelle) — les DXF calés sont déjà fusionnés dans net.drawing par le traceur
 import {sync,mergeServerParts} from './sync.js';
 import {kv} from './kv.js';
 import {geoOfSite,fixGeoPts,planToLonLat,lonLatToPlan,tilesFor,ignTileURL,IGN_LAYERS,distLL,fmtDist,crsName,similarityFromPairs,geocode,CRS} from './geo.js';
@@ -395,7 +396,7 @@ function setupSite(id){
   state.fzPose=null;const fzb=$('#fzBar');if(fzb)fzb.style.display='none'; /* 13/10 : zone de fourniture en cours de tracé */
   if(siteStore[id]){const st=siteStore[id];NET=st.NET;state.lines=st.lines;state.sheets=st.sheets;state.nextWeld=st.nextWeld;state.sheetId=st.sheetId;state.locate={...state.locate,line:st.firstLine};bgG.dataset.sheet='';return;}
   NET=SITES[id];state.lines={};state.sheets={};state.nextWeld=1;
-  const sh={id:'s_'+id,name:NET.name,type:NET.sheetType||'blank',w:NET.w,h:NET.h,ppm:1,lines:[],ann:NET.ann||[],drawing:NET.drawing||null,plain:NET.source==='traceur',image:NET.image||null};state.sheets[sh.id]=sh;state.sheetId=sh.id;
+  const sh={id:'s_'+id,name:NET.name,type:NET.sheetType||'blank',w:NET.w,h:NET.h,ppm:1,lines:[],ann:NET.ann||[],drawing:NET.drawing||null,plain:NET.source==='traceur',image:NET.image||null,plans:Array.isArray(NET.plans)&&NET.plans.length?NET.plans:null};state.sheets[sh.id]=sh;state.sheetId=sh.id; /* 14/10 (multi-plans) : sh.plans = tous les plans de fond du traceur (images avec leur calage ; sans plans : comportement d'avant) */
   const KL={pipe:'barre',bend:'coude',steelbend:'changement de direction au manchon (SXB)',tee:'té',valve:'vanne',endcap:'bouchon',reducer:'réduction'};
   NET.lines.forEach(L=>{if(L.traceur&&L.cond){setupTraceurLine(L,sh);return;}
     if(L.pts&&!L.els){const line={id:L.id,sheetId:sh.id,name:L.name||L.id,parent:L.parent||null,parentElIdx:null,ppm:1,single:L.cond||null,hm:L.hm||undefined,start:L.parent?'Té (ligne '+L.parent+')':'Départ',end:'Extrémité',pts:L.pts.map(p=>({x:p[0],y:p[1]})),specials:(L.specials||[]).map(sp=>({...sp})),dnNum:L.dnNum||100,dnSegs:L.dnSegs||null};genLine(line);line.els.forEach(e=>{e.kindLabel=KLABEL[e.kind]||e.kind;e.casing=L.casing||undefined;});state.lines[L.id]=line;sh.lines.push(L.id);return;}
@@ -730,7 +731,7 @@ const fmtVol=v=>(v<.95?String(Math.max(.01,Math.round(v*100)/100).toFixed(2)).re
 // vue d'ensemble de l'onglet Hydro : le VRAI plan (fond DXF/image + réseau) en petit, zoomable comme le reste (molette / pincer / double-tap / + − ⌖)
 function hydroBgSVG(sh){ // fond de plan léger, en cache par feuille
   if(sh.hydroBg&&sh.hydroBgId===sh.id)return sh.hydroBg;
-  const imgTag=sh.image&&sh.image.src?`<image href="${sh.image.src}" x="${sh.image.x||0}" y="${sh.image.y||0}" width="${sh.image.w}" height="${sh.image.h}" opacity="${sh.image.opacity===undefined?.5:sh.image.opacity}" preserveAspectRatio="none"/>`:'';
+  const imgTag=sheetImagesSVG(sh); /* 14/10 (multi-plans) : toutes les images de fond, chacune avec son calage */
   let g=`<rect x="-1e5" y="-1e5" width="2e5" height="2e5" fill="#f1f0eb"/>`+imgTag;
   if(sh.type==='vector'&&sh.drawing&&sh.drawing.length){if(sh.drawingFar===undefined){const np=sh.drawing.reduce((t,d)=>t+(d.pts?d.pts.length:(d.loops?d.loops.reduce((x,q)=>x+q.length,0):0)),0);sh.drawingFar=np>60000?decimateDrawing(sh.drawing,{cap:45000,simp:0.5,minLen:1.5}).drawing:null;}
     g+=`<g opacity=".5">${drawingSVG(sh.drawingFar||sh.drawing,{k:1,texts:false,colors:state.show.couleurs!==false,op:1,fillOp:1}).svg}</g>`;}
@@ -1150,7 +1151,7 @@ function renderPlan(){if(typeof linkTraceurBranches==='function')linkTraceurBran
     if(state.extraPose)pills.push(`<span class="pill hot" data-pill="extra">➕ soudure supplémentaire : touche la barre <span class="x">✕</span></span>`);if(state.convPose)pills.push(`<span class="pill hot" data-pill="conv">📍 note : touche le plan à l'endroit concerné <span class="x">✕</span></span>`);if(state.tool)pills.push(`<span class="pill hot" data-pill="tool">✥ modification du calepinage <span class="x">✕</span></span>`);
     const pp=$('#planPills');if(pp){pp.innerHTML=pills.join('');pp.style.display=pills.length?'':'none';}const ms=$('#menuSite');if(ms)ms.textContent=NET&&NET.id!=='__vide'?NET.name:'';}
   $('#hintbar').textContent=state.tracing?`Tape les sommets de l'axe (${state.tracePts.length} point${state.tracePts.length>1?'s':''}) puis « Terminer le tracé »`:state.extraPose?'➕ Touche la BARRE (aller ou retour) à l\'endroit exact de la soudure supplémentaire — à 0,30 m mini d\'une soudure existante':'';
-  const imgTag=sh.image&&sh.image.src?`<image href="${sh.image.src}" x="${sh.image.x||0}" y="${sh.image.y||0}" width="${sh.image.w}" height="${sh.image.h}" opacity="${sh.image.opacity===undefined?.5:sh.image.opacity}" preserveAspectRatio="none"/>`:''; // fond image du traceur (plan scanné / capture), à l'échelle réglée dans le traceur
+  const imgTag=sheetImagesSVG(sh); // fond image du traceur (plan scanné / capture), à l'échelle réglée dans le traceur — 14/10 (multi-plans) : toutes les images (sh.plans), chacune avec son calage (position, rotation, échelle) ; les DXF calés sont déjà fusionnés dans sh.drawing
   // fond vectoriel (DXF) : vue entière en cache (couleurs du DWG, hachures ; textes seulement au zoom), rendu partagé avec le traceur
   const bgFull=()=>{const ck='c'+(state.show.couleurs===false?0:1);if(!sh.bgSVG||sh.bgKey!==ck){sh.bgKey=ck;if(sh.drawingFar===undefined){const np=sh.drawing.reduce((t,d)=>t+(d.pts?d.pts.length:(d.loops?d.loops.reduce((x,q)=>x+q.length,0):0)),0);sh.drawingFar=np>60000?decimateDrawing(sh.drawing,{cap:45000,simp:0.5,minLen:1.5}).drawing:null;}sh.bgSVG=`<rect x="-1e5" y="-1e5" width="2e5" height="2e5" fill="#f4f3ee"/>`+imgTag+`<g opacity=".78">${drawingSVG(sh.drawingFar||sh.drawing,{k:1,texts:false,colors:state.show.couleurs!==false,op:1,fillOp:1}).svg}</g>`+(sh.plain?'':`<text x="${sh.w-160}" y="${sh.h-12}" font-size="12" fill="#898781" font-family="system-ui,sans-serif">fond : dessin d'origine (${sh.drawing.length} traits)</text>`);}return sh.bgSVG;};
   if(bgG.dataset.sheet!==sh.id){
@@ -2997,11 +2998,9 @@ setupSite(state.siteId);renderAll();requestAnimationFrame(()=>{fitView();renderP
 // chantiers remis par le traceur (IndexedDB) ; ?site= ouvre directement, sinon écran d'accueil (ou connexion à la première visite)
 loadHandoffs().then(async hs=>{hs.forEach(net=>{if(isHidden(net))return;if(SITES.__vide){delete SITES.__vide;const o=[...siteSel.options].find(x=>x.value==='__vide');if(o)o.remove();}addSiteOption(net);});
   /* 14/10 (Ethan : « quand je retourne dans commerce ça ne met rien dans tracé, il faut que j'aille le lier ») : un tracé enregistré depuis une ÉTUDE (fiche.etude.aff,
-     posé par le traceur) est rattaché à son affaire ICI, au chargement — plus besoin de passer par « Ouvrir dans TRACÉ » ni de le lier à la main. */
-  (async()=>{const cand=hs.filter(n=>!isHidden(n)&&n.fiche&&n.fiche.etude&&n.fiche.etude.aff);if(!cand.length)return;
-    try{await affLoad();}catch(e){return;}
-    cand.forEach(n=>{try{const num=n.fiche.etude.aff;const a=affGet(num);if(!a||a.deleted||(a.sites||[]).includes(n.id))return;
-      regSet('affaire',num,{sites:(a.sites||[]).concat([n.id])});toast('Tracé « '+(n.name||n.id)+' » rattaché à l\'affaire '+num+' (dossier commercial)');if(state.screen==='home')softRender('tracé lié');}catch(e){console.warn(e);}});})();
+     posé par le traceur) est rattaché à son affaire ICI — au chargement ET à chaque arrivée du registre des affaires (au démarrage l'affaire n'est souvent pas encore
+     là : la connexion arrive après ; c'est pour ça qu'Ethan a dû lier à la main le 14/10 au matin). */
+  affLoad().then(()=>linkEtudeHandoffs('démarrage')).catch(e=>console.warn(e));
   try{const sb=await sandboxLoadSite();if(sb){if(SITES.__vide){delete SITES.__vide;const o=[...siteSel.options].find(x=>x.value==='__vide');if(o)o.remove();}addSiteOption(sb);}}catch(e){console.warn(e);} /* bac à sable : chantier de démo gardé sur l'appareil */
   if(wantSite){try{localStorage.setItem('trace:skipLogin','1');}catch(e){} // arrivé par le traceur : plus d'écran de connexion imposé au prochain lancement
     if(SITES[wantSite]){if(state.siteId!==wantSite){siteSel.value=wantSite;await switchSite(wantSite);}showScreen('site');
@@ -3009,7 +3008,7 @@ loadHandoffs().then(async hs=>{hs.forEach(net=>{if(isHidden(net))return;if(SITES
     else{state.pendingOpen=wantSite;showScreen('home');renderHome();toast('Chantier en cours de récupération depuis le serveur…');}}
   else if(wantAff){try{localStorage.setItem('trace:skipLogin','1');}catch(e){} /* 14/10 : « ↩ Retour à l'affaire » du traceur (index.html?aff=…) → Commerce, l'affaire ouverte sur Tracé & chantiers (le tracé vient d'être rattaché juste au-dessus) */
     try{await affLoad();}catch(e){}
-    showScreen('home');if(affGet(wantAff)){state.pendingAff=wantAff;try{localStorage.setItem('trace:homeTab','commerce');}catch(e){}}renderHome();}
+    showScreen('home');state.pendingAff=wantAff;try{localStorage.setItem('trace:homeTab','commerce');}catch(e){}renderHome();} /* l'affaire peut n'arriver qu'avec la connexion : pendingAff s'applique dès qu'elle est là (renderHome) */
   else{const u=await sync.user().catch(()=>null);const seen=localStorage.getItem('trace:skipLogin');
     if(u||seen){if(!state.userOpened)showScreen('home');}else{showScreen('login');} /* un chantier déjà ouvert entre-temps (lien, test) n'est pas recouvert par l'accueil */
     renderHome();}
@@ -3127,7 +3126,7 @@ function renderHome(){if(!$('#homeView'))return;
     const hst=$('#homeSubTabs');if(hst)hst.style.display=isSites?'':'none';}
   {const he=$('#htEspace'),hn=$('#htEnt'),hco=$('#htCom'),hpa=$('#htParc');const acc0=currentAccount();const vis=acc0&&acc0.poste==='visiteur';const okE=can('pointage.self')||can('team.view'),okN=(can('team.view')||isAdmin())&&!vis,okC=can('affaires.view')&&!vis,okP=(can('flotte.manage')||can('mag.manage')||isAdmin())&&!vis; /* 14/10 nuit : + magasin */
     if(he){he.style.display=okE?'':'none';he.classList.toggle('on',state.homeTab==='espace');}if(hn){hn.style.display=okN?'':'none';hn.classList.toggle('on',state.homeTab==='entreprise'||state.homeTab==='admin');}if(hco){hco.style.display=okC?'':'none';hco.classList.toggle('on',state.homeTab==='commerce');}if(hpa){hpa.style.display=okP?'':'none';hpa.classList.toggle('on',state.homeTab==='parc');}
-    if(state.pendingAff&&okC){state.homeTab='commerce';affOpen(state.pendingAff,'sites');state.pendingAff=null;} /* 14/10 : retour du traceur (?aff=…) arrivé avant les droits (connexion en cours) → appliqué dès que Commerce est permis */
+    if(state.pendingAff&&okC&&affGet(state.pendingAff)){state.homeTab='commerce';affOpen(state.pendingAff,'sites');state.pendingAff=null;} /* 14/10 : retour du traceur (?aff=…) arrivé avant les droits (connexion en cours) → appliqué dès que Commerce est permis */
     if((state.homeTab==='espace'&&!okE)||(state.homeTab==='entreprise'&&!okN)||(state.homeTab==='commerce'&&!okC)||(state.homeTab==='parc'&&!okP))state.homeTab='accueil';
     const sub=$('.homeSub .t');if(sub)sub.textContent=({espace:'Moi',entreprise:'SCR',accueil:'Aujourd\'hui',admin:'Administration',commerce:'Commerce',parc:'Parc'})[state.homeTab]||'Chantiers';
     const hc=$('#homeCount');if(hc)hc.style.display=isCards?'':'none';
@@ -3469,7 +3468,11 @@ function traceQty(id){const st=siteStore[id];const sess=(st&&st.lines)||(state.s
 function tracePhases(id){const st=siteStore[id];const net=st?st.NET:(state.siteId===id?NET:SITES[id]);const L=(st&&st.lines)||(state.siteId===id?state.lines:null);if(!net||!L||!net.phasage||!Array.isArray(net.phasage.phases))return [];
   const len=l=>l.length||((l.els&&l.els.length)?l.els[l.els.length-1].m1:0);
   return net.phasage.phases.map(ph=>{const by={};(ph.tr||[]).forEach(t=>{const l=L[t.line];if(!l||!l.cond)return;const LL=len(l);['A','R'].forEach(c=>{const cd=l.cond[c];if(!cd||!Array.isArray(cd.joints))return;cd.joints.forEach(j=>{const e=Array.isArray(cd.els)?cd.els[j.idx]:null;if(!e)return;const m=e.m1;const inside=(m>=t.m0-0.01&&m<t.m1-0.01)||(t.m1>=LL-0.01&&m>=t.m0-0.01&&m<=LL+0.01);if(!inside)return;const dn=+(j.dn||e.dn||l.dn)||0;if(!dn)return;(by[dn]=by[dn]||{nb:0,ml:0}).nb++;});});const dn=+l.dn||0;if(dn)(by[dn]=by[dn]||{nb:0,ml:0}).ml+=Math.max(0,(+t.m1||0)-(+t.m0||0));});return {id:ph.id,name:ph.name||ph.id,level:ph.level,by};}).filter(p=>Object.keys(p.by).length);}
-onReg((kind,src)=>{if(kind==='affaire')etudeSync();if(src==='server'){if(state.screen==='home')softRender('registre '+kind);else if(state.screen==='site'&&(kind==='qhs'||kind==='qhsig')&&(state.tab==='qse'||state.tab==='bureau')&&!uiBusy())renderAll();return;} /* 14/10 nuit (sync) : données REÇUES du serveur → tous les onglets de l'accueil (avant : seulement Aujourd'hui / Moi / Équipes — Parc, SCR, Sécurité, Commerce restaient périmés), sans casser une saisie ni une fenêtre ouverte ; écriture faite ici : comme avant */
+const ETUDE_LINKED=new Set();
+function linkEtudeHandoffs(why){let n=0;try{Object.values(SITES).forEach(net=>{if(!net||!net.id||!net.lines||ETUDE_LINKED.has(net.id))return;const e=net.fiche&&net.fiche.etude;if(!e||!e.aff)return;const a=affGet(e.aff);if(!a||a.deleted)return;
+    if((a.sites||[]).includes(net.id)){ETUDE_LINKED.add(net.id);return;}ETUDE_LINKED.add(net.id);regSet('affaire',e.aff,{sites:(a.sites||[]).concat([net.id])});n++;toast('Tracé « '+(net.name||net.id)+' » rattaché à l\'affaire '+e.aff+' (dossier commercial)');});}catch(e){console.warn(e);}
+  if(n&&state.screen==='home')softRender('tracé lié ('+(why||'')+')');return n;} /* 14/10 : tracés d'étude (fiche.etude.aff) rattachés à leur affaire dès qu'elle est connue */
+onReg((kind,src)=>{if(kind==='affaire'){etudeSync();if(src==='server')linkEtudeHandoffs('affaires reçues');}if(src==='server'){if(state.screen==='home')softRender('registre '+kind);else if(state.screen==='site'&&(kind==='qhs'||kind==='qhsig')&&(state.tab==='qse'||state.tab==='bureau')&&!uiBusy())renderAll();return;} /* 14/10 nuit (sync) : données REÇUES du serveur → tous les onglets de l'accueil (avant : seulement Aujourd'hui / Moi / Équipes — Parc, SCR, Sécurité, Commerce restaient périmés), sans casser une saisie ni une fenêtre ouverte ; écriture faite ici : comme avant */
   if(state.screen==='home'&&['accueil','espace','expl'].includes(state.homeTab))renderHome();else if(state.screen==='site'&&(kind==='qhs'||kind==='qhsig')&&(state.tab==='qse'||state.tab==='bureau'))renderAll();}); /* une signature ou un document reçu du serveur rafraîchit l'accueil (10/10 : + QSE / Bureau pour les quarts d'heure) */
 /* 14/10 nuit (sync) — Ethan : « la page qui se rafraîchit et qui te remet en haut, le truc pas synchro pour tous les utilisateurs ».
    · softRender : re-rendu de l'accueil pour une donnée REÇUE — jamais pendant une saisie (champ actif) ni sous une fenêtre ouverte : différé jusqu'à la sortie du champ /

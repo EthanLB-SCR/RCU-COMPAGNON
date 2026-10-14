@@ -36,6 +36,7 @@ export function rebaseSite(net0,dx,dy){const net=JSON.parse(JSON.stringify(net0|
   // fond : traits, hachures, textes ; image de fond ; emprises
   (net.drawing||[]).forEach(d=>{if(!d||typeof d!=='object')return;if(d.pts)d.pts=PL(d.pts);if(d.loops)d.loops=PLL(d.loops);if(d.text!==undefined)XY(d);});
   if(net.image)XY(net.image);
+  (net.plans||[]).forEach(p=>{if(!p||typeof p!=='object'||!p.transform||typeof p.transform!=='object')return;const t=p.transform;const ident=!t.tx&&!t.ty&&!t.rot&&(t.k===1||t.k===undefined);if(typeof t.tx==='number'&&typeof t.ty==='number'){t.tx=R3(t.tx-dx);t.ty=R3(t.ty-dy);}if(ident&&p.kind==='dxf')ORI(p.origin);}); // 14/10 (multi-plans) : chaque plan de fond suit (sa translation ; rotation / échelle / repère local inchangés) ; un DXF « calé par ses coordonnées » (transform identité : son repère local EST le repère du chantier) voit aussi son origine Lambert corrigée, comme bgOrigin
   if(net.bbox)net.bbox=BOX(net.bbox);if(net.nbox)net.nbox=BOX(net.nbox);
   // géoréférencement enregistré (calage) : X = a·x + b·y + e → e + a·dx + b·dy (idem f)
   if(net.geo&&net.geo.aff&&typeof net.geo.aff==='object'){const A=net.geo.aff;if([A.a,A.b,A.c,A.d,A.e,A.f].every(v=>typeof v==='number')){A.e=A.e+A.a*dx+A.b*dy;A.f=A.f+A.c*dx+A.d*dy;}}

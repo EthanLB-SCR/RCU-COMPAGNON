@@ -32,6 +32,8 @@
   footer{grid-column:1/3;padding:4px 10px;font-size:11.5px;color:var(--muted);border-top:1px solid var(--line);background:var(--surface);display:flex;gap:14px;flex-wrap:wrap}
   .modal{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:20}.modal.show{display:flex}.modal>div{background:var(--surface);border-radius:12px;padding:14px 16px;min-width:300px;max-width:520px;box-shadow:0 12px 40px rgba(0,0,0,.25)}.modal label{display:block;margin:8px 0 3px;font-size:12.5px;color:var(--ink2)}.modal .actions{display:flex;gap:6px;justify-content:flex-end;margin-top:12px}
   .weld{cursor:pointer}.piece{cursor:pointer}
+  .badge.pause{display:inline-block;background:#fff3d6;color:#7a5200;border-radius:999px;padding:1px 7px;font-size:11px;font-weight:700;vertical-align:middle} /* 14/10 (édition du tracé) : ligne en pause */
+  main.trace circle.pause,main.trace text.pause{cursor:pointer}
   @media (max-width:800px){.app{grid-template-columns:1fr}aside{display:none}}
 </style>
 </head>
@@ -43,6 +45,8 @@
     <label class="muted">série <select class="f" id="serie"><option>1</option><option>2</option><option>3</option></select></label>
     <label class="muted">DN <select class="f" id="dn"></select></label>
     <label class="muted">barre <select class="f" id="bar"></select> m</label>
+    <!-- 14/10 (édition du tracé) : DN et barre restent modifiables pendant le tracé (la ligne prend la valeur à la validation) ; profondeur de pose par défaut — variable des règles de dilatation à venir (surcharge par ligne dans sa fiche) -->
+    <label class="muted" title="profondeur de pose par défaut (m), enregistrée avec le chantier ; se surcharge ligne par ligne dans la fiche de la ligne — servira aux règles de dilatation à venir">prof. <input class="f" id="prof" type="number" step="0.1" min="0" style="width:58px"> m</label>
     <span class="sep"></span>
     <button class="btn" id="mTrace">✎ Tracer une ligne</button>
     <button class="btn" id="mSelect">☝ Sélection</button>
@@ -51,16 +55,18 @@
     <button class="btn" id="bUndo" title="annuler la dernière retouche (Ctrl+Z)">↶</button>
     <span class="sep"></span>
     <span class="muted" style="font-size:11.5px">fond :</span>
-    <label class="btn" title="image du plan (PNG/JPG, capture d'écran, scan) — puis « Échelle » : deux points et la distance réelle">🖼 Image<input type="file" id="bgImg" accept="image/*" style="display:none"></label>
-    <label class="btn" title="dessin vectoriel (DXF)">📐 DXF<input type="file" id="bgFile" accept=".dxf" style="display:none"></label>
+    <!-- 14/10 (multi-plans) : plusieurs plans de fond (DXF du BE et/ou images : scan, capture), ajoutés en une fois, chacun calé dans l'onglet Fond -->
+    <label class="btn" title="ajouter un ou plusieurs plans de fond : DXF (plan du BE, géomètre) ou image (PNG/JPG, scan, capture d'écran) — chaque plan se cale ensuite (onglet Fond : échelle, déplacement, rotation, 2 points)">＋ Plan<input type="file" id="bgAdd" accept=".dxf,image/*" multiple style="display:none"></label>
     <span id="bgTools" style="display:none;align-items:center;gap:6px">
-      <button class="btn sm" id="bgScale" title="clique deux points du plan dont tu connais la distance, puis entre-la">📏 Échelle</button>
-      <button class="btn sm" id="bgMove" title="glisse l'image pour la déplacer">✥ Déplacer</button>
+      <button class="btn sm" id="bgScale" title="plan actif : clique deux points du plan dont tu connais la distance, puis entre-la">📏 Échelle</button>
+      <button class="btn sm" id="bgMove" title="plan actif : glisse-le pour le déplacer">✥ Déplacer</button>
+      <button class="btn sm" id="bgCal2" title="plan actif : 2 points sur le plan, puis les 2 mêmes endroits sur le tracé déjà calé → échelle, rotation et position d'un coup">⟲ 2 points</button>
       <label class="muted" style="font-size:11.5px">opacité <input type="range" id="bgOp" min="10" max="100" value="50" style="width:70px;vertical-align:middle"></label>
       <label class="muted" style="font-size:11.5px"><input type="checkbox" id="bgShow" checked> afficher</label>
-      <button class="btn sm" id="bgLayers" title="options du fond DXF : calques du réseau, étendue, détail">⚙</button>
-      <button class="btn sm" id="bgInfo" title="rapport de fidélité du fond DXF : ce qui est dessiné, ce qui manque (images externes, objets propriétaires…)">ⓘ</button>
-      <button class="btn sm" id="bgClear" title="retirer le fond">✕</button>
+      <button class="btn sm" id="bgLayers" title="options du plan DXF actif : calques du réseau, étendue, détail">⚙</button>
+      <button class="btn sm" id="bgInfo" title="rapport de fidélité du plan DXF actif : ce qui est dessiné, ce qui manque (images externes, objets propriétaires…)">ⓘ</button>
+      <button class="btn sm" id="bgFit" title="cadrer tous les plans de fond (et le réseau)">⤢ Tout voir</button>
+      <button class="btn sm" id="bgClear" title="retirer le plan actif">✕</button>
     </span>
     <button class="btn" id="bClear">Tout effacer</button>
     <span class="sep"></span>
@@ -80,7 +86,7 @@
     <div class="legend"><span><i style="background:#c8382f"></i>aller</span><span><i style="background:#2a5fb4"></i>retour</span><span>○ soudure</span><span><i style="background:#f0c76a"></i>sélection</span><span><i style="background:#d03b3b"></i>règle violée</span><span style="color:#b8560f">FC = fausse coupe (tubes coupés en biais)</span><span class="muted">molette : zoom · glisser : déplacer · Maj : angles par 15° · 👁 : choisir ce qui s'affiche</span></div>
   </main>
   <aside>
-    <div class="tabs"><button data-tab="sel" class="on">Sélection</button><button data-tab="lignes">Lignes</button><button data-tab="soud">Soudures</button><button data-tab="nomen">Nomenclature</button><button data-tab="notes">Notes</button><button data-tab="regles">Règles</button></div>
+    <div class="tabs"><button data-tab="sel" class="on">Sélection</button><button data-tab="lignes">Lignes</button><button data-tab="soud">Soudures</button><button data-tab="nomen">Nomenclature</button><button data-tab="notes">Notes</button><button data-tab="fond" title="plans de fond : liste, calage de chaque plan">Fond</button><button data-tab="regles">Règles</button></div>
     <div class="panel" id="panel"></div>
   </aside>
   <footer id="foot"></footer>

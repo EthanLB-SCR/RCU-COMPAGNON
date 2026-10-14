@@ -43,7 +43,7 @@ out={a:await A().then(a=>{const z=(a.chiffrage.etudes||[])[0]||{};return {n:a.ch
   achat:await page.evaluate(()=>{const s=[...document.querySelectorAll('#eq-app .ac-stat')].map(x=>x.textContent.replace(/\s+/g,' ').trim());return s.find(t=>/prix d'achat/.test(t))||'';})};
 await click('chview|ctrl');out.taken=await page.evaluate(()=>(document.querySelector('#eq-app .cm-ctrl')||{}).textContent.includes('Repris dans le chiffrage'));
 console.log('4) reprise :',JSON.stringify(out));
-C.c3=out.a.n===1&&out.a.nom==='ZONE A'&&out.a.dn==='32:6/10,50:12/60,100:40/200'&&out.a.sst==='sst_vannes_bs_pn25:2'&&out.a.radio==='10/10'&&out.a.marge===0.125&&/^classeur fixture_classeur\.xlsx$/.test(out.a.src)&&out.a.repris&&/^57\s?142\s?€\s*prix d'achat/.test(out.achat)&&out.taken;
+C.c3=out.a.n===1&&out.a.nom==='ZONE A'&&out.a.dn==='32:6/10,50:12/60,100:40/200'&&out.a.sst==='sst_vannes_bs_pn25:2'&&out.a.radio==='10/10'&&out.a.marge===0.125&&/^classeur fixture_classeur\.xlsx$/.test(out.a.src)&&out.a.repris&&/^56\s?705\s?€\s*prix d'achat/.test(out.achat) /* 14/10 : règles de l'appli (soudures des paniers au prix de la table, épreuve au prorata des m³) — avant 57 142 € */&&out.taken;
 // ── 5) effacer le contrôle (le chiffrage reste)
 await click('ctrlclr|');out={a:await A().then(a=>({ctrl:a.ctrlCl,n:a.chiffrage.etudes.length})),intro:await page.evaluate(()=>!document.querySelector('#eq-app .cm-ctrl')&&!!document.querySelector('#eq-app input[data-afctrl]'))};
 console.log('5) effacer :',JSON.stringify(out));
