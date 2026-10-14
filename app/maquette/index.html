@@ -52,13 +52,17 @@
     <button class="btn" id="mSelect">☝ Sélection</button>
     <button class="btn" id="mAdd">＋ Té / vanne / réduction / lyre / drapeau</button>
     <button class="btn" id="mOne" title="ne bouger qu'une conduite en glissant une soudure ou une pièce (ou Alt enfoncé)">◐ Un seul côté</button>
-    <button class="btn" id="bUndo" title="annuler la dernière retouche (Ctrl+Z)">↶</button>
+    <button class="btn" id="bUndo" title="annuler la dernière retouche (Ctrl+Z) — une action à la fois">↶</button>
+    <button class="btn" id="bRedo" title="rétablir ce qui vient d'être annulé (Ctrl+Y ou Ctrl+Maj+Z)">↷</button>
     <span class="sep"></span>
     <span class="muted" style="font-size:11.5px">fond :</span>
     <!-- 14/10 (multi-plans) : plusieurs plans de fond (DXF du BE et/ou images : scan, capture), ajoutés en une fois, chacun calé dans l'onglet Fond -->
-    <label class="btn" title="ajouter un ou plusieurs plans de fond : DXF (plan du BE, géomètre) ou image (PNG/JPG, scan, capture d'écran) — chaque plan se cale ensuite (onglet Fond : échelle, déplacement, rotation, 2 points)">＋ Plan<input type="file" id="bgAdd" accept=".dxf,image/*" multiple style="display:none"></label>
+    <!-- 14/10 soir (T2) : « ＋ Plan » lit aussi le PDF (une page = un plan) ; le DWG est montré pour expliquer quoi en faire ; 📍 vue aérienne IGN par adresse, sous les plans -->
+    <label class="btn" title="ajouter un ou plusieurs plans de fond : DXF (plan du BE, géomètre), PDF (une page = un plan) ou image (PNG, JPG, scan, capture d'écran) — chaque plan se cale ensuite (onglet Fond : échelle 1/N ou 2 points, déplacement, rotation, vue aérienne)">＋ Plan (DXF, PDF, image)<input type="file" id="bgAdd" accept=".dxf,.pdf,image/*,.png,.jpg,.jpeg,.webp,.gif,.bmp,.dwg" multiple style="display:none"></label>
+    <button class="btn" id="bAer" title="vue aérienne (IGN) en fond, par adresse, derrière les plans ; calage des lignes et des plans dessus">📍 Vue aérienne</button>
     <span id="bgTools" style="display:none;align-items:center;gap:6px">
       <button class="btn sm" id="bgScale" title="plan actif : clique deux points du plan dont tu connais la distance, puis entre-la">📏 Échelle</button>
+      <button class="btn sm" id="bgEch" title="échelle d'un plan PDF ou image : 1/N (taille réelle de la page, ou dpi de l'image)">1/N</button>
       <button class="btn sm" id="bgMove" title="plan actif : glisse-le pour le déplacer">✥ Déplacer</button>
       <button class="btn sm" id="bgCal2" title="plan actif : 2 points sur le plan, puis les 2 mêmes endroits sur le tracé déjà calé → échelle, rotation et position d'un coup">⟲ 2 points</button>
       <label class="muted" style="font-size:11.5px">opacité <input type="range" id="bgOp" min="10" max="100" value="50" style="width:70px;vertical-align:middle"></label>
@@ -83,7 +87,7 @@
     <div class="zoominfo" id="zoominfo">1 m ≈ 10 px</div>
     <div class="disp" id="disp"></div>
     <div class="zoomctl"><button id="zEye" title="choisir ce qui s'affiche (étiquettes, n°, manchons, fond…)">👁</button><button id="zIn">+</button><button id="zOut">−</button><button id="zFit" title="tout voir">⌂</button></div>
-    <div class="legend"><span><i style="background:#c8382f"></i>aller</span><span><i style="background:#2a5fb4"></i>retour</span><span>○ soudure</span><span><i style="background:#f0c76a"></i>sélection</span><span><i style="background:#d03b3b"></i>règle violée</span><span style="color:#b8560f">FC = fausse coupe (tubes coupés en biais)</span><span class="muted">molette : zoom · glisser : déplacer · Maj : angles par 15° · 👁 : choisir ce qui s'affiche</span></div>
+    <div class="legend"><span><i style="background:#c8382f"></i>aller</span><span><i style="background:#2a5fb4"></i>retour</span><span>○ soudure</span><span><i style="background:#f0c76a"></i>sélection</span><span><i style="background:#d03b3b"></i>règle violée</span><span style="color:#b8560f">FC = fausse coupe (tubes coupés en biais)</span><span class="muted">molette : zoom · glisser : déplacer (à la souris, glisser dans le vide = rectangle de sélection) · Maj : angles par 15° · 👁 : choisir ce qui s'affiche</span></div>
   </main>
   <aside>
     <div class="tabs"><button data-tab="sel" class="on">Sélection</button><button data-tab="lignes">Lignes</button><button data-tab="soud">Soudures</button><button data-tab="nomen">Nomenclature</button><button data-tab="notes">Notes</button><button data-tab="fond" title="plans de fond : liste, calage de chaque plan">Fond</button><button data-tab="regles">Règles</button></div>

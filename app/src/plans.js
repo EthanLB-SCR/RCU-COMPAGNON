@@ -79,3 +79,46 @@ export function planImageSVG(plan,op){if(!plan||plan.kind!=='image'||!plan.image
 export function legacyImageSVG(im){if(!im||!im.src)return '';const tag=`<image href="${ESC(im.src)}" x="${im.x||0}" y="${im.y||0}" width="${im.w}" height="${im.h}" opacity="${im.opacity===undefined?.5:im.opacity}" preserveAspectRatio="none"/>`;return im.rot?`<g transform="rotate(${+im.rot} ${im.x||0} ${im.y||0})">${tag}</g>`:tag;}
 /* toutes les images d'une feuille de l'appli : sh.plans (nouveau format, chaque image avec sa transform, œil respecté) sinon sh.image (ancien format) */
 export function sheetImagesSVG(sh){if(!sh)return '';if(Array.isArray(sh.plans)&&sh.plans.length)return sh.plans.filter(p=>p&&p.kind==='image'&&p.show!==false).map(p=>planImageSVG(p)).join('');return legacyImageSVG(sh.image);}
+/* ---------- 14/10 soir (lot T2) : « ＋ Plan » DXF / PDF / images, échelle 1/N, résolution des images ----------
+   Ethan : « quand je fais + plan je ne sais pas quel format il veut » ; « si le plan pdf est à l'échelle 1/200, mettre direct 1/200 dans les propriétés, à côté de l'opacité ».
+   Une page de PDF ou une image reste un plan kind:'image' (calque visuel : opacité, œil, ordre) ; ses métadonnées voyagent avec lui (traceur, IndexedDB, chantier) :
+   from:'pdf'|'image', page / pages (PDF), pageW_mm / pageH_mm (taille RÉELLE de la page : 1 pt = 25,4/72 mm), dpi (+ dpiSrc : 'JFIF' | 'EXIF' | 'PNG' | 'saisie'),
+   srcW (largeur en pixels du fichier d'origine : l'image gardée est réduite), ech (dernière échelle 1/N appliquée). */
+export const PLAN_META=['from','page','pages','pageW_mm','pageH_mm','dpi','dpiSrc','srcW','ech'];
+export function planMeta(p){const o={};if(p)PLAN_META.forEach(k=>{if(p[k]!==undefined&&p[k]!==null)o[k]=p[k];});return o;}
+// ce que propose la fenêtre de choix : DXF, PDF, images (le DWG est montré pour expliquer quoi en faire)
+export const PLAN_ACCEPT='.dxf,.pdf,image/*,.png,.jpg,.jpeg,.webp,.gif,.bmp,.dwg';
+/* format d'un fichier de plan → {kind:'dxf'|'pdf'|'image'} ou {err:'message'} (format non lu : quoi faire) */
+export function planFileKind(name,type){const ext=((String(name||'').match(/\.([a-z0-9]+)$/i)||[])[1]||'').toLowerCase();const t=String(type||'').toLowerCase();
+  if(ext==='dxf')return {kind:'dxf'};if(ext==='pdf'||(!ext&&t==='application/pdf'))return {kind:'pdf'};
+  if(ext==='dwg'||t==='image/vnd.dwg'||t==='application/acad')return {err:'DWG : enregistre-le en DXF (ODA File Converter, gratuit) ou en PDF, puis ＋ Plan.'};
+  if(ext==='tif'||ext==='tiff'||t==='image/tiff')return {err:'TIFF : convertis en PNG ou en PDF (le navigateur ne lit pas le TIFF), puis ＋ Plan.'};
+  if(ext==='heic'||ext==='heif'||/hei[cf]/.test(t))return {err:'HEIC (photo d\'iPhone) : partage-la en JPG (ou fais une capture d\'écran), puis ＋ Plan.'};
+  if(['png','jpg','jpeg','jpe','webp','gif','bmp'].includes(ext)||(!ext&&/^image\/(png|jpe?g|webp|gif|bmp|x-ms-bmp)$/.test(t)))return {kind:'image'};
+  return {err:`format non lu${ext?' (.'+ext+')':''} : ＋ Plan lit les plans DXF, PDF et les images PNG, JPG, WebP, GIF, BMP.`};}
+/* échelle 1/N → k (mètres par pixel de l'image gardée). PDF : largeur réelle = pageW_mm × N / 1000 ; image : largeur d'origine (px) / dpi × 25,4 mm × N / 1000.
+   null si la taille réelle est inconnue (image sans dpi). */
+export function planScaleK(plan,N,dpi){const im=plan&&plan.image;N=+N;if(!im||!(+im.pw>0)||!(N>0))return null;
+  if(+plan.pageW_mm>0)return +plan.pageW_mm*N/1000/im.pw;
+  const d=+(dpi||plan.dpi);if(!(d>0))return null;const sw=+plan.srcW>0?+plan.srcW:+im.pw;return sw/d*25.4*N/1000/im.pw;}
+// échelle 1/N actuelle d'un plan, d'après sa transform (null si inconnue)
+export function planScaleN(plan,dpi){const k1=planScaleK(plan,1,dpi);return k1?tfNorm(plan.transform).k/k1:null;}
+// transform remise à l'échelle k autour du point local c (sa position monde et la rotation sont gardées)
+export function tfScaleAbout(t,c,k){t=tfNorm(t);const W=tfApply(t,c);const r=t.rot*D2R;const cs=Math.cos(r),sn=Math.sin(r);return {tx:W[0]-k*(cs*c[0]-sn*c[1]),ty:W[1]-k*(sn*c[0]+cs*c[1]),rot:t.rot,k};}
+// format de page : « A3 paysage (420 × 297 mm) », sinon « 500 × 300 mm »
+export function paperName(w,h){const S=[['A0',841,1189],['A1',594,841],['A2',420,594],['A3',297,420],['A4',210,297],['A5',148,210]];const a=Math.min(w,h),b=Math.max(w,h);const f=S.find(([,x,y])=>Math.abs(a-x)<=3&&Math.abs(b-y)<=3);const dim=Math.round(w)+' × '+Math.round(h)+' mm';return f?`${f[0]} ${w>h?'paysage':'portrait'} (${dim})`:dim;}
+/* résolution (dpi) écrite dans une image : PNG (bloc pHYs, en pixels / m), JPEG (JFIF : unités 1 = dpi, 2 = points / cm ; sinon EXIF : XResolution + ResolutionUnit).
+   bytes = début du fichier (Uint8Array, 256 ko suffisent) → {dpi, src:'PNG'|'JFIF'|'EXIF'} ou null (pas de résolution, ou rapport d'aspect seulement) */
+export function imageDpi(b){if(!b||b.length<16)return null;const u16=(i,le)=>le?(b[i]|b[i+1]<<8):(b[i]<<8|b[i+1]);const u32=(i,le)=>(le?(b[i]|b[i+1]<<8|b[i+2]<<16|b[i+3]<<24):(b[i]<<24|b[i+1]<<16|b[i+2]<<8|b[i+3]))>>>0;
+  const nice=v=>{if(!(v>0)||!isFinite(v))return null;const r=Math.round(v);return Math.abs(v-r)<0.05?r:+v.toFixed(1);};
+  if(b[0]===0x89&&b[1]===0x50&&b[2]===0x4E&&b[3]===0x47){let i=8;while(i+8<=b.length){const len=u32(i,false);const type=String.fromCharCode(b[i+4],b[i+5],b[i+6],b[i+7]);
+      if(type==='pHYs'&&len>=9&&i+17<=b.length){const x=u32(i+8,false);const d=b[i+16]===1?nice(x*0.0254):null;return d?{dpi:d,src:'PNG'}:null;}if(type==='IDAT'||type==='IEND')break;i+=12+len;}return null;}
+  if(b[0]===0xFF&&b[1]===0xD8){let i=2,jfif=null,exif=null;
+    while(i+4<=b.length){if(b[i]!==0xFF)break;const m=b[i+1];if(m===0xFF){i++;continue;}if(m===0xD8||m===0x01||(m>=0xD0&&m<=0xD7)){i+=2;continue;}if(m===0xDA||m===0xD9)break;const len=u16(i+2,false);const s=i+4;
+      if(m===0xE0&&len>=14&&s+12<=b.length&&b[s]===0x4A&&b[s+1]===0x46&&b[s+2]===0x49&&b[s+3]===0x46&&b[s+4]===0){const unit=b[s+7],x=u16(s+8,false);if(x>0&&unit===1)jfif=x;else if(x>0&&unit===2)jfif=x*2.54;}
+      if(m===0xE1&&len>=16&&s+14<=b.length&&b[s]===0x45&&b[s+1]===0x78&&b[s+2]===0x69&&b[s+3]===0x66&&b[s+4]===0&&b[s+5]===0){const t=s+6;const le=b[t]===0x49;const ifd=t+u32(t+4,le);const n=ifd+2<=b.length?u16(ifd,le):0;let xr=null,unit=2;
+        for(let k=0;k<n;k++){const e=ifd+2+k*12;if(e+12>b.length)break;const tag=u16(e,le);if(tag===0x011A){const off=t+u32(e+8,le);if(off+8<=b.length){const num=u32(off,le),den=u32(off+4,le);if(den)xr=num/den;}}else if(tag===0x0128)unit=u16(e+8,le);}
+        if(xr>0&&unit!==1)exif=unit===3?xr*2.54:xr;}
+      i+=2+len;}
+    const v=jfif||exif;const d=v?nice(v):null;return d?{dpi:d,src:jfif?'JFIF':'EXIF'}:null;}
+  return null;}

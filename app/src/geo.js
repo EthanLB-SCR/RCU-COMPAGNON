@@ -79,3 +79,11 @@ export function tilesFor(geo,box,pxPerM,zmax,cap){if(!geo)return null;const cx=(
 /* distance (m) entre deux points lon/lat (haversine) */
 export function distLL(lon1,lat1,lon2,lat2){const dLa=(lat2-lat1)*D2R,dLo=(lon2-lon1)*D2R;const a=Math.sin(dLa/2)**2+Math.cos(lat1*D2R)*Math.cos(lat2*D2R)*Math.sin(dLo/2)**2;return 2*RM*Math.asin(Math.sqrt(a));}
 export const fmtDist=m=>m<1000?Math.round(m)+' m':(m/1000).toFixed(m<10000?1:0).replace('.',',')+' km';
+/* ---------- 14/10 soir (lot T2) : vue aérienne du TRACEUR — géoréférencement du repère du tracé (mètres, y vers le bas), même format que net.geo de l'appli ---------- */
+// « nord en haut, 1 unité = 1 m » (Lambert 93) : le point (lon, lat) tombe au point (cx, cy) du tracé
+export function geoNorthUp(lon,lat,cx,cy){const [X,Y]=CRS['EPSG:2154'].fwd(lon,lat);return {crs:'EPSG:2154',aff:{a:1,b:0,c:0,d:-1,e:X-cx,f:Y+cy}};}
+/* repère LOCAL d'un DXF (origine {x0, y1} en mètres de son système ; local = (X − x0, y1 − Y)) → géoréférencement exact si ses coordonnées sont en Lambert 93 ou CC
+   (detectCRS sur probe = un point local du dessin, son centre), sinon null */
+export function geoOfOrigin(o,probe){if(!o||!isFinite(+o.x0)||!isFinite(+o.y1))return null;const p=probe||[0,0];const crs=detectCRS(+o.x0+p[0],+o.y1-p[1]);if(!crs)return null;return {crs,aff:{a:1,b:0,c:0,d:-1,e:+o.x0,f:+o.y1}};}
+// un point du repère A (géoréférencement ga) → le même lieu dans le repère B (gb), via lon / lat (conversion Lambert CC ↔ Lambert 93 comprise)
+export function geoMapPoint(ga,gb,p){const ll=planToLonLat(ga,p);return lonLatToPlan(gb,ll[0],ll[1]);}

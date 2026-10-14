@@ -90,7 +90,7 @@ export const smMissing=c=>({soud:!(num(((c||{}).soud||{})[SM])>0),manch:!(num((c
    rev = horodatage posé à l'import et à chaque modification des PRIX (une base d'avant sans rev : sa date de modification ou d'import) ; priceSig = ce qui
    fait les prix (sans les dates, les auteurs, le fichier source ni la bibliothèque de devis) — une écriture qui ne change aucun prix garde la révision */
 export const revOf=b=>b?String(b.rev||b.editedAt||b.importedAt||b.at||''):'';
-const SIG_SKIP=new Set(['id','rev','revBy','editedAt','editedBy','importedAt','importedBy','devis','foDevis','src','foTitle','archived']);
+const SIG_SKIP=new Set(['id','rev','revBy','editedAt','editedBy','importedAt','importedBy','devis','foDevis','src','foTitle','archived','orig']); /* 14/10 nuit (lot P) : orig = valeurs du classeur (référence d'affichage) — pas un prix */
 const stable=x=>{if(Array.isArray(x))return '['+x.map(stable).join(',')+']';if(x&&typeof x==='object'){const ks=Object.keys(x).filter(k=>{const v=x[k];return v!==undefined&&v!==null&&v!==''&&!(typeof v==='object'&&!Array.isArray(v)&&!Object.keys(v).length)&&!(Array.isArray(v)&&!v.length);}).sort();return '{'+ks.map(k=>JSON.stringify(k)+':'+stable(x[k])).join(',')+'}';}return JSON.stringify(x);};
 export function priceSig(b){if(!b)return '';const n=ensureSM(b);const o={};Object.keys(n).forEach(k=>{if(!SIG_SKIP.has(k))o[k]=n[k];});return stable(o);}
 /* ═════════ 2 · ACCÈS À LA BASE ═════════ */
@@ -129,7 +129,33 @@ export function refMissing(base,ref,dn){if(!ref||!Array.isArray(ref.refs))return
    même total que le by-pass seul du classeur. */
 export const BP_SST='bp_sst';
 const colIdx=s=>{let n=0;for(const ch of s)n=n*26+(ch.charCodeAt(0)-64);return n-1;};
-function bypassSstPanier(base){const B=base.op.bypass;if(!Array.isArray(B)||!B.length)return null;const blk=(base.op.blocks||[]).find(b=>/^BY-PASS - FONDS/i.test(b.title||''));
+/* 14/10 soir (lot Q, Ethan : « by-pass derrière les vannes : détail en fourniture des coudes, vannette ? Là il y a juste un panier avec écrit (total du classeur) ;
+   si le panier by-pass n'existe pas on va le créer : c'est deux coudes du même DN, DN selon les vannes de SST donc, et une vannette en 15/21 ») — COMPOSITION PAR
+   DÉFAUT quand le classeur ne se décompose pas (une seule ligne « total du classeur ») ou n'a pas de bloc by-pass : 2 coudes à souder au DN (table de fourniture
+   des coudes de la base), 1 vannette 15/21 (cherchée dans les tables de fourniture), MO du classeur (heures BY-PASS) si elle existe, sinon 4 soudures au DN
+   (2 coudes = 4 soudures, au prix de la soudure de la zone). Un total fourniture donné par le classeur est GARDÉ (ligne d'écart) : aucun prix ne bouge en silence. */
+/* 14/10 nuit (lot P, Ethan : « fourniture du by-pass c'est deux coudes ACIER NU du même DN ») : le coude ACIER NU à souder — d'abord la colonne que la liste des pièces du
+   panier sur mesure (acier nu) de la Base FO donne pour le coude à souder (FO_Accessoires_Acier, comme la pose aérienne en acier nu), sinon la colonne « coudes à souder »
+   de FO_Accessoires_Acier, sinon une table « acier » — jamais une table de préisolé */
+const bpCoude=base=>{const F=base.fo||{};const T=F.tables||{};const pre=tn=>/pr[eé]_?iso/i.test(tn);const pick=(tn,re)=>{const t=T[tn];if(!t||!Array.isArray(t.cols)||pre(tn))return null;const i=t.cols.findIndex((c,j)=>j>0&&re.test(key(c)));return i>0?{t:tn,c:i+1}:null;};
+  const AA=T.FO_Accessoires_Acier;const pc=(F.pieces||[]).find(p=>p&&/^coudes? a souder/.test(key(p.piece))&&num(p.col)>1);if(pc&&AA&&Array.isArray(AA.cols)&&AA.cols[num(pc.col)-1]&&/coude/.test(key(AA.cols[num(pc.col)-1])))return {t:'FO_Accessoires_Acier',c:num(pc.col)};
+  return pick('FO_Accessoires_Acier',/^coudes? a souder/)||Object.keys(T).filter(tn=>/acier/i.test(tn)).map(tn=>pick(tn,/coudes?.*souder/)).find(Boolean)||null;};
+function bpVannette(base){const T=(base.fo||{}).tables||{};const re=/vannette|15\/21/;const N=Object.keys(T).filter(tn=>T[tn]&&Array.isArray(T[tn].cols)&&Array.isArray(T[tn].rows));
+  for(const tn of N){const t=T[tn];const i=t.cols.findIndex((c,j)=>j>0&&re.test(key(c)));if(i>0){const row=t.rows.find(r=>num(r[t.cols[0]])===15);if(row&&num(row[t.cols[i]])>0)return {ref:{refs:[{k:1,dn:15,t:tn,c:i+1}]},src:t.cols[i]+' · DN 15'};}} /* une colonne « vannette » ou « 15/21 » au DN 15 */
+  for(const tn of N){const t=T[tn];const row=t.rows.find(r=>re.test(key(r[t.cols[0]])));if(row){const c=t.cols.find((c2,j)=>j>0&&num(row[c2])>0);if(c)return {pu:num(row[c]),src:up(row[t.cols[0]])};}} /* une ligne « vannette 15/21 » */
+  const pn=Object.keys((base.fo||{}).params||{}).find(n=>/vannette|15_21/i.test(n)&&num(base.fo.params[n])>0);if(pn)return {ref:{refs:[{param:pn,k:1}]},src:pn}; /* un paramètre FO_…vannette… */
+  for(const tn of N){const t=T[tn];if(!/vanne/i.test(tn+' '+t.cols.join(' ')))continue;const row=t.rows.find(r=>num(r[t.cols[0]])===15);if(!row)continue;const i=t.cols.findIndex((c,j)=>j>0&&/vanne/.test(key(c))&&num(row[c])>0);if(i>0)return {ref:{refs:[{k:1,dn:15,t:tn,c:i+1}]},src:t.cols[i]+' · DN 15'};} /* une vanne DN 15 */
+  return null;}
+function bpCompo(base,dn,inTot){const C=bpCoude(base),V=bpVannette(base);const miss=w=>inTot?null:w;
+  const cut=t=>{t=String(t||'');return t.length>28?t.slice(0,27)+'…':t;}; /* libellés courts : le tableau des paniers ne s'élargit pas */
+  return [C?{label:'Coude acier nu à souder 90° DN '+dn,qty:2,pu:foLookup(base,C.t,dn,C.c),ref:{refs:[{k:2,dn:'row',t:C.t,c:C.c}]}}:{label:'Coude acier nu à souder 90° DN '+dn+' (table introuvable)',qty:2,pu:0,ref:null,need:miss('coude acier nu à souder introuvable dans la base (table des accessoires acier : FO_Accessoires_Acier)')}, /* 14/10 nuit (lot P) : libellé « coude acier nu » */
+    V?{label:'Vannette 15/21'+(V.src?' ('+cut(V.src)+')':''),qty:1,pu:V.ref?refPrice(base,V.ref,15,0):V.pu,ref:V.ref||null}:{label:'Vannette 15/21'+(inTot?' (dans l\'écart)':''),qty:1,pu:0,ref:null,need:miss('vannette 15/21 introuvable dans les tables de fourniture de la base')}];} /* « dans l'écart » : prix introuvable, compris dans l'écart au total du classeur */
+const bpWeldMo=()=>({eq:'S+T',h:0,hf:{k:4,col:4},sw:true}); /* 2 coudes = 4 soudures au DN — dans une zone : au prix de la soudure de la zone (panierRow {soud}) */
+export const bpSw=(base,dn)=>{const P=panierOf(base,BP_SST);const r=P&&P.rows.find(x=>x.dn===num(dn));return !!(r&&r.mo.some(m=>m.sw));};
+export const bpDefault=(base,dn)=>{const P=panierOf(base,BP_SST);const r=P&&P.rows.find(x=>x.dn===num(dn));return !!(r&&r.def);};
+function bypassSstPanier(base){const B=Array.isArray(base.op.bypass)?base.op.bypass:[];if(!B.length){const dns=[...new Set((base.op.paniers||[]).filter(p=>/^sst_/.test(p.id)).flatMap(p=>p.rows.map(r=>r.dn)))].sort((a,b)=>a-b);if(!dns.length)return null;
+    return {id:BP_SST,title:'BY-PASS DERRIÈRE VANNES SST',unit:'paire',virtual:true,def:true,rows:dns.map(dn=>({dn,def:true,mo:[bpWeldMo()],fo:bpCompo(base,dn,false),extra:[]}))};} /* pas de bloc by-pass dans le classeur : panier par défaut aux DN des vannes de SST */
+  const blk=(base.op.blocks||[]).find(b=>/^BY-PASS - FONDS/i.test(b.title||''));
   let cols=null,iTot=-1;const H=blk?blk.header||[]:[],G=blk?blk.groups||[]:[];
   if(blk){const iF=G.findIndex(g=>/^fourn/i.test(g));iTot=G.findIndex(g=>/^total fourn/i.test(g));if(iF>=0&&iTot>iF){cols=[];for(let c=iF;c<iTot;c++)if(H[c])cols.push(c);}}
   const rowOf=dn=>blk?(blk.rows||[]).find(r=>num((r.v||[])[0])===num(dn)):null;
@@ -137,11 +163,15 @@ function bypassSstPanier(base){const B=base.op.bypass;if(!Array.isArray(B)||!B.l
     if(cols&&br){let use=null;const f=(br.f||[])[iTot];if(f){const refs=new Set();String(f).replace(/\$?([A-Z]{1,2})\$?\d+\s*:\s*\$?([A-Z]{1,2})\$?\d+/g,(m,x,y)=>{for(let c=colIdx(x);c<=colIdx(y);c++)refs.add(c);return '';}).replace(/\$?([A-Z]{1,2})\$?\d+/g,(m,x)=>{refs.add(colIdx(x));return m;});const u=cols.filter(c=>refs.has(c));if(u.length)use=u;}
       if(!use)use=cols.filter(c=>!/fond/i.test(H[c]));
       fo=use.map(c=>{const lab=H[c];const km=String(lab).match(/×\s*(\d+)/);const qty=km?+km[1]:1;const amt=num((br.v||[])[c]);return {label:String(lab).replace(/\s*×\s*\d+/,'').trim(),qty,pu:qty?amt/qty:amt,ref:parseRefs((br.f||[])[c])};});}
-    const s=fo.reduce((x,f)=>x+f.qty*f.pu,0);if(!fo.length)fo=[{label:'Fournitures du by-pass (total du classeur)',qty:1,pu:foTot,ref:null}];else if(Math.abs(s-foTot)>0.5)fo.push({label:'Autres fournitures (écart au total « by-pass » du classeur)',qty:1,pu:foTot-s,ref:null});
-    return {dn:num(b.dn),mo:[{eq:b.eq||'S+T',h:num(b.hBypass),hf:b.hfB||null}],fo,extra:[]};});
+    const s=fo.reduce((x,f)=>x+f.qty*f.pu,0);let def=false;if(!fo.length){def=true;fo=bpCompo(base,b.dn,foTot>0);const s2=fo.reduce((x,f)=>x+f.qty*f.pu,0);if(foTot>0&&Math.abs(s2-foTot)>0.5)fo.push({label:'Autres fournitures (écart au total « by-pass » du classeur)',qty:1,pu:foTot-s2,ref:null});} /* 14/10 soir (lot Q) : composition par défaut, total du classeur gardé */else if(Math.abs(s-foTot)>0.5)fo.push({label:'Autres fournitures (écart au total « by-pass » du classeur)',qty:1,pu:foTot-s,ref:null});
+    return Object.assign({dn:num(b.dn),mo:!def||num(b.hBypass)>0||b.hfB?[{eq:b.eq||'S+T',h:num(b.hBypass),hf:b.hfB||null}]:[bpWeldMo()],fo,extra:[]},def?{def:true}:{});});
   return {id:BP_SST,title:'BY-PASS DERRIÈRE VANNES SST',unit:'paire',virtual:true,rows};}
-export const panierOf=(base,pid)=>(base.op.paniers||[]).find(p=>p.id===pid)||(pid===BP_SST?bypassSstPanier(base):null);
-export const allPaniers=base=>{const v=bypassSstPanier(base);return (base.op.paniers||[]).concat(v?[v]:[]);};
+/* 14/10 nuit (lot P) — DN AJOUTÉS à un panier par « ⧉ Copier vers d'autres paniers » (option « ajouter les DN qui manquent ») : la ligne est gardée dans
+   base.over[panier][DN].add = {mo:[{eq,h}], fo:[…], extra:[…], from, at} (base.over survit au réimport du classeur) ; une ligne du classeur au même DN reste prioritaire */
+export const addedRows=(base,P)=>{const O=(((base||{}).over||{})[P.id])||{};const add=Object.keys(O).filter(d=>O[d]&&O[d].add&&num(d)&&!P.rows.some(r=>r.dn===num(d)));
+  return add.length?Object.assign({},P,{rows:P.rows.concat(add.map(d=>Object.assign({mo:[],fo:[],extra:[]},JSON.parse(JSON.stringify(O[d].add)),{dn:num(d),added:true}))).sort((a,b)=>a.dn-b.dn)}):P;};
+export const panierOf=(base,pid)=>{const P=(base.op.paniers||[]).find(p=>p.id===pid);return P?addedRows(base,P):(pid===BP_SST?bypassSstPanier(base):null);};
+export const allPaniers=base=>{const v=bypassSstPanier(base);return (base.op.paniers||[]).map(p=>addedRows(base,p)).concat(v?[v]:[]);};
 export function foLookup(base,table,dn,col){const T=base.fo.tables[table];if(!T)return 0;const isN=typeof dn==='number'||(dn!==''&&dn!==null&&dn!==undefined&&isFinite(+dn));const want=isN?num(dn):key(dn);const row=T.rows.find(r=>isN?num(r[T.cols[0]])===want:key(r[T.cols[0]])===want); /* clé texte (type de support…) : comparée en texte — avant le 13/10 tout texte tombait sur la 1re ligne (« Suspendu ») */if(!row)return 0;const cname=typeof col==='number'?T.cols[col-1]:T.cols.find(c=>key(c).startsWith(key(col)));return cname?num(row[cname]):0;}
 export const cadOf=(base,dn)=>(base.mo.cad||[]).find(c=>c.dn===num(dn))||null;
 const isoIdx=iso=>/3/.test(String(iso))?2:/2/.test(String(iso))?1:0;
@@ -162,13 +192,15 @@ export const mvarOf=(base,pid,dn)=>{const L=((((base||{}).mvar||{})[pid])||{})[n
 export const variantOf=(base,pid,dn,eq)=>eq?mvarOf(base,pid,dn).find(v=>eqKey(v.eq)===eqKey(eq)&&(v.lignes||[]).length)||null:null;
 /* 14/10 après-midi (lot A, Ethan : « dans les purges, pourquoi en fourniture il y a tés acier ? ») : colonne FO_Te_Acier du bloc PURGE, comptée seulement avec le purgeur automatique */
 const foLabel=(pid,l)=>pid==='purge'&&/^t[ée]s acier$/i.test(String(l||'').trim())?'Tés acier (purgeur automatique)':l;
+/* 14/10 nuit (lot P) : lignes de MO AJOUTÉES par « ⧉ Copier vers d'autres paniers » quand le panier source en a plus (base.over[panier][DN]['mo'+i] = {eq, h, add:1}, i ≥ nombre de lignes du classeur) */
+const moOf=(r,ov)=>{const x=[];for(let i=r.mo.length;ov['mo'+i]&&ov['mo'+i].add;i++)x.push({eq:ov['mo'+i].eq||'',h:num(ov['mo'+i].h),add:true});return x.length?r.mo.concat(x):r.mo;};
 export function panierRow(base,pid,dn,opt){opt=opt||{};const P=panierOf(base,pid);if(!P)return null;const r=P.rows.find(x=>x.dn===num(dn));if(!r)return null;const ov=((base.over||{})[pid]||{})[dn]||{};
   const V=opt.eq?variantOf(base,pid,dn,opt.eq):null;const has=v=>v!==undefined&&v!==null&&v!=='';
-  const mo=V?V.lignes.map((l,i)=>{const o=ov['mv'+i]||{};const eq=o.eq||l.eq||V.eq;const h=has(o.h)?+o.h:num(l.h);const rate=teamCost(base,eq).h;return {eq,h,rate,amount:h*rate,variant:V.eq};}):r.mo.map((m,i)=>{const o=ov['mo'+i]||{};
+  const mo=V?V.lignes.map((l,i)=>{const o=ov['mv'+i]||{};const eq=o.eq||l.eq||V.eq;const h=has(o.h)?+o.h:num(l.h);const rate=teamCost(base,eq).h;return {eq,h,rate,amount:h*rate,variant:V.eq};}):moOf(r,ov).map((m,i)=>{const o=ov['mo'+i]||{};
     if(opt.soud&&m.hf&&(o.h===undefined||o.h===null||o.h==='')){const W=opt.soud(num(dn))||{};const k=o.k!==undefined&&o.k!==null&&o.k!==''?+o.k:m.hf.k;const pu=num(W.pu);return {eq:W.eq||m.eq,h:k,k,kBase:m.hf.k,rate:pu,amount:k*pu,weld:true,label:W.label||''};}
     const eq=o.eq||m.eq;let h=o.h!==undefined&&o.h!==null&&o.h!==''?+o.h:m.h;if((o.h===undefined||o.h===null||o.h==='')&&m.hf){const c=cadOf(base,dn);const col=m.hf.col;const cad=c?(col===3?c.soud.S:col===4?c.soud['S+T']:c.soud['S+T+P']):0;if(cad)h=m.hf.k*(base.mo.hJour||10)/cad;}const rate=teamCost(base,eq).h;return {eq,h,rate,amount:h*rate};});
   const unit=(f,qty)=>{if(f.ref){const tot=refPrice(base,f.ref,dn,f.pu*(f.qty||1));return (f.qty||1)?tot/(f.qty||1):tot;}return f.pu;}; /* la formule du classeur porte déjà le « ×2 » : prix unitaire = total de la formule ÷ quantité */
-  const fo=r.fo.map((f,i)=>{const o=ov['fo'+i]||{};const qty=o.qty!==undefined?+o.qty:f.qty;const ovPu=o.pu!==undefined&&o.pu!==null&&o.pu!=='';const pu=ovPu?+o.pu:unit(f,qty);const miss=!ovPu&&f.ref?refMissing(base,f.ref,dn):[];return {label:foLabel(pid,f.label),qty,pu,amount:qty*pu,ref:f.ref||null,missing:miss.length?miss:null};}); /* 13/10 nuit : ref = d'où vient le prix (table FO + DN) → 📎 devis de référence ; 14/10 : missing = prix introuvable dans la base */
+  const fo=r.fo.map((f,i)=>{const o=ov['fo'+i]||{};const qty=o.qty!==undefined?+o.qty:f.qty;const ovPu=o.pu!==undefined&&o.pu!==null&&o.pu!=='';const pu=ovPu?+o.pu:unit(f,qty);const miss=!ovPu&&f.ref?refMissing(base,f.ref,dn):(!ovPu&&f.need&&!(pu>0)?[String(f.need)]:[]); /* 14/10 soir (lot Q) : f.need = pièce sans prix dans la base (vannette du by-pass…) */return {label:foLabel(pid,f.label),qty,pu,amount:qty*pu,ref:f.ref||null,missing:miss.length?miss:null};}); /* 13/10 nuit : ref = d'où vient le prix (table FO + DN) → 📎 devis de référence ; 14/10 : missing = prix introuvable dans la base */
   const extra=(r.extra||[]).map(f=>{const pu=unit(f,f.qty);return {label:f.label,qty:f.qty,pu,amount:f.qty*pu};});
   const moT=mo.reduce((s,x)=>s+x.amount,0),foT=fo.reduce((s,x)=>s+x.amount,0);return {id:pid,title:P.title,dn,mo,fo,extra,moAmount:moT,foAmount:foT,total:moT+foT,unit:P.unit,variant:V?{eq:V.eq,n:V.lignes.length}:null,missing:fo.filter(f=>f.missing).map(f=>({label:f.label,why:f.missing.join(' ; ')}))};}
 export const panierDNs=(base,pid)=>{const P=panierOf(base,pid);return P?P.rows.map(r=>r.dn):[];};
@@ -361,8 +393,8 @@ export function calcEtude(z,base,opt){opt=opt||{};const XL=!!opt.classeur;const 
   /* ── SST (14/10 : un prix de vanne introuvable dans la base est SIGNALÉ ; « + by-pass » ajoute le panier by-pass derrière la paire) ── */
   {let mo=0,fo=0;const det=[];const boit=sstBoitiers(base);(z.sst||[]).forEach((s,si)=>{const dn=num(s.dn);if(!dn||!s.type)return;const q=num(s.paires);
     if(s.type==='autre'){const pu=num(s.pu);fo+=pu*q;det.push({dn,type:'autre',des:s.des||'',q,pu,idx:si,missing:[]});return;} /* typologie hors classeur : prix saisi (fourniture + pose) */const bf=(s.type==='bypass_seul'||s.type==='fonds_bombes')?bypassFonds(base,dn,s.type==='fonds_bombes'):null;const p=bf?null:panierRow(base,s.type,dn,{eq:VE});
-    const bp=s.bypass&&!bf?panierRow(base,BP_SST,dn,{eq:VE}):null;const pu=(bf?bf.total:(p?p.total:0))+boit+(bp?bp.total:0);const m=(bf?bf.mo:(p?p.moAmount:0))+foParam(base,'FO_MO_Pose_Boitiers')*teamCost(base,'M').h+(bp?bp.moAmount:0);mo+=m*q;fo+=(pu-m)*q;
-    const miss=(p?p.missing:[]).concat(bp?bp.missing:[]);if(!bf&&!p)miss.push({label:'Panier',why:'pas de panier « '+s.type+' » au DN '+dn+' dans la base'});if(s.bypass&&!bf&&!bp)miss.push({label:'By-pass',why:'pas de by-pass au DN '+dn+' dans la base (bloc BY-PASS du classeur)'});
+    const bp=s.bypass&&!bf?panierRow(base,BP_SST,dn,{eq:VE,soud:bpSw(base,dn)?W:null}):null; /* 14/10 soir (lot Q) : by-pass par défaut — ses 4 soudures au prix de la soudure de la zone */const pu=(bf?bf.total:(p?p.total:0))+boit+(bp?bp.total:0);const m=(bf?bf.mo:(p?p.moAmount:0))+foParam(base,'FO_MO_Pose_Boitiers')*teamCost(base,'M').h+(bp?bp.moAmount:0);mo+=m*q;fo+=(pu-m)*q;
+    const miss=(p?p.missing:[]).concat(bp?bp.missing:[]);if(!bf&&!p)miss.push({label:'Panier',why:'pas de panier « '+s.type+' » au DN '+dn+' dans la base'});if(bf&&!(bf.total>0))miss.push({label:s.type==='fonds_bombes'?'Fonds bombés':'By-pass seul',why:'pas de ligne au DN '+dn+' dans le bloc BY-PASS - FONDS BOMBÉS du classeur'}); /* 14/10 soir (lot Q) : plus de 0 € en silence */if(s.bypass&&!bf&&!bp)miss.push({label:'By-pass',why:'pas de by-pass au DN '+dn+' dans la base (bloc BY-PASS du classeur)'});
     if(miss.length)R.warn.push('SST DN '+dn+' : '+miss.map(x=>x.label+' — '+x.why).join(' ; '));
     det.push({dn,type:s.type,q,pu,idx:si,missing:miss,bypass:bp?bp.total:0});});set('sst',L(mo,fo),{rows:det,boitiers:boit});}
   /* ── extrusion (lignes : MO de l'équipe, amortissement du matériel, consommables — clé « ext|Ø|type ») ── */
@@ -371,7 +403,8 @@ export function calcEtude(z,base,opt){opt=opt||{};const XL=!!opt.classeur;const 
     const S=lineSet((z.pover||{})[key2]);S.add('mo','MO d\'extrusion · '+x.type+' (équipe '+Er.eq+')','mo',Er.h[hk]||0,teamCost(base,Er.eq).h,{unit:'h'});S.add('amort','Amortissement du matériel','fo',1,Er.amort);S.add('conso','Consommables','fo',1,Er.conso);
     const m=S.tot('mo'),f=S.tot('fo');mo+=m*q;fo+=f*q;det.push({dn,type:x.type,q,pu:m+f,lines:S.lines,key:key2,idx:xi});});set('extrusion',L(mo,fo),{rows:det});}
   /* ── raccordement ── */
-  {let mo=0,fo=0;const det=[];(z.racc||[]).forEach(x=>{const dn=num(x.dn);if(!dn||!x.type)return;const q=num(x.paires);const p=panierRow(base,x.type,dn,{eq:VE});const pu=p?p.total:0;mo+=(p?p.moAmount:0)*q;fo+=(p?p.foAmount:0)*q;det.push({dn,type:x.type,q,pu});});set('racc',L(mo,fo),{rows:det});}
+  {let mo=0,fo=0;const det=[];(z.racc||[]).forEach((x,xi)=>{const dn=num(x.dn);if(!dn||!x.type)return;const q=num(x.paires);const p=panierRow(base,x.type,dn,{eq:VE});const pu=p?p.total:0;mo+=(p?p.moAmount:0)*q;fo+=(p?p.foAmount:0)*q;
+    const miss=p?p.missing:[{label:'Panier',why:'pas de panier « '+x.type+' » au DN '+dn+' dans la base'}];if(miss.length)R.warn.push('Raccordement DN '+dn+' : '+miss.map(m=>m.label+' — '+m.why).join(' ; '));det.push({dn,type:x.type,q,pu,idx:xi,missing:miss});});set('racc',L(mo,fo),{rows:det});} /* 14/10 soir (lot Q) : idx (ligne de la zone) et prix manquant signalé */
   /* ── CND ── */
   const CND=z.cnd||{};const km=CND.km===''||CND.km===null||CND.km===undefined?null:num(CND.km);const tr=filmTranches(base);
   const cndCalc=(kind,cfg,poste)=>{if(!cfg||!cfg.on)return L();const forf=km===null?0:cndForfait(base,poste,km);

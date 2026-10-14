@@ -46,7 +46,7 @@ export function snapOfEntry(a,x){if(!x)return null;const S={chiffrage:x.chiffrag
 const TQ={};
 export function traceSnap(a,ctx){const out={};const sites=(ctx&&ctx.sites)||[];(a.sites||[]).forEach(id=>{const s=sites.find(x=>x.id===id)||{};const name=s.name||id;const k=id;const c=TQ[k];if(c&&Date.now()-c.t<2000){out[id]=Object.assign({},c.v,{name});return;}
   let q=null;try{q=ctx&&ctx.traceQty?ctx.traceQty(id):null;}catch(e){q=null;}let v;
-  if(q&&Array.isArray(q.rows)&&q.rows.length)v={rows:q.rows.map(r=>({dn:+r.dn,soud:+r.soud||0,mlTr:+r.mlTr||0,mlTube:r.mlTube,barres:r.barres,coudes:r.coudes,tes:r.tes,piq:r.piq,red:r.red,vannes:r.vannes,kits:r.kits})),tot:q.tot||null};
+  if(q&&Array.isArray(q.rows)&&q.rows.length)v={rows:q.rows.filter(r=>+r.soud||+r.mlTr)/* 14/10 soir (lot Q) : sans les lignes « purges / vidanges seules » (0 soudure, 0 ml) — instantanés comme avant */.map(r=>({dn:+r.dn,soud:+r.soud||0,mlTr:+r.mlTr||0,mlTube:r.mlTube,barres:r.barres,coudes:r.coudes,tes:r.tes,piq:r.piq,red:r.red,vannes:r.vannes,kits:r.kits})),tot:q.tot||null};
   else{let g={};try{g=ctx&&ctx.traceAgg?(ctx.traceAgg(id)||{}):{};}catch(e){g={};}const rows=Object.keys(g).map(Number).filter(Boolean).sort((x,y)=>y-x).map(dn=>({dn,soud:+g[dn].nb||0,mlTr:Math.round((+g[dn].ml||0)*10)/10}));
     v=rows.length?{rows,tot:{soud:rows.reduce((x,r)=>x+r.soud,0),mlTr:Math.round(rows.reduce((x,r)=>x+r.mlTr,0)*10)/10},part:true}:{none:true};}
   TQ[k]={t:Date.now(),v};out[id]=Object.assign({},v,{name});});return out;}

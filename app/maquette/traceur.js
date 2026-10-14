@@ -1,5 +1,6 @@
 // Traceur : sommets → pièces catalogue posées selon les règles. Fonctions pures, sans DOM.
 // Une « conduite » = polyligne (m) + DN + spéciaux (tés, vannes, réductions, bouchons) → chaîne de pièces avec positions, soudures, notes.
+import {endKindOf,endTxt} from './extremites.js'; // 14/10 soir (lot T1) : extrémités de ligne (contrat C1)
 const rad=a=>a*Math.PI/180,deg=r=>r*180/Math.PI;const norm=a=>{while(a>Math.PI)a-=2*Math.PI;while(a<-Math.PI)a+=2*Math.PI;return a;};
 export const fmt=n=>Number(n).toLocaleString('fr-FR',{maximumFractionDigits:2});
 export function polyLen(pts){let L=0;for(let i=1;i<pts.length;i++)L+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);return L;}
@@ -24,7 +25,9 @@ export function splitBars(G,bar,chuteMin){if(G<=1e-6)return [];const n=Math.max(
 /* buildConduit({pts, dn, cat, rules, specials, bar, head, endStart, endEnd, e, bypassTurn})
    specials : [{m, type:'tee'|'valve'|'reducer'|'endcap'|'bend3d', dnb, dn2, side, teeType, id}]
    head : {id, ref} — la conduite part d'une sortie de té (branche du té de la parente) : la soudure au bout de la branche compte
-   endStart / endEnd : 'libre' | 'kit' (kit fin de ligne) | 'provisoire' (fond bombé soudé, à reprendre) | 'sousstation' (raccordement) | 'bypass' (fin seulement : les deux conduites se rejoignent)
+   endStart / endEnd : 'libre' | 'kit' (kit fin de ligne) | 'provisoire' (fond bombé soudé, à reprendre) | 'sousstation' (raccordement) | 'bypass' (les deux conduites se rejoignent)
+     — 14/10 soir (lot T1, contrat C1) : + 'fondbombe_regard' (fond bombé, comme provisoire) · 'pec' 'insertion' 'attente' 'chaufferie' 'attente_chaufferie' (raccordements, comme sous-station)
+     · 'bypass_extrusion' 'bypass_regard' (= ancien 'bypass') ; toutes possibles aux deux bouts (by-pass au départ : arc symétrique) — voir extremites.js
    → {pieces:[{kind, id, L, m0, m1, mc, angle, turn, legIn, legOut, long, R, x, y, th, path:[[x,y]...], ref, dn, dn2, note, err, key}], welds:[{i, m, x, y, dev, between}], notes:[{kind,txt,m}], length} */
 export function buildConduit(o){
   const {pts,dn,cat,rules}=o;const specials=(o.specials||[]).slice().sort((a,b)=>a.m-b.m);const notes=[];const bar=o.bar||rules.barreParDefaut||12;const chuteMin=rules.chuteMin,legMin=rules.jambeMin,devMax=rules.devMax;
@@ -34,10 +37,10 @@ export function buildConduit(o){
   // 1) nœuds rigides le long du chaînage : coudes aux sommets (angle ≥ devMax), spéciaux ; départ/fin
   const nodes=[{kind:'start',m:0}];let acc=0;const fcMax=rules.fausseCoupeMax===undefined?15:rules.fausseCoupeMax;const pas=rules.coudeAnglePas||15;
   // extrémités : la pièce de bout est un nœud rigide collé au départ / à la fin (kit = bouchon catalogue, provisoire = fond bombé soudé, sous-station = raccordement sans pièce, by-pass = coude 90° recoupé vers l'autre conduite)
-  const endNode=(type,atStart)=>{if(!type||type==='libre'||type==='tee')return null;const sid='end:'+(atStart?'start':'end');const dl=dnAt(atStart?0:Ltot);
-    if(type==='kit'||type==='provisoire'){const ec=cat.endcap(dl);const L=ec.L||0.3;return {kind:'endcap',sub:type,m:atStart?L/2:Ltot-L/2,L,legIn:L/2,legOut:L/2,sid,dn:dl,ref:type==='kit'?`kit fin de ligne DN${dl} (${ec.ref})`:`fin de ligne provisoire DN${dl} — fond bombé soudé, à reprendre`};}
-    if(type==='sousstation')return {kind:'endpoint',sub:type,m:atStart?0:Ltot,L:0,legIn:0,legOut:0,sid,dn:dl,ref:atStart?'raccordement (chaufferie / sous-station)':'raccordement sous-station'};
-    if(type==='bypass'&&!atStart){const L=legMin;const Bl=cat.bend(dl);return {kind:'bypassEnd',sub:type,m:Ltot-L/2,L,legIn:L/2,legOut:L/2,sid,dn:dl,turn:o.bypassTurn||1,r:(o.e||casing+0.15)/2,ref:`by-pass : coude 90° ${Bl.ref} recoupé (jambe ${fmt(legMin)} m) vers l'autre conduite`};}
+  const endNode=(type,atStart)=>{const ek=endKindOf(type);if(!ek)return null;const sid='end:'+(atStart?'start':'end');const dl=dnAt(atStart?0:Ltot); // 14/10 soir (lot T1) : la pièce posée dépend de la famille du bout (extremites.js)
+    if(ek==='endcap'){const ec=cat.endcap(dl);const L=ec.L||0.3;return {kind:'endcap',sub:type,m:atStart?L/2:Ltot-L/2,L,legIn:L/2,legOut:L/2,sid,dn:dl,ref:type==='kit'?`kit fin de ligne DN${dl} (${ec.ref})`:type==='provisoire'?`fin de ligne provisoire DN${dl} — fond bombé soudé, à reprendre`:`fond bombé nu en regard DN${dl} — fond bombé soudé, acier nu dans le regard`};}
+    if(ek==='endpoint')return {kind:'endpoint',sub:type,m:atStart?0:Ltot,L:0,legIn:0,legOut:0,sid,dn:dl,ref:type==='sousstation'?(atStart?'raccordement (chaufferie / sous-station)':'raccordement sous-station'):endTxt(type)};
+    if(ek==='bypass'){const L=legMin;const Bl=cat.bend(dl);return {kind:'bypassEnd',sub:type,atStart,m:atStart?L/2:Ltot-L/2,L,legIn:L/2,legOut:L/2,sid,dn:dl,turn:o.bypassTurn||1,r:(o.e||casing+0.15)/2,ref:`${type==='bypass'?'by-pass':endTxt(type)} : coude 90° ${Bl.ref} recoupé (jambe ${fmt(legMin)} m) vers l'autre conduite`};}
     return null;};
   const nStart=endNode(o.endStart,true),nEnd=endNode(o.endEnd,false);if(nStart)nodes.push(nStart);
   // coupes forcées (soudure coulissée à la main entre deux tubes) : nœud rigide sans longueur — les barres se réorganisent de part et d'autre (barres entières + chute)
@@ -61,7 +64,7 @@ export function buildConduit(o){
   // 2) écarts entre nœuds rigides consécutifs → barres, coude contre coude, jambes recoupées, ou erreur
   const fills=[];
   for(let k=0;k<rigid.length-1;k++){const a=rigid[k],b=rigid[k+1];const D=b.m-a.m;const la=a.kind==='start'?0:a.legOut,lb=b.kind==='end'?0:b.legIn;let G=D-la-lb;const bendA=a.kind==='bend',bendB=b.kind==='bend';let bars=[];let note=null,err=null,manch=false,nue=false;
-    const manchetteMin=rules.manchetteMin===undefined?0.2:rules.manchetteMin;const nom=x=>x.kind==='start'?(o.head?'la sortie du té':'le départ'):x.kind==='end'?'la fin':x.kind==='bend'?(x.plane==='3D'?'le coude en altimétrie':'le coude du sommet '+x.vertex):x.kind==='tee'?'le té':x.kind==='valve'?'la vanne':x.kind==='reducer'?'la réduction':x.kind==='endcap'?(x.sub==='kit'?'le kit fin de ligne':'la fin de ligne provisoire'):x.kind==='endpoint'?'le raccordement':x.kind==='bypassEnd'?'le coude du by-pass':x.kind==='cut'?'la soudure coulissée':x.kind;
+    const manchetteMin=rules.manchetteMin===undefined?0.2:rules.manchetteMin;const nom=x=>x.kind==='start'?(o.head?'la sortie du té':'le départ'):x.kind==='end'?'la fin':x.kind==='bend'?(x.plane==='3D'?'le coude en altimétrie':'le coude du sommet '+x.vertex):x.kind==='tee'?'le té':x.kind==='valve'?'la vanne':x.kind==='reducer'?'la réduction':x.kind==='endcap'?(x.sub==='kit'?'le kit fin de ligne':x.sub==='fondbombe_regard'?'le fond bombé en regard':'la fin de ligne provisoire'):x.kind==='endpoint'?'le raccordement':x.kind==='bypassEnd'?'le coude du by-pass':x.kind==='cut'?'la soudure coulissée':x.kind;
     if(G>=chuteMin-1e-6){bars=splitBars(G,bar,chuteMin);}
     else if(G>=manchetteMin-1e-6){ // pas la place d'une chute : une manchette (bout de tube court, deux soudures) — c'est ce qui se fait entre deux pièces (lyre extérieure, chicane…)
       bars=[G];manch=true;note={kind:'interp',txt:`manchette de ${fmt(G)} m entre ${nom(a)} et ${nom(b)} (pas la place d'une chute ≥ ${fmt(chuteMin)} m)`};}
@@ -104,7 +107,9 @@ export function buildConduit(o){
       if(nd.kind==='tee'&&nd.vert){p.center=[c.x,c.y];p.cth=c.th;} // purge / vidange : branche verticale, symbole au centre
       // aim (antenne à 1 m) : la branche part du côté réel de l'antenne ; sinon side (té posé à la main)
       else if(nd.kind==='tee'){const s=nd.aim?(((-Math.sin(c.th))*(nd.aim[0]-c.x)+Math.cos(c.th)*(nd.aim[1]-c.y))>=0?1:-1):(nd.side||1);const nx=-Math.sin(c.th)*s,ny=Math.cos(c.th)*s;p.branch=[[c.x,c.y],[c.x+nx*(nd.B||1),c.y+ny*(nd.B||1)]];p.branchPort={x:c.x+nx*(nd.B||1),y:c.y+ny*(nd.B||1),th:Math.atan2(ny,nx)};p.saut=/saut/i.test(nd.teeType||'');}
-      if(nd.kind==='bypassEnd'){const t=nd.turn||1,r=nd.r||0.2;const th=g.th;p.turn=t;p.r=r;p.apex=[g.x1+Math.cos(th)*r-Math.sin(th)*r*t,g.y1+Math.sin(th)*r+Math.cos(th)*r*t]; // bout de l'arc de 90° : point de jonction des deux conduites (soudure du by-pass)
+      if(nd.kind==='bypassEnd'&&nd.atStart){const t=nd.turn||1,r=nd.r||0.2;const th=g.th;p.turn=t;p.r=r;p.atStart=true;const cx=g.x-Math.sin(th)*r*t,cy=g.y+Math.cos(th)*r*t;p.apex=[cx-Math.cos(th)*r,cy-Math.sin(th)*r]; // 14/10 soir (lot T1) : by-pass au DÉPART (ligne tracée depuis son bout) — même coude, symétrique : l'arc part de la jonction (sur l'axe, en arrière du départ) et rejoint le début de la conduite
+        const steps=6;const a0=Math.atan2(p.apex[1]-cy,p.apex[0]-cx);const arc=[];for(let s=0;s<steps;s++){const ang=a0+t*(Math.PI/2)*s/steps;arc.push([cx+r*Math.cos(ang),cy+r*Math.sin(ang)]);}p.path=arc.concat(path);}
+      else if(nd.kind==='bypassEnd'){const t=nd.turn||1,r=nd.r||0.2;const th=g.th;p.turn=t;p.r=r;p.apex=[g.x1+Math.cos(th)*r-Math.sin(th)*r*t,g.y1+Math.sin(th)*r+Math.cos(th)*r*t]; // bout de l'arc de 90° : point de jonction des deux conduites (soudure du by-pass)
         const steps=6;const cx=g.x1-Math.sin(th)*r*t,cy=g.y1+Math.cos(th)*r*t;const a0=Math.atan2(g.y1-cy,g.x1-cx);for(let s=1;s<=steps;s++){const ang=a0+t*(Math.PI/2)*s/steps;path.push([cx+r*Math.cos(ang),cy+r*Math.sin(ang)]);}}
       pushPiece(p);}
     if(k<rigid.length-1){const f=fills[k];let m=nd.kind==='start'?0:nd.m+nd.legOut;f.bars.forEach((L,j)=>{const g=place(m,m+L);const start=(j===0&&carry)?carry:[g.x,g.y];const std=Math.abs(L-bar)<1e-6;const dl=dnAt(m+1e-3),cl=cat.casing(dl);const nueP=!!f.manch&&(f.nue||L<=2*cat.bareEnds(dl)+0.05);const p=pushPiece({kind:'tube',id:idOf(f.manch?'M':'P'),m0:m,m1:m+L,L,path:[start,[g.x1,g.y1]],x:start[0],y:start[1],th:Math.atan2(g.y1-start[1],g.x1-start[0]),dn:dl,casing:cl,std,cut:!std,manchette:!!f.manch,nue:nueP,fcBefore:(j===0&&carry)?true:false,ref:`R-${dl}/${Math.round(cl*1000)}`+(std?` · barre ${bar} m`:f.manch?(nueP?` · manchette nue ${fmt(L)} m (acier nu, un seul manchon)`:` · manchette ${fmt(L)} m`):` · barre coupée ${fmt(L)} m`)});if(f.err&&j===f.bars.length-1){p.err=f.err;}m+=L;});carry=null;

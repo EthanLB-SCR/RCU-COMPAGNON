@@ -9,8 +9,9 @@ import veh from './reception.js';
 import mag from './magasin.js';
 import {memoirePack} from './memoire2.js';
 import {v1Pack} from './affaires.js';
+import {reglesPack} from './regles.js'; // 14/10 soir (lot T1) : règles de tracé — longueurs maximales entre coudes 90° (dilatation), partie « regles »
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const PARTS=()=>[acc&&acc.pack,veh&&veh.pack,mag&&mag.pack,memoirePack,v1Pack].filter(p=>p&&p.key&&p.import);
+const PARTS=()=>[acc&&acc.pack,veh&&veh.pack,mag&&mag.pack,memoirePack,v1Pack,reglesPack].filter(p=>p&&p.key&&p.import);
 const ST={pack:null,name:'',size:0,err:'',sel:{},busy:false,res:null};
 const kb=n=>n>1048576?(n/1048576).toFixed(1)+' Mo':Math.max(1,Math.round(n/1024))+' Ko';
 const partSize=p=>{try{return JSON.stringify(p).length;}catch(e){return 0;}};

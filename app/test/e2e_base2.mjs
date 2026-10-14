@@ -4,7 +4,7 @@
 //    « ↻ Passer à la base actuelle » ; une écriture qui ne change aucun prix (même classeur réimporté) garde la révision ; les versions copient la révision ;
 // 2) cadence retouchée par DN dans la table des DN : colorée, « base : X », elle fait le prix de la soudure partout (table, purges, vannes, aérien, nuit, fonçage) ;
 // 3) onglet « Contrôles CND » (plus « Sous-traitance ») ;
-// 4) paramètres dans les paniers de prestation ; l'onglet Paramètres garde le général + les paramètres de l'appli ;
+// 4) paramètres dans les paniers de prestation ; l'onglet Paramètres garde le général (14/10 nuit, lot P : seulement ce qui n'est le panier d'aucune prestation) ;
 // 5) variantes d'équipe de la MO d'un panier : prise selon l'équipe soudure de la zone, sinon le panier de référence ; copie aux autres DN ;
 // 6) équipe S+M : colonnes de cadence (à renseigner → repli), manchon « compris », jours = max(soudure, manchons), répartition au prorata ; variante S+M sur une SST ;
 // 7) puces des paniers accessibles (passent à la ligne), aussi à 390 px ;
@@ -95,7 +95,7 @@ console.log('2) cadence retouchée :',JSON.stringify(out));
 C.c2=out.st==='courante'&&out.dn0.cadS===10&&out.dn0.cadBase===10&&out.ph==='10'&&out.after.dn0.cadS===20&&out.after.dn0.cadOv===20&&Math.abs(out.after.dn0.pPouce*4-137.5)<1e-6&&Math.abs(out.after.soudure-(13750+2750))<0.01
   &&Math.abs(out.vpiPu-(275+160))<0.01&&Math.abs(out.after.vpiPu-(137.5+160))<0.01&&Math.abs((out.purges-out.after.purges)-2*2*(275-137.5)-2*4*(275-137.5))<0.05
   &&out.nuit.cadS===10&&out.nuit.jours===3&&out.after.nuit.cadS===20&&out.after.nuit.jours===2&&out.after.nuit.cadOv===true&&Math.abs(out.pose-1100)<0.01&&Math.abs(out.after.pose-550)<0.01&&out.fon===1&&out.after.fon===0.5
-  &&/ch-cadov/.test(out.ui.cls)&&out.ui.bg==='rgb(255, 226, 198)'&&out.ui.small==='base : 10'&&/137,50/.test(out.ui.prix)&&out.ui.col===3&&/base : 275,00/.test(out.ui.prix)&&/1 cadence retouchée/.test(out.ui.tag)&&out.same===false&&out.back===68.75;
+  &&/ch-cadov/.test(out.ui.cls)&&out.ui.bg==='rgb(255, 243, 166)'&&out.ui.small==='base : 10'&&/137,50/.test(out.ui.prix)&&out.ui.col===3&&/base : 275,00/.test(out.ui.prix)&&/1 cadence retouchée/.test(out.ui.tag)&&out.same===false&&out.back===68.75;
 // ══ 3) ONGLET « CONTRÔLES CND » ══
 await click('chview|base');out={tabs:await page.evaluate(()=>[...document.querySelectorAll('#eq-app [data-v^="chbase|"]')].map(b=>b.textContent.trim()))};
 await click('chbase|st');out.st=await page.evaluate(()=>({chips:[...document.querySelectorAll('#eq-app [data-v^="chfotable|"]')].map(b=>b.textContent.trim()),hydro:!!document.querySelector('#eq-app [data-afx^="b§fo§params§FO_Epreuve"]'),link:!!document.querySelector('#eq-app [data-v="chpresta|epreuve"]')}));
@@ -109,7 +109,9 @@ out.eprApp=await page.evaluate(()=>!!document.querySelector('#eq-app #ch-presta 
 await click('chpresta|decharg');out.dech=await page.evaluate(()=>!!document.querySelector('#eq-app #ch-presta [data-afx="b§op§dechargement§h1"]'));
 await click('chpan|purge');await click('chpandn|32');out.pp=await page.evaluate(()=>{const b=document.querySelector('#eq-app .ch-pparams');return b?{purg:!!b.querySelector('[data-afx="b§fo§params§FO_Purgeur_Auto"]'),te:!!b.querySelector('[data-afx="b§fo§params§FO_Te_Acier"]')}:null;});
 console.log('4) paniers de prestation :',JSON.stringify(out));
-C.c4=out.params.hpj&&out.params.ratio&&out.params.transp&&out.params.app&&!out.params.boulet&&!out.params.wc&&!out.params.purg&&out.params.links>=14&&out.presta.view&&out.presta.chips.length===15&&out.presta.boulet&&!out.presta.epr
+/* 14/10 nuit (lot P) : ce qui est le panier d'une prestation quitte l'onglet Paramètres (ratio de déchets → locations, transport → aérien, paramètres de l'appli → épreuve /
+   fonçage) ; + le panier de prestation « Extrusion » (16) */
+C.c4=out.params.hpj&&!out.params.ratio&&!out.params.transp&&!out.params.app&&!out.params.boulet&&!out.params.wc&&!out.params.purg&&out.params.links>=14&&out.presta.view&&out.presta.chips.length===16&&out.presta.boulet&&!out.presta.epr
   &&out.edit===15&&out.eprApp&&out.dech&&out.pp&&out.pp.purg&&out.pp.te;
 // ══ 5) VARIANTES D'ÉQUIPE (purge DN 50 : « 3 gars : 1 h ; à 2 : 1 h 15 ») ══
 await click('chpandn|50');await click('chmvadd|purge|50');out={v1:((await BASE0()).mvar||{}).purge};
