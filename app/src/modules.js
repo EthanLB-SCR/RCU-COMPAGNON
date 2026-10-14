@@ -7,4 +7,5 @@ import accueilRh from './accueil_rh.js'; MODS.push(accueilRh); /* 14/10 nuit : a
 import veh from './reception.js'; MODS.push(veh); /* 14/10 nuit : réception / restitution de véhicule (fiche véhicule de la flotte, Moi → Mon véhicule) */
 import magasin from './magasin.js'; MODS.push(magasin); // 14/10 nuit : magasin du dépôt (demandes, préparation, stock)
 import packScr from './packscr.js'; MODS.push(packScr); // 14/10 nuit : import du pack SCR (données privées) — Entreprise, administrateur
+import docsOblig from './docsoblig.js'; MODS.push(docsOblig); // 14/10 après-midi (lot D) : documents de l'entreprise (assurances, Kbis, URSSAF…) — SCR, alerte avant échéance
 export function initModules(){MODS.forEach(m=>{try{espaceExt(m);}catch(e){console.warn('module',m&&m.id,e);}});}

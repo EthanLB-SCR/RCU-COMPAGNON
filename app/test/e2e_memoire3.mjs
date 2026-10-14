@@ -5,6 +5,7 @@
 // puis le même parcours court à 390 px (téléphone) : pas de débordement horizontal ; aucune erreur console.
 import { chromium } from 'playwright';
 import fs from 'fs';
+import {unzipSync,strFromU8} from 'fflate'; // 14/10 après-midi (lot B) : l'export Word est un vrai .docx
 import {FAKE_BLOCS,FAKE_STYLE} from './memoire_fake.mjs';
 const BASE=process.env.BASE||'http://localhost:8765';
 const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
@@ -33,7 +34,7 @@ let out=await page.evaluate(()=>({modes:[...document.querySelectorAll('#eq-app .
   cover:(document.querySelector('#memoire-scroll .memoire-cv')||{}).textContent||'',h2col:getComputedStyle(document.querySelector('#memoire-scroll h2')).color,th:getComputedStyle(document.querySelector('#memoire-scroll th')).backgroundColor,redCol:getComputedStyle(document.querySelector('#memoire-scroll .memoire-h')).color}));
 out.txt=await prev();out.tab=await tabOk();out.lib=await A().then(a=>!!(a.memoire&&a.memoire.lib));
 console.log('1) mode bibliothèque :',JSON.stringify({...out,txt:out.txt.slice(0,160)}));
-C.c1=out.modes.join('|')==='📚 Bibliothèque SCR*|✎ Sections libres'&&out.secs===3&&/^2 ?trous à combler/.test(out.stats[0])&&/^9 \/ 12 ?paragraphes cochés/.test(out.stats[1])&&/^5 \/ 5 ?blocs/.test(out.stats[2])&&out.stats.length===4&&out.red===2&&out.h1===3&&out.h2===5
+C.c1=out.modes.join('|')==='📚 Bibliothèque SCR*|✎ Sections libres'&&out.secs===3&&/^2 ?trous à combler/.test(out.stats[0])&&/^9 \/ 12 ?paragraphes cochés/.test(out.stats[1])&&/^5 \/ 5 ?blocs/.test(out.stats[2])&&out.stats.length===5&&/^≈ \d+ · \d+ ?pages Word · PDF/.test(out.stats[4])&&out.red===2&&out.h1===3&&out.h2===5
   &&/Testville/.test(out.cover)&&/O2610-31/.test(out.cover)&&/MÉMOIRE\s*TECHNIQUE TEST/.test(out.cover)&&/CLIENT-TEST/.test(out.cover)&&/Objet : Réseau Lib – Testville/.test(out.txt)&&/Fin du mémoire de Réseau Lib/.test(out.txt)&&out.h2col==='rgb(18, 52, 86)'&&out.th==='rgb(255, 102, 1)'&&out.redCol==='rgb(238, 0, 0)'&&!/✓/.test(out.tab)&&!out.lib;
 // ── 2) décocher un paragraphe (section 3 › bloc Annexes) → absent de l'aperçu, choix enregistré sur l'affaire
 await click('mlbsec|2');await click('mlbexp|t-annexes');await click('mlbp|t-annexes-2');
@@ -54,13 +55,15 @@ await page.fill('#memoire-hv','Jean Test');await page.click('#memoire-hok');awai
 out.holes=await holes();out.p=await page.evaluate(()=>({red:document.querySelectorAll('#memoire-p-t-controles-1 .memoire-h').length,f:(document.querySelector('#memoire-p-t-controles-1 .memoire-f')||{}).textContent}));out.fill=await A().then(a=>a.memoire.lib.fill);
 console.log('4) trou comblé :',JSON.stringify(out));
 C.c4=/nom du conducteur de travaux/.test(out.modal.t)&&out.modal.inp&&out.holes===2&&out.p.red===0&&out.p.f==='Jean Test'&&out.fill['t-controles-1|nom du conducteur de travaux|0']==='Jean Test';
-// ── 5) export Word (2 trous encore vides) : gabarit du pack, page de garde, trous restants en rouge
-let [dl]=await Promise.all([page.waitForEvent('download'),page.evaluate(()=>document.querySelector('#eq-app [data-act=af][data-v="mword|"]').click())]);let html=fs.readFileSync(await dl.path(),'utf8');
-out={name:dl.suggestedFilename(),size:html.length,h2:/h2\{[^}]*color:#123456/.test(html),th:/<th style="background:#FF6601/.test(html),band:/background:#FABF8E/.test(html),puce:/<li style="color:#AA0011">/.test(html)&&/list-style-type:square/.test(html),
-  cover:/O2610-31/.test(html)&&/CLIENT-TEST/.test(html)&&/Testville/.test(html)&&/MÉMOIRE<br>TECHNIQUE TEST/.test(html)&&/\d\d\/\d\d\/\d{4}/.test(html),filled:/Jean Test/.test(html)&&!/nom du conducteur de travaux\]/.test(html),
-  red:/\.ac\{color:#EE0000;font-style:italic\}/.test(html)&&/<span class="ac">\[À COMPLÉTER : nom du maître d’œuvre\]<\/span>/.test(html)&&/<span class="ac">\[À COMPLÉTER : délai d’exécution/.test(html),out:!/Fin du mémoire/.test(html),word:/urn:schemas-microsoft-com:office:word/.test(html)};
+// ── 5) export Word (2 trous encore vides) : vrai .docx au gabarit du pack (styles, puces, tableaux), page de garde, en-tête / pied « page n / N », sommaire, trous restants en rouge
+let [dl]=await Promise.all([page.waitForEvent('download'),page.evaluate(()=>document.querySelector('#eq-app [data-act=af][data-v="mword|"]').click())]);const zip=unzipSync(new Uint8Array(fs.readFileSync(await dl.path())));const Z=k=>zip[k]?strFromU8(zip[k]):'';
+const dx=Z('word/document.xml'),sx=Z('word/styles.xml'),nx=Z('word/numbering.xml'),hx=Z('word/header1.xml'),fx=Z('word/footer1.xml');const txt=dx.replace(/<[^>]+>/g,'');let html=dx;
+out={name:dl.suggestedFilename(),parts:Object.keys(zip).length,h2:/w:styleId="Heading2"[\s\S]*?<w:color w:val="123456"\/>/.test(sx),th:/w:fill="FF6601"/.test(dx),band:/w:fill="FABF8E"/.test(dx),puce:/<w:numFmt w:val="bullet"\/><w:lvlText w:val="▪"\/>[\s\S]*?<w:color w:val="AA0011"\/>/.test(nx)&&/<w:numPr>/.test(dx),
+  cover:/O2610-31/.test(txt)&&/CLIENT-TEST/.test(txt)&&/Testville/.test(txt)&&/MÉMOIRE/.test(txt)&&/TECHNIQUE TEST/.test(txt)&&/\d\d\/\d\d\/\d{4}/.test(txt),filled:/Jean Test/.test(txt)&&!/nom du conducteur de travaux\]/.test(txt),
+  red:/<w:i\/><w:iCs\/><w:color w:val="EE0000"\/>(?:<w:sz [^>]*\/><w:szCs [^>]*\/>)?<\/w:rPr><w:t xml:space="preserve">\[À COMPLÉTER : nom du maître d’œuvre\]/.test(dx)&&/\[À COMPLÉTER : délai d’exécution/.test(txt),out:!/Fin du mémoire/.test(txt),
+  word:/MÉMOIRE TECHNIQUE/.test(hx)&&/PAGE/.test(fx)&&/NUMPAGES/.test(fx)&&/TOC \\o/.test(dx)&&/<w:titlePg\/>/.test(dx)&&/>2\.1 Soudage des tubes</.test(dx)};
 console.log('5) export Word :',JSON.stringify(out));
-C.c5=out.name==='Memoire_technique_O2610-31.doc'&&out.h2&&out.th&&out.band&&out.puce&&out.cover&&out.filled&&out.red&&out.out&&out.word;
+C.c5=out.name==='Memoire_technique_O2610-31.docx'&&out.h2&&out.th&&out.band&&out.puce&&out.cover&&out.filled&&out.red&&out.out&&out.word;
 // ── 6) variable vide + dernier trou → 0 trou : étape prête (✓ 5 · Mémoire)
 await click('mlbv|delai');await page.fill('#memoire-vv','12 semaines');await page.click('#memoire-vok');await wait(350);
 await page.evaluate(()=>document.querySelector('#memoire-p-t-acteurs-1 button.memoire-h').click());await wait(250);out={same:await page.evaluate(()=>!!document.getElementById('memoire-hall'))};await page.fill('#memoire-hv','BET Fictif');await page.keyboard.press('Enter');await wait(400);
@@ -84,7 +87,7 @@ C.c8=!!out.corr&&/Correction de la bibliothèque\./.test(out.corr.html)&&!!out.c
 await page.fill('#memoire-tree .memoire-q','chanfreins');await wait(300);out={search:await page.evaluate(()=>({hint:(document.querySelector('#memoire-tree-body .hint')||{}).textContent||'',rows:[...document.querySelectorAll('#memoire-tree-body .memoire-ptx span')].map(x=>x.textContent)}))};
 await page.fill('#memoire-tree .memoire-q','');await wait(200);
 const [pop]=await Promise.all([page.waitForEvent('popup'),page.evaluate(()=>document.querySelector('#eq-app [data-act=af][data-v="mprint|"]').click())]);await pop.waitForLoadState().catch(()=>{});await pop.waitForTimeout(500);const ph=await pop.content().catch(()=>'');await pop.close().catch(()=>{});
-out.print={cover:/MÉMOIRE<br>TECHNIQUE TEST/.test(ph)&&/O2610-31/.test(ph),page:/Page \| " counter\(page\)/.test(ph),noRed:!/<span class="ac">/.test(ph)};
+out.print={cover:/MÉMOIRE<br>TECHNIQUE TEST/.test(ph)&&/O2610-31/.test(ph),page:/"Page " counter\(page\) " \/ " counter\(pages\)/.test(ph),noRed:!/<span class="ac">/.test(ph)};
 console.log('9) recherche, impression :',JSON.stringify(out));
 C.c9=/1 paragraphe trouvé/.test(out.search.hint)&&out.search.rows.length===1&&/Préparation des chanfreins/.test(out.search.rows[0])&&out.print.cover&&out.print.page&&out.print.noRed;
 // ── 10) ancien mode toujours là : « Sections libres » → plan type SCR (10 sections) ; la bibliothèque de l'affaire n'est pas perdue ; retour au mode bibliothèque

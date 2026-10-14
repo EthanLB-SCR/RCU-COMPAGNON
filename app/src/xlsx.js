@@ -62,7 +62,7 @@ export function setCellsXml(xml,values){/* values = {A1: number|string} : la cel
   return xml;}
 export async function rezip(Z,replaced){/* replaced = {entryName: Uint8Array|string} ; les autres entrées sont recopiées compressées telles quelles */
   const parts=[];const cdir=[];let offset=0;const enc=new TextEncoder();
-  const names=Object.keys(Z);for(const name of names){const e=Z[name];let data,method,csize,usize,crc;
+  const names=Object.keys(Z).filter(n=>!(replaced&&replaced[n]===null)).concat(Object.keys(replaced||{}).filter(n=>!Z[n]&&replaced[n]!==null&&replaced[n]!==undefined));for(const name of names){const e=Z[name]||{};let data,method,csize,usize,crc; /* 14/10 après-midi (lot C) : null = entrée retirée (calcChain), entrée nouvelle ajoutée */
     if(replaced&&replaced[name]!==undefined){const raw=typeof replaced[name]==='string'?enc.encode(replaced[name]):replaced[name];usize=raw.length;crc=crc32(raw);const def=await deflateBytes(raw);if(def&&def.length<raw.length){data=def;method=8;}else{data=raw;method=0;}csize=data.length;}
     else{data=e.data;method=e.method;csize=e.csize;usize=e.usize;crc=e.crc;}
     const nameB=enc.encode(name);const lh=new Uint8Array(30+nameB.length);const dv=new DataView(lh.buffer);dv.setUint32(0,0x04034b50,true);dv.setUint16(4,20,true);dv.setUint16(6,0x0800,true);dv.setUint16(8,method,true);dv.setUint16(10,0,true);dv.setUint16(12,0x21,true);dv.setUint32(14,crc,true);dv.setUint32(18,csize,true);dv.setUint32(22,usize,true);dv.setUint16(26,nameB.length,true);dv.setUint16(28,0,true);lh.set(nameB,30);
@@ -115,3 +115,101 @@ export async function makeStyledXlsx(sheets,styles){const SH=(sheets||[]).filter
   SH.forEach((s,i)=>{F['xl/worksheets/sheet'+(i+1)+'.xml']=sheetXml(s,i);});
   F['xl/styles.xml']=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${fmts.length?`<numFmts count="${fmts.length}">${fmts.map((f,j)=>`<numFmt numFmtId="${164+j}" formatCode="${xmlEsc(f)}"/>`).join('')}</numFmts>`:''}<fonts count="${fonts.length}">${fonts.join('')}</fonts><fills count="${fills.length}">${fills.join('')}</fills><borders count="${borders.length}">${borders.join('')}</borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${xfs.length}">${xfs.join('')}</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
   const Z={};Object.keys(F).forEach(n=>{Z[n]={};});return rezip(Z,F);}
+/* ═════════ 14/10 après-midi (lot C) : LECTURE FIDÈLE D'UN CLASSEUR (grille « comme dans Excel » du DPGF, dpgfxl.js) ═════════
+   styles (polices, fonds, bordures, formats de nombres, alignements), couleurs du thème, fusions, largeurs de colonnes, hauteurs de lignes, volets figés, zoom,
+   formules (partagées comprises : le maître et ses dépendantes), valeurs en cache. Et l'ÉCRITURE ciblée : seules les cellules changées sont réécrites. */
+export const INDEXED=['000000','FFFFFF','FF0000','00FF00','0000FF','FFFF00','FF00FF','00FFFF','000000','FFFFFF','FF0000','00FF00','0000FF','FFFF00','FF00FF','00FFFF','800000','008000','000080','808000','800080','008080','C0C0C0','808080','9999FF','993366','FFFFCC','CCFFFF','660066','FF8080','0066CC','CCCCFF','000080','FF00FF','FFFF00','00FFFF','800080','800000','008080','0000FF','00CCFF','CCFFFF','CCFFCC','FFFF99','99CCFF','FF99CC','CC99FF','FFCC99','3366FF','33CCCC','99CC00','FFCC00','FF9900','FF6600','666699','969696','003366','339966','003300','333300','993300','993366','333399','333333'];
+const DEF_THEME=['FFFFFF','000000','EEECE1','1F497D','4F81BD','C0504D','9BBB59','8064A2','4BACC6','F79646','0000FF','800080'];
+/* thème : index Excel 0 = lt1 (fond), 1 = dk1 (texte), 2 = lt2, 3 = dk2, 4…9 = accent1…6, 10 = lien, 11 = lien visité */
+export function readTheme(xml){if(!xml)return DEF_THEME.slice();const m=xml.match(/<a:clrScheme\b[^>]*>([\s\S]*?)<\/a:clrScheme>/);if(!m)return DEF_THEME.slice();const get=tag=>{const x=m[1].match(new RegExp('<a:'+tag+'>([\\s\\S]*?)</a:'+tag+'>'));if(!x)return null;const c=x[1].match(/(?:srgbClr val|lastClr)="([0-9A-Fa-f]{6})"/);return c?c[1].toUpperCase():null;};
+  const k=['lt1','dk1','lt2','dk2','accent1','accent2','accent3','accent4','accent5','accent6','hlink','folHlink'];return k.map((t,i)=>get(t)||DEF_THEME[i]);}
+function tintHex(hex,tint){if(!tint)return hex;let r=parseInt(hex.slice(0,2),16)/255,g=parseInt(hex.slice(2,4),16)/255,b=parseInt(hex.slice(4,6),16)/255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b);let h=0,s=0,l=(mx+mn)/2;
+  if(mx!==mn){const d=mx-mn;s=l>0.5?d/(2-mx-mn):d/(mx+mn);h=mx===r?(g-b)/d+(g<b?6:0):mx===g?(b-r)/d+2:(r-g)/d+4;h/=6;}
+  l=tint<0?l*(1+tint):l*(1-tint)+tint;l=Math.max(0,Math.min(1,l));
+  const hue=(p,q,t)=>{if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;};
+  let R,G,B;if(s===0){R=G=B=l;}else{const q=l<0.5?l*(1+s):l+s-l*s,p=2*l-q;R=hue(p,q,h+1/3);G=hue(p,q,h);B=hue(p,q,h-1/3);}
+  const x=v=>Math.round(v*255).toString(16).padStart(2,'0');return (x(R)+x(G)+x(B)).toUpperCase();}
+/* <color rgb|theme|indexed|auto tint> → « #RRGGBB » ou null (automatique) */
+export function xlColor(tag,theme,indexed){if(!tag)return null;const a=n=>{const m=tag.match(new RegExp('\\s'+n+'="([^"]*)"'));return m?m[1]:null;};if(a('auto')==='1'||a('auto')==='true')return null;const tint=+(a('tint')||0);let hex=null;
+  const rgb=a('rgb');if(rgb&&/^[0-9A-Fa-f]{6,8}$/.test(rgb))hex=rgb.length===8?rgb.slice(2):rgb.slice(-6);else if(a('theme')!==null){hex=(theme||DEF_THEME)[+a('theme')]||null;}else if(a('indexed')!==null){const i=+a('indexed');if(i===64||i===65)return null;hex=(indexed||INDEXED)[i]||null;}
+  if(!hex)return null;return '#'+tintHex(hex.toUpperCase(),tint);}
+const blockOf=(xml,tag)=>{const m=xml.match(new RegExp('<'+tag+'\\b[^>]*>([\\s\\S]*?)</'+tag+'>'));return m?m[1]:'';};
+const each=(xml,tag,fn)=>{const re=new RegExp('<'+tag+'\\b([^>]*?)(?:/>|>([\\s\\S]*?)</'+tag+'>)','g');let m,i=0;while((m=re.exec(xml)))fn(' '+m[1],m[2]||'',i++);};
+const at1=(tag,n)=>{const m=tag.match(new RegExp('\\s'+n+'="([^"]*)"'));return m?xmlUnesc(m[1]):null;};
+const on=v=>v!==null&&v!=='0'&&v!=='false';
+export function readStyles(xml,theme){const S={numFmts:{},fonts:[],fills:[],borders:[],xfs:[],indexed:null};if(!xml){S.fonts.push({sz:11,name:'Calibri'});S.fills.push({});S.borders.push({});S.xfs.push({nf:0,font:0,fill:0,border:0});return S;}
+  const ic=blockOf(xml,'indexedColors');if(ic){const L=[];(ic.match(/<rgbColor\b[^>]*>/g)||[]).forEach(t=>{const v=at1(t,'rgb');L.push(v?v.slice(-6).toUpperCase():'000000');});if(L.length)S.indexed=L;}
+  (blockOf(xml,'numFmts').match(/<numFmt\b[^>]*>/g)||[]).forEach(t=>{S.numFmts[+at1(t,'numFmtId')]=at1(t,'formatCode')||'General';});
+  each(blockOf(xml,'fonts'),'font',(attr,inner)=>{const tg=n=>{const m=inner.match(new RegExp('<'+n+'\\b[^>]*>'));return m?m[0]:null;};const f={};const b=tg('b'),i=tg('i'),u=tg('u'),st=tg('strike'),sz=tg('sz'),co=tg('color'),nm=tg('name'),va=tg('vertAlign');
+    if(b&&at1(b,'val')!=='0'&&at1(b,'val')!=='false')f.b=true;if(i&&at1(i,'val')!=='0'&&at1(i,'val')!=='false')f.i=true;if(u&&at1(u,'val')!=='none')f.u=at1(u,'val')||'single';if(st&&at1(st,'val')!=='0')f.s=true;if(sz)f.sz=+at1(sz,'val')||11;if(co)f.color=xlColor(co,theme,S.indexed);if(nm)f.name=at1(nm,'val');if(va)f.va=at1(va,'val');S.fonts.push(f);});
+  each(blockOf(xml,'fills'),'fill',(attr,inner)=>{const f={};const pf=inner.match(/<patternFill\b([^>]*?)(?:\/>|>([\s\S]*?)<\/patternFill>)/);if(pf){const pt=at1(' '+pf[1],'patternType');const fg=(pf[2]||'').match(/<fgColor\b[^>]*>/),bg=(pf[2]||'').match(/<bgColor\b[^>]*>/);
+      if(pt&&pt!=='none'&&pt!=='gray125'){f.bg=pt==='solid'?xlColor(fg&&fg[0],theme,S.indexed)||(bg?xlColor(bg[0],theme,S.indexed):null):(xlColor(fg&&fg[0],theme,S.indexed)||xlColor(bg&&bg[0],theme,S.indexed));if(pt!=='solid')f.pat=pt;}}
+    else{const gs=inner.match(/<stop\b[^>]*>\s*<color\b[^>]*>/);if(gs){const c=gs[0].match(/<color\b[^>]*>/);f.bg=xlColor(c&&c[0],theme,S.indexed);}}S.fills.push(f);});
+  each(blockOf(xml,'borders'),'border',(attr,inner)=>{const B={};const side=(k,tags)=>{for(const t of tags){const m=inner.match(new RegExp('<'+t+'\\b([^>]*?)(?:/>|>([\\s\\S]*?)</'+t+'>)'));if(m){const st=at1(' '+m[1],'style');if(st&&st!=='none'){const c=(m[2]||'').match(/<color\b[^>]*>/);B[k]={st,c:xlColor(c&&c[0],theme,S.indexed)||'#000000'};}return;}}};
+    side('l',['left','start']);side('r',['right','end']);side('t',['top']);side('b',['bottom']);S.borders.push(B);});
+  each(blockOf(xml,'cellXfs'),'xf',(attr,inner)=>{const x={nf:+(at1(attr,'numFmtId')||0),font:+(at1(attr,'fontId')||0),fill:+(at1(attr,'fillId')||0),border:+(at1(attr,'borderId')||0)};const al=inner.match(/<alignment\b[^>]*>/);
+    if(al){const t=al[0];const h=at1(t,'horizontal'),v=at1(t,'vertical');if(h)x.h=h;if(v)x.v=v;if(on(at1(t,'wrapText')))x.wrap=true;if(at1(t,'indent'))x.ind=+at1(t,'indent');if(at1(t,'textRotation'))x.rot=+at1(t,'textRotation');if(on(at1(t,'shrinkToFit')))x.shrink=true;}S.xfs.push(x);});
+  if(!S.fonts.length)S.fonts.push({sz:11,name:'Calibri'});if(!S.xfs.length)S.xfs.push({nf:0,font:0,fill:0,border:0});return S;}
+/* textes partagés (texte riche aplati ; les annotations phonétiques ignorées) */
+export function sharedStringsFull(xml){const out=[];if(!xml)return out;const re=/<si>([\s\S]*?)<\/si>|<si\/>/g;let m;while((m=re.exec(xml))){const body=(m[1]||'').replace(/<rPh\b[\s\S]*?<\/rPh>/g,'');const ts=[];const rt=/<t\b[^>]*>([\s\S]*?)<\/t>|<t\b[^>]*\/>/g;let t;while((t=rt.exec(body)))ts.push(xmlUnesc(t[1]||''));out.push(ts.join(''));}return out;}
+export const cellKey=(r,c)=>r*16385+c;
+/* une feuille complète : cellules {r,c,v,t,s,f,ft,si,ref}, lignes, colonnes, fusions, volets, zoom ; les formules partagées DÉPENDANTES gardent si (le texte se déduit du maître) */
+export function readSheetFull(xml,SS){const out={cells:new Map(),rows:new Map(),cols:[],merges:[],view:{},fmt:{},maxR:0,maxC:0,sf:{},dim:null};if(!xml)return out;
+  const dm=xml.match(/<dimension\b[^>]*ref="([^"]*)"/);if(dm)out.dim=dm[1];
+  const sv=xml.match(/<sheetView\b([^>]*?)(?:\/>|>([\s\S]*?)<\/sheetView>)/);if(sv){const a=' '+sv[1];out.view.grid=at1(a,'showGridLines')!=='0'&&at1(a,'showGridLines')!=='false';if(at1(a,'zoomScale'))out.view.zoom=+at1(a,'zoomScale');out.view.rtl=on(at1(a,'rightToLeft'));
+    const pn=(sv[2]||'').match(/<pane\b[^>]*>/);if(pn&&/state="frozen/.test(pn[0])){out.view.xs=+(at1(pn[0],'xSplit')||0);out.view.ys=+(at1(pn[0],'ySplit')||0);out.view.tl=at1(pn[0],'topLeftCell');}
+    const sl=(sv[2]||'').match(/<selection\b[^>]*activeCell="([^"]*)"/);if(sl)out.view.active=sl[1];}
+  const fp=xml.match(/<sheetFormatPr\b[^>]*>/);if(fp){const t=fp[0];if(at1(t,'defaultRowHeight'))out.fmt.defH=+at1(t,'defaultRowHeight');if(at1(t,'defaultColWidth'))out.fmt.defW=+at1(t,'defaultColWidth');if(at1(t,'baseColWidth'))out.fmt.baseW=+at1(t,'baseColWidth');if(on(at1(t,'zeroHeight')))out.fmt.zeroH=true;}
+  (blockOf(xml,'cols').match(/<col\b[^>]*>/g)||[]).forEach(t=>{out.cols.push({min:+at1(t,'min'),max:+at1(t,'max'),w:at1(t,'width')!==null?+at1(t,'width'):null,hidden:on(at1(t,'hidden')),s:at1(t,'style')!==null?+at1(t,'style'):null});});
+  (blockOf(xml,'mergeCells').match(/<mergeCell\b[^>]*>/g)||[]).forEach(t=>{const ref=at1(t,'ref');if(!ref)return;const [a,b]=ref.split(':');const A=splitRef(a),B=splitRef(b||a);if(A&&B)out.merges.push({r1:Math.min(A.r,B.r),c1:Math.min(A.c,B.c),r2:Math.max(A.r,B.r),c2:Math.max(A.c,B.c)});});
+  const sd=xml.match(/<sheetData\b[^>]*>([\s\S]*?)<\/sheetData>/);if(!sd)return out;
+  const rre=/<row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/row>)/g;let rm,rPrev=0;
+  while((rm=rre.exec(sd[1]))){const ra=' '+rm[1];const r=at1(ra,'r')!==null?+at1(ra,'r'):rPrev+1;rPrev=r;const P={};if(at1(ra,'ht')!==null)P.ht=+at1(ra,'ht');if(on(at1(ra,'customHeight')))P.ch=true;if(on(at1(ra,'hidden')))P.hidden=true;if(at1(ra,'s')!==null&&on(at1(ra,'customFormat')))P.s=+at1(ra,'s');
+    P.attrs=rm[1].replace(/\s(r|spans)="[^"]*"/g,'');if(Object.keys(P).length>1||P.attrs.trim())out.rows.set(r,P);if(r>out.maxR&&(P.ht!==undefined||P.s!==undefined))out.maxR=Math.max(out.maxR,r);
+    const cre=/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;let cm,cPrev=0;const inner=rm[2]||'';
+    while((cm=cre.exec(inner))){const ca=' '+cm[1];const ref=at1(ca,'r');let c;if(ref){const p=splitRef(ref);c=p?p.c:cPrev+1;}else c=cPrev+1;cPrev=c;const t=at1(ca,'t');const s=at1(ca,'s');const body=cm[2]||'';const cell={r,c};if(s!==null)cell.s=+s;if(t)cell.t=t;
+      const fm=body.match(/<f\b([^>]*?)(?:\/>|>([\s\S]*?)<\/f>)/);if(fm){const fa=' '+fm[1];const ft=at1(fa,'t');const txt=fm[2]!==undefined?xmlUnesc(fm[2]):'';if(ft==='shared'){cell.ft='shared';cell.si=at1(fa,'si');if(txt){cell.f=txt;out.sf[cell.si]={f:txt,r,c,ref:at1(fa,'ref')};}}else{if(ft)cell.ft=ft;if(at1(fa,'ref'))cell.fref=at1(fa,'ref');cell.f=txt;}}
+      const vm=body.match(/<v>([\s\S]*?)<\/v>/);let v=null;
+      if(t==='s'){v=vm?(SS[+vm[1]]??''):null;if(vm)cell.ssi=+vm[1];}else if(t==='inlineStr'){const ts=[];const rt=/<t\b[^>]*>([\s\S]*?)<\/t>/g;let x;while((x=rt.exec(body.replace(/<rPh\b[\s\S]*?<\/rPh>/g,''))))ts.push(xmlUnesc(x[1]));v=ts.join('');}else if(t==='str'){v=vm?xmlUnesc(vm[1]):'';}else if(t==='b'){v=vm?(vm[1]==='1'||vm[1]==='true'):null;}else if(t==='e'){v=vm?{e:xmlUnesc(vm[1])}:null;}else if(vm){const x=+vm[1];v=isFinite(x)?x:null;}
+      cell.v=v;out.cells.set(cellKey(r,c),cell);if(r>out.maxR)out.maxR=r;if(c>out.maxC)out.maxC=c;}}
+  out.merges.forEach(m=>{if(m.r2>out.maxR)out.maxR=m.r2;if(m.c2>out.maxC)out.maxC=m.c2;});
+  return out;}
+/* classeur complet : feuilles (dans l'ordre des onglets), noms définis, styles, thème, textes partagés, parties XML d'origine (pour l'export) */
+export async function readBook(src){const buf=src instanceof ArrayBuffer?src:(src&&src.arrayBuffer?await src.arrayBuffer():src.buffer);const Z=await zipEntries(buf);const read=async n=>Z[n]?await inflate(Z[n]):null;
+  const wbx=await read('xl/workbook.xml');if(!wbx)throw new Error('pas un classeur Excel (.xlsx)');const rels=await read('xl/_rels/workbook.xml.rels')||'';
+  const relMap={};(rels.match(/<Relationship\b[^>]*>/g)||[]).forEach(t=>{const id=at1(t,'Id'),tg=at1(t,'Target'),ty=at1(t,'Type')||'';if(id&&tg)relMap[id]={tg:tg.replace(/^\/?xl\//,'').replace(/^\//,''),ty};});
+  const relOf=ty=>Object.values(relMap).find(r=>new RegExp('/'+ty+'$').test(r.ty));
+  const themeRel=relOf('theme');const theme=readTheme(await read('xl/'+(themeRel?themeRel.tg:'theme/theme1.xml')));
+  const stRel=relOf('styles');const styles=readStyles(await read('xl/'+(stRel?stRel.tg:'styles.xml')),theme);
+  const ssRel=relOf('sharedStrings');const SS=sharedStringsFull(await read('xl/'+(ssRel?ssRel.tg:'sharedStrings.xml')));
+  const sheets=[];const st=(wbx.match(/<sheets\b[^>]*>([\s\S]*?)<\/sheets>/)||[,''])[1];(st.match(/<sheet\b[^>]*>/g)||[]).forEach((t,i)=>{const name=at1(t,'name');const rid=at1(t,'r:id')||at1(t,'id');const R=relMap[rid];const tg=R?R.tg:(Z['xl/worksheets/sheet'+(i+1)+'.xml']?'worksheets/sheet'+(i+1)+'.xml':null);
+    if(name&&tg&&(!R||/worksheet$/.test(R.ty)||!R.ty))sheets.push({name,path:'xl/'+tg.replace(/^xl\//,''),hidden:/state="(hidden|veryHidden)"/.test(t),sheetId:at1(t,'sheetId'),rid});});
+  for(const s of sheets){const x=await read(s.path);s.xml=x||'';Object.assign(s,readSheetFull(x,SS));}
+  const names=[];(wbx.match(/<definedName\b[^>]*>[\s\S]*?<\/definedName>/g)||[]).forEach(t=>{const n=at1(t,'name');const ref=xmlUnesc(t.replace(/^<definedName\b[^>]*>/,'').replace(/<\/definedName>$/,''));const ls=at1(t,'localSheetId');if(n)names.push({name:n,ref,local:ls!==null?+ls:null,hidden:on(at1(t,'hidden'))});});
+  const av=wbx.match(/<workbookView\b[^>]*activeTab="(\d+)"/);
+  return {Z,sheets,names,styles,theme,SS,wbXml:wbx,activeTab:av?+av[1]:0,date1904:/date1904="(1|true)"/.test(wbx)};}
+/* ── ÉCRITURE CIBLÉE d'une feuille : changes = Map(adresse → {k, v, f, s}) ; un seul passage sur <sheetData> (les lignes sans changement sont recopiées telles quelles)
+   k : 'val' (valeur ; style gardé), 'f' (nouvelle formule + valeur en cache), 'cache' (on garde <f …> d'origine, on remplace la valeur en cache), 'clear' (cellule vidée,
+   style gardé), 'unshare' (la formule partagée devient explicite : f) ── */
+const vXml=v=>{if(v===null||v===undefined)return {t:'',v:''};if(typeof v==='number'&&isFinite(v))return {t:'',v:`<v>${String(v)}</v>`};if(typeof v==='boolean')return {t:'b',v:`<v>${v?1:0}</v>`};if(v&&typeof v==='object'&&v.e)return {t:'e',v:`<v>${xmlEsc(v.e)}</v>`};return {t:'str',v:`<v>${xmlEsc(String(v))}</v>`};};
+export function cellXmlOf(a,spec,old){/* old = {attrs (sans r/t), body} de la cellule d'origine, ou null */const sAttr=spec.s!==undefined&&spec.s!==null?` s="${spec.s}"`:(old&&old.s!==null&&old.s!==undefined?` s="${old.s}"`:'');const keep=old?old.extra:'';
+  if(spec.k==='clear')return `<c r="${a}"${sAttr}${keep}/>`;
+  if(spec.k==='val'){const v=spec.v;if(v===null||v===undefined||v==='')return `<c r="${a}"${sAttr}${keep}/>`;if(typeof v==='string')return `<c r="${a}"${sAttr}${keep} t="inlineStr"><is><t xml:space="preserve">${xmlEsc(v)}</t></is></c>`;const x=vXml(v);return `<c r="${a}"${sAttr}${keep}${x.t?` t="${x.t}"`:''}>${x.v}</c>`;}
+  if(spec.k==='f'||spec.k==='unshare'){const x=vXml(spec.v);return `<c r="${a}"${sAttr}${keep}${x.t?` t="${x.t}"`:''}><f>${xmlEsc(spec.f)}</f>${x.v}</c>`;}
+  if(spec.k==='cache'){const fEl=old&&old.fEl?old.fEl:`<f>${xmlEsc(spec.f||'')}</f>`;const x=vXml(spec.v);return `<c r="${a}"${sAttr}${keep}${x.t?` t="${x.t}"`:''}>${fEl}${x.v}</c>`;}
+  return null;}
+function parseCellEl(m){/* m = [tout, attrs, body] */const ca=' '+m[1];const s=at1(ca,'s');const extra=m[1].replace(/\s(r|s|t)="[^"]*"/g,'');const body=m[2]||'';const fe=body.match(/<f\b[^>]*\/>|<f\b[^>]*>[\s\S]*?<\/f>/);return {s:s!==null?+s:null,extra:extra.trim()?' '+extra.trim():'',fEl:fe?fe[0]:null,raw:m[0]};}
+export function patchSheetXml(xml,changes){if(!changes||!changes.size)return xml;const byRow=new Map();changes.forEach((spec,a)=>{const p=splitRef(a);if(!p)return;if(!byRow.has(p.r))byRow.set(p.r,[]);byRow.get(p.r).push({a,c:p.c,spec});});
+  let sdm=xml.match(/<sheetData\b[^>]*>([\s\S]*?)<\/sheetData>/);if(!sdm){const e=xml.match(/<sheetData\b[^>]*\/>/);if(!e)return xml;xml=xml.replace(e[0],'<sheetData></sheetData>');sdm=xml.match(/<sheetData\b[^>]*>([\s\S]*?)<\/sheetData>/);}
+  const sdOpen=sdm[0].match(/^<sheetData\b[^>]*>/)[0];const inner=sdm[1];const parts=[];const rre=/<row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/row>)/g;let rm,last=0,rPrev=0;const done=new Set();
+  const rowXml=(r,attrs,cellsXml)=>`<row r="${r}"${attrs}>${cellsXml}</row>`;
+  const buildRow=(r,rowAttrs,cellsInner)=>{const L=byRow.get(r);const cs=[];const cre=/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;let cm,cPrev=0;while((cm=cre.exec(cellsInner||''))){const ref=at1(' '+cm[1],'r');let c;if(ref){const p=splitRef(ref);c=p?p.c:cPrev+1;}else c=cPrev+1;cPrev=c;cs.push({c,m:cm,old:parseCellEl(cm)});}
+    L.sort((x,y)=>x.c-y.c);for(const ch of L){const i=cs.findIndex(x=>x.c===ch.c);const old=i>=0?cs[i].old:null;const nx=cellXmlOf(ch.a,ch.spec,old);if(nx===null)continue;if(i>=0)cs[i].x=nx;else{const j=cs.findIndex(x=>x.c>ch.c);const item={c:ch.c,x:nx};if(j<0)cs.push(item);else cs.splice(j,0,item);}}
+    return cs.map(x=>x.x!==undefined?x.x:(x.m&&!at1(' '+x.m[1],'r')?x.m[0].replace(/^<c\b/,`<c r="${colName(x.c)}${r}"`):x.m[0])).join('');};
+  while((rm=rre.exec(inner))){const ra=' '+rm[1];const r=at1(ra,'r')!==null?+at1(ra,'r'):rPrev+1;
+    /* lignes à créer avant celle-ci */for(const nr of [...byRow.keys()].filter(x=>x<r&&!done.has(x)).sort((a,b)=>a-b)){parts.push(inner.slice(last,rm.index));last=rm.index;parts.push(rowXml(nr,'',buildRow(nr,'','')));done.add(nr);}
+    rPrev=r;if(!byRow.has(r)||done.has(r))continue;parts.push(inner.slice(last,rm.index));const attrs=rm[1].replace(/\s(r|spans)="[^"]*"/g,'');parts.push(rowXml(r,attrs,buildRow(r,attrs,rm[2]||'')));last=rm.index+rm[0].length;done.add(r);}
+  parts.push(inner.slice(last));for(const nr of [...byRow.keys()].filter(x=>!done.has(x)).sort((a,b)=>a-b)){parts.push(rowXml(nr,'',buildRow(nr,'','')));done.add(nr);}
+  const ni=parts.join('');return xml.replace(sdm[0],()=>sdOpen+ni+'</sheetData>');}
+/* parties à retirer d'un classeur modifié : la chaîne de calcul (Excel la reconstruit) */
+export async function dropCalcChain(Z,rep){if(!Z['xl/calcChain.xml'])return;rep['xl/calcChain.xml']=null;const ct=rep['[Content_Types].xml']||(Z['[Content_Types].xml']?await inflate(Z['[Content_Types].xml']):null);if(ct)rep['[Content_Types].xml']=ct.replace(/<Override\b[^>]*PartName="\/xl\/calcChain\.xml"[^>]*\/>/,'');const rl=rep['xl/_rels/workbook.xml.rels']||(Z['xl/_rels/workbook.xml.rels']?await inflate(Z['xl/_rels/workbook.xml.rels']):null);if(rl)rep['xl/_rels/workbook.xml.rels']=rl.replace(/<Relationship\b[^>]*Target="[^"]*calcChain\.xml"[^>]*\/>/,'');}

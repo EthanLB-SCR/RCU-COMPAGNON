@@ -73,7 +73,26 @@ export async function parsePrixWorkbook(src,meta){const wb=src&&src.sheets&&type
     const dp=find(/^DÉCOUPE/);if(dp){const H=dp.header.map(key);base.op.decoupe=dp.rows.map(r=>({dn:num(r.v[0]),eq:up(r.v[H.indexOf('equipe')]),coupesJour:num(r.v[H.findIndex(h=>/coupes/.test(h))])})).filter(x=>x.dn);}
     const bpp=find(/^BY-PASS SUR PURGE/);if(bpp){const H=bpp.header.map(key);const iDN=H.indexOf('dn'),iQ=H.indexOf('qte'),iPU=H.indexOf('prix unitaire');base.op.bypassPurge={items:bpp.rows.map(r=>({label:up(r.v[0]),dn:num(r.v[iDN]),qty:num(r.v[iQ]),pu:num(r.v[iPU]),ref:parseRefs(r.f[iPU])})).filter(x=>x.label&&!/total|sous-total|nombre/i.test(x.label)),nb:num(op.get('C460'))||2};}}
   const suivi=await wb.sheet('Suivi actualisation');if(suivi){let dc=-1;for(let c=1;c<=8;c++){for(let rr=1;rr<=4;rr++){if(/^date/i.test(String(suivi.at(c,rr)||'')))dc=c;}}if(dc>0){for(let rr=suivi.maxR;rr>=2;rr--){const d=suivi.at(dc,rr);if(d){base.at=typeof d==='number'?new Date(Math.round((d-25569)*864e5)).toISOString().slice(0,10):String(d).slice(0,10);break;}}}}
+  if(!base.mo.equipes.some(e=>eqKey(e.code)===SM))base.mo.equipes.push(JSON.parse(JSON.stringify(SM_TEAM))); /* 14/10 après-midi (lot A) : équipe S+M */
   return base;}
+/* 14/10 après-midi (lot A) — ÉQUIPE « SOUDEUR + MANCHONNEUR » (Ethan : « on crée l'équipe soudeur + manchonneur, on leur rajoute des colonnes de cadence de soudure
+   et de manchonnage, et la possibilité de la variante sur tous les paniers ») : ajoutée à base.mo.equipes si absente (import, et à la lecture d'une base plus
+   ancienne) ; cadences c.soud['S+M'] (soudures / jour) et c.manchSM (manchons / jour) — vides au départ : repli sur S (soudure) et M (manchons), signalé
+   « à renseigner ». Règle de calcul (validée avec Ethan) dans calcEtude : jours = max(soudures ÷ cad. soudure, manchons ÷ cad. manchons) ; coût = jours × coût /
+   jour S+M, réparti entre Soudure et Manchons au prorata des jours de chaque activité ; une soudure = coût / jour S+M ÷ cadence soudure S+M. */
+export const SM='S+M';
+export const SM_TEAM={code:'S+M',nom:'Soudeur + Manchonneur (S+M)',comp:{Soudeur:1,Tuyauteur:0,Manchonneur:1,Chauffeur:0},n:2,os:0,app:true};
+const eqKey=s=>String(s||'').replace(/\s+/g,'').toUpperCase();
+export function ensureSM(base){if(!base||!base.mo||!Array.isArray(base.mo.equipes)||base.mo.equipes.some(e=>e&&eqKey(e.code)===SM))return base;
+  return Object.assign({},base,{mo:Object.assign({},base.mo,{equipes:base.mo.equipes.concat([JSON.parse(JSON.stringify(SM_TEAM))])})});} /* sans toucher l'objet du registre */
+export const smMissing=c=>({soud:!(num(((c||{}).soud||{})[SM])>0),manch:!(num((c||{}).manchSM)>0)});
+/* RÉVISION de la base (14/10 après-midi, lot A — Ethan : « une modification faite sur la base ne doit pas changer les chiffrages et dossiers en cours ») :
+   rev = horodatage posé à l'import et à chaque modification des PRIX (une base d'avant sans rev : sa date de modification ou d'import) ; priceSig = ce qui
+   fait les prix (sans les dates, les auteurs, le fichier source ni la bibliothèque de devis) — une écriture qui ne change aucun prix garde la révision */
+export const revOf=b=>b?String(b.rev||b.editedAt||b.importedAt||b.at||''):'';
+const SIG_SKIP=new Set(['id','rev','revBy','editedAt','editedBy','importedAt','importedBy','devis','foDevis','src','foTitle','archived']);
+const stable=x=>{if(Array.isArray(x))return '['+x.map(stable).join(',')+']';if(x&&typeof x==='object'){const ks=Object.keys(x).filter(k=>{const v=x[k];return v!==undefined&&v!==null&&v!==''&&!(typeof v==='object'&&!Array.isArray(v)&&!Object.keys(v).length)&&!(Array.isArray(v)&&!v.length);}).sort();return '{'+ks.map(k=>JSON.stringify(k)+':'+stable(x[k])).join(',')+'}';}return JSON.stringify(x);};
+export function priceSig(b){if(!b)return '';const n=ensureSM(b);const o={};Object.keys(n).forEach(k=>{if(!SIG_SKIP.has(k))o[k]=n[k];});return stable(o);}
 /* ═════════ 2 · ACCÈS À LA BASE ═════════ */
 export const equipeOf=(base,code)=>{const c=String(code||'').replace(/\s+/g,'').toUpperCase();return (base.mo.equipes||[]).find(e=>e.code.toUpperCase()===c)||null;};
 export function posteRate(base,code){const p=(base.mo.postes||[]).find(x=>key(x.code).startsWith(key(code)));return p?p.taux+p.fgC+p.fgS+p.sin:0;}
@@ -90,7 +109,9 @@ export const APP_PARAMS=[
   ['FO_Foncage_Longueur_Barre',12,'m — longueur maxi d\'un tronçon soudé dans la fosse (une fosse plus courte limite le tronçon)'],
   ['FO_Foncage_Coef_Cadence',0.5,'cadence des soudures en fosse = cadence de la table des DN (équipe choisie) × ce coefficient'],
   ['FO_Foncage_Nb_Tes',0,'insertions de tés comptées par fonçage (l\'ancien classeur en mettait 2 d\'office)']];
-export const cadTeam=(c,eq)=>!c?0:eq==='S'?c.soud.S:eq==='S+T'?c.soud['S+T']:c.soud['S+T+P'];
+export const cadTeam=(c,eq)=>!c?0:eq==='S'?c.soud.S:eq==='S+T'?c.soud['S+T']:eq===SM?(num(c.soud[SM])>0?num(c.soud[SM]):c.soud.S):c.soud['S+T+P']; /* 14/10 après-midi (lot A) : S+M, repli S tant que la cadence S+M n'est pas renseignée */
+/* manchons / jour (avant les minutes d'autocontrôle) de l'équipe manchon de la zone — S+M : c.manchSM, repli M (1 manchonneur, type et iso de la zone) */
+export const cadManch0=(c,E,iso)=>{if(!c)return 0;const tbl=(/electro/i.test((E||{}).typeManchon||'')?c.manch.electro:c.manch.thermo)[isoIdx(iso)];if(((E||{}).soud||'')===SM)return num(c.manchSM)>0?num(c.manchSM):(tbl?num(tbl[1]):0);return tbl?tbl[((E||{}).manch||'M')==='M+M'?0:1]:0;};
 /* composition d'une équipe et taux jour / nuit de chacun (nuit : salaire × 2, frais généraux et sinistre inchangés — comme teamCost) */
 export function teamRates(base,code){const e=equipeOf(base,code);if(!e)return [];const P=base.mo.postes||[];const rate=(name,night)=>{const p=P.find(x=>key(x.code).startsWith(key(name)));if(!p)return {h:0,taux:0};return {h:night?p.taux*2+p.fgC+p.fgS+p.sin:p.taux+p.fgC+p.fgS+p.sin,taux:p.taux};};
   if(e.os){const os=P.find(x=>/op[ée]rations sp[ée]cifiques|^os\b/i.test(x.code));return os?[{poste:'Opérations spécifiques',n:e.os,h:rate(os.code).h,nuitH:rate(os.code,true).h}]:[];}
@@ -132,14 +153,24 @@ export function refPrice(base,ref,dn,fallback){if(!ref)return fallback;if(ref.co
 /* opt.soud (14/10, Ethan : « le prix de la soudure doit être le même que celui de la table des DN ») : dans une zone du chiffrage, une ligne de MO du classeur
    qui vaut « k soudures à la cadence » (k × heures/jour ÷ cadence) devient k soudures × le prix de la soudure de la zone (même calcul que la table des DN) ;
    opt.soud(dn) → {pu, eq, label} ; une retouche du nombre de soudures se garde en « k », une retouche d'heures (ancienne) garde l'ancien calcul. */
+/* 14/10 après-midi (lot A) — VARIANTES D'ÉQUIPE de la MO d'un panier (Ethan : « une purge, j'ai un nombre d'heures pour une équipe de 2 ; une variante s'ils sont 3
+   et je change le nombre d'heures ; au chiffrage, quand tu choisis ton équipe, ça prend la main-d'œuvre du panier de référence avec l'équipe que tu as choisie ») :
+   base.mvar[panier][DN] = [{eq, lignes:[{eq, h}]}] (éditées dans 🧺 Paniers) ; panierRow(…,{eq:<équipe soudure de la zone>}) : la variante de cette équipe
+   REMPLACE la MO du panier (retouche pour un chiffrage : z.over[panier][DN]['mv'+i]) ; sans variante : la règle d'avant (soudures au prix de la table, sinon
+   heures × taux). Purges, vidanges, SST, by-pass SST, raccordements. */
+export const mvarOf=(base,pid,dn)=>{const L=((((base||{}).mvar||{})[pid])||{})[num(dn)];return Array.isArray(L)?L.filter(v=>v&&v.eq):[];};
+export const variantOf=(base,pid,dn,eq)=>eq?mvarOf(base,pid,dn).find(v=>eqKey(v.eq)===eqKey(eq)&&(v.lignes||[]).length)||null:null;
+/* 14/10 après-midi (lot A, Ethan : « dans les purges, pourquoi en fourniture il y a tés acier ? ») : colonne FO_Te_Acier du bloc PURGE, comptée seulement avec le purgeur automatique */
+const foLabel=(pid,l)=>pid==='purge'&&/^t[ée]s acier$/i.test(String(l||'').trim())?'Tés acier (purgeur automatique)':l;
 export function panierRow(base,pid,dn,opt){opt=opt||{};const P=panierOf(base,pid);if(!P)return null;const r=P.rows.find(x=>x.dn===num(dn));if(!r)return null;const ov=((base.over||{})[pid]||{})[dn]||{};
-  const mo=r.mo.map((m,i)=>{const o=ov['mo'+i]||{};
+  const V=opt.eq?variantOf(base,pid,dn,opt.eq):null;const has=v=>v!==undefined&&v!==null&&v!=='';
+  const mo=V?V.lignes.map((l,i)=>{const o=ov['mv'+i]||{};const eq=o.eq||l.eq||V.eq;const h=has(o.h)?+o.h:num(l.h);const rate=teamCost(base,eq).h;return {eq,h,rate,amount:h*rate,variant:V.eq};}):r.mo.map((m,i)=>{const o=ov['mo'+i]||{};
     if(opt.soud&&m.hf&&(o.h===undefined||o.h===null||o.h==='')){const W=opt.soud(num(dn))||{};const k=o.k!==undefined&&o.k!==null&&o.k!==''?+o.k:m.hf.k;const pu=num(W.pu);return {eq:W.eq||m.eq,h:k,k,kBase:m.hf.k,rate:pu,amount:k*pu,weld:true,label:W.label||''};}
     const eq=o.eq||m.eq;let h=o.h!==undefined&&o.h!==null&&o.h!==''?+o.h:m.h;if((o.h===undefined||o.h===null||o.h==='')&&m.hf){const c=cadOf(base,dn);const col=m.hf.col;const cad=c?(col===3?c.soud.S:col===4?c.soud['S+T']:c.soud['S+T+P']):0;if(cad)h=m.hf.k*(base.mo.hJour||10)/cad;}const rate=teamCost(base,eq).h;return {eq,h,rate,amount:h*rate};});
   const unit=(f,qty)=>{if(f.ref){const tot=refPrice(base,f.ref,dn,f.pu*(f.qty||1));return (f.qty||1)?tot/(f.qty||1):tot;}return f.pu;}; /* la formule du classeur porte déjà le « ×2 » : prix unitaire = total de la formule ÷ quantité */
-  const fo=r.fo.map((f,i)=>{const o=ov['fo'+i]||{};const qty=o.qty!==undefined?+o.qty:f.qty;const ovPu=o.pu!==undefined&&o.pu!==null&&o.pu!=='';const pu=ovPu?+o.pu:unit(f,qty);const miss=!ovPu&&f.ref?refMissing(base,f.ref,dn):[];return {label:f.label,qty,pu,amount:qty*pu,ref:f.ref||null,missing:miss.length?miss:null};}); /* 13/10 nuit : ref = d'où vient le prix (table FO + DN) → 📎 devis de référence ; 14/10 : missing = prix introuvable dans la base */
+  const fo=r.fo.map((f,i)=>{const o=ov['fo'+i]||{};const qty=o.qty!==undefined?+o.qty:f.qty;const ovPu=o.pu!==undefined&&o.pu!==null&&o.pu!=='';const pu=ovPu?+o.pu:unit(f,qty);const miss=!ovPu&&f.ref?refMissing(base,f.ref,dn):[];return {label:foLabel(pid,f.label),qty,pu,amount:qty*pu,ref:f.ref||null,missing:miss.length?miss:null};}); /* 13/10 nuit : ref = d'où vient le prix (table FO + DN) → 📎 devis de référence ; 14/10 : missing = prix introuvable dans la base */
   const extra=(r.extra||[]).map(f=>{const pu=unit(f,f.qty);return {label:f.label,qty:f.qty,pu,amount:f.qty*pu};});
-  const moT=mo.reduce((s,x)=>s+x.amount,0),foT=fo.reduce((s,x)=>s+x.amount,0);return {id:pid,title:P.title,dn,mo,fo,extra,moAmount:moT,foAmount:foT,total:moT+foT,unit:P.unit,missing:fo.filter(f=>f.missing).map(f=>({label:f.label,why:f.missing.join(' ; ')}))};}
+  const moT=mo.reduce((s,x)=>s+x.amount,0),foT=fo.reduce((s,x)=>s+x.amount,0);return {id:pid,title:P.title,dn,mo,fo,extra,moAmount:moT,foAmount:foT,total:moT+foT,unit:P.unit,variant:V?{eq:V.eq,n:V.lignes.length}:null,missing:fo.filter(f=>f.missing).map(f=>({label:f.label,why:f.missing.join(' ; ')}))};}
 export const panierDNs=(base,pid)=>{const P=panierOf(base,pid);return P?P.rows.map(r=>r.dn):[];};
 export const sstTypes=base=>(base.op.paniers||[]).filter(p=>/^sst_/.test(p.id)).map(p=>({id:p.id,name:p.title.replace(/^SST — /,'')}));
 export const raccTypes=base=>(base.op.paniers||[]).filter(p=>/^racc_/.test(p.id)).map(p=>({id:p.id,name:p.title.replace(/^RACCORDEMENT( — | SUR )?/,'')}));
@@ -147,7 +178,7 @@ export const sstBoitiers=base=>foParam(base,'FO_Boitier_Plexo')*foParam(base,'FO
 export function bypassPurge(base){const B=base.op.bypassPurge;if(!B)return 0;let s=0;B.items.forEach(it=>{if(/^MO/i.test(it.label)){s+=it.qty*teamCost(base,'S+T').h;}else s+=it.qty*refPrice(base,it.ref,it.dn||50,it.pu);});return s*(B.nb||2);}
 export function bypassFonds(base,dn,fonds){const r=(base.op.bypass||[]).find(x=>x.dn===num(dn));if(!r)return {total:0,mo:0};const hf=fonds?r.hfF:r.hfB;let h=fonds?r.hFonds:r.hBypass;if(hf){const c=cadOf(base,dn);const cad=c?(hf.col===3?c.soud.S:hf.col===4?c.soud['S+T']:c.soud['S+T+P']):0;if(cad)h=hf.k*(base.mo.hJour||10)/cad;}const moA=h*teamCost(base,r.eq).h;const stored=fonds?r.totFonds:r.totBypass;const storedH=fonds?r.hFonds:r.hBypass;const storedMo=storedH*r.rateStored;return {total:moA+Math.max(0,stored-storedMo),mo:moA};} /* fournitures = total figé − MO figée du classeur (les prix de ces pièces suivent Base FO au prochain import) */
 export function sstPrice(base,typeId,dn){if(typeId==='bypass_seul')return bypassFonds(base,dn,false).total;if(typeId==='fonds_bombes')return bypassFonds(base,dn,true).total;const p=panierRow(base,typeId,dn);return p?p.total:0;}
-export function raccPrice(base,typeId,dn){const p=panierRow(base,typeId,dn);return p?p.total:0;}
+export function raccPrice(base,typeId,dn,opt){const p=panierRow(base,typeId,dn,opt);return p?p.total:0;} /* opt.eq (14/10 après-midi) : variante d'équipe */
 export function extrusionPrice(base,dnPehd,type){const E=base.op.extrusion;if(!E)return 0;const r=E.rows.find(x=>x.dnPehd===num(dnPehd));if(!r)return 0;const k=key(type);const hk=/manchon/.test(k)?'manchons':/coude/.test(k)?'coude':/pec/.test(k)?'pec':/purge/.test(k)?'purges':'by-pass';const h=r.h[hk]||0;return h*teamCost(base,r.eq).h+(r.amort+r.conso);}
 export function cndForfait(base,poste,km){if(km===null||km===undefined||km==='')return 0;const T=base.fo.tables.FO_Forfaits_Distance;if(!T)return 0;const row=T.rows.find(r=>key(r[T.cols[0]]).startsWith(key(poste)));if(!row)return 0;const cols=T.cols.slice(1);const bornes=[0,100,150,200,300];const d=num(km);if(d>500)return num(row[cols[4]])+num(row[cols[5]])*(d-500);let i=0;for(let k=0;k<bornes.length;k++)if(d>=bornes[k])i=k;return num(row[cols[i]]);}
 export function filmPrice(base,kind,dn){const T=base.fo.tables.FO_Prix_Films;if(!T)return 0;const cn=T.cols.find(c=>key(c).startsWith(key(kind)));const row=T.rows.find(r=>num(dn)>=num(r['DN min'])&&num(dn)<=num(r['DN max']));return row&&cn?num(row[cn]):0;}
@@ -254,25 +285,39 @@ export function chantierPostes(C,T,base){const P={},D={};const set=(k,l,d)=>{P[k
 /* opt.classeur (14/10) : calcul AUX RÈGLES DU CLASSEUR pour le contrôle croisé (classeur.js) — sans les règles propres à l'appli (soudures des paniers au prix de la
    table des DN, épreuve au prorata des m³, jours de fonçage calculés et tés à 0) : les écarts restants sont des écarts de DONNÉES, pas de méthode */
 export function calcEtude(z,base,opt){opt=opt||{};const XL=!!opt.classeur;const R={postes:{},detail:{},warn:[]};if(base&&z&&z.over&&Object.keys(z.over).length)base=Object.assign({},base,{over:mergeOver(base.over,z.over)});const set=(k,l,d)=>{R.postes[k]=l;if(d)R.detail[k]=d;};if(!base||!base.mo||!base.mo.cad||!base.mo.cad.length){POSTE_KEYS.forEach(k=>R.postes[k]=L());R.empty=true;return R;}
-  const H=base.mo.hJour||10;const E=z.eq||{};const C=z.chantier||{};const iso=C.iso||'Iso 1';const cS=teamCost(base,E.soud||'S+T+P'),cM=teamCost(base,E.manch||'M');const isMM=(E.manch||'M')==='M+M';
+  base=ensureSM(base); /* 14/10 après-midi (lot A) : équipe S+M (base d'avant) */
+  const H=base.mo.hJour||10;const E=z.eq||{};const C=z.chantier||{};const iso=C.iso||'Iso 1';const eqS=E.soud||'S+T+P';const isSM=eqS===SM; /* S+M : l'équipe manchon est comprise */
+  const cS=teamCost(base,eqS),cM=isSM?teamCost(base,'M'):teamCost(base,E.manch||'M');
   /* ── table des DN ── */
   const ctrlMin=c=>!c?0:(['depression','filsDH','ressuage','itopo','pression'].reduce((s,k)=>s+(E.ctrl&&E.ctrl[k]?num(c.ctrl[k]):0),0));
+  /* 14/10 après-midi (lot A, Ethan : « la cadence d'une soudure d'un DN doit être assez visuelle dans le tableau de chiffrage : c'est le premier truc touché par le
+     chiffreur quand il veut baisser un prix ») : z.dn[i].cad = cadence (soudures / jour) de l'équipe soudure de la zone à ce DN, retouchée pour CE chiffrage (vide =
+     la base) — elle fait le prix de la soudure de la zone partout (table, purges, vidanges, déportés, vannes préisolées, aérien, nuit, fonçage) ; pas en contrôle croisé */
+  const cadOv=r=>!XL&&r&&r.cad!==undefined&&r.cad!==null&&r.cad!==''&&num(r.cad)>0?num(r.cad):null;
   const rows=(z.dn||[]).filter(r=>r&&num(r.dn)).map(r=>{const dn=num(r.dn);const c=cadOf(base,dn);if(!c)return null;const J=num(r.soud),ml=num(r.ml);const pouce=c.pouce;
-    const cadS0=E.soud==='S'?c.soud.S:E.soud==='S+T'?c.soud['S+T']:c.soud['S+T+P'];const cadS=cadS0*(E.twin?num(E.reduction)||1:1);
-    const tbl=(/electro/i.test(E.typeManchon||'')?c.manch.electro:c.manch.thermo)[isoIdx(iso)];const cadM0=tbl?tbl[isMM?0:1]:0;
+    const cadBase=cadTeam(c,eqS);const ov=cadOv(r);const cadS=(ov!==null?ov:cadBase)*(E.twin?num(E.reduction)||1:1);
+    const cadM0=cadManch0(c,E,iso);
     const minCtrl=ctrlMin(c);const K=J/(E.twin?2:1);
     /* soudures contrôlées (CND) : « dont antennes » saisi (nAnt) → le reste en feeder ; sinon les cases ant. / feed. ; une ligne sans case = feeder (13/10, Ethan : « j'en colle tant en antenne et tant en feeder ») */
     const hasN=r.nAnt!==undefined&&r.nAnt!==null&&r.nAnt!=='';const nAnt=hasN?Math.min(J,num(r.nAnt)):(r.antenne?J:0);const nFd=hasN?Math.max(0,J-nAnt):(r.feeder||!r.antenne?J:0);
-    return {dn,c,J,ml,pouce,cadS,cadM0,minCtrl,K,ant:!!r.antenne,fd:!!r.feeder,nAnt,nFd};}).filter(Boolean);
+    return {dn,c,J,ml,pouce,cadS,cadBase,cadOv:ov,cadM0,minCtrl,K,ant:!!r.antenne,fd:!!r.feeder,nAnt,nFd,smMiss:isSM?smMissing(c):null};}).filter(Boolean);
   const K46=rows.reduce((s,r)=>s+r.K,0);const coussinMin=rows.length?num(rows[0].c.coussin)||num((base.mo.cad[0]||{}).coussin):0;
   const P24=(E.coussins&&K46>0)?num(E.qteCoussins)*coussinMin/K46:0; /* minutes de coussin par manchon */
-  rows.forEach(r=>{const cadM=r.cadM0?Math.round((H*60)/((H*60)/r.cadM0+r.minCtrl+P24)):0;const pPouce=r.cadS?cS.jour/(r.cadS*r.pouce):0;const pManch=cadM?cM.jour/cadM:0;const pouces=r.J*r.pouce;const soud=pouces*pPouce;const auto=r.K*cM.jour*r.minCtrl/(H*60);const manch=r.K*pManch-auto;
-    const qS=r.J?(r.J>r.cadS?r.J/r.cadS:1):0,qM=r.K?(r.K>cadM?r.K/cadM:1):0;const mlT=z.mlMode==='tube'?r.ml:2*r.ml;const kg=foLookup(base,'FO_Isolation',r.dn,5);const vol=isoVolMl(base,r.dn,iso);const rd=foParam(base,'FO_Ratio_Dechets',0.05);
+  rows.forEach(r=>{const cadM=r.cadM0?Math.round((H*60)/((H*60)/r.cadM0+r.minCtrl+P24)):0;const pPouce=r.cadS?cS.jour/(r.cadS*r.pouce):0;let pManch=cadM?cM.jour/cadM:0;const pouces=r.J*r.pouce;let soud=pouces*pPouce;let auto=r.K*cM.jour*r.minCtrl/(H*60);let manch=r.K*pManch-auto;
+    let qS=r.J?(r.J>r.cadS?r.J/r.cadS:1):0,qM=r.K?(r.K>cadM?r.K/cadM:1):0;const mlT=z.mlMode==='tube'?r.ml:2*r.ml;
+    /* S+M (14/10 après-midi, lot A) : par DN, jours = max(soudures ÷ cadence soudure, manchons ÷ cadence manchons) ; coût = jours × coût / jour S+M, réparti entre
+       Soudure et Manchons au prorata des jours de chaque activité (la part manchons garde sa part d'autocontrôle et de coussins, au prorata des minutes) ;
+       une soudure = coût / jour ÷ cadence soudure (pPouce) ; un manchon = ce qu'il coûte EN PLUS quand le manchonnage est plus lent que la soudure */
+    if(isSM){const jS=r.cadS?r.J/r.cadS:0,jM=cadM?r.K/cadM:0;const jours=Math.max(jS,jM);const cost=jours*cS.jour;const sh=jS+jM>0?jS/(jS+jM):0;soud=cost*sh;const mAll=cost-soud;
+      const fC=jM>0?(r.K*r.minCtrl/(H*60))/jM:0,fK=jM>0?(r.K*P24/(H*60))/jM:0;auto=mAll*fC;manch=mAll-auto;pManch=cadM?Math.max(0,cS.jour/cadM-(r.cadS?cS.jour/r.cadS:0)):0;
+      qS=r.J||r.K?Math.max(1,jours):0;qM=0;Object.assign(r,{jS,jM,jours,cous:mAll*fK});}const kg=foLookup(base,'FO_Isolation',r.dn,5);const vol=isoVolMl(base,r.dn,iso);const rd=foParam(base,'FO_Ratio_Dechets',0.05);
     Object.assign(r,{cadM,pPouce,pManch,pouces,soud,manch,auto,qS,qM,tonnes:r.ml?kg/1000*mlT*rd:0,m3:r.ml?vol*mlT*rd:0});});
   const T={J:rows.reduce((s,r)=>s+r.J,0),K:K46,ml:rows.reduce((s,r)=>s+r.ml,0),pouces:rows.reduce((s,r)=>s+r.pouces,0),soud:rows.reduce((s,r)=>s+r.soud,0),manch:rows.reduce((s,r)=>s+r.manch,0),auto:rows.reduce((s,r)=>s+r.auto,0),qS:ceil(rows.reduce((s,r)=>s+r.qS,0)),qM:ceil(rows.reduce((s,r)=>s+r.qM,0)),tonnes:rows.reduce((s,r)=>s+r.tonnes,0),m3:rows.reduce((s,r)=>s+r.m3,0)};
-  const N25=E.coussins?(K46===0?num(E.qteCoussins)*coussinMin*cM.jour/(H*60):(E.ventilerCoussins?K46*cM.jour*P24/(H*60):0)):0;
-  R.detail.dn={rows,T,cS,cM,N25};
-  if(E.joursComplets){set('soudure',L(T.qS*cS.jour));const OP=T.manch+T.auto;set('manchons',L(OP?T.qM*cM.jour*(T.manch/OP)-(K46>0?N25:0):0));set('autoctrl',L(OP?T.qM*cM.jour*(T.auto/OP):0));}
+  const N25=E.coussins?(K46===0?num(E.qteCoussins)*coussinMin*cM.jour/(H*60):(E.ventilerCoussins?(isSM?rows.reduce((s,r)=>s+(r.cous||0),0):K46*cM.jour*P24/(H*60)):0)):0;
+  if(isSM)Object.assign(T,{jS:rows.reduce((s,r)=>s+(r.jS||0),0),jM:rows.reduce((s,r)=>s+(r.jM||0),0),jours:rows.reduce((s,r)=>s+(r.jours||0),0)});
+  R.detail.dn={rows,T,cS,cM,N25,sm:isSM,eq:eqS,nCad:rows.filter(r=>r.cadOv!==null&&r.cadOv!==r.cadBase).length,smMiss:isSM&&rows.some(r=>r.smMiss&&(r.smMiss.soud||r.smMiss.manch))};
+  if(E.joursComplets&&isSM){const tot=T.qS*cS.jour;const sh=T.jS+T.jM>0?T.jS/(T.jS+T.jM):0;const mAll=tot*(1-sh);const OP=T.manch+T.auto;set('soudure',L(tot*sh));set('manchons',L(OP?mAll*(T.manch/OP)-(K46>0?N25:0):0));set('autoctrl',L(OP?mAll*(T.auto/OP):0));}
+  else if(E.joursComplets){set('soudure',L(T.qS*cS.jour));const OP=T.manch+T.auto;set('manchons',L(OP?T.qM*cM.jour*(T.manch/OP)-(K46>0?N25:0):0));set('autoctrl',L(OP?T.qM*cM.jour*(T.auto/OP):0));}
   else{set('soudure',L(T.soud));set('manchons',L(T.manch-(K46>0?N25:0)));set('autoctrl',L(T.auto));}
   set('coussins',L(N25));
   /* ── chantier (même calcul pour une zone et pour l'onglet Installations : chantierPostes) ── */
@@ -281,22 +326,28 @@ export function calcEtude(z,base,opt){opt=opt||{};const XL=!!opt.classeur;const 
      réutilisé partout où une soudure de la zone se chiffre (purges, vidanges, déportés, vannes préisolées, pose aérien) */
   const pouceDn=dn=>{const c=cadOf(base,dn);return c?c.pouce:0;};const rowDn=dn=>rows.find(r=>r.dn===num(dn));
   const twinK=E.twin?(num(E.reduction)||1):1; /* classeur : la colonne « Moy / Jour Soudures » porte la réduction twin pour TOUS les DN (prix du pouce, nuit, déportés, pose aérien) */
-  const prixPouceDn=dn=>{const r=rowDn(dn);if(r)return r.pPouce;const c=cadOf(base,dn);if(!c)return 0;const cadS=cadTeam(c,E.soud)*twinK;return cadS?cS.jour/(cadS*c.pouce):0;};
-  const prixManchDn=dn=>{const r=rowDn(dn);if(r)return r.pManch;const c=cadOf(base,dn);if(!c)return 0;const tbl=(/electro/i.test(E.typeManchon||'')?c.manch.electro:c.manch.thermo)[isoIdx(iso)];const cad0=tbl?tbl[isMM?0:1]:0;const cadM=cad0?Math.round((H*60)/((H*60)/cad0+ctrlMin(c)+P24)):0;return cadM?cM.jour/cadM:0;};
+  const prixPouceDn=dn=>{const r=rowDn(dn);if(r)return r.pPouce;const c=cadOf(base,dn);if(!c)return 0;const cadS=cadTeam(c,eqS)*twinK;return cadS?cS.jour/(cadS*c.pouce):0;};
+  const prixManchDn=dn=>{const r=rowDn(dn);if(r)return r.pManch;const c=cadOf(base,dn);if(!c)return 0;const cad0=cadManch0(c,E,iso);const cadM=cad0?Math.round((H*60)/((H*60)/cad0+ctrlMin(c)+P24)):0;if(!cadM)return 0;
+    if(isSM){const cs=cadTeam(c,eqS)*twinK;return Math.max(0,cS.jour/cadM-(cs?cS.jour/cs:0));}return cM.jour/cadM;};
   const prixSoudDn=dn=>pouceDn(dn)*prixPouceDn(dn);
-  const W=XL?null:dn=>({pu:prixSoudDn(dn),eq:E.soud||'S+T+P',label:'Soudure DN '+dn+' au prix de la table des DN (équipe '+(E.soud||'S+T+P')+')'});
+  const W=XL?null:dn=>{const r=rowDn(dn);const ov=r&&r.cadOv!==null&&r.cadOv!==r.cadBase;return {pu:prixSoudDn(dn),eq:eqS,label:'Soudure DN '+dn+' au prix de la table des DN (équipe '+eqS+(ov?', cadence retouchée '+String(Math.round(r.cadOv*10)/10).replace('.',',')+' / j':'')+')'};};
   R.detail.prix={soud:prixSoudDn,manch:prixManchDn,W};
+  /* cadence (soudures / jour, réduction twin comprise) d'une équipe à un DN : la cadence RETOUCHÉE dans la table des DN quand c'est l'équipe soudure de la zone
+     (14/10 après-midi, lot A), sinon la base — nuit, pose aérien, fonçage */
+  const cadZone=(dn,eq)=>{const r=rowDn(dn);if(r&&r.cadOv!==null&&eqKey(eq)===eqKey(eqS))return r.cadS;return cadTeam(cadOf(base,dn),eq)*twinK;};
+  const VE=XL?null:eqS; /* variante d'équipe des paniers : l'équipe soudure de la zone (pas en contrôle croisé) */
   /* ── nuit (14/10, Ethan : « plus de détail : l'équipe prise en compte, ça majore bien le coût des gars ? et c'est le prix de notre nuit qu'on demande ou la
      plus-value par rapport au jour ? ») : équipes de nuit (par défaut celles de la zone), cadence du DN, rendement → nuits ; nuit = salaire × 2 (frais
      généraux et sinistre inchangés). Deux façons de chiffrer : « plus-value » (le surcoût des nuits face aux mêmes soudures faites de jour, qui restent dans
      la table des DN) ou « coût complet » (le prix des nuits seules — les soudures de nuit ne sont alors PAS dans la table des DN). */
-  const N=z.nuit||{};if(N.on&&num(N.soud)){const eqS=N.eqS||E.soud||'S+T+P',eqM=N.eqM||E.manch||'M';const nS=teamCost(base,eqS),nM=teamCost(base,eqM);const c=cadOf(base,N.dn);const cadS=cadTeam(c,eqS)*twinK;const rend=num(N.rendement)||0.8;
+  const N=z.nuit||{};if(N.on&&num(N.soud)){const eqSn=N.eqS||eqS;const smN=eqSn===SM;const eqMn=smN?'':(N.eqM||(isSM?'M':E.manch||'M'));const nS=teamCost(base,eqSn),nM=smN?{h:0,jour:0,nuitH:0,nuitJour:0,n:0}:teamCost(base,eqMn); /* S+M : le manchonneur est dans l'équipe */
+    const cadS=cadZone(N.dn,eqSn);const rend=num(N.rendement)||0.8;const cadOvN=eqKey(eqSn)===eqKey(eqS)&&!!(rowDn(N.dn)&&rowDn(N.dn).cadOv!==null);
     const F54=cadS?ceil(num(N.soud)/cadS):0;const E54=F54*(nS.jour+nM.jour);const D58=cadS?ceil(num(N.soud)/(cadS*rend)):0;const E58=D58*(nS.nuitJour+nM.nuitJour);const mode=N.mode==='cout'?'cout':'pv';
-    set('nuit',L(mode==='cout'?E58:E58-E54),{jours:F54,nuits:D58,cadS,rend,eqS,eqM,nS,nM,rS:teamRates(base,eqS),rM:teamRates(base,eqM),E54,E58,mode,pv:E58-E54,soud:num(N.soud),dn:num(N.dn)});}else set('nuit',L());
+    set('nuit',L(mode==='cout'?E58:E58-E54),{jours:F54,nuits:D58,cadS,cadOv:cadOvN,rend,eqS:eqSn,eqM:smN?'':eqMn,sm:smN,nS,nM,rS:teamRates(base,eqSn),rM:smN?[]:teamRates(base,eqMn),E54,E58,mode,pv:E58-E54,soud:num(N.soud),dn:num(N.dn)});}else set('nuit',L());
   /* ── purges / vidanges (14/10 : les soudures du panier au prix de la soudure de la table des DN) ── */
-  const PU=z.purges||{};{const p=panierRow(base,'purge',PU.dn,{soud:W});let pu=0,mo=0,fo=0;if(p){const purg=p.fo.filter(f=>/purgeur|t[ée]s acier/i.test(f.label)).reduce((s,f)=>s+f.amount,0);pu=PU.purgeurAuto?p.total:p.total-purg;mo=p.moAmount;fo=pu-mo;}
+  const PU=z.purges||{};{const p=panierRow(base,'purge',PU.dn,{soud:W,eq:VE});let pu=0,mo=0,fo=0;if(p){const purg=p.fo.filter(f=>/purgeur|t[ée]s acier/i.test(f.label)).reduce((s,f)=>s+f.amount,0);pu=PU.purgeurAuto?p.total:p.total-purg;mo=p.moAmount;fo=pu-mo;}
     const paires=num(PU.paires);const dep=PU.deporte?paires*4:0;const puDep=prixSoudDn(PU.dn)+prixManchDn(PU.dn);set('purges',L(mo*paires+dep*puDep,fo*paires),{pu,puDep,puSoud:prixSoudDn(PU.dn),puManch:prixManchDn(PU.dn),dep,total:pu*paires+dep*puDep,missing:p?p.missing:[]});}
-  const VI=z.vidanges||{};{const typ=VI.type||'gravite';const p=panierRow(base,typ==='aspiration'?'vid_asp':'vid_grav',VI.dn,{soud:W});let pu=0,mo=0;if(p){pu=p.total;if(typ==='gravite_nue')pu+=(p.extra||[]).filter(f=>/vanne/i.test(f.label)).reduce((s,f)=>s+f.amount,0); /* vidange par gravité avec vannes nues = le panier + les 2 vannes à souder */mo=p.moAmount;}
+  const VI=z.vidanges||{};{const typ=VI.type||'gravite';const p=panierRow(base,typ==='aspiration'?'vid_asp':'vid_grav',VI.dn,{soud:W,eq:VE});let pu=0,mo=0;if(p){pu=p.total;if(typ==='gravite_nue')pu+=(p.extra||[]).filter(f=>/vanne/i.test(f.label)).reduce((s,f)=>s+f.amount,0); /* vidange par gravité avec vannes nues = le panier + les 2 vannes à souder */mo=p.moAmount;}
     const paires=num(VI.paires);const dep=VI.deporte?paires*4:0;const puDep=prixSoudDn(VI.dn)+prixManchDn(VI.dn);set('vidanges',L(mo*paires+dep*puDep,(pu-mo)*paires),{pu,puDep,puSoud:prixSoudDn(VI.dn),puManch:prixManchDn(VI.dn),dep,total:pu*paires+dep*puDep,missing:p?p.missing:[]});}
   /* ── vannes préisolées (lignes : soudure, manchon, [vanne], options — modifiables, clé « vpi|n° de ligne ») — 14/10 (Ethan : « pas pouce × prix du pouce mais
      une soudure du DN de la table plus haut, comme un manchon du même DN ; pas de prix d'achat pour la vanne ») : 1 soudure + 1 manchon au prix de la table des
@@ -309,8 +360,8 @@ export function calcEtude(z,base,opt){opt=opt||{};const XL=!!opt.classeur;const 
     const m=S.tot('mo'),f=S.tot('fo');mo+=m*q;fo+=f*q;det.push({dn,q,pu:m+f,lines:S.lines,key:'vpi|'+vi,idx:vi,achat});});set('vpi',L(mo,fo),{rows:det});}
   /* ── SST (14/10 : un prix de vanne introuvable dans la base est SIGNALÉ ; « + by-pass » ajoute le panier by-pass derrière la paire) ── */
   {let mo=0,fo=0;const det=[];const boit=sstBoitiers(base);(z.sst||[]).forEach((s,si)=>{const dn=num(s.dn);if(!dn||!s.type)return;const q=num(s.paires);
-    if(s.type==='autre'){const pu=num(s.pu);fo+=pu*q;det.push({dn,type:'autre',des:s.des||'',q,pu,idx:si,missing:[]});return;} /* typologie hors classeur : prix saisi (fourniture + pose) */const bf=(s.type==='bypass_seul'||s.type==='fonds_bombes')?bypassFonds(base,dn,s.type==='fonds_bombes'):null;const p=bf?null:panierRow(base,s.type,dn);
-    const bp=s.bypass&&!bf?panierRow(base,BP_SST,dn):null;const pu=(bf?bf.total:(p?p.total:0))+boit+(bp?bp.total:0);const m=(bf?bf.mo:(p?p.moAmount:0))+foParam(base,'FO_MO_Pose_Boitiers')*teamCost(base,'M').h+(bp?bp.moAmount:0);mo+=m*q;fo+=(pu-m)*q;
+    if(s.type==='autre'){const pu=num(s.pu);fo+=pu*q;det.push({dn,type:'autre',des:s.des||'',q,pu,idx:si,missing:[]});return;} /* typologie hors classeur : prix saisi (fourniture + pose) */const bf=(s.type==='bypass_seul'||s.type==='fonds_bombes')?bypassFonds(base,dn,s.type==='fonds_bombes'):null;const p=bf?null:panierRow(base,s.type,dn,{eq:VE});
+    const bp=s.bypass&&!bf?panierRow(base,BP_SST,dn,{eq:VE}):null;const pu=(bf?bf.total:(p?p.total:0))+boit+(bp?bp.total:0);const m=(bf?bf.mo:(p?p.moAmount:0))+foParam(base,'FO_MO_Pose_Boitiers')*teamCost(base,'M').h+(bp?bp.moAmount:0);mo+=m*q;fo+=(pu-m)*q;
     const miss=(p?p.missing:[]).concat(bp?bp.missing:[]);if(!bf&&!p)miss.push({label:'Panier',why:'pas de panier « '+s.type+' » au DN '+dn+' dans la base'});if(s.bypass&&!bf&&!bp)miss.push({label:'By-pass',why:'pas de by-pass au DN '+dn+' dans la base (bloc BY-PASS du classeur)'});
     if(miss.length)R.warn.push('SST DN '+dn+' : '+miss.map(x=>x.label+' — '+x.why).join(' ; '));
     det.push({dn,type:s.type,q,pu,idx:si,missing:miss,bypass:bp?bp.total:0});});set('sst',L(mo,fo),{rows:det,boitiers:boit});}
@@ -320,7 +371,7 @@ export function calcEtude(z,base,opt){opt=opt||{};const XL=!!opt.classeur;const 
     const S=lineSet((z.pover||{})[key2]);S.add('mo','MO d\'extrusion · '+x.type+' (équipe '+Er.eq+')','mo',Er.h[hk]||0,teamCost(base,Er.eq).h,{unit:'h'});S.add('amort','Amortissement du matériel','fo',1,Er.amort);S.add('conso','Consommables','fo',1,Er.conso);
     const m=S.tot('mo'),f=S.tot('fo');mo+=m*q;fo+=f*q;det.push({dn,type:x.type,q,pu:m+f,lines:S.lines,key:key2,idx:xi});});set('extrusion',L(mo,fo),{rows:det});}
   /* ── raccordement ── */
-  {let mo=0,fo=0;const det=[];(z.racc||[]).forEach(x=>{const dn=num(x.dn);if(!dn||!x.type)return;const q=num(x.paires);const p=panierRow(base,x.type,dn);const pu=p?p.total:0;mo+=(p?p.moAmount:0)*q;fo+=(p?p.foAmount:0)*q;det.push({dn,type:x.type,q,pu});});set('racc',L(mo,fo),{rows:det});}
+  {let mo=0,fo=0;const det=[];(z.racc||[]).forEach(x=>{const dn=num(x.dn);if(!dn||!x.type)return;const q=num(x.paires);const p=panierRow(base,x.type,dn,{eq:VE});const pu=p?p.total:0;mo+=(p?p.moAmount:0)*q;fo+=(p?p.foAmount:0)*q;det.push({dn,type:x.type,q,pu});});set('racc',L(mo,fo),{rows:det});}
   /* ── CND ── */
   const CND=z.cnd||{};const km=CND.km===''||CND.km===null||CND.km===undefined?null:num(CND.km);const tr=filmTranches(base);
   const cndCalc=(kind,cfg,poste)=>{if(!cfg||!cfg.on)return L();const forf=km===null?0:cndForfait(base,poste,km);
@@ -353,7 +404,7 @@ export function calcEtude(z,base,opt){opt=opt||{};const XL=!!opt.classeur;const 
      juste S+T ») : par ligne, le détail (supports, peinture, calorifuge, pose, acier nu) modifiable pour CE chiffrage — clé « aer|n° de ligne » ; équipe de pose
      aérienne (par défaut celle de la zone) ; pose « en soudures » (soudures × prix de la soudure du DN pour cette équipe) ou « en journées » (jours × coût/jour). ── */
   {const A=z.aerien||{};let calo=0,caloMo=0,pose=0,foAcier=0;const det=[];const os=osRate(base);const eqA=A.eq||E.soud||'S+T+P';const cA=teamCost(base,eqA);const modeA=A.mode==='jours'?'jours':'soud';
-    const prixSoudA=dn=>{const c=cadOf(base,dn);const cad=cadTeam(c,eqA)*twinK;return cad?cA.jour/cad:0;};
+    const prixSoudA=dn=>{const cad=cadZone(dn,eqA);return cad?cA.jour/cad:0;};
     (A.rows||[]).forEach((r,ri)=>{const dn=num(r.dn);if(!dn)return;const ml=num(r.ml),c90=num(r.c90),soud=num(r.soud);const tradi=(r.type||'Tradi')!=='Préisolé';const S=lineSet((z.pover||{})['aer|'+ri]);
       const esp=dn<foParam(base,'FO_Support_Seuil_DN',125)?foParam(base,'FO_Support_Espacement_Petit_DN',3):foParam(base,'FO_Support_Espacement_Gros_DN',2);const nSup=r.support?ceil(ml/esp):0;
       if(r.support){S.add('sup_fo','Supports « '+r.support+' » : fourniture ('+nSup+' supports, 1 tous les '+String(esp).replace('.',',')+' m)','fo',nSup,foLookup(base,'FO_Supportage',r.support,2));S.add('sup_mo','Supports : pose ('+nSup+' × '+String(foLookup(base,'FO_Supportage',r.support,3)).replace('.',',')+' h, opérations spécifiques)','mo',nSup*foLookup(base,'FO_Supportage',r.support,3),os,{unit:'h'});}
@@ -364,7 +415,7 @@ export function calcEtude(z,base,opt){opt=opt||{};const XL=!!opt.classeur;const 
       if(tradi){if(modeA==='jours')S.add('pose','Pose : journées de l\'équipe '+eqA,'mo',num(r.jours),cA.jour,{unit:'j'});else S.add('pose','Pose : soudures × prix de la soudure DN '+dn+' (équipe '+eqA+')','mo',soud,prixSoudA(dn),{unit:'soud.'});
         S.add('tubes','Acier nu : tubes de 6 m','fo',ceil(ml/6),foLookup(base,'FO_Accessoires_Acier',dn,8),{unit:'u'});if(c90)S.add('coudes','Acier nu : coudes à souder','fo',c90,foLookup(base,'FO_Accessoires_Acier',dn,9),{unit:'u'});S.add('cert','Certificats matière','fo',2,foParam(base,'FO_Prix_Certificat'),{unit:'u'});}
       const g=ids=>S.lines.filter(l=>ids.includes(l.id)).reduce((x,l)=>x+l.amount,0);const U=g(['sup_fo','sup_mo','peint','calo_ml','calo_c','calo_mo']);calo+=U;caloMo+=g(['sup_mo','calo_mo']);const ps=g(['pose']);pose+=ps;const fa=g(['tubes','coudes','cert']);foAcier+=fa;
-      det.push({dn,ml,nSup,U,tradi,pose:ps,fa,jEq:modeA==='soud'&&tradi&&soud?soud/(cadTeam(cadOf(base,dn),eqA)*twinK||1):0,lines:S.lines,key:'aer|'+ri,idx:ri});});
+      det.push({dn,ml,nSup,U,tradi,pose:ps,fa,jEq:modeA==='soud'&&tradi&&soud?soud/(cadZone(dn,eqA)||1):0,lines:S.lines,key:'aer|'+ri,idx:ri});});
     const anyCalo=(A.rows||[]).some(r=>r.calo),anySup=(A.rows||[]).some(r=>r.support);const depl=num(A.hDepl)*foParam(base,'FO_Calo_Nb_Pers_Deplacement',2)*os*((anyCalo?1:0)+(anySup?1:0));calo+=depl;caloMo+=depl;
     const foA=foAcier?foAcier+foParam(base,'FO_Transport_Fournitures'):0;
     set('calo',num(A.devisPose)?L(0,0,num(A.devisPose)):L(caloMo,calo-caloMo),{rows:det,depl,eq:eqA,mode:modeA,cA});set('pose_aerien',L(pose));set('fo_acier',num(A.devisFO)?L(0,num(A.devisFO)):L(0,foA));}
@@ -380,17 +431,17 @@ export function calcEtude(z,base,opt){opt=opt||{};const XL=!!opt.classeur;const 
      · insertions de tés : 0 par défaut (FO_Foncage_Nb_Tes ; le classeur en mettait 2 d'office) — ligne gardée, à mettre si besoin ;
      · colliers centreurs : le calcul est écrit en clair (colliers par tube, tubes, segments par collier selon le Ø d'isolation) et un Ø absent de la table
        des colliers est SIGNALÉ (avant : 0 € en silence). ── */
-  {let mo=0,fo=0,st=0;const det=[];const FC=z.foncage||{};const eqF=FC.eq||E.soud||'S+T+P';const withM=FC.manch!==false;const eqFM=FC.eqM||E.manch||'M';const cF=teamCost(base,eqF),cFM=withM?teamCost(base,eqFM):{jour:0};
+  {let mo=0,fo=0,st=0;const det=[];const FC=z.foncage||{};const eqF=FC.eq||eqS;const withM=FC.manch!==false&&eqF!==SM;const eqFM=FC.eqM||(isSM?'M':E.manch||'M'); /* S+M : manchonneur compris */const cF=teamCost(base,eqF),cFM=withM?teamCost(base,eqFM):{jour:0};
     const lBar=foParam(base,'FO_Foncage_Longueur_Barre',12),kCad=foParam(base,'FO_Foncage_Coef_Cadence',0.5),nTubes=foParam(base,'FO_Foncage_Nb_Tubes',2),nTes=XL?2:foParam(base,'FO_Foncage_Nb_Tes',0);const esp=foParam(base,'FO_Foncage_Espacement_Colliers',1.5),cSup=foParam(base,'FO_Foncage_Colliers_Sup');
     (FC.rows||[]).forEach((r,ri)=>{const dn=num(r.dn);if(!dn)return;const ml=num(r.ml);const dIso=isoDiam(base,dn,iso);const parTube=ml>0?ceil(ml/esp)+cSup:0;const nColl=parTube*nTubes;const segPer=foLookup(base,'FO_Colliers_Centreurs',dIso,2);const seg=segPer*nColl;const os=osRate(base);
       const collMiss=ml>0&&!segPer?('Ø d\'isolation '+(dIso||'?')+' (DN '+dn+', '+iso+') absent de la table des colliers centreurs'):null;if(collMiss)R.warn.push('Fonçage DN '+dn+' : '+collMiss);
       const S=lineSet((z.pover||{})['fon|'+ri]);if(seg){S.add('seg','Colliers centreurs : '+nColl+' colliers ('+parTube+' par tube = ⌈'+String(ml).replace('.',',')+' m ÷ '+String(esp).replace('.',',')+' m⌉ + '+cSup+', × '+nTubes+' tubes) × '+segPer+' segments (Ø iso '+dIso+')','fo',seg,foLookup(base,'FO_Colliers_Centreurs',dIso,3),{unit:'segm.'});S.add('segmo','MO : montage des colliers ('+foParam(base,'FO_Foncage_Ratio_Segments_h',10)+' segments / h)','mo',ceil(seg/foParam(base,'FO_Foncage_Ratio_Segments_h',10)),os,{unit:'h'});
         S.add('obt','Obturateurs','fo',foParam(base,'FO_Foncage_Nb_Obturateurs'),foParam(base,'FO_Foncage_Prix_Obturateur'));S.add('trc','Transport des colliers','fo',1,foParam(base,'FO_Foncage_Transport_Colliers'));}
       const vac=num(r.vac);S.add('rvac','Radio : vacations (mob / démob)','st',vac,km===null?0:cndForfait(base,'Mob/Démob Radio',km));S.add('rfilm','Radio : films','st',vac*foParam(base,'FO_Foncage_Nb_Films_Vacation',4),filmPrice(base,'Radio',dn));
-      const fosse=num(r.fosse);const lt=fosse>0?Math.min(lBar,fosse):lBar;const sec=ml>0&&lt>0?ceil(ml/lt-1e-9):0;const nW=Math.max(0,sec-1)*nTubes;const cad=cadTeam(cadOf(base,dn),eqF)*twinK*kCad;const jCalc=nW&&cad?Math.max(0.5,Math.ceil(nW/cad*2)/2):0;
+      const fosse=num(r.fosse);const lt=fosse>0?Math.min(lBar,fosse):lBar;const sec=ml>0&&lt>0?ceil(ml/lt-1e-9):0;const nW=Math.max(0,sec-1)*nTubes;const cad=cadZone(dn,eqF)*kCad;const jCalc=nW&&cad?Math.max(0.5,Math.ceil(nW/cad*2)/2):0;
       const hasJ=r.jours!==undefined&&r.jours!==null&&r.jours!==''&&num(r.jours)>0;const jours=hasJ?num(r.jours):(XL?num(r.jours):jCalc);
       S.add('pose','Pose : '+(hasJ?'jours saisis':'jours calculés ('+nW+' soudure'+(nW>1?'s':'')+' en fosse ÷ '+String(Math.round(cad*10)/10).replace('.',',')+' / j)')+' × équipe '+eqF+(withM?' + '+eqFM:''),'mo',jours,cF.jour+cFM.jour,{unit:'j'});
-      S.add('tes','Insertions de tés (0 par défaut : à mettre si le fonçage se raccorde par tés)','mo',nTes,raccPrice(base,'racc_insertion_de_tes',dn));
+      S.add('tes','Insertions de tés (0 par défaut : à mettre si le fonçage se raccorde par tés)','mo',nTes,raccPrice(base,'racc_insertion_de_tes',dn,XL?null:{eq:eqF}));
       const lm=S.tot('mo'),lf=S.tot('fo'),ls=S.tot('st');mo+=lm;fo+=lf;st+=ls;det.push({dn,ml,nColl,seg,segPer,dIso,collMiss,coll:lf+(seg?S.lines.find(l=>l.id==='segmo').amount:0),radio:ls,pose:S.lines.filter(l=>l.id==='pose'||l.id==='tes').reduce((x,l)=>x+l.amount,0),jours,jCalc,hasJ,nW,lt,sec,lines:S.lines,key:'fon|'+ri,idx:ri});});
     set('foncage',L(mo,fo,st),{rows:det,eq:eqF,eqM:withM?eqFM:null});}
   /* ── panier sur mesure (acier nu) → fournitures autres + prestations autres ── */

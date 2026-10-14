@@ -12,7 +12,7 @@ let H=null;export function initDpgfWb(h){H=h;}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nb=(x,d)=>{x=+x||0;return x.toLocaleString('fr-FR',{maximumFractionDigits:d===undefined?0:d,minimumFractionDigits:d===undefined?0:d});};
 const eur=x=>nb(x)+' €';const num=v=>v===''||v===null||v===undefined?0:(isFinite(+v)?+v:0);
-const DW={sel:null,filt:'reste',full:false,line:null,popup:null,mode:'compo',zone:0,csel:null,pick:{}}; /* 13/10 nuit : mode « prix composés » (défaut) ou « coûts à placer » */
+const DW={sel:null,filt:'reste',full:false,line:null,popup:null,mode:'compo',zone:0,csel:null,pick:{},used:false}; /* 13/10 nuit : mode « prix composés » (défaut) ou « coûts à placer » */
 export const dwState=()=>DW;
 const grpOf=k=>{const p=String(k).split('|');return p[0]==='i'?'inst':'z'+p[1];};
 const shortLab=l=>String(l||'').replace(/^.*? › /,'');
@@ -62,7 +62,7 @@ function gridHTML(a,T,ro){const D=a.dpgf||{};const L=D.lignes||[];const map=D.ma
     return `<tr class="cm-dwrow${sel||DW.csel?' target':''}${DW.line===i?' on':''}" data-act="af" data-v="dwline|${i}"><td class="xr">${l.row||''}</td><td><b>${esc(l.n||'')}</b></td><td class="des">${esc(l.des)}${chips||pchips?`<div class="cm-dwchips">${pchips}${chips}</div>`:''}</td><td>${esc(l.u||'')}</td><td class="num">${nb(l.qte,String(l.qte).includes('.')?2:0)}</td><td class="num"><b>${x.pu?nb(x.pu,2):'—'}</b></td><td class="num">${x.total?eur(x.total):''}${x.resteMl?`<div class="dim" style="font-size:10.5px">dont reste ${eur(x.resteMl)}</div>`:''}</td><td><label class="ch-sw${x.ml?' on':''}" title="Reçoit sa part du reste (coûts placés nulle part), au prorata de sa quantité"><input type="checkbox" data-afdm="${i}|ml|ml" ${x.ml?'checked':''} ${ro?'disabled':''}><i></i><span>reste</span></label></td></tr>`;}).join('');
   return `<div class="cm-dwx"><table class="cm-dwt"><tr><th class="xr">Excel</th><th>N°</th><th>Désignation</th><th>U</th><th class="num">Qté</th><th class="num">PU proposé</th><th class="num">Montant</th><th>Reste</th></tr>${rows}<tr class="tot"><td></td><td></td><td>Total</td><td></td><td></td><td></td><td class="num"><b>${eur(T.perLine.reduce((s,x)=>s+(x.total||0),0))}</b></td><td></td></tr></table></div>`;}
 /* ── actions ── */
-export function dpgfWbAct(k,arg,arg2,a,ctx){const canEdit=ctx.canEdit;const render=()=>{if(ctx.render)ctx.render();refreshPopup(ctx);};
+export function dpgfWbAct(k,arg,arg2,a,ctx){const canEdit=ctx.canEdit;const render=()=>{if(ctx.render)ctx.render();refreshPopup(ctx);};DW.used=a.num; /* 14/10 après-midi (lot C) : l'atelier, replié sous la grille Excel, reste ouvert (pour cette affaire) dès qu'on s'en sert */
   switch(k){
     case 'dwsel':DW.sel=arg?decodeURIComponent(arg):null; /* la clé d'un coût contient des « | » : encodée dans data-v */if(DW.sel)DW.line=null;render();return true;
     case 'dwfilt':DW.filt=arg;render();return true;
