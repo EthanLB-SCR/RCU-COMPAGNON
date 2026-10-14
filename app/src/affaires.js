@@ -64,6 +64,7 @@ export function factTotaux(a,year){const f=a.fact||{};const y=year||new Date().g
 export const affLoad=()=>regLoad(['affaire','prix','panier']); /* 13/10 : + base de prix et paniers libres (chiffrage v2) */
 export const affAll=()=>regAll('affaire').filter(a=>a&&a.num).sort((a,b)=>String(b.num).localeCompare(String(a.num)));
 export const affGet=id=>regGet('affaire',id);
+export function affOpen(num,tab){AS.view='fiche';AS.cur=num;AS.tab=tab||'fiche';AS.zone=0;} /* 14/10 : retour du traceur (index.html?aff=…) → l'affaire s'ouvre directement, onglet demandé (Tracé & chantiers) */
 export function affSet(id,patch){return regSet('affaire',id,patch);}
 export function affSetQuiet(id,patch){return regSet('affaire',id,patch,{quiet:true});} /* 13/10 : sans redessiner (frappe dans le mémoire) */
 export function affNew(num,data){return regSet('affaire',num,Object.assign({num,etat:'preconsult',at:new Date().toISOString(),by:A.userName?A.userName():''},data||{}));}

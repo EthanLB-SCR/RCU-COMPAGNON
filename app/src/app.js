@@ -15,7 +15,7 @@ import {initSandbox,isSandboxOn,isSandboxSite,sandboxHTML,sandboxBind,sandboxAct
 import {BRAND,LOGO_PNG,DOC_CSS,docHTML,docHead,docFoot,PRINT_BTN} from './charte.js';
 import {initReg,regLoad,onReg,regPurge,regSet,regPending,regAll,regGet,regRefused,regDrop,regRefresh} from './reg.js'; // registre générique (documents d'entreprise, affaires, véhicules) — nuit 09→10/10
 import {initDocs,docsLoad,docsTodo,docsAll,docSig,PREVENTION} from './docs.js';
-import {initAffaires,affLoad,affAll,affGet,affSet,calcAffaire,factTotaux,affState} from './affaires.js'; // volet commerce
+import {initAffaires,affLoad,affAll,affGet,affOpen,affSet,calcAffaire,factTotaux,affState} from './affaires.js'; // volet commerce
 import {lectureWin} from './dce.js'; // 13/10 : fenêtre de lecture séparée (2e écran) — exposée pour les tests
 import {initFlotte,flotteLoad,vehAll,vehGet,vehAlertes} from './flotte.js'; // parc véhicules
 import {initCommandes,cmdLoad,cmdAll,dbAll} from './commandes.js'; // bons de commande & débours
@@ -2996,11 +2996,20 @@ state.siteId=(wantSite&&SITES[wantSite])?wantSite:(lastSite&&SITES[lastSite])?la
 setupSite(state.siteId);renderAll();requestAnimationFrame(()=>{fitView();renderPlan();});
 // chantiers remis par le traceur (IndexedDB) ; ?site= ouvre directement, sinon écran d'accueil (ou connexion à la première visite)
 loadHandoffs().then(async hs=>{hs.forEach(net=>{if(isHidden(net))return;if(SITES.__vide){delete SITES.__vide;const o=[...siteSel.options].find(x=>x.value==='__vide');if(o)o.remove();}addSiteOption(net);});
+  /* 14/10 (Ethan : « quand je retourne dans commerce ça ne met rien dans tracé, il faut que j'aille le lier ») : un tracé enregistré depuis une ÉTUDE (fiche.etude.aff,
+     posé par le traceur) est rattaché à son affaire ICI, au chargement — plus besoin de passer par « Ouvrir dans TRACÉ » ni de le lier à la main. */
+  (async()=>{const cand=hs.filter(n=>!isHidden(n)&&n.fiche&&n.fiche.etude&&n.fiche.etude.aff);if(!cand.length)return;
+    try{await affLoad();}catch(e){return;}
+    cand.forEach(n=>{try{const num=n.fiche.etude.aff;const a=affGet(num);if(!a||a.deleted||(a.sites||[]).includes(n.id))return;
+      regSet('affaire',num,{sites:(a.sites||[]).concat([n.id])});toast('Tracé « '+(n.name||n.id)+' » rattaché à l\'affaire '+num+' (dossier commercial)');if(state.screen==='home')softRender('tracé lié');}catch(e){console.warn(e);}});})();
   try{const sb=await sandboxLoadSite();if(sb){if(SITES.__vide){delete SITES.__vide;const o=[...siteSel.options].find(x=>x.value==='__vide');if(o)o.remove();}addSiteOption(sb);}}catch(e){console.warn(e);} /* bac à sable : chantier de démo gardé sur l'appareil */
   if(wantSite){try{localStorage.setItem('trace:skipLogin','1');}catch(e){} // arrivé par le traceur : plus d'écran de connexion imposé au prochain lancement
     if(SITES[wantSite]){if(state.siteId!==wantSite){siteSel.value=wantSite;await switchSite(wantSite);}showScreen('site');
       if(wantAff){try{await affLoad();const a=affGet(wantAff);if(a){if(!(a.sites||[]).includes(wantSite))regSet('affaire',wantAff,{sites:(a.sites||[]).concat([wantSite])});if(!AFF_WON.includes(a.etat))saveSiteFicheX(wantSite,{etude:{aff:wantAff,at:new Date().toISOString()}},true).catch(()=>{});toast('Chantier lié à l\'affaire '+wantAff+(AFF_WON.includes(a.etat)?'':' — il reste dans le dossier commercial tant que l\'affaire n\'est pas gagnée'));}}catch(e){console.warn(e);}} /* 12/10 : tracé depuis l'affaire → lié à l'affaire au retour */}
     else{state.pendingOpen=wantSite;showScreen('home');renderHome();toast('Chantier en cours de récupération depuis le serveur…');}}
+  else if(wantAff){try{localStorage.setItem('trace:skipLogin','1');}catch(e){} /* 14/10 : « ↩ Retour à l'affaire » du traceur (index.html?aff=…) → Commerce, l'affaire ouverte sur Tracé & chantiers (le tracé vient d'être rattaché juste au-dessus) */
+    try{await affLoad();}catch(e){}
+    showScreen('home');if(affGet(wantAff)){state.pendingAff=wantAff;try{localStorage.setItem('trace:homeTab','commerce');}catch(e){}}renderHome();}
   else{const u=await sync.user().catch(()=>null);const seen=localStorage.getItem('trace:skipLogin');
     if(u||seen){if(!state.userOpened)showScreen('home');}else{showScreen('login');} /* un chantier déjà ouvert entre-temps (lien, test) n'est pas recouvert par l'accueil */
     renderHome();}
@@ -3118,6 +3127,7 @@ function renderHome(){if(!$('#homeView'))return;
     const hst=$('#homeSubTabs');if(hst)hst.style.display=isSites?'':'none';}
   {const he=$('#htEspace'),hn=$('#htEnt'),hco=$('#htCom'),hpa=$('#htParc');const acc0=currentAccount();const vis=acc0&&acc0.poste==='visiteur';const okE=can('pointage.self')||can('team.view'),okN=(can('team.view')||isAdmin())&&!vis,okC=can('affaires.view')&&!vis,okP=(can('flotte.manage')||can('mag.manage')||isAdmin())&&!vis; /* 14/10 nuit : + magasin */
     if(he){he.style.display=okE?'':'none';he.classList.toggle('on',state.homeTab==='espace');}if(hn){hn.style.display=okN?'':'none';hn.classList.toggle('on',state.homeTab==='entreprise'||state.homeTab==='admin');}if(hco){hco.style.display=okC?'':'none';hco.classList.toggle('on',state.homeTab==='commerce');}if(hpa){hpa.style.display=okP?'':'none';hpa.classList.toggle('on',state.homeTab==='parc');}
+    if(state.pendingAff&&okC){state.homeTab='commerce';affOpen(state.pendingAff,'sites');state.pendingAff=null;} /* 14/10 : retour du traceur (?aff=…) arrivé avant les droits (connexion en cours) → appliqué dès que Commerce est permis */
     if((state.homeTab==='espace'&&!okE)||(state.homeTab==='entreprise'&&!okN)||(state.homeTab==='commerce'&&!okC)||(state.homeTab==='parc'&&!okP))state.homeTab='accueil';
     const sub=$('.homeSub .t');if(sub)sub.textContent=({espace:'Moi',entreprise:'SCR',accueil:'Aujourd\'hui',admin:'Administration',commerce:'Commerce',parc:'Parc'})[state.homeTab]||'Chantiers';
     const hc=$('#homeCount');if(hc)hc.style.display=isCards?'':'none';
@@ -3437,14 +3447,23 @@ function etudeSync(){clearTimeout(etudeSyncT);etudeSyncT=setTimeout(()=>{if(!sta
    conduites, 1 si conduite simple), barres ≈ ml de tube des tubes ÷ 12, coudes, tés (au DN de la conduite), piquages (au DN de l'antenne qui part), réductions,
    vannes, kits fin de ligne (bouchons) */
 function traceQty(id){const st=siteStore[id];const sess=(st&&st.lines)||(state.siteId===id?state.lines:null);const src=sess?Object.values(sess):((SITES[id]&&SITES[id].lines)||[]);if(!src.length)return null;
-  const by={};const g=dn=>by[dn]||(by[dn]={dn,soud:0,mlTr:0,mlTube:0,mlPipe:0,coudes:0,tes:0,piq:0,red:0,vannes:0,kits:0});const ids=new Set(src.filter(Boolean).map(l=>l.id));
+  const by={};const g=dn=>by[dn]||(by[dn]={dn,soud:0,mlTr:0,mlTube:0,mlPipe:0,coudes:0,tes:0,piq:0,red:0,vannes:0,kits:0,runs:[]});const ids=new Set(src.filter(Boolean).map(l=>l.id));
+  /* 14/10 (Ethan : « le nombre doit être environ le ml/12, des barres ENTAMÉES, sans rajouter de soudure : on ne prend pas 6 chutes de 2 m pour faire un tube ») :
+     les barres se comptent par TRONÇON CONTINU de tube (une pièce — coude, té, vanne, réduction — ou un changement de DN coupe le tronçon) : barres pleines + UNE chute
+     par tronçon ; les chutes resservent pour les petites longueurs du même DN (2 chutes tiennent dans une même barre SANS soudure en plus), jamais aboutées. */
+  const addRun=(dn,len,bar,n)=>{if(!(len>0.01)||!dn)return;g(dn).runs.push({len,bar:+bar||12,n:n||1});};
+  const barresOf=runs=>{const B={};runs.forEach(r=>{const b=B[r.bar]=B[r.bar]||{full:0,rems:[]};for(let c=0;c<r.n;c++){const f=Math.floor(r.len/r.bar+1e-9);b.full+=f;const rem=r.len-r.bar*f;if(rem>0.05)b.rems.push(rem);}});
+    let tot=0;Object.keys(B).forEach(k=>{const b=B[k];b.rems.sort((x,y)=>y-x);const bins=[];b.rems.forEach(r=>{let i=-1;for(let j=0;j<bins.length;j++)if(bins[j]+r<=+k+1e-9){i=j;break;}if(i<0)bins.push(r);else bins[i]+=r;});tot+=b.full+bins.length;});return tot;};
   src.forEach(l=>{if(!l)return;const els=Array.isArray(l.els)?l.els:[];const nC=l.single?1:2;const dnOf=i=>{for(let k=0;k<els.length;k++){const a=els[i-k],b=els[i+k];if(a&&+a.dn)return +a.dn;if(b&&+b.dn)return +b.dn;}return +l.dn||0;};
     els.forEach((e,i)=>{if(!e)return;const dn=dnOf(i);if(!dn)return;const r=g(dn);const len=+e.len||0;r.mlTr+=len;r.mlTube+=len*nC;if(e.kind==='pipe')r.mlPipe+=len*nC;else if(e.kind==='bend'||e.kind==='steelbend')r.coudes+=nC;else if(e.kind==='tee')r.tes+=nC;else if(e.kind==='reducer')r.red+=nC;else if(e.kind==='valve')r.vannes+=nC;else if(e.kind==='endcap')r.kits+=nC;});
-    if(!els.length&&+l.dn&&+l.length){const r=g(+l.dn);r.mlTr+=+l.length;r.mlTube+=(+l.length)*nC;r.mlPipe+=(+l.length)*nC;}
+    {let run=null;const endRun=()=>{if(run){addRun(run.dn,run.len,l.bar,nC);run=null;}};
+      els.forEach((e,i)=>{if(!e)return;const dn=dnOf(i);const len=+e.len||0;
+        if(e.kind==='pipe'&&dn){if(run&&run.dn===dn)run.len+=len;else{endRun();run={dn,len};}}else endRun();});endRun();} /* tronçons continus de tube (barres entamées) */
+    if(!els.length&&+l.dn&&+l.length){const r=g(+l.dn);r.mlTr+=+l.length;r.mlTube+=(+l.length)*nC;r.mlPipe+=(+l.length)*nC;addRun(+l.dn,+l.length,l.bar,nC);}
     if(l.parent&&ids.has(l.parent)){const d0=dnOf(0);if(d0)g(d0).piq+=nC;}
     if(sess&&l.cond){['A','R'].forEach(c=>{const C=l.cond[c];if(!C||!Array.isArray(C.joints))return;C.joints.forEach(j=>{const e=Array.isArray(C.els)?C.els[j.idx]:null;const dn=+(j.dn||(e&&e.dn)||dnOf(j.idx||0))||0;if(dn)g(dn).soud++;});});}
     else if(Array.isArray(l.joints))l.joints.forEach(j=>{const dn=dnOf(+j.idx||0);if(dn)g(dn).soud+=nC;});});
-  const rows=Object.values(by).filter(r=>r.soud||r.mlTr).sort((x,y)=>y.dn-x.dn).map(r=>({dn:r.dn,barres:Math.ceil(r.mlPipe/12-1e-9),mlTube:Math.round(r.mlTube*10)/10,mlTr:Math.round(r.mlTr*10)/10,soud:r.soud,coudes:r.coudes,tes:r.tes,piq:r.piq,red:r.red,vannes:r.vannes,kits:r.kits,src:'tracé'}));
+  const rows=Object.values(by).filter(r=>r.soud||r.mlTr).sort((x,y)=>y.dn-x.dn).map(r=>({dn:r.dn,barres:r.runs.length?barresOf(r.runs):Math.ceil(r.mlPipe/12-1e-9),mlTube:Math.round(r.mlTube*10)/10,mlTr:Math.round(r.mlTr*10)/10,soud:r.soud,coudes:r.coudes,tes:r.tes,piq:r.piq,red:r.red,vannes:r.vannes,kits:r.kits,src:'tracé'}));
   const T=k=>rows.reduce((x,r)=>x+(r[k]||0),0);return {rows,tot:{barres:T('barres'),mlTube:T('mlTube'),mlTr:Math.round(T('mlTr')*10)/10,soud:T('soud'),coudes:T('coudes'),tes:T('tes'),piq:T('piq'),red:T('red'),vannes:T('vannes'),kits:T('kits')}};}
 /* 13/10 : phases du phasage d'un tracé → soudures / ml par DN par phase (chiffrage v2 : « associer des tronçons à des zones comme des phases », pour COMPARER) */
 function tracePhases(id){const st=siteStore[id];const net=st?st.NET:(state.siteId===id?NET:SITES[id]);const L=(st&&st.lines)||(state.siteId===id?state.lines:null);if(!net||!L||!net.phasage||!Array.isArray(net.phasage.phases))return [];
