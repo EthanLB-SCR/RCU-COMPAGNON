@@ -1,5 +1,5 @@
 -- CONTRÔLE DES SQL DE TRACÉ — LECTURE SEULE : ne modifie rien. Supabase → SQL Editor → New query → coller → Run.
--- Une ligne par script : ✅ passé / ❌ à passer (dans l'ordre des numéros). 23 lignes (13/10 soir : + retours_13-10g).
+-- Une ligne par script : ✅ passé / ❌ à passer (dans l'ordre des numéros). 24 lignes (14/10 : + retours_14-10a).
 -- (13/10/2026) Marqueurs : fonctions et leur code, tables, colonnes, déclencheurs, politique, lignes importées. À TENIR À JOUR à chaque nouveau SQL : une colonne dans « k », une ligne dans « values ».
 with fn as (
   select p.proname as n, string_agg(p.prosrc, ' ') as src, string_agg(pg_get_function_result(p.oid), ' ') as res
@@ -30,7 +30,7 @@ k as (select
   coalesce((select bool_or(position('can_prix' in src) > 0) from fn where n = 'registre_set'), false) and exists (select 1 from fn where n = 'can_prix') as prixdroit,
   coalesce((select bool_or(position('can_rh' in src) > 0) from fn where n = 'registre_set'), false) and exists (select 1 from fn where n = 'can_rh') and coalesce((select bool_or(position('can_rh' in coalesce(qual,'')) > 0) from pg_policies where schemaname = 'public' and tablename = 'registre' and policyname = 'registre_read'), false) as rhdroit,
   exists (select 1 from fn where n = 'annuaire_invites') as annuaire,
-  exists (select 1 from fn where n = 'can_mag') and coalesce((select bool_or(position('magdem' in src) > 0) from fn where n = 'registre_set'), false) as r1410a
+  exists (select 1 from fn where n = 'can_mag') and coalesce((select bool_or(position('magdem' in src) > 0) from fn where n = 'registre_set'), false) and coalesce((select bool_or(position('memlib' in coalesce(qual,'')) > 0) from pg_policies where schemaname = 'public' and tablename = 'registre' and policyname = 'registre_read'), false) as r1410a
 )
 select v.num as "n°", v.script as "SQL", case when v.ok then '✅ passé' else '❌ ' || v.quoi end as "état"
 from k, lateral (values
