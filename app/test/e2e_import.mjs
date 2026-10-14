@@ -64,7 +64,7 @@ C.c2=out.a.seg.join()==='file,paste,cat,nom'&&/Lecture automatique/.test(out.a.i
 await page.setViewportSize({width:390,height:844});await wait(300);
 await page.evaluate(async()=>{const w=ms=>new Promise(r=>setTimeout(r,ms));window.TRACE.state.tab='fourniture';window.TRACE.renderAll();await w(250);document.querySelector('#fourniture [data-fa=cmd][data-v=""]').click();await w(250);});
 await page.setInputFiles('#iq-file',{name:'devis_logstor.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from(X1)});await wait(1200);
-out=await page.evaluate(()=>{const M=document.querySelector('#modal .box');const T=document.querySelector('#modal table.iq-syn');return {page:document.documentElement.scrollWidth<=window.innerWidth+1,box:Math.round(M.getBoundingClientRect().width),tbl:T?T.parentElement.scrollWidth>T.parentElement.clientWidth:null};});
+out=await page.evaluate(()=>{const M=document.querySelector('#modal .box');const T=document.querySelector('#modal table.iq-syn');return {page:document.documentElement.scrollWidth<=window.innerWidth+1,box:Math.round(M.getBoundingClientRect().width),tbl:T?(T.parentElement.scrollWidth>T.parentElement.clientWidth||T.scrollWidth>T.clientWidth):null}; /* 14/10 nuit : au téléphone le tableau défile lui-même (passe téléphone : table.rc en bloc défilant) ou dans son parent */});
 console.log('3) téléphone :',JSON.stringify(out));
 C.c3=out.page&&out.box<=390&&out.tbl===true;
 const bad=Object.entries(C).filter(([k,v])=>!v).map(([k])=>k);console.log(bad.length?'RESULTAT: ECHEC '+bad.join(','):'RESULTAT: TOUT VERT');console.log(logs.length?logs:'[]');

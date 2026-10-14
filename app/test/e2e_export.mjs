@@ -68,7 +68,9 @@ C.c3=out.wire&&out.gWm===6&&out.scene&&out.scene2&&out.title&&out.rows===out.nDo
 
 // ── 4) plan interactif hors ligne : fichier autonome ouvert dans un autre onglet — historique avec photos, clic « au plus proche », vue Carnet, visionneuse plein écran
 const viewerHtml=await page.evaluate(()=>{const D=window.TRACE.doe.data();const pl=window.TRACE.doe.plan(D,{scale:200,format:'A3'});return window.TRACE.doe.viewer(D,{planches:pl.planches});});
-fs.writeFileSync('/tmp/site/_viewer_test.html',viewerHtml);
+/* 14/10 nuit (tests) : le fichier autonome est servi par interception (plus d'écriture dans /tmp/site : la suite marche contre n'importe quel BASE, ex. le build figé :8766) */
+await ctx.route(u=>u.href===BASE+'/_viewer_test.html',r=>r.fulfill({status:200,contentType:'text/html; charset=utf-8',body:viewerHtml}));
+if(process.env.KEEP)fs.writeFileSync('/tmp/_viewer_test.html',viewerHtml);
 const vp=await ctx.newPage();await vp.setViewportSize({width:1200,height:800});const vlogs=[];vp.on('pageerror',e=>vlogs.push('PAGEERROR: '+e.message.slice(0,300)));vp.on('dialog',d=>d.dismiss().catch(()=>{}));
 await vp.goto(BASE+'/_viewer_test.html');await vp.waitForTimeout(600);
 out=await vp.evaluate(()=>{const n=window.VIEW.data.welds.length;const lods=[...document.querySelectorAll('#lods .lod')];const shown=lods.filter(g=>g.style.display!=='none').length;const far=document.querySelector('#far').style.display!=='none';
@@ -127,5 +129,5 @@ const siteId=await page.evaluate(()=>window.TRACE.state.siteId);await page.reloa
 out=await page.evaluate(()=>{document.querySelector('#tabbar [data-tab=export]').click();const D=window.TRACE.doe.data();const pl=window.TRACE.doe.plan(D,{scale:200,format:'A3'});return {tab:window.TRACE.state.tab,n:D.welds.length,ts:D.ts.length,view:/Export — DOE test/.test(document.querySelector('#exportview').textContent),pages:pl.nPages,carnet:/Carnet de soudage/.test(window.TRACE.doe.carnet(D,{all:true,photos:'none'}))};});
 console.log('8) après rechargement (hors ligne : l\'avancement des soudures vit sur le serveur, la structure et les marques sur l\'appareil) :',JSON.stringify(out));C.c8=out.tab==='export'&&out.n===40&&out.ts===1&&out.view&&out.pages>=1&&out.carnet;
 const bad=Object.entries(C).filter(([k,v])=>!v).map(([k])=>k);console.log(bad.length?'RESULTAT: ECHEC '+bad.join(','):'RESULTAT: TOUT VERT');console.log(logs.length?logs:'[]');
-if(!process.env.KEEP)try{fs.unlinkSync('/tmp/site/_viewer_test.html');}catch(e){}
+/* (plus de fichier à retirer dans /tmp/site) */
 await browser.close();

@@ -29,7 +29,8 @@ k as (select
   coalesce((select bool_or(position($m$'cpth'$m$ in src) > 0) from fn where n = 'registre_set'), false) and coalesce((select bool_or(position($m$'cpth'$m$ in coalesce(qual,'')) > 0) from pg_policies where schemaname = 'public' and tablename = 'registre' and policyname = 'registre_read'), false) as cpth,
   coalesce((select bool_or(position('can_prix' in src) > 0) from fn where n = 'registre_set'), false) and exists (select 1 from fn where n = 'can_prix') as prixdroit,
   coalesce((select bool_or(position('can_rh' in src) > 0) from fn where n = 'registre_set'), false) and exists (select 1 from fn where n = 'can_rh') and coalesce((select bool_or(position('can_rh' in coalesce(qual,'')) > 0) from pg_policies where schemaname = 'public' and tablename = 'registre' and policyname = 'registre_read'), false) as rhdroit,
-  exists (select 1 from fn where n = 'annuaire_invites') as annuaire
+  exists (select 1 from fn where n = 'annuaire_invites') as annuaire,
+  exists (select 1 from fn where n = 'can_mag') and coalesce((select bool_or(position('magdem' in src) > 0) from fn where n = 'registre_set'), false) as r1410a
 )
 select v.num as "n°", v.script as "SQL", case when v.ok then '✅ passé' else '❌ ' || v.quoi end as "état"
 from k, lateral (values
@@ -55,6 +56,7 @@ from k, lateral (values
   (20, 'retours_13-10d.sql (compteurs d''heures)', k.cpth, 'à passer'),
   (21, 'retours_13-10e.sql (base de prix : droit « modifier »)', k.prixdroit, 'à passer (inclut 13-10d)'),
   (22, 'retours_13-10f.sql (contrats, compteurs, cas forcés : RH)', k.rhdroit, 'à passer (inclut 13-10e et 13-10d)'),
-  (23, 'retours_13-10g.sql (annuaire : invités visibles de tous)', k.annuaire, 'à passer (seul ; indépendant de 13-10f)')
+  (23, 'retours_13-10g.sql (annuaire : invités visibles de tous)', k.annuaire, 'à passer (seul ; indépendant de 13-10f)'),
+  (24, 'retours_14-10a.sql (magasin, véhicules, lectures restreintes ; inclut 13-10f et 13-10g)', k.r1410a, 'à passer (il suffit : contient 13-10f et 13-10g)')
 ) v(num, script, ok, quoi)
 order by v.num;

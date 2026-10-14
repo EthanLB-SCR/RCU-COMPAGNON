@@ -79,6 +79,7 @@ export const PERMS=[
  ['affaires.edit','Affaires : créer et modifier (affaire, DCE, chiffrage, situations, facturation)','Commerce'],
  ['prix.edit','Base de prix SCR : modifier (taux, cadences, fournitures, paramètres, paniers) — d\'office : le gérant ; les autres au cas par cas','Commerce'], // 13/10 (Ethan) : « consultable et modifiable par moi, Jérôme et le gérant »
  ['flotte.manage','Flotte : parc véhicules, contrôles, affectations, alertes','Bureau'], // nuit 09→10/10 : responsable flotte, direction, exploitation
+ ['mag.manage','Magasin : préparer et remettre les demandes, stock, réceptions, inventaire, catalogue et prix — d\'office : le référent magasin','Bureau'], // 14/10 nuit : module magasin (Parc → Magasin)
 ];
 export const STEP_PERMS=['weld.step1','weld.step2','weld.step3','weld.step4'];
 export const PENDING=new Set([]); // 09/10 : tous les droits déclarés sont appliqués (plan.view à l'ouverture, dh.measure sur les états DH, pointage.*, qse.sign / manage, team.view sur la liste des personnes)
@@ -113,6 +114,7 @@ export const DEFAULT_RIGHTS={
 Object.keys(DEFAULT_RIGHTS).forEach(k=>{if(k!=='gerant')DEFAULT_RIGHTS[k]={...DEFAULT_RIGHTS[k],'prix.edit':false};}); // base de prix : le gérant d'office ; l'administrateur a tout ; Jérôme & co : ajustement personnel
 const RH_VOIR=['gerant','dir_adjointe','dir_technique','resp_rh','assist_rh','charge_dev_rh'],RH_EDIT=['resp_rh','assist_rh','charge_dev_rh']; /* mêmes listes côté serveur : sql/retours_13-10f.sql, can_rh() */
 Object.keys(DEFAULT_RIGHTS).forEach(k=>{DEFAULT_RIGHTS[k]={...DEFAULT_RIGHTS[k],'rh.voir':RH_VOIR.includes(k),'rh.edit':RH_EDIT.includes(k)};}); // contrats, compteurs, cas forcés : gérant + direction voient, RH modifient ; l'administrateur (Ethan) a tout
+Object.keys(DEFAULT_RIGHTS).forEach(k=>{DEFAULT_RIGHTS[k]={...DEFAULT_RIGHTS[k],'mag.manage':k==='referent_magasin'};}); // 14/10 nuit : magasin = le référent magasin d'office ; l'administrateur a tout ; les autres par ajustement (Administrateur)
 // plafond par type de compte : un intérimaire garde le pur opérationnel, un visiteur regarde
 export const TYPE_CAP={
  salarie:null,

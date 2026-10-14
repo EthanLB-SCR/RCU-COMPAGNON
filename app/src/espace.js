@@ -9,7 +9,7 @@
 // Kit avatar : src/avatar.js (repris tel quel). Enveloppe avModele() : pas de médaille d'ancienneté hors travail (règle SCR, à reporter dans le kit).
 import {avatarModele,avatarSVG,avatarMedaillon,EditorLogic} from './avatar.js';
 import {POSTES_DEF,FAM_COLOR,POSTE_FAM} from './acces.js';
-import {docsFor,docsTodo,docsListHTML,docOpen,docsAdminHTML,docAdminOpen,docNewOpen,docsLateHTML,docsAll,docById,KINDS as DOC_KINDS} from './docs.js'; // documents d'entreprise à lire et signer (nuit 09→10/10)
+import {docsFor,docsTodo,docsListHTML,docOpen,docsAdminHTML,docAdminOpen,docNewOpen,docsLateHTML,docsAll,docById,KINDS as DOC_KINDS,docTaskInfo} from './docs.js'; // documents d'entreprise à lire et signer (nuit 09→10/10)
 import {qhsTodo,qhsMyKey,qhsRecapHTML,qhsTriggerOpen,qhsRuns} from './qhs.js'; // quart d'heure sécurité (10/10)
 import {controlesOf,controleNC,controleReportHTML} from './accueil.js'; // contrôles chantier : suivi direction (10/10)
 import {affView,affAct,affInput,affAll,affState,calcAffaire,factTotaux,affFiles} from './affaires.js';
@@ -38,14 +38,26 @@ const FAMILLES_ESP=Object.fromEntries(Object.keys(FAM_LABEL).map(k=>[k,{label:FA
 const AVATAR_POSTES={soudeur:'soudeur',tuyauteur:'tuyauteur',manchonneur:'manchonneur',chauffeur_engin:'chauffeur',chef:'chef',activites_specifiques:'chef',autre:'chef',conducteur:'conducteur',
   resp_exploitation:'responsable',resp_operations:'responsable',gerant:'responsable',dir_adjointe:'responsable',dir_technique:'responsable',
   resp_rh:'bureau',assist_rh:'bureau',charge_dev_rh:'bureau',resp_admin_fin:'bureau',resp_commercial:'bureau',charge_affaires:'bureau',resp_flotte:'bureau',referent_magasin:'bureau'};
-const HAB_TYPES={qs141:{label:'QS 141 TIG'},qs111:{label:'QS 111 électrode'},r482:{label:'CACES R482 engins'},r489:{label:'CACES R489 chariot'},r486:{label:'CACES R486 nacelle'},aipr:{label:'AIPR'},helec:{label:'Habilitation électrique'},sst:{label:'SST'},hauteur:{label:'Travail en hauteur'},permis:{label:'Permis B'},vm:{label:'Visite médicale'},btp:{label:'Carte BTP'}};
-const HAB_REQ={soudeur:['qs141','aipr','sst','hauteur','vm','btp'],tuyauteur:['aipr','hauteur','vm','btp'],manchonneur:['aipr','vm','btp'],chauffeur_engin:['r482','aipr','vm','btp'],chef:['aipr','sst','helec','vm','btp'],conducteur:['aipr','vm'],_defaut:['vm']};
-const CONFIG={recompenses:true,seuilEcheance:60,seuilChef:30};
+/* 14/10 nuit (passeport de prévention) : formations et habilitations génériques (intitulés réglementaires), durée de validité usuelle en années (ans), postes concernés ;
+   les clés existantes sont gardées (données déjà saisies) ; chef : AIPR encadrant (au lieu de l'AIPR opérateur) */
+const HAB_TYPES={qs141:{label:'QS 141 TIG',ans:2},qs111:{label:'QS 111 électrode',ans:2},r482:{label:'CACES R482 engins',ans:10},r489:{label:'CACES R489 chariot',ans:5},r486:{label:'CACES R486 nacelle',ans:5},aipr:{label:'AIPR opérateur',ans:5},helec:{label:'Habilitation électrique',ans:3},sst:{label:'SST',ans:2},hauteur:{label:'Travail en hauteur',ans:3},permis:{label:'Permis B',ans:15},vm:{label:'Visite médicale',ans:5},btp:{label:'Carte BTP'},
+  aipr_enc:{label:'AIPR encadrant',ans:5},vm_sir:{label:'Suivi médical renforcé (SIR)',ans:2},autoconduite:{label:'Autorisation de conduite'},elingage:{label:'Élingage et arrimage'},manchonnage:{label:'Techniques de manchonnage'},diiso:{label:'Diisocyanates (REACH)',ans:5},tranchee:{label:'Travail en tranchée, blindages'},catec:{label:'Espaces confinés (CATEC)',ans:3},permis_be:{label:'Permis remorque (BE / B96)',ans:15}};
+const HAB_REQ={soudeur:['qs141','aipr','sst','hauteur','vm','btp'],tuyauteur:['aipr','hauteur','vm','btp'],manchonneur:['aipr','helec','elingage','manchonnage','diiso','vm','btp'],chauffeur_engin:['r482','aipr','autoconduite','vm_sir','vm','btp'],chef:['aipr_enc','sst','helec','permis','vm','btp'],conducteur:['aipr','vm','btp'],activites_specifiques:['vm','btp'],referent_magasin:['permis','permis_be','vm'],_defaut:['vm']};
+const CONFIG={recompenses:true,seuilEcheance:90,seuilChef:30}; /* 14/10 nuit : « à renouveler » sous 90 jours (passeport de prévention ; avant : 60) */
 // clé « personne » : e-mail en minuscules (stable entre invitation et compte), sinon l'identifiant du compte (personnages de démo hors connexion)
 export const personKey=acc=>acc?((acc.email||'').toLowerCase()||String(acc.id||'')):'';
 const splitName=a=>{if(a.prenom||a.nom)return [a.prenom||'',a.nom||''];const t=String(a.name||a.email||'?').trim().split(/\s+/);return [t[0]||'?',t.slice(1).join(' ')];};
 const S={tab:'moi',sub:'moi',fiche:null,avVue:null,planSem:undefined,planJour:null,plWeek:undefined,plSel:null,plSect:undefined,plEnc:false,plEdit:null,plAutres:false,per:{mode:'sem',k:0,m:''},semOpen:{},entVue:'travail',valMode:'jour',valJour:null,valPers:null,corr:null,edit:false,q:'',fFam:'',fSite:'',habF:'traiter',open:{}};
 export function initEspace(api){A=api;}
+/* ═══ 14/10 nuit — MODULES BRANCHÉS (magasin, réception véhicule, accueil RH / passeport…) : chaque module s'enregistre ici sans toucher au cœur.
+   m = {id, kinds:[registres à charger], moiSubs(me,ctx)→[[clé,libellé,nBadge,rouge]], view(sub,me,ctx)→html|null (sous-onglets de Moi),
+        xview(clé,me,ctx)→html|null (sous-vue « x:<id>:<clé> » d'un hub, avec retour), hub:'parc'|'entreprise'|…, parcSeg(seg,me,ctx,bar)→html|null,
+        hubRows(tab,me,ctx)→[html], tasks(me,ctx)→[notifs « À faire »], gate(me,ctx)→html|null (écran bloquant avant l'accueil),
+        act(v,el,me,ctx) (data-act="x" data-v="<id>|…"), input(champ,el,me,ctx,type) (data-xin="<id>|<champ>") } */
+const EXT=[];
+export function espaceExt(m){if(m&&m.id&&!EXT.some(x=>x.id===m.id)){EXT.push(m);if(m.kinds&&A)regLoad(m.kinds).catch(()=>{});}}
+const extCtx=me=>({me,render:()=>render(),toast:t=>A.toast&&A.toast(t),can:p=>can(me,p),viewing:()=>viewing(),people:(DATA&&DATA.personnes)||[],sites:((DATA&&DATA.chantiers)||[]).filter(c=>!c.bureau&&!c.etude).map(c=>({id:c.id,name:c.nom})),go:k=>goX(k),sub:k=>goSub(k),api:A,personKey,nomC});
+const extSubs=me=>EXT.flatMap(m=>{try{return (m.moiSubs&&m.moiSubs(me,extCtx(me)))||[];}catch(e){console.warn(e);return [];}});
 /* ── DATA : l'état de l'appli, dans la forme attendue par les gabarits de la maquette ── */
 function buildData(){
   const now=new Date();const today=TODAY();const nowHM=pad(now.getHours())+':'+pad(now.getMinutes()); /* TODAY() : date du jour, ou date figée par un test */
@@ -57,7 +69,7 @@ function buildData(){
     return {id:key,acc:a.id,prenom,nom,email:a.email||'',tel:x.tel||a.tel||'',poste:POSTES_ESP[a.poste]?a.poste:'autre',type:a.type||'salarie',admin:!!a.admin,active:a.active!==false,invite:!!a.invite,prov:!!a.prov,agence:a.agence||'',sites:a.sites||null,rights:a.rights||{},
       entree:x.entree||null,contrat:x.contrat||null,urgence:x.urgence||null,secteur:x.secteur||a.secteur||null,adresse:x.adresse||null,emploi:x.emploi||null,_acc:a};});
   const seen=new Set();const uniques=personnes.filter(p=>{if(seen.has(p.id))return false;seen.add(p.id);return true;});
-  const chantiers=(A.sites()||[]).map(c=>({id:c.id,nom:c.name||c.id,ville:c.ville||'',soudures:+c.nw||0,faites:c.faites!=null?+c.faites:undefined,chef:c.chef||null,conducteur:c.conducteur||null,secteur:c.secteur||null,ll:c.ll||null})).concat([{id:'siege',nom:'Siège',ville:'Bureau',bureau:true}]);
+  const chantiers=(A.sites()||[]).filter(c=>!c.etude).map(c=>({id:c.id,nom:c.name||c.id,ville:c.ville||'',soudures:+c.nw||0,faites:c.faites!=null?+c.faites:undefined,chef:c.chef||null,conducteur:c.conducteur||null,secteur:c.secteur||null,ll:c.ll||null})).concat([{id:'siege',nom:'Siège',ville:'Bureau',bureau:true}]);
   const affectations={};uniques.forEach(p=>{if(p.type==='interim'&&Array.isArray(p.sites)&&p.sites.length&&chantiers.some(c=>c.id===p.sites[0]))affectations[p.id]=p.sites[0];});
   const habilitations=[];const avatars={},avatarCompteurs={},documents={};
   uniques.forEach(p=>{const x=PEOPLE[p.id]||{};(x.habs||[]).forEach(h=>habilitations.push(Object.assign({p:p.id},h)));avatars[p.id]=x.avatar||{};avatarCompteurs[p.id]=x.compteurs||{};documents[p.id]=x.docs||[];});
@@ -99,14 +111,29 @@ async function espaceLoad_(){
   try{const q=await A.kv.get('trace:geocodeQ');if(q&&typeof q==='object')GEOQ=q;}catch(e){}
   if(A.state.cloudUser){
     const rows=await A.sync.listPeople();
-    if(rows){rows.forEach(r=>{const loc=PEOPLE[r.key]||{};const srv=r.data||{};const pend=PENDING.filter(w=>w.kind==='people'&&w.key===r.key).map(w=>w.part);const merged=Object.assign({},loc,srv);pend.forEach(k=>{merged[k]=loc[k];}); /* une écriture en attente ici garde la main */PEOPLE[r.key]=merged;});kvSet('trace:people',PEOPLE);}
+    if(rows)mergePeople(rows);
     const d0=new Date();d0.setDate(d0.getDate()-7*14);const pts=await A.sync.listPointages(iso(d0));
-    if(pts){pts.forEach(r=>{const row={p:r.p,d:String(r.d).slice(0,10),site:r.site,events:r.events||[],status:r.status||'declare',val:r.val||[],corr:r.corr||null};if(PENDING.some(w=>w.kind==='pt'&&w.row.p===row.p&&w.row.d===row.d))return;const i=POINTAGES.findIndex(x=>x.p===row.p&&x.d===row.d);if(i>=0)POINTAGES[i]=row;else POINTAGES.push(row);});kvSet('trace:pointages',POINTAGES);}
+    if(pts)mergePts(pts);
     await loadWeeks([-2,-1,0,1,2].map(k=>weekKey(semaineDe(k)[0])));
     await loadPlanningRules();
     await flushPending();}
-  LOADED=true;if(ROOT&&document.contains(ROOT))render();if(A.onLoaded)try{A.onLoaded();}catch(e){console.warn(e);}
+  const first=!LOADED;LOADED=true;if(ROOT&&document.contains(ROOT)){if(first||!A.softRender)render();else A.softRender('espace');} /* 14/10 nuit (sync) : un rechargement (pas le premier) ne redessine pas pendant une saisie ni sous une fenêtre ouverte */if(A.onLoaded)try{A.onLoaded();}catch(e){console.warn(e);}
   if(!DATA)DATA=buildData();meteoEnsure();}
+/* 14/10 nuit (sync) : fusion des fiches personne / pointages reçus du serveur (sortie d'espaceLoad_, partagée avec le rafraîchissement léger) — renvoie true si quelque chose a changé */
+let ES_MAX=0;const noteEs=at=>{const t=at?Date.parse(at):0;if(t&&t>ES_MAX&&t<Date.now()+86400000)ES_MAX=t;}; /* repère serveur (ms) des fiches / pointages reçus */
+function mergePeople(rows){let ch=false;rows.forEach(r=>{noteEs(r.updated_at);const loc=PEOPLE[r.key]||{};const srv=r.data||{};const pend=PENDING.filter(w=>w.kind==='people'&&w.key===r.key).map(w=>w.part);const merged=Object.assign({},loc,srv);pend.forEach(k=>{merged[k]=loc[k];}); /* une écriture en attente ici garde la main */if(!ch&&JSON.stringify(PEOPLE[r.key]||null)!==JSON.stringify(merged))ch=true;PEOPLE[r.key]=merged;});kvSet('trace:people',PEOPLE);return ch;}
+function mergePts(pts){let ch=false;pts.forEach(r=>{noteEs(r.updated_at);const row={p:r.p,d:String(r.d).slice(0,10),site:r.site,events:r.events||[],status:r.status||'declare',val:r.val||[],corr:r.corr||null};if(PENDING.some(w=>w.kind==='pt'&&w.row.p===row.p&&w.row.d===row.d))return;const i=POINTAGES.findIndex(x=>x.p===row.p&&x.d===row.d);if(i>=0){if(!ch&&JSON.stringify(POINTAGES[i])!==JSON.stringify(row))ch=true;POINTAGES[i]=row;}else{POINTAGES.push(row);ch=true;}});kvSet('trace:pointages',POINTAGES);return ch;}
+/* 14/10 nuit (sync) — rafraîchissement LÉGER (appli visible ~50 s, retour au premier plan) : fiches, pointages des 3 dernières semaines, planning S-1 à S+1 (relu même s'il
+   était déjà chargé : avant, une semaine n'était lue qu'une fois → le placement fait par le chef n'arrivait pas chez le compagnon sans recharger). Redessine seulement si quelque chose a changé. */
+let refreshP=null;
+export function espaceRefresh(){if(refreshP||loadP||!LOADED||!A||!A.state.cloudUser)return Promise.resolve(false);refreshP=espaceRefresh_().catch(e=>{console.warn(e);return false;}).finally(()=>{refreshP=null;});return refreshP;}
+async function espaceRefresh_(){let ch=false;
+  const since=ES_MAX?new Date(ES_MAX-120000).toISOString():null; /* seulement ce qui a changé depuis la dernière lecture (marge 2 min) */
+  const rows=A.sync.listPeopleSince?await A.sync.listPeopleSince(since):await A.sync.listPeople();if(rows&&mergePeople(rows))ch=true;
+  const d0=new Date();d0.setDate(d0.getDate()-21);const pts=A.sync.listPointagesSince?await A.sync.listPointagesSince(since,iso(d0)):await A.sync.listPointages(iso(d0));if(pts&&mergePts(pts))ch=true;
+  const ws=[-1,0,1].map(k=>weekKey(semaineDe(k)[0]));const before=JSON.stringify(ws.map(w=>PLANNING[w]||null));ws.forEach(w=>WEEKS_LOADED.delete(w));await loadWeeks(ws);if(JSON.stringify(ws.map(w=>PLANNING[w]||null))!==before)ch=true;
+  if(PENDING.length)await flushPending();
+  if(ch){DATA=null;if(ROOT&&document.contains(ROOT)){if(A.softRender)A.softRender('espace');else render();}}return ch;}
 export const espaceState=()=>({people:PEOPLE,pointages:POINTAGES,pending:PENDING,loaded:LOADED,S});
 export function espaceInvalidate(){DATA=null;} /* 13/10 soir : la liste des comptes arrive (annuaire, invités) → noms et équipes recalculés au prochain affichage (Bureau du chantier compris) */
 /* ── PRODUCTION RÉELLE (refonte ②, 09/10 nuit) : lue dans les fiches de soudure des chantiers chargés sur l'appareil — étape 1 faite par X = 1 soudure (DN du joint),
@@ -792,9 +819,12 @@ function cValidation(me){
 }
 
 /* ── Habilitations : les miennes, tableau d'équipe ── */
-function cMesHabs(p,titre){
-  const l=habsDe(p);
-  return `<div class="card"><h3>${titre}</h3><div class="eq-list">${l.map(htmlHab).join('')}</div>
+function cMesHabs(p,titre){ /* 14/10 nuit : Moi → « Mon passeport prévention » — à jour / à renouveler sous 90 j / expiré / manquant pour mon poste */
+  const l=habsDe(p),n={valide:0,echeance:0,expiree:0,absente:0};l.forEach(x=>n[x.etat]++);
+  const ps=x=>x.etat==='expiree'?'Expiré depuis '+(-x.j)+' j':x.etat==='echeance'?'À renouveler · '+x.j+' j':x.etat==='absente'?'Manquant pour ton poste':'À jour';
+  const row=x=>{const T=DATA.habTypes[x.type]||{label:x.type},h=x.h;const sous=h?[h.num&&'n° '+h.num,h.fin?'valable jusqu\'au '+fDate(h.fin):'sans échéance',T.ans?'validité '+T.ans+' an'+(T.ans>1?'s':''):''].filter(Boolean).join(' · '):'À fournir aux RH'+(T.ans?' · validité '+T.ans+' an'+(T.ans>1?'s':''):'');
+    const in_=`<span class="eq-grow"><span class="eq-t">${esc(T.label)}</span><span class="eq-s">${esc(sous)}</span></span>${etat(HK[x.etat],ps(x))}`;return h&&h.piece&&h.url?`<a class="eq-row" href="${esc(h.url)}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">${in_}</a>`:`<div class="eq-row">${in_}</div>`;};
+  return `<div class="card"><h3>${titre}</h3><div class="eq-filtres">${[['ok',n.valide,'à jour'],['warn',n.echeance,'à renouveler (90 j)'],['bad',n.expiree,'expiré'+(n.expiree>1?'s':'')],['off',n.absente,'manquant'+(n.absente>1?'s':'')]].map(([k,c,t])=>'<span style="white-space:nowrap">'+etat(k,c+' '+t)+'</span>').join(' ')}</div><div class="eq-list">${l.map(row).join('')}</div>
     <div class="hint" style="margin-top:6px">Une date fausse ou une pièce à ajouter ? Préviens les RH.</div></div>`;
 }
 function cTableHabs(me){
@@ -1104,11 +1134,11 @@ function vHeures(me){
 }
 function vHabs(me,perso,equipe){
   const qse=equipe&&can(me,'qse.manage');
-  const A=perso?cMesHabs(me,'Tes habilitations'):'';
+  const A=perso?cMesHabs(me,'Formations et habilitations'):''; /* 14/10 nuit : le titre de la vue dit déjà « Mon passeport prévention » */
   const Bq=qse?cTableHabs(me):'';
   /* RH : les échéances de l'équipe passent en premier (sur téléphone, c'est ce qui est en haut) */
   if(A&&Bq)return `<h2 class="vt">Habilitations</h2>${RH.includes(me.poste)?`<div class="eq-cols eq-2"><div>${Bq}</div><div>${A}</div></div>`:`<div class="eq-cols eq-2b"><div>${A}</div><div>${Bq}</div></div>`}`;
-  return `<h2 class="vt">${perso?'Tes habilitations':'Échéances'}</h2><div class="eq-cols eq-1"><div>${Bq||A}</div></div>`;
+  return `<h2 class="vt">${perso?'Mon passeport prévention':'Échéances'}</h2><div class="eq-cols eq-1"><div>${Bq||A}</div></div>`;
 }
 
 /* ── PLANNING ÉQUIPE (planning.edit) : la semaine, les chantiers du secteur, les gars à placer — toucher une personne puis un chantier (ou glisser-déposer) ── */
@@ -1241,7 +1271,7 @@ function notifsFor(me){const L=[];const nets=netsLocal();const name=A.userName?A
   const open=(id,tab)=>()=>{if(A.openSite)A.openSite(id,tab);};
   const push=o=>L.push(o);
   /* 0. documentation obligatoire D'ENTREPRISE (règlement intérieur, notes de service, accueil nouvel arrivant) — règle Ethan : avant tout le reste */
-  if(me._acc)docsTodo(me._acc).forEach(d=>push({act:true,sev:'bad',ic:d.kind==='accueil_entreprise'?ICO.hat:ICO.doc,t:(d.kind==='accueil_entreprise'?'Accueil nouvel arrivant à compléter : ':'À lire et signer : ')+d.title,s:(DOC_KINDS[d.kind]||d.kind)+(d.version?' · '+d.version:'')+' · obligatoire, une seule fois',when:whenOf(d.at),go:()=>docOpen(d.id,me._acc)}));
+  if(me._acc)docsTodo(me._acc).forEach(d=>push(Object.assign({act:true,sev:'bad',ic:d.kind==='accueil_entreprise'?ICO.hat:ICO.doc,t:(d.kind==='accueil_entreprise'?'Accueil nouvel arrivant à compléter : ':'À lire et signer : ')+d.title,s:(DOC_KINDS[d.kind]||d.kind)+(d.version?' · '+d.version:'')+' · obligatoire, une seule fois',when:whenOf(d.at),go:()=>docOpen(d.id,me._acc)},docTaskInfo(d,me._acc)))); /* 14/10 nuit : document d'accueil → délai restant (orange), rouge une fois dépassé */
   /* 0bis. accueil chantier : sur chaque chantier où je suis placé (cette semaine) sans accueil signé par moi → parcours (PPSPS, 10 points, DICT, prévention) */
   const accSigned=net=>((net.qse&&net.qse.docs)||[]).some(d0=>d0&&!d0.deleted&&d0.type==='accueil'&&qseSigned(d0,name,key));
   if(can(me,'qse.sign')&&['terrain','interim','chef'].includes(kindOf(me))){const wk=new Set(semaineDe(0).flatMap(d=>planDe(me.id,d)));[...wk].forEach(id=>{const net=nets.find(n=>n.id===id);if(net&&accSigned(net))return;const c=site(id);push({act:true,sev:'bad',ic:ICO.hat,t:'Accueil chantier à faire : '+(c.nom||id),s:'PPSPS à dérouler, 10 points, DICT, prévention, signature — avant de commencer sur ce chantier',when:idsToday.includes(id)?'aujourd\'hui':'cette semaine',go:()=>{A.state.autoParcours=true;if(A.openSite)A.openSite(id,'qse');}});});}
@@ -1261,7 +1291,7 @@ function notifsFor(me){const L=[];const nets=netsLocal();const name=A.userName?A
   /* chef / conducteur : pointages à valider, pas pointé hier, demandes d'annulation (avant les tâches, règle Ethan) */
   if(can(me,'pointage.validate')){const ids=equipeIds(me);const V=DATA.pointages.filter(x=>ids.has(x.p)&&aValider(x,me));
     if(V.length){const dj=[...new Set(V.map(x=>x.d))].sort();push({act:true,sev:dj.length>=3?'bad':'warn',ic:ICO.check,t:V.length+' pointage'+(V.length>1?'s':'')+' à valider'+(dj.length>1?' · '+dj.length+' jours':''),s:[...new Set(V.map(x=>pers(x.p).prenom))].join(', ')+(dj.length?' — depuis le '+fJour(dj[0]):''),when:dj.length?fJour(dj[dj.length-1]):'',go:()=>goSub('heures')});}
-    const y=yesterdayIso();const miss=[...ids].filter(k=>planDe(k,y).length&&!ptDe(k,y));
+    const y=yesterdayIso();const miss=[...ids].filter(k=>planDe(k,y).length&&!ptDe(k,y)&&can(pers(k),'pointage.self')); /* 14/10 nuit (inter) : seuls ceux qui pointent (droit « pointage.self ») — un chef de chantier au forfait placé au planning sortait chaque jour en « pointage manquant » (rouge) chez le conducteur, et gonflait le compteur « pointages à valider » */
     if(miss.length)push({act:true,sev:'bad',ic:ICO.clock,t:miss.length+' pointage'+(miss.length>1?'s':'')+' manquant'+(miss.length>1?'s':'')+' '+fJour(y),s:miss.map(k=>nomC(pers(k))).join(', ')+' — planifié'+(miss.length>1?'s':'')+' mais rien de pointé : à saisir à la main avec le motif',when:fJour(y),go:()=>goSub('heures')});
     nets.forEach(net=>{const pend=liveMsgs(net).filter(m=>m.kind==='undo'&&m.undo&&m.undo.status==='pending');if(pend.length)push({act:true,sev:'or',ic:ICO.undo,t:pend.length+' demande'+(pend.length>1?'s':'')+' d\'annulation de soudure',s:(net.name||net.id)+' · '+pend.map(m=>(m.by||'')+(m.undo.weldId?' · '+m.undo.weldId:'')).join(' · '),when:whenOf(pend[0].at),go:open(net.id,'conv')});});}
   /* 1. tâches qui me sont nommées (conversation des chantiers de l'appareil) */
@@ -1299,10 +1329,11 @@ function notifsFor(me){const L=[];const nets=netsLocal();const name=A.userName?A
     else if(n)push({act:false,sev:'ok',ic:ICO.flag,kl:'Objectifs du jour',kv:n+' mission'+(n>1?'s':'')+' posée'+(n>1?'s':''),t:'Objectifs du jour posés',s:'',go:()=>goX('obj')});}
   /* terrain : pas de chantier planifié cette semaine */
   if(['terrain','interim','chef'].includes(kindOf(me))&&!semaineDe(0).some(d=>planDe(me.id,d).length))push({act:false,sev:'info',ic:ICO.cal,kl:'Planning',kv:'rien cette semaine',t:'Pas de chantier planifié cette semaine',s:'vois avec ton conducteur — tu peux consulter tes anciens chantiers',go:()=>goSub('planning')});
+  EXT.forEach(m=>{if(!m.tasks)return;try{(m.tasks(me,extCtx(me))||[]).forEach(o=>push(Object.assign({ic:ICO.doc},o)));}catch(e){console.warn(e);}}); /* 14/10 nuit : modules branchés */
   return L;}
 const kindOf=p=>p.type==='interim'?'interim':p.poste==='chef'?'chef':accueilType(p)==='terrain'?'terrain':accueilType(p);
 function goSub(k){if(k==='heures'){const me=pers(S.me);if(me&&!can(me,'pointage.self')){goX('valid');return;}} /* encadrant : les pointages de l'équipe sont dans Équipes */S.tab='moi';S.sub=k;S.fiche=null;if(A.homeTab){A.homeTab('espace');return;}render();}
-function goX(k){if(k==='cmd')cmdState().tab='cmd';else if(k==='comptes')cmdState().tab='comptes';else if(k==='frais')cmdState().tab='db';S.tab=HUB_OF[k]||'expl';if(S.tab==='secu'){S.tab='expl';S.hubSeg='secu';}else if(S.tab==='expl')S.hubSeg='eq';S.xsub=k;S.fiche=null;if(A.homeTab){A.homeTab(HUB_OF[k]==='secu'?'secu':S.tab);return;}render();}
+function goX(k){if(k==='cmd')cmdState().tab='cmd';else if(k==='comptes')cmdState().tab='comptes';else if(k==='frais')cmdState().tab='db';const hk=xsubHome(k)||'expl';S.tab=hk;if(S.tab==='secu'){S.tab='expl';S.hubSeg='secu';}else if(S.tab==='expl')S.hubSeg='eq';S.xsub=k;S.fiche=null;if(A.homeTab){A.homeTab(hk==='secu'?'secu':S.tab);return;}render();}
 function heroAccueil(me){const today=todayIso();const ids=planDe(me.id,today);const t=accueilType(me);const kit=KIT&&avPoste(me);
   if(t==='terrain'||t==='chef'){const i=ids[0];
     if(!i)return `<section class="ac-hero" style="background:var(--plane)"><div class="fig"><span class="figin">${kit?avatarSVG(avM(me,'travail').cfg,104):''}<i class="sol"></i></span></div><div class="r"><span class="ac-kick">Aujourd'hui · ${fJour(today)}</span><div class="ac-site">Pas de chantier planifié</div><div class="eq-s">Vois avec ton conducteur. Tu peux consulter tes anciens chantiers.</div><div class="eq-acts" style="margin:6px 0 0"><button class="btn" data-act="tabgo" data-v="sites">Mes chantiers</button></div></div></section>`;
@@ -1342,6 +1373,7 @@ function vAccueil(me){NOTIFS=notifsFor(me);const A2=NOTIFS.map((x,i)=>[x,i]).fil
     <div class="ac-h"><b>À savoir</b><span>${K.length?'raccourcis · '+K.length:'rien de nouveau'}</span></div>
     ${K.length?`<div class="ac-kgrid">${K.map(([x,i])=>ktHTML(x,i)).join('')}</div>`:'<div class="eq-s" style="padding:2px">Rien de nouveau de ton côté.</div>'}</div>
     <div class="span"><div class="ac-h"><b>Espaces</b><span>selon ton poste</span></div><div class="ac-spaces">${spacesFor(me).map(x=>`<button class="ac-tile t-${x.k}" data-act="tabgo" data-v="${x.go}">${x.n?`<span class="n">${x.n}</span>`:''}<span class="ic">${x.ic}</span><b>${esc(x.t)}</b></button>`).join('')}</div></div></div>
+    <div class="span"><button class="btn block" data-act="accnew" style="border-color:#e9a1a1;margin-top:6px">⚠ Déclarer un accident ou un presque-accident</button></div>
     <p class="ac-foot">L'accueil s'adapte à ton poste et à tes droits. « À faire » = tout ce qui attend une action de toi ; « À savoir » = l'info sans geste à faire.</p>`;}
 const fJourLong=s=>{const d=D(s);return ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'][d.getDay()]+' '+d.getDate()+' '+['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'][d.getMonth()]+' '+d.getFullYear();};
 /* ── TABLEAU DE BORD DU CHANTIER (refonte ⑤) : l'état de CHAQUE module, lu dans la copie de l'appareil — ✓ complet · ! il manque un truc · ✗ bloquant · ○ pas commencé ── */
@@ -1400,7 +1432,7 @@ const mtype=k=>MTYPES.find(x=>x[0]===k)||MTYPES[MTYPES.length-1];
 const missionsOf=(net,day)=>(net&&net.missions&&Array.isArray(net.missions[day])?net.missions[day]:[]).filter(m=>m&&!m.deleted);
 const netOf=id=>netsLocal().find(n=>n.id===id)||null;
 const ficheDe=id=>{const n=netOf(id);return (n&&n.fiche)||{};};
-const missionsFor=(me,day)=>{const out=[];planDe(me.id,day).forEach(id=>{const net=netOf(id);missionsOf(net,day).forEach(m=>{if(espaceMissionFor(m,me.id,id,day))out.push(Object.assign({site:id,siteNom:site(id).nom},m));});});return out;};
+const missionsFor=(me,day)=>{const out=[];planDe(me.id,day).forEach(id=>{const net=netOf(id)||(A.missionsSrv?A.missionsSrv(id):null); /* 14/10 nuit (inter) : chantier pas encore sur cet appareil → objectifs lus au serveur (rafraîchissement léger), sinon l'objectif posé par le chef n'arrivait jamais sur l'accueil */missionsOf(net,day).forEach(m=>{if(espaceMissionFor(m,me.id,id,day))out.push(Object.assign({site:id,siteNom:site(id).nom},m));});});return out;};
 const hTxt=h=>{h=+h||0;const H=Math.floor(h),m=Math.round((h-H)*60);return m?H+' h '+String(m).padStart(2,'0'):H+' h';};
 function missionsTxt(ms){if(!ms.length)return '';const h=ms.reduce((a,m)=>a+(+m.h||0),0);return ms.length+' mission'+(ms.length>1?'s':'')+' · '+hTxt(h)+' estimées';}
 /* ── GRANDS DÉPLACEMENTS (livret SCR § 2.7) : distance domicile (ville de l'adresse RH) → chantier (coordonnées ou ville), 4 cas, semaine type ── */
@@ -1519,7 +1551,8 @@ function vAgenda(me){const k=S.agWeek||0,js=semaineDe(k),wk=weekKey(js[0]);ensur
 /* ── 12/10 soir : COMMERCE (onglet) ── */
 function vCommerce(me){const sub=vSub(me);if(sub!==null)return sub;if(!can(me,'affaires.view'))return `<h2 class="vt">Commerce</h2><div class="card"><div class="eq-s">Pas d'accès aux affaires (droit « Affaires » du poste).</div></div>`;return affView(me,affCtx(me));}
 /* ── 12/10 soir : PARC (onglet) — flotte, magasin, matériel ── */
-function vParc(me){const sub=vSub(me);if(sub!==null)return sub;const seg=S.parcSeg||'flotte';const bar=`<div class="eq-filtres">${[['flotte','🚐 Flotte'],['magasin','📦 Magasin'],['materiel','🔧 Matériel']].map(([k,t])=>`<button class="chip${seg===k?' active':''}" data-act="parcseg" data-v="${k}">${t}</button>`).join('')}</div>`;
+function vParc(me){const sub=vSub(me);if(sub!==null)return sub;const seg=S.parcSeg||(can(me,'mag.manage')&&!can(me,'flotte.manage')?'magasin':'flotte'); /* 14/10 nuit : le référent magasin arrive sur Magasin */const bar=`<div class="eq-filtres">${[['flotte','🚐 Flotte'],['magasin','📦 Magasin'],['materiel','🔧 Matériel']].map(([k,t])=>`<button class="chip${seg===k?' active':''}" data-act="parcseg" data-v="${k}">${t}</button>`).join('')}</div>`;
+  for(const m of EXT){if(!m.parcSeg)continue;try{const h=m.parcSeg(seg,me,extCtx(me),bar);if(h!=null)return h;}catch(e){console.warn(e);}}
   if(seg==='flotte')return (can(me,'flotte.manage')?bar+flotteView(flCtx(me)):`<h2 class="vt">Parc</h2>`+bar+`<div class="card"><div class="eq-s">Pas d'accès à la flotte (droit « Flotte » du poste). Ton véhicule est dans Moi.</div></div>`);
   if(seg==='magasin')return `<h2 class="vt">Magasin <span class="hint">· à cadrer</span></h2>`+bar+`<div class="card"><h3>Pas encore là</h3><div class="eq-s">Le magasin (références, quantités, sorties vers les chantiers, retours, inventaire) se cadre avec le référent magasin avant de coder : ce qu'il tient aujourd'hui (Excel ?), ce qui sort le plus, qui sert. Le stock d'un chantier (livraisons, prélèvements) est déjà dans le chantier → Technique → Stock.</div></div>`;
   return `<h2 class="vt">Matériel <span class="hint">· à cadrer</span></h2>`+bar+`<div class="card"><h3>Pas encore là</h3><div class="eq-s">Matériel (postes à souder, groupes, outillage, engins) : affectation à une équipe / un chantier, contrôles périodiques, entretien, pannes — même logique que la flotte. À cadrer avec toi : la liste du matériel et ce qu'on veut suivre.</div></div>`;}
@@ -1936,7 +1969,8 @@ export function espaceDashSummary(id){if(!DATA)DATA=buildData();const acc=A.curr
     return {pc:nb?Math.round(100*fa/nb):0,nb,fa,ok,total:DASH_DEF.length,bad:bad.map(x=>x[4]||x[1]),warn:warn.map(x=>x[4]||x[1]),badS:bad.map(x=>D[x[0]].v),pres,ms,chef:c.chef?nomC(pers(c.chef)):'',mine:mesSites(me).some(x=>x.id===id)||semaineDe(0).some(d=>planDe(me.id,d).includes(id))};}catch(e){console.warn(e);return null;}}
 export function espaceDash(id){S.tab='expl';S.xsub='dash:'+id;S.fiche=null;if(A.homeTab){A.homeTab('expl');return;}render();}
 export function espaceRoot(tab){S.xsub=null;S.fiche=null;if(tab==='secu')S.hubSeg='secu';else if(tab==='expl')S.hubSeg='eq';} /* 12/10 soir : toucher un onglet revient à son hub */
-export function espaceGo(xsub,opts){if(xsub==='cmd')cmdState().tab='cmd';else if(xsub==='comptes')cmdState().tab='comptes';else if(xsub==='frais')cmdState().tab='db';const h=xsubHome(xsub)||'expl';S.tab=h==='secu'?'expl':h;S.hubSeg=h==='secu'?'secu':'eq';S.xsub=xsub||null;S.fiche=null;if(opts&&opts.form&&xsub==='accident')setTimeout(()=>{if(ACT.accnew)ACT.accnew();},120); /* depuis l'onglet QSE du chantier : ouvre directement le formulaire */
+export function espaceGo(xsub,opts){if(xsub==='accident'&&opts&&opts.form){const me0=(()=>{try{if(!DATA)DATA=buildData();const acc=A.current();return DATA.personnes.find(p=>p.id===personKey(acc))||null;}catch(e){return null;}})();if(me0&&!(can(me0,'planning.edit')||can(me0,'pointage.validate')||can(me0,'qse.manage'))){S.me=me0.id;if(viewing()){viewOnly();return;}accidentForm(me0);return;}} /* 14/10 nuit (audit) : un compagnon qui déclare depuis le chantier n'a pas l'onglet Sécurité → formulaire sur place, il reste où il est */
+  if(xsub==='cmd')cmdState().tab='cmd';else if(xsub==='comptes')cmdState().tab='comptes';else if(xsub==='frais')cmdState().tab='db';const h=xsubHome(xsub)||'expl';S.tab=h==='secu'?'expl':h;S.hubSeg=h==='secu'?'secu':'eq';S.xsub=xsub||null;S.fiche=null;if(opts&&opts.form&&xsub==='accident')setTimeout(()=>{if(ACT.accnew)ACT.accnew();},120); /* depuis l'onglet QSE du chantier : ouvre directement le formulaire */
   if(A.homeTab){A.homeTab(h);return;}render();}
 /* ── BUREAU DU CHANTIER (onglet « Bureau » dans le chantier, next.js) : l'idée d'Ethan du 09/10 soir — « ce bureau bien plus ergonomique peut refaçonner la manière dont est ventilé le chantier
    quand tu rentres dedans » : la même checklist que le tableau de bord, les raccourcis vers les onglets, l'objectif du jour, l'accueil chantier, les messages — SANS rien retirer des onglets existants. ── */
@@ -1967,8 +2001,9 @@ export function espaceMesSites(){if(!DATA)DATA=buildData();const acc=A.current()
    HUB_OF : l'onglet d'accueil de chaque sous-vue (retour « ‹ … » et re-rendu). */
 const HUB_OF={aff:'commerce',flotte:'parc',annu:'entreprise',docs:'entreprise',info:'entreprise',presentation:'entreprise',qhs:'secu',controles:'secu',accident:'secu',habsEq:'secu'};
 const HUB_LABEL={expl:'Chantiers',secu:'Sécurité',commerce:'Commerce',parc:'Parc',entreprise:'SCR'};
-const xsubHome=x=>!x?null:String(x).startsWith('dash:')?'expl':(HUB_OF[x]||'expl');
+const xsubHome=x=>!x?null:String(x).startsWith('dash:')?'expl':String(x).startsWith('x:')?((EXT.find(m=>m.id===String(x).split(':')[1])||{}).hub||'expl'):(HUB_OF[x]||'expl');
 function vSub(me){const x=S.xsub;if(!x)return null;const back=t=>`<button class="ac-back" data-act="xsub" data-v="">‹ ${HUB_LABEL[S.tab]||'Chantiers'}</button>${t?`<h2 class="vt">${t}</h2>`:''}`;
+  if(String(x).startsWith('x:')){const [,id,...r]=String(x).split(':');const m=EXT.find(y=>y.id===id);let h='';try{h=m&&m.xview?m.xview(r.join(':'),me,extCtx(me)):'';}catch(e){console.warn(e);h=`<div class="card"><div class="eq-s">Erreur d'affichage : ${esc(e.message)}</div></div>`;}return back('')+(h||'');}
   if(x==='annu')return back('')+vAnnuaire(me);
   if(x==='orga')return back('')+(can(me,'planning.edit')?vOrga(me):vPlanning(me)); /* les vues ont leur propre titre */
   if(x==='chantiers')return vMesChantiersX(me);
@@ -1995,6 +2030,7 @@ function vSub(me){const x=S.xsub;if(!x)return null;const back=t=>`<button class=
   return null;}
 const hubRow=(t,s,ic,bg,go,n,nc,soon)=>`<button class="ac-row${soon?' soon':''}" data-act="${soon?'sim':'xgo'}" data-v="${esc(soon?t:go)}"><span class="ic" style="background:${bg}">${ic}</span><span class="tx"><b>${esc(t)}</b><small>${esc(s)}</small></span>${n?`<span class="ac-n ${nc||''}">${n}</span>`:''}${soon?'<span class="eq-tag">bientôt</span>':''}<span class="chev">${CHEV}</span></button>`;
 const hubSec=(ic,t,s,rows)=>{const R=rows.filter(Boolean);return R.length?`<section class="eq-hubsec"><div class="ac-h"><b>${ic} ${esc(t)}</b>${s?`<span>${esc(s)}</span>`:''}</div><div class="eq-hubrows">${R.join('')}</div></section>`:'';};
+const extHub=(tab,me)=>EXT.flatMap(m=>{try{return (m.hubRows&&m.hubRows(tab,me,Object.assign(extCtx(me),{row:hubRow})))||[];}catch(e){console.warn(e);return [];}}); /* 14/10 nuit : lignes de hub des modules */
 const kpi=(v,l,k)=>`<div class="eq-kpi ${k||''}"><b>${v}</b><small>${esc(l)}</small></div>`;
 function vExpl(me){const sub=vSub(me);if(sub!==null)return sub;if(S.hubSeg==='secu')return vSecu(me);
   NOTIFS=notifsFor(me);const nV=NOTIFS.filter(n=>n.act&&n.ic===ICO.check).reduce((a,n)=>a+(parseInt(n.t)||0),0),nM=NOTIFS.filter(n=>n.act&&n.ic===ICO.clock).reduce((a,n)=>a+(parseInt(n.t)||0),0),nA=NOTIFS.filter(n=>n.act&&n.ic===ICO.undo).reduce((a,n)=>a+(parseInt(n.t)||0),0),nP=NOTIFS.filter(n=>n.act&&n.ic===ICO.cal).reduce((a,n)=>a+(parseInt(n.t.replace(/^[^:]*:\s*/,''))||0),0);
@@ -2028,7 +2064,7 @@ function vSecu(me){const sub=vSub(me);if(sub!==null)return sub;const row=hubRow;
       q?row('Contrôles chantier','Qui contrôle, à quelle fréquence, où ça traîne · NC ouvertes / levées — objectif : un contrôle par chantier actif toutes les 2 semaines',ICO.check,'#fff4d6','controles',late||null,'bad'):'',
       row('Déclarer un accident','Accident, presque-accident ou soin bénin : qui, où, quand, circonstances, photos — la RH est prévenue',ICO.alert,'#fdeae7','accident',acc||null,'bad')])}
     ${hubSec('🎖','Les gens','',[
-      row('Habilitations de l\'équipe','Échéances, recyclages à programmer',ICO.badge,'#fff4d6','habsEq',hab||null,'bad')])}`;}
+      row('Habilitations de l\'équipe','Échéances, recyclages à programmer',ICO.badge,'#fff4d6','habsEq',hab||null,'bad')].concat(extHub('secu',me)))}`;}
 function hubEntreprise(me){const row=hubRow;const t=accueilType(me);const dir=t==='direction'||t==='rh'||me.admin;const q=can(me,'qse.manage')||me.admin;
   const nInfo=docsAll().filter(d=>d.kind==='info').length;const nDocsTodo=q?(()=>{const all=DATA.personnes.map(p=>p._acc).filter(Boolean);return all.filter(a=>docsTodo(a).length).length;})():0;
   return `<h2 class="vt">SCR <span class="hint">· notre équipe, nos documents, nos actus</span></h2>
@@ -2038,6 +2074,7 @@ function hubEntreprise(me){const row=hubRow;const t=accueilType(me);const dir=t=
       q?row('Documents d\'entreprise','Règlement intérieur, notes de service, flash info, accueil nouvel arrivant — qui a signé, qui est à relancer',ICO.doc,'#e8f0fb','docs',nDocsTodo||null,'bad'):row('Documents d\'entreprise','Règlement intérieur, notes de service, flash info — ce que tu dois lire et signer',ICO.doc,'#e8f0fb','docs'),
       row('Communication interne','Infos publiées à tout le monde : actualités, résultats, événements — à lire, sans signature',ICO.msg,'#e3f3f3','info',nInfo||null),
       row('Présentation de l\'entreprise','Qui est SCR : métier, chiffres clés, organisation, valeurs — la page qu\'on montre à un nouvel arrivant',ICO.bld,'#fff4d6','presentation')])}
+    ${extHub('entreprise',me).length?hubSec('🧩','Accueil, magasin, véhicules','',extHub('entreprise',me)):''}
     ${hubSec('🛠','Outils','',[
       me.admin?`<button class="ac-row" data-act="tabgo" data-v="admin"><span class="ic" style="background:#15140f;color:#fff">⚙</span><span class="tx"><b>Administration</b><small>Comptes et accès · postes · qui peut quoi · 🧪 bac à sable</small></span><span class="chev">${CHEV}</span></button>`:''])}`;}
 /* ── 10/10 (retour Ethan) : SUIVI DES CONTRÔLES CHANTIER — « la direction et le responsable d'exploitation ont un visuel de qui a fait des contrôles, à quelle fréquence ; on va mettre des objectifs là-dessus » ── */
@@ -2064,7 +2101,7 @@ function vQhs(me){return `<div class="hint" style="margin:0 0 8px">Un quart d'he
 function subsFor(me){
   if(S.tab!=='moi')return [];
   const equipes=can(me,'planning.edit')||can(me,'pointage.validate')||can(me,'qse.manage'); /* 12/10 (Ethan) : Moi = mes affaires ; ce qui concerne l'équipe vit dans Équipes — pas de doublon */
-  return [['moi','Accueil'],['docs','Documents'],['planning','Planning'],mesSites(me).length&&!equipes&&['chantiers','Chantiers'],OPERATEURS.includes(me.poste)&&prodIds(me)&&['prod','Productions'],['frais','Notes de frais'],can(me,'pointage.self')&&['heures','Heures'], /* 12/10 (Ethan) : un encadrant au forfait ne pointe pas → pas de « Pointages » dans Moi ; la validation de l'équipe vit dans Équipes → Pointages à valider */['habs','Habilitations'],KIT&&avPoste(me)&&['avatar','Avatar']].filter(Boolean);
+  return [['moi','Accueil'],['docs','Documents'],['planning','Planning'],mesSites(me).length&&!equipes&&['chantiers','Chantiers'],OPERATEURS.includes(me.poste)&&prodIds(me)&&['prod','Productions'],['frais','Notes de frais'],can(me,'pointage.self')&&['heures','Heures'], /* 12/10 (Ethan) : un encadrant au forfait ne pointe pas → pas de « Pointages » dans Moi ; la validation de l'équipe vit dans Équipes → Pointages à valider */['habs','Passeport'],...extSubs(me).map(x=>[x[0],x[1]]),KIT&&avPoste(me)&&['avatar','Avatar']].filter(Boolean);
 }
 function badge(me,k){
   const val=can(me,'pointage.validate'),qse=can(me,'qse.manage');
@@ -2076,6 +2113,7 @@ function badge(me,k){
   else if((k==='heures'||k==='valid')&&val)n=nV();
   else if(k==='meshabs'||k==='habs')n=nP(); /* 12/10 : Moi → Habilitations = les miennes */
   else if(k==='ech'){n=nE();r=true}
+  else{const x=extSubs(me).find(y=>y[0]===k);if(x){n=+x[2]||0;r=!!x[3];}}
   return n?` <span class="eq-badge${r?' eq-rouge':''}">${n}</span>`:'';
 }
 function fix(me){const s=subsFor(me).map(x=>x[0]);if(s.length&&!s.includes(S.sub))S.sub=s[0];const we=[0,6].includes(D(todayIso()).getDay())?1:0;if(S.plWeek===undefined)S.plWeek=we;if(S.objWeek===undefined)S.objWeek=we;if(S.planSem===undefined)S.planSem=we;} /* 11/10 : le week-end, « cette semaine » n'a plus de jours devant elle → planning, objectifs et Ta semaine s'ouvrent sur la semaine qui arrive (c'est aussi pour ça que la météo — prévisions à 7 jours — n'y apparaissait pas le dimanche) */
@@ -2097,6 +2135,7 @@ function vue(me){
     case 'docs':return me._acc?docsListHTML(me._acc):'';
     case 'frais':{cmdState().tab='db';return `<h2 class="vt">Mes notes de frais</h2>`+dbListHTML(cmdCtx(me),true);} /* 12/10 soir : les notes de frais se traitent dans Moi */
   }
+  for(const m of EXT){if(!m.view)continue;try{const h=m.view(S.sub,me,extCtx(me));if(h!=null)return h;}catch(e){console.warn(e);return `<div class="card"><div class="eq-s">Erreur d'affichage (${esc(m.id)}) : ${esc(e.message)}</div></div>`;}}
   return '';
 }
 /* ── Rendu dans l'accueil (#homeBody) : sous-onglets, vue, panneau de fiche ── */
@@ -2105,16 +2144,27 @@ function render(){
   DATA=buildData();if(!S.per.m)S.per.m=DATA.today.slice(0,7);const acc=A.current();S.me=personKey(acc);const me=DATA.personnes.find(p=>p.id===S.me);
   if(!me){ROOT.innerHTML=`<div class="eq-app" id="eq-app"><div class="card"><h3>Mon espace</h3><div class="eq-s">Connecte-toi avec ton compte pour voir ton espace.</div></div></div>`;return;}
   fix(me);meteoEnsure();
+  if(!viewing()){for(const m of EXT){if(!m.gate)continue;let g=null;try{g=m.gate(me,extCtx(me));}catch(e){console.warn(e);}if(g){ROOT.innerHTML=`<div class="eq-app" id="eq-app"><div class="eq-scroll">${g}</div></div>`;return;}}} /* 14/10 nuit : écran bloquant d'un module (documents d'accueil à la 1re connexion) */
   const subs=subsFor(me),panneau=!!S.fiche;
-  const sy=ROOT.scrollTop;
+  const sy=ROOT.scrollTop;const snap=scrollSnap();const sk=screenKey(); /* 14/10 nuit (sync) : même écran → on garde la position (#homeBody, page, fiche ouverte, listes internes) ; écran changé → en haut */
   ROOT.innerHTML=`<div class="eq-app" id="eq-app">
     ${subs.length?`<div class="eq-subs">${subs.map(([k,t])=>`<button class="chip${S.sub===k?' active':''}" data-act="sub" data-v="${k}">${t}${badge(me,k)}</button>`).join('')}</div>`:''}
     ${LOADED?'':'<div class="hint" style="padding:4px 0">Chargement des fiches…</div>'}
     <div class="eq-scroll">${vue(me)}</div>
     ${panneau?`<button class="eq-sheet-bg" data-act="close" aria-label="Fermer"></button><div class="eq-sheet"><div class="eq-poignee"></div>
       <div class="eq-sheet-top"><h3 style="margin:0">Fiche</h3><button class="btn" data-act="close">✕ Fermer</button></div>${blocsFiche(pers(S.fiche),me).join('')}</div>`:''}</div>`;
-  ROOT.scrollTop=sy;if(S.plQ&&$id('pl-tray'))plFilterTray(S.plQ); /* la recherche du planning survit au re-rendu */
+  ROOT.scrollTop=sy;if(sk===LAST_SK)scrollBack(snap);else scrollTop0();LAST_SK=sk;LAST_FICHE=S.fiche||null;if(S.plQ&&$id('pl-tray'))plFilterTray(S.plQ); /* la recherche du planning survit au re-rendu */
 }
+/* 14/10 nuit (sync) — Ethan : « la page qui se rafraîchit et qui te remet en haut ». Un re-rendu provoqué par une donnée reçue, une action ou le contrôle périodique
+   garde la position de défilement ; seul un changement d'écran (onglet, sous-onglet, sous-vue, segment, fiche) remet en haut. On mémorise l'élément qui défile vraiment
+   (#homeBody aujourd'hui ; la page entière si l'affichage téléphone change) et les listes internes repérées par un id. */
+let LAST_SK=null;
+let LAST_FICHE=null;const screenKey=()=>[S.tab,S.sub,S.xsub||'',S.hubSeg||''].join('|'); /* la fiche (panneau du bas) n'en fait pas partie : l'ouvrir ne bouge pas la page derrière */
+function scrollSnap(){const o={root:ROOT?ROOT.scrollTop:0,win:(document.scrollingElement||document.documentElement).scrollTop,par:ROOT&&ROOT.parentElement?ROOT.parentElement.scrollTop:0,ids:{}};
+  try{const sh=document.querySelector('#eq-app .eq-sheet');if(sh)o.sheet=sh.scrollTop;ROOT.querySelectorAll('#eq-app [id]').forEach(el=>{if(el.scrollTop>0)o.ids[el.id]=el.scrollTop;});}catch(e){}return o;}
+function scrollBack(o){if(!o)return;try{if(ROOT&&o.root)ROOT.scrollTop=o.root;if(ROOT&&ROOT.parentElement&&o.par)ROOT.parentElement.scrollTop=o.par;const se=document.scrollingElement||document.documentElement;if(o.win&&Math.abs(se.scrollTop-o.win)>1)se.scrollTop=o.win;
+  if(o.sheet&&S.fiche&&S.fiche===LAST_FICHE){const sh=document.querySelector('#eq-app .eq-sheet');if(sh)sh.scrollTop=o.sheet;}Object.entries(o.ids).forEach(([id,y])=>{const el=document.getElementById(id);if(el)el.scrollTop=y;});}catch(e){}}
+function scrollTop0(){try{if(ROOT)ROOT.scrollTop=0;if(ROOT&&ROOT.parentElement)ROOT.parentElement.scrollTop=0;window.scrollTo(0,0);}catch(e){}}
 // point d'entrée : app.js appelle espaceRender(#homeBody, 'moi' | 'entreprise') ; relance le chargement serveur si pas encore fait
 export function espaceRender(el,tab){ROOT=el;const tab0=S.tab,seg0=S.hubSeg;const seg=tab==='secu'?'secu':tab==='expl'?'eq':null;if(seg)S.hubSeg=seg;S.tab=tab==='secu'?'expl':['entreprise','accueil','expl','commerce','parc'].includes(tab)?tab:'moi';const home=xsubHome(S.xsub);if(S.xsub&&!(home===S.tab||(home==='secu'&&S.tab==='expl'&&S.hubSeg==='secu')))S.xsub=null; /* une sous-vue ne survit que dans son onglet ; un re-rendu (modale fermée, données reçues) ne renvoie pas au hub */if(S.tab!==tab0||S.hubSeg!==seg0)S.fiche=null; /* 13/10 : une fiche ouverte reste ouverte quand des données arrivent (registre enregistré, ex. compteurs d'heures) — elle se ferme en changeant d'onglet */S.corr=null;S.edit=false;render();if(!LOADED&&!loading){loading=true;espaceLoad().catch(e=>console.warn(e)).finally(()=>{loading=false;});}}
 let loading=false;
@@ -2124,11 +2174,12 @@ export function espaceSub(k){if(k==='orga'){S.tab='expl';S.xsub='orga';if(A.home
 const GO={mesheures:['moi','heures'],valid:['moi','heures'],meshabs:['moi','habs'],ech:['moi','habs'],annu:['entreprise','moi'],planning:['moi','planning'],prod:['moi','prod'],chantiers:['moi','chantiers'],avatar:['moi','avatar']};
 function validerPt(x){x.status='valide';const v={by:S.me,at:DATA.today+'T'+DATA.now};if(A.via&&A.via())v.via=A.via();x.val.push(v);savePointage(x);}
 function msg(t){A.toast(t);}
-const affCtx=me=>({canEdit:can(me,'affaires.edit')&&!viewing(),canPrix:(can(me,'prix.edit')||!!me.admin)&&!viewing(),render,sites:(A.sites&&A.sites())||[],traceAgg:A.traceAgg,tracePhases:A.tracePhases,people:DATA.personnes.filter(p=>p.active).map(p=>({name:nomC(p),poste:p.poste,prenom:p.prenom,nom:p.nom}))});
+const affCtx=me=>({canEdit:can(me,'affaires.edit')&&!viewing(),canPrix:(can(me,'prix.edit')||!!me.admin)&&!viewing(),render,sites:(A.sites&&A.sites())||[],traceAgg:A.traceAgg,tracePhases:A.tracePhases,traceQty:A.traceQty,people:DATA.personnes.filter(p=>p.active).map(p=>({name:nomC(p),poste:p.poste,prenom:p.prenom,nom:p.nom}))});
 const AGENCE_OF={ouest:'OUEST',idf:'IDF',sudouest:'SUD OUEST',sudest:'SUD'};
 const flCtx=me=>({canEdit:can(me,'flotte.manage')&&!viewing(),render,people:DATA.personnes.map(p=>p._acc).filter(Boolean),agence:(me.poste==='resp_exploitation'||me.poste==='conducteur')?(AGENCE_OF[mySecteur(me)]||''):''}); /* 12/10 : le responsable d'exploitation voit les échéances de son secteur */
 const cmdCtx=me=>({comptesHTML:()=>cComptesChantier(me),canEdit:(can(me,'planning.edit')||can(me,'affaires.edit')||me.admin)&&!viewing(),canValidate:(can(me,'planning.edit')||can(me,'affaires.edit')||me.admin)&&!viewing(),render,sites:DATA.chantiers.filter(c=>!c.bureau).map(c=>({id:c.id,name:c.nom})),affaires:affAll(),me,key:me.id,name:nomC(me),siteDefault:planDe(me.id,todayIso())[0]||null});
 const ACT={
+  x(v,el){const me=pers(S.me);if(!me)return;const i=String(v).indexOf('|');const id=i<0?v:v.slice(0,i);const m=EXT.find(y=>y.id===id);if(m&&m.act)m.act(i<0?'':v.slice(i+1),el,me,extCtx(me));}, /* 14/10 nuit : actions des modules branchés */
   tab(v){S.tab=v;S.fiche=null;S.sub='moi';if(A.homeTab)A.homeTab(v==='entreprise'?'entreprise':'espace');else render()},
   tabgo(v,el){if(v==='traceur'){if(A.traceur)A.traceur(el&&el.dataset?el.dataset.aff:'');return;} /* 12/10 : depuis l'affaire → le chantier tracé se lie à l'affaire */if(v==='admin'||v==='sites'||v==='expl'||v==='secu'||v==='espace'||v==='entreprise'||v==='commerce'||v==='parc'){if(v==='expl'||v==='secu')S.xsub=null;if(A.homeTab)A.homeTab(v);return;}},
   notif(v){const n=NOTIFS[+v];if(n&&n.go)n.go();},
@@ -2351,12 +2402,13 @@ function plFilterTray(q){const nq=norm(q).trim();const hit=c=>!nq||nq.split(/\s+
 const RW=new Set(['pointer','editok','av','avhasard','avreinit','valider','toutvalider','corrok','plput','plday','plrm','plcopy','plstrict','pladd','plsetteam','tache','demande','binome']);
 function viewOnly(){const me=pers(S.me);msg('👁 Tu regardes la vue de '+(me.prenom||me.nom||'cette personne')+' : rien n\'est modifié à sa place. Reviens sur ton compte, ou passe en « ✍ Agir comme » depuis l\'accueil.');}
 function bind(){if(bound)return;bound=true;
-  document.addEventListener('click',e=>{const app=e.target.closest&&e.target.closest('#eq-app');if(!app)return;const dc=e.target.closest('[data-objday]');if(dc){e.preventDefault();dc.classList.toggle('active');if(!dc.parentElement.querySelector('.chip.active'))dc.classList.add('active');return;} /* jours du formulaire d'objectif : au moins un */const el=e.target.closest('[data-act]');if(!el)return;if(el.tagName==='A'&&el.dataset.act==='tel')return;if(RW.has(el.dataset.act)&&viewing()){e.preventDefault();viewOnly();return;}const f=ACT[el.dataset.act];if(f){e.preventDefault();f(el.dataset.v,el);}});
+  document.addEventListener('click',e=>{const app=e.target.closest&&e.target.closest('#eq-app');if(!app)return;const dc=e.target.closest('[data-objday]');if(dc){e.preventDefault();dc.classList.toggle('active');if(!dc.parentElement.querySelector('.chip.active'))dc.classList.add('active');return;} /* jours du formulaire d'objectif : au moins un */const el=e.target.closest('[data-act]');if(!el)return;if(el.tagName==='A'&&el.dataset.act==='tel')return;if(RW.has(el.dataset.act)&&viewing()){e.preventDefault();viewOnly();return;}const f=ACT[el.dataset.act];if(f){e.preventDefault();if(!DATA)DATA=buildData(); /* 14/10 nuit : données invalidées (comptes / chantiers reçus) sans re-rendu → reconstruites avant l'action, sinon le clic plantait (DATA null) */f(el.dataset.v,el);}});
   /* 13/10 : glisser à gauche / à droite sur le navigateur de semaine ou sur la zone qu'il pilote (.eq-wkzone) = semaine suivante / précédente */
   let swX=0,swY=0,swOn=false;document.addEventListener('touchstart',e=>{const z=e.target.closest&&e.target.closest('#eq-app .eq-wkswipe, #eq-app .eq-wkzone');swOn=!!z;if(!z)return;swX=e.touches[0].clientX;swY=e.touches[0].clientY;},{passive:true});
   document.addEventListener('touchend',e=>{if(!swOn)return;swOn=false;const t=e.changedTouches&&e.changedTouches[0];if(!t)return;const dx=t.clientX-swX,dy=t.clientY-swY;if(Math.abs(dx)<70||Math.abs(dy)>60||Math.abs(dx)<Math.abs(dy)*1.5)return;const nav=document.querySelector('#eq-app .eq-wknav');if(!nav)return;const f=ACT[nav.dataset.wknav];if(f)f(String((+nav.dataset.k||0)+(dx<0?1:-1)));},{passive:true});
   document.addEventListener('keydown',e=>{if(!ROOT||!document.contains(ROOT))return;if(e.key==='Enter'&&e.target.matches&&e.target.matches('#eq-app [role=button][data-act]'))e.target.click();if(e.key==='Escape'&&S.fiche)ACT.close();});
-  document.addEventListener('change',e=>{if(!e.target.closest||!e.target.closest('#eq-app'))return;if(e.target.dataset&&e.target.dataset.cptimp!==undefined&&e.target.files){const f=e.target.files[0];e.target.value='';if(!f)return;if(viewing()){viewOnly();return;}cptImportFile(f);return;}if(e.target.dataset&&e.target.dataset.chg==='cptMois'){S.cptMois=e.target.value||null;if(S.cptImp&&S.cptImp.rows)S.cptImp=cptParse(S.cptImp.rows,S.cptImp.src);render();return;} /* 13/10 (f) : compteurs d'heures — import */if(e.target.dataset&&e.target.dataset.gdpdf!==undefined&&e.target.files){const f=e.target.files[0];e.target.value='';if(!f)return;if(viewing()){viewOnly();return;}const me=pers(S.me);if(!(can(me,'dossier.edit')||can(me,'planning.edit')||me.admin)){msg('Réservé aux RH / encadrement');return;}gdPdfUpload(me,f);return;}if(e.target.dataset&&e.target.dataset.agimport!==undefined&&e.target.files){const f=e.target.files[0];e.target.value='';if(!f)return;const me=pers(S.me);if(viewing()){viewOnly();return;}const rd=new FileReader();rd.onload=()=>{const r=agImportIcs(me,rd.result);render();msg(r.err?'Import impossible : '+r.err:'✓ Outlook importé : '+r.n+' nouveau'+(r.n>1?'x':'')+(r.upd?' · '+r.upd+' mis à jour':'')+(r.n||r.upd?'':' — rien dans la période (semaine passée → 10 semaines)'));};rd.readAsText(f);return;} /* 12/10 : import Outlook (.ics) */if(e.target.dataset&&e.target.dataset.chg==='agWho'){S.agWho=e.target.value||null;S.agNew=null;render();return;}if(e.target.dataset&&e.target.dataset.chg==='gdPid'){S.gdPid=e.target.value||null;render();return;}if(e.target.dataset&&e.target.dataset.flphoto!==undefined&&e.target.files){const f=e.target.files[0];e.target.value='';const me=pers(S.me);if(viewing()){viewOnly();return;}flottePhoto(e.target.dataset.flphoto,f,can(me,'flotte.manage')||me.admin);return;} /* 13/10 : photo du vrai véhicule */if(e.target.dataset&&e.target.dataset.affile!==undefined&&e.target.files){const me=pers(S.me);affFiles(e.target.dataset.affile,e.target.files,affCtx(me),{open:e.target.dataset.afopen==='1'});e.target.value='';return;} /* 12/10 : dépôt de fichiers du DCE (zip, PDF) */if(e.target.id==='pn-type'){const w=$id('pn-agw');if(w)w.style.display=e.target.value==='interim'?'':'none';return;}const ds=e.target.dataset||{};if(ds.afdpgf!==undefined&&e.target.files){const f=e.target.files[0];e.target.value='';const me=pers(S.me);if(f&&me)dpgfFile(ds.afdpgf,f,affCtx(me));return;} /* 13/10 : DPGF du client (.xlsx / .csv) */if(ds.afin!==undefined||ds.afz!==undefined||ds.afc!==undefined||ds.afb!==undefined||ds.aff!==undefined||ds.afs!==undefined||ds.afzn!==undefined||ds.afcs!==undefined||ds.afq!==undefined||ds.afqr!==undefined||ds.afm!==undefined||ds.afdp!==undefined||ds.afx!==undefined||ds.afprix!==undefined||ds.afctrl!==undefined||ds.afpt!==undefined||ds.afdoc!==undefined||ds.afdm!==undefined){const me=pers(S.me);if(me)affInput(e.target,affCtx(me));return;}if(ds.flin!==undefined||ds.flf!==undefined){const me=pers(S.me);if(me)flotteInput(e.target,flCtx(me));return;}if(ds.cmdf!==undefined||ds.cmdl!==undefined){const me=pers(S.me);if(me)cmdInput(e.target,cmdCtx(me));return;}const k=e.target.dataset&&e.target.dataset.chg;if(!k)return;
+  const extIn=(e,type)=>{const xi=e.target&&e.target.dataset&&e.target.dataset.xin;if(!xi)return false;const me=pers(S.me);if(!me)return true;const i=xi.indexOf('|');const m=EXT.find(y=>y.id===(i<0?xi:xi.slice(0,i)));if(m&&m.input)try{m.input(i<0?'':xi.slice(i+1),e.target,me,extCtx(me),type);}catch(x){console.warn(x);}return true;}; /* 14/10 nuit : champs des modules branchés (data-xin) */
+  document.addEventListener('change',e=>{if(!e.target.closest||!e.target.closest('#eq-app'))return;if(extIn(e,'change'))return;if(e.target.dataset&&e.target.dataset.cptimp!==undefined&&e.target.files){const f=e.target.files[0];e.target.value='';if(!f)return;if(viewing()){viewOnly();return;}cptImportFile(f);return;}if(e.target.dataset&&e.target.dataset.chg==='cptMois'){S.cptMois=e.target.value||null;if(S.cptImp&&S.cptImp.rows)S.cptImp=cptParse(S.cptImp.rows,S.cptImp.src);render();return;} /* 13/10 (f) : compteurs d'heures — import */if(e.target.dataset&&e.target.dataset.gdpdf!==undefined&&e.target.files){const f=e.target.files[0];e.target.value='';if(!f)return;if(viewing()){viewOnly();return;}const me=pers(S.me);if(!(can(me,'dossier.edit')||can(me,'planning.edit')||me.admin)){msg('Réservé aux RH / encadrement');return;}gdPdfUpload(me,f);return;}if(e.target.dataset&&e.target.dataset.agimport!==undefined&&e.target.files){const f=e.target.files[0];e.target.value='';if(!f)return;const me=pers(S.me);if(viewing()){viewOnly();return;}const rd=new FileReader();rd.onload=()=>{const r=agImportIcs(me,rd.result);render();msg(r.err?'Import impossible : '+r.err:'✓ Outlook importé : '+r.n+' nouveau'+(r.n>1?'x':'')+(r.upd?' · '+r.upd+' mis à jour':'')+(r.n||r.upd?'':' — rien dans la période (semaine passée → 10 semaines)'));};rd.readAsText(f);return;} /* 12/10 : import Outlook (.ics) */if(e.target.dataset&&e.target.dataset.chg==='agWho'){S.agWho=e.target.value||null;S.agNew=null;render();return;}if(e.target.dataset&&e.target.dataset.chg==='gdPid'){S.gdPid=e.target.value||null;render();return;}if(e.target.dataset&&e.target.dataset.flphoto!==undefined&&e.target.files){const f=e.target.files[0];e.target.value='';const me=pers(S.me);if(viewing()){viewOnly();return;}flottePhoto(e.target.dataset.flphoto,f,can(me,'flotte.manage')||me.admin);return;} /* 13/10 : photo du vrai véhicule */if(e.target.dataset&&e.target.dataset.affile!==undefined&&e.target.files){const me=pers(S.me);affFiles(e.target.dataset.affile,e.target.files,affCtx(me),{open:e.target.dataset.afopen==='1'});e.target.value='';return;} /* 12/10 : dépôt de fichiers du DCE (zip, PDF) */if(e.target.id==='pn-type'){const w=$id('pn-agw');if(w)w.style.display=e.target.value==='interim'?'':'none';return;}const ds=e.target.dataset||{};if(ds.afdpgf!==undefined&&e.target.files){const f=e.target.files[0];e.target.value='';const me=pers(S.me);if(f&&me)dpgfFile(ds.afdpgf,f,affCtx(me));return;} /* 13/10 : DPGF du client (.xlsx / .csv) */if(ds.afin!==undefined||ds.afz!==undefined||ds.afc!==undefined||ds.afb!==undefined||ds.aff!==undefined||ds.afs!==undefined||ds.afzn!==undefined||ds.afcs!==undefined||ds.afq!==undefined||ds.afqr!==undefined||ds.afm!==undefined||ds.afdp!==undefined||ds.afx!==undefined||ds.afprix!==undefined||ds.afctrl!==undefined||ds.afpt!==undefined||ds.afdoc!==undefined||ds.afdm!==undefined){const me=pers(S.me);if(me)affInput(e.target,affCtx(me));return;}if(ds.flin!==undefined||ds.flf!==undefined){const me=pers(S.me);if(me)flotteInput(e.target,flCtx(me));return;}if(ds.cmdf!==undefined||ds.cmdl!==undefined){const me=pers(S.me);if(me)cmdInput(e.target,cmdCtx(me));return;}const k=e.target.dataset&&e.target.dataset.chg;if(!k)return;
     if((k==='plfiche'||k==='plpers'||k==='avpays')&&viewing()){viewOnly();render();return;}
     if(k==='perk'){S.per.k=+e.target.value;render();return}
     if(k==='perm'){S.per.m=e.target.value;render();return}
@@ -2365,7 +2417,7 @@ function bind(){if(bound)return;bound=true;
     if(k==='plpers'){const key=e.target.dataset.p,kk=e.target.dataset.k;savePeoplePart(key,kk,e.target.value||null);render();return}
     S[k]=e.target.value;render();});
   document.addEventListener('toggle',e=>{const t=e.target;if(!t||!t.dataset)return;if(t.dataset.gdnav)S.gdNav=t.open;if(t.dataset.gdaddr)S.gdAddrOpen=t.open;},true); /* 13/10 soir : navette / adresses à vérifier : ouvert ou fermé, gardé au re-rendu */
-  document.addEventListener('input',e=>{if(e.target.id==='pl-q'){S.plQ=e.target.value;plFilterTray(S.plQ);return;}if(e.target.id!=='eq-q')return;S.q=e.target.value;const l=$id('eq-annu-liste');if(l)l.innerHTML=listeEnt(pers(S.me));});
+  document.addEventListener('input',e=>{if(e.target.closest&&e.target.closest('#eq-app')&&extIn(e,'input'))return;if(e.target.id==='pl-q'){S.plQ=e.target.value;plFilterTray(S.plQ);return;}if(e.target.id!=='eq-q')return;S.q=e.target.value;const l=$id('eq-annu-liste');if(l)l.innerHTML=listeEnt(pers(S.me));});
   document.addEventListener('dragstart',e=>{const el=e.target.closest&&e.target.closest('#eq-app [data-drag]');if(!el)return;S.plSel=el.dataset.drag;try{e.dataTransfer.setData('text/plain',el.dataset.drag);e.dataTransfer.effectAllowed='move';}catch(x){}el.classList.add('dragging');});
   document.addEventListener('dragend',e=>{const el=e.target.closest&&e.target.closest('#eq-app [data-drag]');if(el)el.classList.remove('dragging');});
   document.addEventListener('dragover',e=>{const z=e.target.closest&&e.target.closest('#eq-app [data-drop]');if(!z)return;e.preventDefault();z.classList.add('over');});

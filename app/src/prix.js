@@ -93,7 +93,7 @@ export function refPrice(base,ref,dn,fallback){if(!ref)return fallback;if(ref.co
 export function panierRow(base,pid,dn){const P=(base.op.paniers||[]).find(p=>p.id===pid);if(!P)return null;const r=P.rows.find(x=>x.dn===num(dn));if(!r)return null;const ov=((base.over||{})[pid]||{})[dn]||{};
   const mo=r.mo.map((m,i)=>{const o=ov['mo'+i]||{};const eq=o.eq||m.eq;let h=o.h!==undefined?+o.h:m.h;if(o.h===undefined&&m.hf){const c=cadOf(base,dn);const col=m.hf.col;const cad=c?(col===3?c.soud.S:col===4?c.soud['S+T']:c.soud['S+T+P']):0;if(cad)h=m.hf.k*(base.mo.hJour||10)/cad;}const rate=teamCost(base,eq).h;return {eq,h,rate,amount:h*rate};});
   const unit=(f,qty)=>{if(f.ref){const tot=refPrice(base,f.ref,dn,f.pu*(f.qty||1));return (f.qty||1)?tot/(f.qty||1):tot;}return f.pu;}; /* la formule du classeur porte déjà le « ×2 » : prix unitaire = total de la formule ÷ quantité */
-  const fo=r.fo.map((f,i)=>{const o=ov['fo'+i]||{};const qty=o.qty!==undefined?+o.qty:f.qty;const pu=o.pu!==undefined?+o.pu:unit(f,qty);return {label:f.label,qty,pu,amount:qty*pu};});
+  const fo=r.fo.map((f,i)=>{const o=ov['fo'+i]||{};const qty=o.qty!==undefined?+o.qty:f.qty;const pu=o.pu!==undefined?+o.pu:unit(f,qty);return {label:f.label,qty,pu,amount:qty*pu,ref:f.ref||null};}); /* 13/10 nuit : ref = d'où vient le prix (table FO + DN) → 📎 devis de référence */
   const extra=(r.extra||[]).map(f=>{const pu=unit(f,f.qty);return {label:f.label,qty:f.qty,pu,amount:f.qty*pu};});
   const moT=mo.reduce((s,x)=>s+x.amount,0),foT=fo.reduce((s,x)=>s+x.amount,0);return {id:pid,title:P.title,dn,mo,fo,extra,moAmount:moT,foAmount:foT,total:moT+foT,unit:P.unit};}
 export const panierDNs=(base,pid)=>{const P=(base.op.paniers||[]).find(p=>p.id===pid);return P?P.rows.map(r=>r.dn):[];};
@@ -119,7 +119,7 @@ export function emptyEtude(nom){return {id:'E'+Date.now().toString(36)+Math.rand
   mlMode:'tranchee',dn:[],nuit:{on:false,dn:100,soud:0,rendement:0.8},
   purges:{dn:32,purgeurAuto:false,paires:0,deporte:false},vidanges:{dn:50,type:'gravite',paires:0,deporte:false},vpi:[],sst:[],extrusion:[],racc:[],
   cnd:{km:'',radio:{on:false,antPct:0,antVac:0,fdPct:0,fdVac:0,raccFilms:0,raccVac:0},us:{on:false,antPct:0,antVac:0,fdPct:0,fdVac:0,raccFilms:0,raccVac:0},ress:{on:false,antPct:0,antVac:0,fdPct:0,fdVac:0,raccFilms:0,raccVac:0}},
-  hydro:{zones:[{nom:'Zone 1',rows:[]},{nom:'Zone 2',rows:[]},{nom:'Zone 3',rows:[]}],trajetH:1,epreuveH:4,hydrocureur:false,hHydro:[0,0,0],panier:'OS',epreuve:true,rincage:false,passivation:false,eau:false,conservation:false,adoucisseur:'15',devis:{}},
+  hydro:{zones:[{nom:'Épreuve 1',rows:[],pr:{epreuve:true}}],trajetH:1,epreuveH:4,hydrocureur:false,hHydro:[0],panier:'OS',epreuve:true,rincage:false,passivation:false,eau:false,conservation:false,adoucisseur:'15',devis:{}},
   boulet:{on:false,rows:[]},aerien:{planIso:false,rows:[],hDepl:0,devisPose:0,devisFO:0},depose:{rows:[]},foncage:{rows:[]},panier:{fo:[],mo:[]},fopre:{rows:[],prixFO:0,prixTransport:0},autres:{fournitures:[],prestations:[],frais:0},paniers:[]};}
 /* ═════════ 4 · CALCUL D'UNE ÉTUDE ═════════ */
 export const POSTES=[
@@ -130,7 +130,7 @@ export const POSTES=[
 export const POSTE_KEYS=POSTES.filter(p=>!p[3]).map(p=>p[0]);
 const L=(mo,fo,st,loc)=>({mo:mo||0,fo:fo||0,st:st||0,loc:loc||0,achat:(mo||0)+(fo||0)+(st||0)+(loc||0)});
 const addL=(a,b)=>({mo:a.mo+b.mo,fo:a.fo+b.fo,st:a.st+b.st,loc:a.loc+b.loc,achat:a.achat+b.achat});
-const ceil=Math.ceil;const r0=x=>Math.round(x);
+const ceil=Math.ceil;const r0=x=>Math.round(x);const nbFr=x=>String(Math.round(+x||0)).replace(/\B(?=(\d{3})+(?!\d))/g,' ');
 /* jours du chantier (13/10, Ethan : « que ça calcule le nombre de jours, du lundi au vendredi, et que ça sorte le nombre de jours de location des éléments
    base vie cochés — une indication, on pourra valider ou mettre un autre nombre en gardant le calculé ») : ouvrés = lundi → vendredi, bornes comprises ;
    cal = calendaires comme l'ancien classeur (DATEDIF) ; feries = fériés tombant un jour ouvré (signalés, pas déduits) */
@@ -143,6 +143,50 @@ export const joursLoc=(C,k,jc)=>{const v=((C||{}).loc||{})[k];return v===undefin
    le PU, le PU de base en texte ») : z.over[panier][DN][ligne] = {pu, qty, h} par-dessus la base (et ses écrasements) — la base n'est pas touchée */
 export function mergeOver(a,b){const out=JSON.parse(JSON.stringify(a||{}));Object.keys(b||{}).forEach(pid=>{const P=b[pid]||{};out[pid]=out[pid]||{};Object.keys(P).forEach(dn=>{const D=P[dn]||{};out[pid][dn]=out[pid][dn]||{};Object.keys(D).forEach(it=>{const o=Object.assign({},out[pid][dn][it]||{});Object.keys(D[it]||{}).forEach(f=>{const v=D[it][f];if(v!==''&&v!==null&&v!==undefined)o[f]=v;});if(Object.keys(o).length)out[pid][dn][it]=o;});});});return out;}
 export const hasOver=(z,pid,dn)=>{const o=(((z||{}).over||{})[pid]||{})[dn];return !!o&&Object.values(o).some(x=>x&&Object.values(x).some(v=>v!==''&&v!==null&&v!==undefined));};
+/* LIGNES D'UNE PRESTATION (13/10 soir, Ethan : « une extrusion, comme les épreuves etc., ça doit être comme vidange : voir le calcul décomposé du panier et travailler
+   dessus, changer des quantités… la dépose, toutes les prestations ») : chaque prestation calculée par formule rend ses lignes (MO, fournitures, sous-traitance) ;
+   quantité et PU modifiables pour CE chiffrage — pover[clé][ligne] = {qty, pu} — la base de prix ne bouge pas. Sans retouche : mêmes montants qu'avant. */
+export function lineSet(ov){const lines=[];const O=ov||{};const has=v=>v!==undefined&&v!==null&&v!=='';
+  const add=(id,label,kind,qty,pu,o)=>{o=o||{};const x=O[id]||{};const q=has(x.qty)?num(x.qty):num(qty),p=has(x.pu)?num(x.pu):num(pu);let amount=q*p;if(o.round)amount=o.round(amount);
+    lines.push({id,label,kind,qty:q,pu:p,unit:o.unit||'',amount,base:{qty:num(qty),pu:num(pu)},mod:has(x.qty)||has(x.pu),ov:{qty:has(x.qty),pu:has(x.pu)},note:o.note||''});return amount;};
+  const tot=k=>lines.reduce((s,l)=>s+(!k||l.kind===k?l.amount:0),0);const q=id=>{const l=lines.find(x=>x.id===id);return l?l.qty:0;};
+  return {add,lines,tot,q,L:()=>L(tot('mo'),tot('fo'),tot('st'),tot('loc'))};}
+export const hasPover=(pv,k)=>{const o=(pv||{})[k];return !!o&&Object.values(o).some(x=>x&&Object.values(x).some(v=>v!==''&&v!==null&&v!==undefined));};
+/* PRESTATIONS HYDRAULIQUES (épreuve, rinçage, passivation, eau adoucie, conservation) — un seul calcul pour une zone du chiffrage et pour l'onglet « Épreuves »
+   commun à plusieurs zones (13/10 soir) : P = réglages (équipe, trajet, durée, adoucisseur, hydrocureur, global, devis, prixMode) ; EP = épreuves {key, V, pr, hHydro} ;
+   une prestation GLOBALE = une seule fois sur le volume cumulé des épreuves qui la reçoivent ; un devis sous-traitant remplace le calcul quand il est choisi. */
+export const HY_KEYS=['epreuve','rincage','passivation','eau','conservation'];
+export function hydroPrestations(base,P,EP,pover){P=P||{};const tx=teamCost(base,P.panier||'OS').h;const HPJ=foParam(base,'FO_Heures_Par_Jour',10);const Vref=foParam(base,'FO_Volume_Reference_Ratios',30);
+  const dev=P.devis||{};const useDev=k=>{const m=(P.prixMode||{})[k];return m?m==='devis'&&num(dev[k])>0:num(dev[k])>0;};const isGlob=k=>!!((P.global||{})[k]);const trajet=num(P.trajetH);
+  const items={epreuve:[],rincage:[],passivation:[],eau:[],conservation:[]};const calc={},postes={};
+  /* épreuve hydraulique : une par épreuve */
+  EP.forEach(e=>{if(!e.V||!e.pr.epreuve)return;const S=lineSet((pover||{})['epr|'+e.key]);const V=e.V;
+    S.add('h_rempl','MO : remplissage (m³ ÷ débit du poteau)','mo',V/foParam(base,'FO_Epreuve_Debit_Poteau',30),tx,{unit:'h'});S.add('h_montee','MO : montée en pression','mo',foParam(base,'FO_Epreuve_MO_Montee_Pression'),tx,{unit:'h'});
+    S.add('h_decomp','MO : décompression','mo',foParam(base,'FO_Epreuve_MO_Decompression'),tx,{unit:'h'});S.add('h_duree','MO : durée de l\'épreuve (plafonnée)','mo',Math.min(num(P.epreuveH),foParam(base,'FO_Epreuve_Plafond_Duree',10)),tx,{unit:'h'});
+    S.add('h_trajet','MO : trajet','mo',trajet,tx,{unit:'h'});S.add('h_mep','MO : mise en place','mo',foParam(base,'FO_Epreuve_Mise_En_Place'),tx,{unit:'h'});
+    S.add('eau','Eau d\'épreuve','fo',V,foParam(base,'FO_Epreuve_Eau_m3'),{unit:'m³'});S.add('pompe','Pompe d\'épreuve','fo',1,foParam(base,'FO_Epreuve_Pompe'));S.add('rapport','Rapport d\'épreuve','fo',1,foParam(base,'FO_Epreuve_Rapport'));
+    if(P.hydrocureur)S.add('hydrocureur','Hydrocureur','fo',num(e.hHydro),foParam(base,'FO_Epreuve_Hydrocureur_h'),{unit:'h'});
+    items.epreuve.push({key:'epr|'+e.key,keys:[e.key],V,lines:S.lines,L:S.L(),total:S.tot()});});
+  /* les autres : une par épreuve, ou GLOBALE */
+  const groups=k=>{const L0=EP.filter(e=>e.V&&e.pr[k]);if(!L0.length)return [];return isGlob(k)?[{gk:k.slice(0,3)+'|G',keys:L0.map(e=>e.key),V:L0.reduce((s,e)=>s+e.V,0)}]:L0.map(e=>({gk:k.slice(0,3)+'|'+e.key,keys:[e.key],V:e.V}));};
+  groups('rincage').forEach(g=>{const S=lineSet((pover||{})[g.gk]);const V=g.V;const r=x=>V/Vref*foParam(base,x)*HPJ;
+    S.add('h_inst','MO : installation','mo',foParam(base,'FO_Rincage_MO_Installation'),tx,{unit:'h'});S.add('h_circ','MO : circulation','mo',r('FO_Rincage_Circulation'),tx,{unit:'h'});S.add('h_chasse','MO : chasse','mo',r('FO_Rincage_Chasse'),tx,{unit:'h'});
+    S.add('h_filt','MO : filtration','mo',r('FO_Rincage_Filtration'),tx,{unit:'h'});S.add('h_repli','MO : repli','mo',foParam(base,'FO_Rincage_Repli'),tx,{unit:'h'});const hT=S.q('h_inst')+S.q('h_circ')+S.q('h_chasse')+S.q('h_filt')+S.q('h_repli');
+    S.add('h_trajet','MO : trajet','mo',trajet,tx,{unit:'h'});S.add('skid_tr','Transport du SKID','fo',1,foParam(base,'FO_Rincage_Transport_SKID'));S.add('skid_am','Amortissement du SKID','fo',1,foParam(base,'FO_Rincage_Amortissement_SKID'));
+    S.add('rapport','Rapport de rinçage','fo',1,foParam(base,'FO_Rincage_Rapport'));S.add('dechets','Déchets','fo',1,foParam(base,'FO_Rincage_Dechets'));S.add('eau','Eau (volume × coefficient de chasse)','fo',V*foParam(base,'FO_Rincage_Coefficient_Chasse'),foParam(base,'FO_Rincage_Eau_m3'),{unit:'m³'});
+    S.add('transfo','Groupe transformateur','fo',Math.ceil(hT/HPJ),foParam(base,'FO_Groupe_Transfo_Jour'),{unit:'j'});items.rincage.push({key:g.gk,keys:g.keys,V,lines:S.lines,L:S.L(),total:S.tot()});});
+  groups('passivation').forEach(g=>{const S=lineSet((pover||{})[g.gk]);const V=g.V;S.add('h_circ','MO : circulation','mo',V/Vref*foParam(base,'FO_Passivation_Circulation')*HPJ,tx,{unit:'h'});const hC=S.q('h_circ');
+    S.add('produit','Produit de passivation','fo',V*foParam(base,'FO_Passivation_Dosage'),foParam(base,'FO_Passivation_Produit'));S.add('dechets','Déchets','fo',1,foParam(base,'FO_Passivation_Dechets'));
+    S.add('transfo','Groupe transformateur','fo',Math.ceil(hC/HPJ),foParam(base,'FO_Groupe_Transfo_Jour'),{unit:'j'});items.passivation.push({key:g.gk,keys:g.keys,V,lines:S.lines,L:S.L(),total:S.tot()});});
+  {const ad=String(P.adoucisseur||'15')==='5'?{prix:foParam(base,'FO_Adoucisseur_5'),debit:5}:{prix:foParam(base,'FO_Adoucisseur_15'),debit:15};const nR=foParam(base,'FO_Nb_Remplissages',2);
+    groups('eau').forEach(g=>{const S=lineSet((pover||{})[g.gk]);const V=g.V;S.add('h_mes','MO : mise en service','mo',foParam(base,'FO_EauAdoucie_Mise_En_Service'),tx,{unit:'h'});S.add('h_rempl','MO : remplissages (m³ ÷ débit × '+nR+')','mo',V/ad.debit*nR,tx,{unit:'h'});
+      S.add('h_trajet','MO : trajet','mo',trajet,tx,{unit:'h'});S.add('flexible','Flexibles','fo',1,foParam(base,'FO_EauAdoucie_Flexible'));S.add('adouc','Adoucisseur '+ad.debit+' m³/h','fo',1,ad.prix);S.add('sel','Sel','fo',V,foParam(base,'FO_EauAdoucie_Sel'),{unit:'m³'});
+      S.add('eau','Eau ('+nR+' remplissages)','fo',V*nR,foParam(base,'FO_EauAdoucie_Eau_m3'),{unit:'m³'});S.add('soude','Soude','fo',V,foParam(base,'FO_EauAdoucie_Soude'),{unit:'m³'});items.eau.push({key:g.gk,keys:g.keys,V,lines:S.lines,L:S.L(),total:S.tot()});});}
+  groups('conservation').forEach(g=>{const S=lineSet((pover||{})[g.gk]);const V=g.V;const r=x=>V/Vref*foParam(base,x)*HPJ;S.add('h_vid','MO : vidange','mo',r('FO_Conservation_Vidange'),tx,{unit:'h'});S.add('h_rempl','MO : remplissage','mo',r('FO_Conservation_Remplissage'),tx,{unit:'h'});
+    S.add('h_circ','MO : circulation','mo',r('FO_Conservation_Circulation'),tx,{unit:'h'});const hT=S.q('h_vid')+S.q('h_rempl')+S.q('h_circ');S.add('produit','Produit de conservation','fo',V*foParam(base,'FO_Conservation_Dosage'),foParam(base,'FO_Conservation_Produit'));
+    S.add('dechets','Déchets','fo',1,foParam(base,'FO_Conservation_Dechets'));S.add('transfo','Groupe transformateur','fo',Math.ceil(hT/HPJ),foParam(base,'FO_Groupe_Transfo_Jour'),{unit:'j'});items.conservation.push({key:g.gk,keys:g.keys,V,lines:S.lines,L:S.L(),total:S.tot()});});
+  HY_KEYS.forEach(k=>{const c=items[k].reduce((s,x)=>addL(s,x.L),L());calc[k]=c;postes[k]=useDev(k)?L(0,0,num(dev[k])):c;});
+  return {postes,calc,items,tx,useDev:Object.fromEntries(HY_KEYS.map(k=>[k,useDev(k)])),devis:Object.fromEntries(HY_KEYS.map(k=>[k,num(dev[k])]))};}
 /* les postes « chantier » (location base vie, A/R, déchets, amené / repli, déchargement, transfert, bardage) — d'une zone, ou de l'onglet Installations
    (13/10, Ethan : « une pelle et une équipe pour deux antennes : on ne compte pas deux fois les locations ») ; C.n = nombre de WC / conteneurs / bennes / pelles */
 export function chantierPostes(C,T,base){const P={},D={};const set=(k,l,d)=>{P[k]=l;if(d)D[k]=d;};C=C||{};T=T||{};const cnt=k=>{const v=((C.n||{})[k]);return v===undefined||v===null||v===''?1:Math.max(0,num(v));};
@@ -193,13 +237,19 @@ export function calcEtude(z,base){const R={postes:{},detail:{},warn:[]};if(base&
     const paires=num(PU.paires);const dep=PU.deporte?paires*4:0;const puDep=pouceDn(PU.dn)*prixPouceDn(PU.dn)+prixManchDn(PU.dn);set('purges',L(mo*paires+dep*puDep,fo*paires),{pu,puDep,dep,total:pu*paires+dep*puDep});}
   const VI=z.vidanges||{};{const typ=VI.type||'gravite';const p=panierRow(base,typ==='aspiration'?'vid_asp':'vid_grav',VI.dn);let pu=0,mo=0;if(p){pu=p.total;if(typ==='gravite_nue')pu+=(p.extra||[]).filter(f=>/vanne/i.test(f.label)).reduce((s,f)=>s+f.amount,0); /* vidange par gravité avec vannes nues = le panier + les 2 vannes à souder */mo=p.moAmount;}
     const paires=num(VI.paires);const dep=VI.deporte?paires*4:0;const puDep=pouceDn(VI.dn)*prixPouceDn(VI.dn)+prixManchDn(VI.dn);set('vidanges',L(mo*paires+dep*puDep,(pu-mo)*paires),{pu,puDep,dep,total:pu*paires+dep*puDep});}
-  /* ── vannes préisolées ── */
-  {let mo=0,fo=0;const det=[];(z.vpi||[]).forEach(v=>{const dn=num(v.dn);if(!dn)return;const q=num(v.soud);const m=pouceDn(dn)*prixPouceDn(dn)+prixManchDn(dn);const f=num(v.prixVanne)+(v.rallonge?foParam(base,'FO_Rallonge_Vanne_Preisolee'):0)+(v.bypass?bypassPurge(base):0);mo+=m*q;fo+=f*q;det.push({dn,q,pu:m+f});});set('vpi',L(mo,fo),{rows:det});}
+  /* ── vannes préisolées (lignes : soudure, manchon, vanne, options — modifiables, clé « vpi|n° de ligne ») ── */
+  {let mo=0,fo=0;const det=[];(z.vpi||[]).forEach((v,vi)=>{const dn=num(v.dn);if(!dn)return;const q=num(v.soud);const S=lineSet((z.pover||{})['vpi|'+vi]);
+    S.add('soud','Soudure (pouces × prix du pouce)','mo',pouceDn(dn),prixPouceDn(dn),{unit:'pouce'});S.add('manch','Manchon','mo',1,prixManchDn(dn));S.add('vanne','Vanne (prix d\'achat saisi)','fo',1,num(v.prixVanne));
+    if(v.rallonge)S.add('rallonge','Rallonge de vanne','fo',1,foParam(base,'FO_Rallonge_Vanne_Preisolee'));if(v.bypass)S.add('bypass','By-pass sur purge','fo',1,bypassPurge(base));
+    const m=S.tot('mo'),f=S.tot('fo');mo+=m*q;fo+=f*q;det.push({dn,q,pu:m+f,lines:S.lines,key:'vpi|'+vi,idx:vi});});set('vpi',L(mo,fo),{rows:det});}
   /* ── SST ── */
   {let mo=0,fo=0;const det=[];const boit=sstBoitiers(base);(z.sst||[]).forEach(s=>{const dn=num(s.dn);if(!dn||!s.type)return;const q=num(s.paires);
     if(s.type==='autre'){const pu=num(s.pu);fo+=pu*q;det.push({dn,type:'autre',des:s.des||'',q,pu});return;} /* typologie hors classeur : prix saisi (fourniture + pose) */const bf=(s.type==='bypass_seul'||s.type==='fonds_bombes')?bypassFonds(base,dn,s.type==='fonds_bombes'):null;const p=bf?null:panierRow(base,s.type,dn);const pu=(bf?bf.total:(p?p.total:0))+boit;const m=(bf?bf.mo:(p?p.moAmount:0))+foParam(base,'FO_MO_Pose_Boitiers')*teamCost(base,'M').h;mo+=m*q;fo+=(pu-m)*q;det.push({dn,type:s.type,q,pu});});set('sst',L(mo,fo),{rows:det,boitiers:boit});}
-  /* ── extrusion ── */
-  {let mo=0,fo=0;const det=[];(z.extrusion||[]).forEach(x=>{const dn=num(x.dn);if(!dn||!x.type)return;const q=num(x.paires);const pu=extrusionPrice(base,dn,x.type);const Er=(base.op.extrusion||{rows:[]}).rows.find(r=>r.dnPehd===dn);const f=Er?Er.amort+Er.conso:0;mo+=(pu-f)*q;fo+=f*q;det.push({dn,type:x.type,q,pu});});set('extrusion',L(mo,fo),{rows:det});}
+  /* ── extrusion (lignes : MO de l'équipe, amortissement du matériel, consommables — clé « ext|Ø|type ») ── */
+  {let mo=0,fo=0;const det=[];const EXT=base.op.extrusion||{rows:[]};(z.extrusion||[]).forEach((x,xi)=>{const dn=num(x.dn);if(!dn||!x.type)return;const q=num(x.paires);const Er=EXT.rows.find(r=>r.dnPehd===dn);const key2='ext|'+dn+'|'+x.type;
+    if(!Er){det.push({dn,type:x.type,q,pu:0,lines:[],key:key2,idx:xi});return;}const k0=key(x.type);const hk=/manchon/.test(k0)?'manchons':/coude/.test(k0)?'coude':/pec/.test(k0)?'pec':/purge/.test(k0)?'purges':'by-pass';
+    const S=lineSet((z.pover||{})[key2]);S.add('mo','MO d\'extrusion · '+x.type+' (équipe '+Er.eq+')','mo',Er.h[hk]||0,teamCost(base,Er.eq).h,{unit:'h'});S.add('amort','Amortissement du matériel','fo',1,Er.amort);S.add('conso','Consommables','fo',1,Er.conso);
+    const m=S.tot('mo'),f=S.tot('fo');mo+=m*q;fo+=f*q;det.push({dn,type:x.type,q,pu:m+f,lines:S.lines,key:key2,idx:xi});});set('extrusion',L(mo,fo),{rows:det});}
   /* ── raccordement ── */
   {let mo=0,fo=0;const det=[];(z.racc||[]).forEach(x=>{const dn=num(x.dn);if(!dn||!x.type)return;const q=num(x.paires);const p=panierRow(base,x.type,dn);const pu=p?p.total:0;mo+=(p?p.moAmount:0)*q;fo+=(p?p.foAmount:0)*q;det.push({dn,type:x.type,q,pu});});set('racc',L(mo,fo),{rows:det});}
   /* ── CND ── */
@@ -209,30 +259,23 @@ export function calcEtude(z,base){const R={postes:{},detail:{},warn:[]};if(base&
     const A=part('ant',cfg.antPct,cfg.antVac),F=part('fd',cfg.fdPct,cfg.fdVac);const raccQ=(z.racc||[]).reduce((s,x)=>s+num(x.paires),0);let rf=0;tr.forEach(([a,b])=>{rf+=(z.racc||[]).filter(x=>num(x.dn)>=a&&num(x.dn)<=b).reduce((s,x)=>s+num(x.paires),0)*num(cfg.raccFilms)*filmPrice(base,kind,a);});const Rc={films:rf,vac:num(cfg.raccVac),cost:num(cfg.raccVac)*forf+rf,n:raccQ*num(cfg.raccFilms)};
     R.detail[kind]={forfait:forf,ant:A,fd:F,racc:Rc};return L(0,0,A.cost+F.cost+Rc.cost);};
   set('radio',cndCalc('Radio',CND.radio,'Mob/Démob Radio'));set('us',cndCalc('Ultrasons',CND.us,'Mob/Démob Ultrasons'));set('ressuage',cndCalc('Ressuage',CND.ress,'Mob/Démob Ressuage'));
-  /* ── prestations hydrauliques (volumes des zones) ── */
+  /* ── prestations hydrauliques (volumes des épreuves de la zone) — hydroPrestations (aussi utilisé par l'onglet « Épreuves » commun aux zones) ── */
   const HY=z.hydro||{zones:[]};const vols=(HY.zones||[]).map(zz=>(zz.rows||[]).reduce((s,r)=>s+dnVolume(base,r.dn,r.ml),0));
-  /* prestation par zone (13/10, Ethan : « pouvoir relier une épreuve à un rinçage, une passivation… ») : choix de la zone (zz.pr[k]) sinon le réglage général */
+  /* prestation par épreuve (13/10, Ethan : « pouvoir relier une épreuve à un rinçage, une passivation… ») : choix de l'épreuve (zz.pr[k]) sinon l'ancien réglage général */
   const zOn=(i,k)=>{const zz=(HY.zones||[])[i]||{};return zz.pr&&zz.pr[k]!==undefined&&zz.pr[k]!==null?!!zz.pr[k]:!!HY[k];};
-  /* prestation GLOBALE (13/10, Ethan : « 3 tronçons d'épreuve mais un seul rinçage global ») : une seule fois, sur le volume cumulé des zones qui la reçoivent
-     (frais fixes, trajet, mise en place comptés une fois) ; sinon une par zone d'épreuve */
-  const isGlob=k=>!!((HY.global||{})[k]);const groups=k=>{const ids=vols.map((V,i)=>i).filter(i=>vols[i]&&zOn(i,k));if(!ids.length)return [];return isGlob(k)?[{V:ids.reduce((s,i)=>s+vols[i],0),i:ids[0],ids}]:ids.map(i=>({V:vols[i],i,ids:[i]}));};const tx=teamCost(base,HY.panier||'OS').h;const HPJ=foParam(base,'FO_Heures_Par_Jour',10);const Vref=foParam(base,'FO_Volume_Reference_Ratios',30);
-  const devis=(k)=>num((HY.devis||{})[k]);
-  {let tot=0,mo=0;vols.forEach((V,i)=>{if(!V||!zOn(i,'epreuve'))return;const hMO=V/foParam(base,'FO_Epreuve_Debit_Poteau',30)+foParam(base,'FO_Epreuve_MO_Montee_Pression')+foParam(base,'FO_Epreuve_MO_Decompression')+Math.min(num(HY.epreuveH),foParam(base,'FO_Epreuve_Plafond_Duree',10))+num(HY.trajetH)+foParam(base,'FO_Epreuve_Mise_En_Place');const m=hMO*tx;mo+=m;tot+=V*foParam(base,'FO_Epreuve_Eau_m3')+foParam(base,'FO_Epreuve_Pompe')+foParam(base,'FO_Epreuve_Rapport')+m+(HY.hydrocureur?num((HY.hHydro||[])[i])*foParam(base,'FO_Epreuve_Hydrocureur_h'):0);});
-    if(devis('epreuve')){set('epreuve',L(0,0,devis('epreuve')));}else set('epreuve',L(mo,tot-mo));}
-  {let tot=0,mo=0;groups('rincage').forEach(({V})=>{const hC=V/Vref*foParam(base,'FO_Rincage_Circulation')*HPJ,hCh=V/Vref*foParam(base,'FO_Rincage_Chasse')*HPJ,hF=V/Vref*foParam(base,'FO_Rincage_Filtration')*HPJ;const hT=foParam(base,'FO_Rincage_MO_Installation')+hC+hCh+hF+foParam(base,'FO_Rincage_Repli');const m=(hT+num(HY.trajetH))*tx;mo+=m;tot+=foParam(base,'FO_Rincage_Transport_SKID')+foParam(base,'FO_Rincage_Amortissement_SKID')+foParam(base,'FO_Rincage_Rapport')+foParam(base,'FO_Rincage_Dechets')+V*foParam(base,'FO_Rincage_Eau_m3')*foParam(base,'FO_Rincage_Coefficient_Chasse')+ceil(hT/HPJ)*foParam(base,'FO_Groupe_Transfo_Jour')+m;});
-    if(devis('rincage'))set('rincage',L(0,0,devis('rincage')));else set('rincage',L(mo,tot-mo));}
-  {let tot=0,mo=0;groups('passivation').forEach(({V})=>{const hC=V/Vref*foParam(base,'FO_Passivation_Circulation')*HPJ;const prod=V*foParam(base,'FO_Passivation_Dosage');const m=hC*tx;mo+=m;tot+=prod*foParam(base,'FO_Passivation_Produit')+foParam(base,'FO_Passivation_Dechets')+ceil(hC/HPJ)*foParam(base,'FO_Groupe_Transfo_Jour')+m;});
-    if(devis('passivation'))set('passivation',L(0,0,devis('passivation')));else set('passivation',L(mo,tot-mo));}
-  {let tot=0,mo=0;{const ad=String(HY.adoucisseur||'15')==='5'?{prix:foParam(base,'FO_Adoucisseur_5'),debit:5}:{prix:foParam(base,'FO_Adoucisseur_15'),debit:15};groups('eau').forEach(({V})=>{const nR=foParam(base,'FO_Nb_Remplissages',2);const m=(foParam(base,'FO_EauAdoucie_Mise_En_Service')+V/ad.debit*nR+num(HY.trajetH))*tx;mo+=m;tot+=foParam(base,'FO_EauAdoucie_Flexible')+ad.prix+V*foParam(base,'FO_EauAdoucie_Sel')+V*foParam(base,'FO_EauAdoucie_Eau_m3')*nR+V*foParam(base,'FO_EauAdoucie_Soude')+m;});}
-    if(devis('eau'))set('eau',L(0,0,devis('eau')));else set('eau',L(mo,tot-mo));}
-  {let tot=0,mo=0;groups('conservation').forEach(({V})=>{const hV=V/Vref*foParam(base,'FO_Conservation_Vidange')*HPJ,hR=V/Vref*foParam(base,'FO_Conservation_Remplissage')*HPJ,hC=V/Vref*foParam(base,'FO_Conservation_Circulation')*HPJ;const hT=hV+hR+hC;const prod=V*foParam(base,'FO_Conservation_Dosage');const m=hT*tx;mo+=m;tot+=prod*foParam(base,'FO_Conservation_Produit')+foParam(base,'FO_Conservation_Dechets')+ceil(hT/HPJ)*foParam(base,'FO_Groupe_Transfo_Jour')+m;});
-    if(devis('conservation'))set('conservation',L(0,0,devis('conservation')));else set('conservation',L(mo,tot-mo));}
-  R.detail.hydro={vols,tx,global:Object.assign({},HY.global||{}),groups:{rincage:groups('rincage'),passivation:groups('passivation'),eau:groups('eau'),conservation:groups('conservation')},on:(HY.zones||[]).map((zz,i)=>({epreuve:zOn(i,'epreuve'),rincage:zOn(i,'rincage'),passivation:zOn(i,'passivation'),eau:zOn(i,'eau'),conservation:zOn(i,'conservation')}))};
-  /* ── boulet mousse ── */
-  {const B=z.boulet||{};let mo=0,fo=0;const det=[];if(B.on)(B.rows||[]).forEach(r=>{const dn=num(r.dn);if(!dn)return;const V=dnVolume(base,dn,r.ml);const os=osRate(base);const m=(foParam(base,'FO_Boulet_MO_Piston_h')*foParam(base,'FO_Boulet_MO_Piston_Pers')+foParam(base,'FO_Boulet_MO_Extremites_h')*foParam(base,'FO_Boulet_MO_Extremites_Pers')+foParam(base,'FO_Boulet_MO_Poussee_h')*foParam(base,'FO_Boulet_MO_Poussee_Pers')+foParam(base,'FO_Boulet_MO_Retrait_h')*foParam(base,'FO_Boulet_MO_Retrait_Pers')+foParam(base,'FO_Boulet_MO_AR_Compresseur_h')*foParam(base,'FO_Boulet_MO_AR_Compresseur_Pers'))*os;
+  const EP=vols.map((V,i)=>({key:'z'+i,i,V,pr:{epreuve:zOn(i,'epreuve'),rincage:zOn(i,'rincage'),passivation:zOn(i,'passivation'),eau:zOn(i,'eau'),conservation:zOn(i,'conservation')},hHydro:(HY.hHydro||[])[i]}));
+  const HP=hydroPrestations(base,HY,EP,z.pover);HY_KEYS.forEach(k=>set(k,HP.postes[k]));
+  const gOld=k=>HP.items[k].map(it=>({V:it.V,i:+String(it.keys[0]).slice(1),ids:it.keys.map(x=>+String(x).slice(1))})); /* forme d'avant (affichage « global : … m³ (zones …) ») */
+  R.detail.hydro={vols,tx:HP.tx,global:Object.assign({},HY.global||{}),groups:{rincage:gOld('rincage'),passivation:gOld('passivation'),eau:gOld('eau'),conservation:gOld('conservation')},on:(HY.zones||[]).map((zz,i)=>EP[i].pr),items:HP.items,calc:HP.calc,useDev:HP.useDev,devis:HP.devis};
+  /* ── boulet mousse (lignes par passage : MO des opérations, fournitures, locations — clé « bou|n° de ligne ») ── */
+  {const B=z.boulet||{};let mo=0,fo=0;const det=[];if(B.on)(B.rows||[]).forEach((r,ri)=>{const dn=num(r.dn);if(!dn)return;const V=dnVolume(base,dn,r.ml);const os=osRate(base);const S=lineSet((z.pover||{})['bou|'+ri]);
+    [['piston','MO : mise en place du piston','Piston'],['extr','MO : extrémités','Extremites'],['poussee','MO : poussée','Poussee'],['retrait','MO : retrait','Retrait'],['arc','MO : A/R compresseur','AR_Compresseur']].forEach(([id,lab,P])=>S.add(id,lab,'mo',foParam(base,'FO_Boulet_MO_'+P+'_h')*foParam(base,'FO_Boulet_MO_'+P+'_Pers'),os,{unit:'h'}));
     const dnI=foParam(base,'FO_DN_Accessoires_Injection',20);const comp=V<foParam(base,'FO_Seuil_Volume_Compresseur_1',50)?foParam(base,'FO_Boulet_Compresseur_Type_1'):V<foParam(base,'FO_Seuil_Volume_Compresseur_2',150)?foParam(base,'FO_Boulet_Compresseur_Type_2'):foParam(base,'FO_Boulet_Compresseur_Type_3');
-    const f=foParam(base,'FO_Boulet_Nb_Fonds_Bombes')*foLookup(base,'FO_Accessoires_Acier',dn,10)+foParam(base,'FO_Boulet_Nb_Bobines')*foLookup(base,'FO_Accessoires_Acier',dnI,2)+foParam(base,'FO_Boulet_Nb_Vannes_BS_PR')*foLookup(base,'FO_Vannes_Souder',dnI,4)+foParam(base,'FO_Boulet_Nb_Tetes_Chat')*foParam(base,'FO_Boulet_Prix_Tete_Chat')+foParam(base,'FO_Boulet_Nb_Boulets')*foLookup(base,'FO_Accessoires_Acier',dn,11)+foParam(base,'FO_Boulet_Location_Pelle_h')*foParam(base,'FO_Boulet_Duree_Location_Pelle')+foParam(base,'FO_Boulet_Duree_Location_Compresseur')*comp;
-    const n=r.passages===undefined||r.passages===null||r.passages===''?1:num(r.passages);mo+=m*n;fo+=f*n;det.push({dn,V,m,f,n});});set('boulet',L(mo,fo),{rows:det});}
+    S.add('fonds','Fonds bombés DN '+dn,'fo',foParam(base,'FO_Boulet_Nb_Fonds_Bombes'),foLookup(base,'FO_Accessoires_Acier',dn,10));S.add('bobines','Bobines d\'injection DN '+dnI,'fo',foParam(base,'FO_Boulet_Nb_Bobines'),foLookup(base,'FO_Accessoires_Acier',dnI,2));
+    S.add('vannes','Vannes BS / PR DN '+dnI,'fo',foParam(base,'FO_Boulet_Nb_Vannes_BS_PR'),foLookup(base,'FO_Vannes_Souder',dnI,4));S.add('tetes','Têtes de chat','fo',foParam(base,'FO_Boulet_Nb_Tetes_Chat'),foParam(base,'FO_Boulet_Prix_Tete_Chat'));
+    S.add('boulets','Boulets DN '+dn,'fo',foParam(base,'FO_Boulet_Nb_Boulets'),foLookup(base,'FO_Accessoires_Acier',dn,11));S.add('pelle','Location pelle','fo',foParam(base,'FO_Boulet_Duree_Location_Pelle'),foParam(base,'FO_Boulet_Location_Pelle_h'),{unit:'h'});
+    S.add('comp','Location compresseur ('+(V<foParam(base,'FO_Seuil_Volume_Compresseur_1',50)?'type 1':V<foParam(base,'FO_Seuil_Volume_Compresseur_2',150)?'type 2':'type 3')+')','fo',foParam(base,'FO_Boulet_Duree_Location_Compresseur'),comp);
+    const m=S.tot('mo'),f=S.tot('fo');const n=r.passages===undefined||r.passages===null||r.passages===''?1:num(r.passages);mo+=m*n;fo+=f*n;det.push({dn,V,m,f,n,lines:S.lines,key:'bou|'+ri,idx:ri});});set('boulet',L(mo,fo),{rows:det});}
   /* ── aérien ── */
   {const A=z.aerien||{};let calo=0,caloMo=0,pose=0,foAcier=0;const det=[];const os=osRate(base);(A.rows||[]).forEach(r=>{const dn=num(r.dn);if(!dn)return;const ml=num(r.ml),c90=num(r.c90),soud=num(r.soud);const tradi=(r.type||'Tradi')!=='Préisolé';
     const nSup=r.support?ceil(ml/(dn<foParam(base,'FO_Support_Seuil_DN',125)?foParam(base,'FO_Support_Espacement_Petit_DN',3):foParam(base,'FO_Support_Espacement_Gros_DN',2))):0;const supPu=r.support?foLookup(base,'FO_Supportage',r.support,2)+foLookup(base,'FO_Supportage',r.support,3)*os:0;
@@ -243,13 +286,18 @@ export function calcEtude(z,base){const R={postes:{},detail:{},warn:[]};if(base&
     const anyCalo=(A.rows||[]).some(r=>r.calo),anySup=(A.rows||[]).some(r=>r.support);const depl=num(A.hDepl)*foParam(base,'FO_Calo_Nb_Pers_Deplacement',2)*os*((anyCalo?1:0)+(anySup?1:0));calo+=depl;caloMo+=depl;
     const foA=foAcier?foAcier+foParam(base,'FO_Transport_Fournitures'):0;
     set('calo',num(A.devisPose)?L(0,0,num(A.devisPose)):L(caloMo,calo-caloMo),{rows:det,depl});set('pose_aerien',L(pose));set('fo_acier',num(A.devisFO)?L(0,num(A.devisFO)):L(0,foA));}
-  /* ── dépose ── */
-  {let mo=0,fo=0;const det=[];((z.depose||{}).rows||[]).forEach(r=>{const dn=num(r.dn);if(!dn)return;const ml=num(r.ml);const coupes=ml/foParam(base,'FO_Depose_Espacement_Coupes',5);const t=foLookup(base,'FO_Isolation',dn,5)*ml/1000;const vol=isoVolMl(base,dn,iso)*ml;const rot=vol?ceil(vol/foParam(base,'FO_Depose_Volume_Rotation',8)):0;const cj=foLookup(base,'FO_Isolation',dn,10);const arr=foParam(base,'FO_Depose_Arrondi_Prix_MO',500);const m=cj?Math.ceil((foParam(base,'FO_Journee_Pelle_Complete')/cj*coupes)/arr)*arr:0;const d=t*foParam(base,'FO_Dechets_DIB_Tonne')+rot*foParam(base,'FO_AR_Benne_Contener_WC');mo+=m;fo+=d;det.push({dn,ml,coupes,t,rot,m,d});});set('depose',L(mo,fo),{rows:det});}
-  /* ── fonçage ── */
-  {let mo=0,fo=0,st=0;const det=[];((z.foncage||{}).rows||[]).forEach(r=>{const dn=num(r.dn);if(!dn)return;const ml=num(r.ml);const dIso=isoDiam(base,dn,iso);const nColl=(ceil(ml/foParam(base,'FO_Foncage_Espacement_Colliers',1.5))+foParam(base,'FO_Foncage_Colliers_Sup'))*foParam(base,'FO_Foncage_Nb_Tubes',2);const seg=foLookup(base,'FO_Colliers_Centreurs',dIso,2)*nColl;const os=osRate(base);
-    const coll=seg?seg*foLookup(base,'FO_Colliers_Centreurs',dIso,3)+ceil(seg/foParam(base,'FO_Foncage_Ratio_Segments_h',10))*os+foParam(base,'FO_Foncage_Nb_Obturateurs')*foParam(base,'FO_Foncage_Prix_Obturateur')+foParam(base,'FO_Foncage_Transport_Colliers'):0;const collMo=seg?ceil(seg/foParam(base,'FO_Foncage_Ratio_Segments_h',10))*os:0;
-    const vac=num(r.vac);const radio=vac*(km===null?0:cndForfait(base,'Mob/Démob Radio',km))+vac*foParam(base,'FO_Foncage_Nb_Films_Vacation',4)*filmPrice(base,'Radio',dn);const te=raccPrice(base,'racc_insertion_de_tes',dn);const pose=num(r.jours)*(cS.jour+cM.jour)+2*te;
-    mo+=collMo+pose;fo+=coll-collMo;st+=radio;det.push({dn,ml,nColl,seg,coll,radio,pose});});set('foncage',L(mo,fo,st),{rows:det});}
+  /* ── dépose (lignes : coupes à la pelle arrondies, déchets, rotations de benne — clé « dep|n° de ligne ») ── */
+  {let mo=0,fo=0;const det=[];((z.depose||{}).rows||[]).forEach((r,ri)=>{const dn=num(r.dn);if(!dn)return;const ml=num(r.ml);const S=lineSet((z.pover||{})['dep|'+ri]);const coupes=ml/foParam(base,'FO_Depose_Espacement_Coupes',5);const cj=foLookup(base,'FO_Isolation',dn,10);const arr=foParam(base,'FO_Depose_Arrondi_Prix_MO',500);
+    const vol=isoVolMl(base,dn,iso)*ml;S.add('coupes','Coupes (pelle + équipe, journée ÷ coupes par jour) · arrondi à '+nbFr(arr)+' €','mo',cj?coupes:0,cj?foParam(base,'FO_Journee_Pelle_Complete')/cj:0,{round:x=>Math.ceil(x/arr)*arr});
+    S.add('dechets','Déchets (tonnes)','fo',foLookup(base,'FO_Isolation',dn,5)*ml/1000,foParam(base,'FO_Dechets_DIB_Tonne'),{unit:'t'});S.add('rot','Rotations de benne','fo',vol?ceil(vol/foParam(base,'FO_Depose_Volume_Rotation',8)):0,foParam(base,'FO_AR_Benne_Contener_WC'));
+    const m=S.tot('mo'),d=S.tot('fo');mo+=m;fo+=d;det.push({dn,ml,coupes:S.q('coupes'),t:S.q('dechets'),rot:S.q('rot'),m,d,lines:S.lines,key:'dep|'+ri,idx:ri});});set('depose',L(mo,fo),{rows:det});}
+  /* ── fonçage (lignes : colliers centreurs, pose, radio — clé « fon|n° de ligne ») ── */
+  {let mo=0,fo=0,st=0;const det=[];((z.foncage||{}).rows||[]).forEach((r,ri)=>{const dn=num(r.dn);if(!dn)return;const ml=num(r.ml);const dIso=isoDiam(base,dn,iso);const nColl=(ceil(ml/foParam(base,'FO_Foncage_Espacement_Colliers',1.5))+foParam(base,'FO_Foncage_Colliers_Sup'))*foParam(base,'FO_Foncage_Nb_Tubes',2);const seg=foLookup(base,'FO_Colliers_Centreurs',dIso,2)*nColl;const os=osRate(base);
+    const S=lineSet((z.pover||{})['fon|'+ri]);if(seg){S.add('seg','Segments de colliers centreurs ('+nColl+' colliers)','fo',seg,foLookup(base,'FO_Colliers_Centreurs',dIso,3));S.add('segmo','MO : montage des colliers','mo',ceil(seg/foParam(base,'FO_Foncage_Ratio_Segments_h',10)),os,{unit:'h'});
+      S.add('obt','Obturateurs','fo',foParam(base,'FO_Foncage_Nb_Obturateurs'),foParam(base,'FO_Foncage_Prix_Obturateur'));S.add('trc','Transport des colliers','fo',1,foParam(base,'FO_Foncage_Transport_Colliers'));}
+    const vac=num(r.vac);S.add('rvac','Radio : vacations (mob / démob)','st',vac,km===null?0:cndForfait(base,'Mob/Démob Radio',km));S.add('rfilm','Radio : films','st',vac*foParam(base,'FO_Foncage_Nb_Films_Vacation',4),filmPrice(base,'Radio',dn));
+    S.add('pose','Pose : jours d\'équipe soudure + manchon','mo',num(r.jours),cS.jour+cM.jour,{unit:'j'});S.add('tes','Insertions de tés (2)','mo',2,raccPrice(base,'racc_insertion_de_tes',dn));
+    const lm=S.tot('mo'),lf=S.tot('fo'),ls=S.tot('st');mo+=lm;fo+=lf;st+=ls;det.push({dn,ml,nColl,seg,coll:lf+(seg?S.lines.find(l=>l.id==='segmo').amount:0),radio:ls,pose:S.lines.filter(l=>l.id==='pose'||l.id==='tes').reduce((x,l)=>x+l.amount,0),lines:S.lines,key:'fon|'+ri,idx:ri});});set('foncage',L(mo,fo,st),{rows:det});}
   /* ── panier sur mesure (acier nu) → fournitures autres + prestations autres ── */
   {const P=z.panier||{};let fo=0,mo=0;(P.fo||[]).forEach(x=>{fo+=num(x.qty)*num(x.pu);mo+=num(x.qty)*num(x.moU);}); /* moU = MO d'une pièce préparée (classeur : G742 ajouté aux prestations autres) */(P.mo||[]).forEach(x=>{mo+=num(x.h)*teamCost(base,x.eq||'S+T').h;});
     const AU=z.autres||{};const foA=(AU.fournitures||[]).reduce((s,x)=>s+num(x.montant),0);const prA=(AU.prestations||[]).reduce((s,x)=>s+num(x.montant),0);set('fo_autres',L(0,fo+foA));set('prest_autres',L(mo,0,prA));set('frais',L(0,0,0,num(AU.frais)));}
@@ -281,10 +329,30 @@ export function calcInstallations(inst,etudes,base){const R={postes:{},detail:{}
   const mode=inst.ventil||'ml';const w=etudes.map(e=>{if(mode==='prix')return Object.values(e.r.postes).reduce((s,p)=>s+p.achat,0);if(mode==='mo')return ((e.r.T||{}).qS||0)+((e.r.T||{}).qM||0);if(mode==='egal')return 1;if(mode==='pct')return num(((inst.pct||{})[e.z.id]));return e.r.ml||0;});
   const W=w.reduce((s,x)=>s+x,0);R.ventil={mode,poids:w,parts:etudes.map((e,i)=>W>0?(mode==='pct'?num(((inst.pct||{})[e.z.id]))/100:w[i]/W):(etudes.length?1/etudes.length:0))};R.ventil.montants=R.ventil.parts.map(x=>x*R.total);R.ventil.somme=R.ventil.parts.reduce((s,x)=>s+x,0);
   return R;}
-export function calcChiffrage(ch,base,client){ch=ch||{};const inst=ch.inst&&ch.inst.on?ch.inst:null;const etudes=(ch.etudes||[]).map(z=>Object.assign({z,r:calcEtude(inst?neutralZone(z):z,base)}));const marge=ch.marge===undefined||ch.marge===null||ch.marge===''?0.125:num(ch.marge);const rc=ch.rcfa===undefined||ch.rcfa===null||ch.rcfa===''?(base&&base.fo&&base.fo.tables?(rcfaOfBase(base,client)??0):0):num(ch.rcfa);
+/* ── onglet « ÉPREUVES » (13/10 soir, Ethan : « même fonctionnalité pour les épreuves que pour les locations : par défaut une épreuve par zone de chiffrage,
+   mais on peut avoir 10 zones de chiffrage et 1 épreuve globale pour ces 10 zones (comme rinçage, remplissage…), comme 3 épreuves pour une zone — attention à
+   la ventilation du prix ») : des épreuves communes au chiffrage, chacune sur une ou plusieurs zones (lignes zone × DN × ml de tube) ; le prix est calculé une
+   fois (hydroPrestations) puis VENTILÉ sur les zones au prorata des m³ de chaque zone dans chaque épreuve (un devis : sur toutes les épreuves qui reçoivent
+   la prestation). Les zones ne comptent plus leurs propres prestations hydrauliques. ── */
+export const neutralHydro=z=>Object.assign({},z,{hydro:Object.assign({},z.hydro||{},{zones:[]})});
+export function calcEssais(ES,etudes,base){const R={on:true,epreuves:[],par:etudes.map(()=>({})),postes:{},items:{},calc:{},useDev:{},devis:{},Vtot:0,orphan:false};HY_KEYS.forEach(k=>{R.postes[k]=L();R.items[k]=[];});
+  if(!ES||!base||!base.mo||!base.mo.cad||!base.mo.cad.length)return R;
+  const zi={};etudes.forEach((e,i)=>{zi[e.z.id]=i;});
+  const EP=(ES.epreuves||[]).map((ep,j)=>{const vz={};let V=0;(ep.rows||[]).forEach(r=>{const v=dnVolume(base,r.dn,r.ml);if(!v)return;V+=v;let k=r.z;if(zi[k]===undefined){R.orphan=true;k=etudes.length?etudes[0].z.id:'?';} /* zone retirée : sa part va sur la 1re zone (signalé) */vz[k]=(vz[k]||0)+v;});
+    return {key:ep.id||('P'+j),V,vz,pr:Object.assign({epreuve:true},ep.pr||{}),hHydro:ep.hHydro,nom:ep.nom||('Épreuve '+(j+1))};});
+  const HP=hydroPrestations(base,ES,EP,ES.pover);
+  const addTo=(i,k,l)=>{const P=R.par[i];P[k]=P[k]?addL(P[k],l):l;};const scale=(l,f)=>L(l.mo*f,l.fo*f,l.st*f,l.loc*f);
+  const spread=(keys,l,k)=>{const eps=EP.filter(e=>keys.includes(e.key));const V=eps.reduce((s,e)=>s+e.V,0);if(!V)return;eps.forEach(e=>Object.keys(e.vz).forEach(z=>{const i=zi[z];if(i===undefined)return;addTo(i,k,scale(l,e.vz[z]/V));}));};
+  HY_KEYS.forEach(k=>{if(HP.useDev[k]){spread([...new Set(HP.items[k].flatMap(x=>x.keys))],HP.postes[k],k);}else HP.items[k].forEach(it=>spread(it.keys,it.L,k));});
+  Object.assign(R,{epreuves:EP,postes:HP.postes,items:HP.items,calc:HP.calc,useDev:HP.useDev,devis:HP.devis,tx:HP.tx,Vtot:EP.reduce((s,e)=>s+e.V,0)});
+  R.total=HY_KEYS.reduce((s,k)=>s+HP.postes[k].achat,0);R.ventile=R.par.reduce((s,P)=>s+Object.values(P).reduce((x,l)=>x+l.achat,0),0);
+  return R;}
+export function calcChiffrage(ch,base,client){ch=ch||{};const inst=ch.inst&&ch.inst.on?ch.inst:null;const ES=ch.essais&&ch.essais.on?ch.essais:null;
+  const etudes=(ch.etudes||[]).map(z=>{let zz=inst?neutralZone(z):z;if(ES)zz=neutralHydro(zz);return {z,r:calcEtude(zz,base)};});
+  const X=ES?calcEssais(ES,etudes,base):null;if(X)etudes.forEach((e,i)=>{Object.keys(X.par[i]).forEach(k=>{e.r.postes[k]=addL(e.r.postes[k]||L(),X.par[i][k]);});e.r.essais=X.par[i];}); /* les épreuves ventilées entrent dans les postes de chaque zone */const marge=ch.marge===undefined||ch.marge===null||ch.marge===''?0.125:num(ch.marge);const rc=ch.rcfa===undefined||ch.rcfa===null||ch.rcfa===''?(base&&base.fo&&base.fo.tables?(rcfaOfBase(base,client)??0):0):num(ch.rcfa);
   const I=inst?calcInstallations(inst,etudes,base):null;
   const coef=1-(rc+marge);const vente=a=>coef>0?a/coef:a;const hors=ch.horsMl||{};
   const postes=POSTES.map(([k,label,grp,tete])=>{if(tete)return {k,label,tete:true};const iL=I?(I.postes[k]||L()):L();const achat=etudes.reduce((s,e)=>s+(e.r.postes[k]||L()).achat,0)+iL.achat;const cat=addL(etudes.reduce((s,e)=>addL(s,e.r.postes[k]||L()),L()),iL);return {k,label,grp,achat,vente:vente(achat),mo:cat.mo,fo:cat.fo,st:cat.st,loc:cat.loc,par:etudes.map(e=>(e.r.postes[k]||L()).achat),inst:iL.achat,horsMl:!!hors[k]};});
   const achat=postes.filter(p=>!p.tete).reduce((s,p)=>s+p.achat,0);const V=vente(achat);const ml=etudes.reduce((s,e)=>s+(e.r.ml||0),0);const venteMl=postes.filter(p=>!p.tete&&!p.horsMl).reduce((s,p)=>s+p.vente,0);
   const cat={mo:postes.reduce((s,p)=>s+(p.mo||0),0),fo:postes.reduce((s,p)=>s+(p.fo||0),0),st:postes.reduce((s,p)=>s+(p.st||0),0),loc:postes.reduce((s,p)=>s+(p.loc||0),0)};
-  return {etudes,inst:I,postes,achat,vente:V,rcfa:V*rc,rcfaPct:rc,marge,margeEur:V-achat-V*rc,coef,ml,parMl:ml?V/ml:0,parMlHors:ml?venteMl/ml:0,cat,empty:!base||!base.mo||!base.mo.cad||!base.mo.cad.length,nb:etudes.reduce((s,e)=>s+((e.r.T||{}).J||0),0)};}
+  return {etudes,inst:I,essais:X,postes,achat,vente:V,rcfa:V*rc,rcfaPct:rc,marge,margeEur:V-achat-V*rc,coef,ml,parMl:ml?V/ml:0,parMlHors:ml?venteMl/ml:0,cat,empty:!base||!base.mo||!base.mo.cad||!base.mo.cad.length,nb:etudes.reduce((s,e)=>s+((e.r.T||{}).J||0),0)};}

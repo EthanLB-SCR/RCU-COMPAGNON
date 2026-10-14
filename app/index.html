@@ -771,6 +771,7 @@ button.gd-cell{cursor:pointer}.gd-cell .gd-d{font-weight:800;font-size:12.5px;li
 .cm-page{position:relative;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.15);margin:0 auto 12px;overflow:hidden}.cm-page .cm-cv{display:block}
 .cm-pagetxt{width:100%;max-width:820px;padding:22px 26px;font-size:14px;line-height:1.55;color:#1d1d1b}.cm-para{margin:0 0 9px}.cm-h1{font-size:18px;font-weight:800;margin:14px 0 8px}.cm-h2{font-size:15.5px;font-weight:800;margin:12px 0 6px;color:#14213d}.cm-h3{font-size:14px;font-weight:700;margin:10px 0 5px}.cm-txthead{border-bottom:1px solid var(--line);margin:0 0 10px;padding-bottom:6px}.cm-txthead b{display:block}.cm-txthead small{color:var(--ink2)}
 .cm-xl{font-size:12px;width:100%}.cm-xl td{border:1px solid #e3e1da;padding:2px 6px;white-space:nowrap}
+.cm-xl td.cm-xlr,.cm-xl .cm-xlh td{background:#f1f0ec;color:#8a877e;font-size:10.5px;text-align:center;user-select:none;-webkit-user-select:none;min-width:22px;padding:1px 4px}.cm-xl td.cm-xlr::before{content:attr(data-r)}.cm-xl .cm-xlh td::before{content:attr(data-c)}.cm-xl .cm-xlh td{position:sticky;top:0;z-index:1} /* 14/10 nuit : vraies cellules (lettres / n° de ligne Excel, hors texte) */
 .textLayer{position:absolute;left:0;top:0;right:0;bottom:0;overflow:hidden;line-height:1;text-align:initial;opacity:1;text-size-adjust:none;forced-color-adjust:none;transform-origin:0 0;z-index:2}.textLayer span,.textLayer br{color:transparent;position:absolute;white-space:pre;cursor:text;transform-origin:0% 0%}.textLayer ::selection{background:rgba(31,111,208,.35)}.textLayer .endOfContent{display:block;position:absolute;left:0;top:100%;right:0;bottom:0;z-index:-1;cursor:default;user-select:none}
 .cm-hl{position:absolute;z-index:1;border-radius:2px;cursor:pointer;mix-blend-mode:multiply;transition:box-shadow .15s}.cm-hl.chiffrage{background:#fff2a8;border-bottom:2px solid #e8c431}.cm-hl.memoire{background:#dff3e6;border-bottom:2px solid #15673a}.cm-hl.risque{background:#fde3d7;border-bottom:2px solid #eb6834}.cm-hl.question{background:#e6eefc;border-bottom:2px solid #1f6fd0}.cm-hl.info{background:#ecebe5;border-bottom:2px solid #8a877f}
 .cm-hl.hov,.cm-hl.flash{box-shadow:0 0 0 2px #1d1d1b;z-index:3}.cm-n.hov,.cm-n.flash{box-shadow:0 0 0 2px #1d1d1b;background:#fff}.cm-ngo{font:inherit;padding:0}
@@ -892,6 +893,66 @@ body.cm-win{margin:0;background:#ecebe5;height:100vh;display:flex;flex-direction
   .eq-poignee{display:none}
 }
 
+
+/* 13/10 soir : épreuves (prix retenu), contrôles CND en tableau, détail des prestations */
+.ch-prix{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ch-prix>small{color:var(--ink2);font-size:11px}
+.ch-pmode{width:auto;min-width:170px;margin:0;min-height:32px;font-size:12px}
+.ch-prl .ch-cnd-h b{min-width:150px}
+.ch-es{border-color:#bcd3f2}
+.ch-cndt td,.ch-cndt th{white-space:nowrap}
+.ch-cndt th small{display:block;font-weight:400;white-space:normal;max-width:160px}
+.ch-pdt .ch-pair{flex-wrap:nowrap}
+.ch-pdt .ch-pair input.ch-n{width:78px}
+@media (max-width:640px){.ch-prl .ch-cnd-h b{min-width:0;flex-basis:100%}.ch-pmode{min-width:0;max-width:100%}.ch-glob{margin:0}}
+
+/* 13/10 nuit : notes du DCE en bulle + panneau latéral (chiffrage) */
+.cm-nbub{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:4px 12px;border-radius:999px;border:1.5px solid #e2b36b;background:#fff8ec;color:#7a5200;font-weight:700;font-size:13px;margin:0 0 6px}
+.cm-nbub.ok{border-color:#9ed1b0;background:#eefaf2;color:#15673a}
+.cm-nbadge{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:#d03b3b;color:#fff;font-size:12px;font-weight:800}
+.cm-nbadge.ok{background:#15803d}
+.cm-ndrawer{position:fixed;top:0;right:0;bottom:0;width:min(420px,100vw);background:var(--surface,#fff);box-shadow:-8px 0 30px rgba(0,0,0,.18);z-index:60;display:flex;flex-direction:column}
+.cm-ndh{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.cm-ndh .hint{flex:1}
+.cm-ndb{overflow:auto;padding:8px 10px;flex:1;-webkit-overflow-scrolling:touch}
+.cm-ndb .cm-notes{margin:0 0 8px}
+
+/* 13/10 nuit : atelier DPGF — prix composés et pointage */
+.cm-cdot{display:inline-block;width:10px;height:10px;border-radius:50%;margin:0 4px;vertical-align:middle;flex:0 0 auto}
+.cm-dwpt{width:100%;font-size:12.5px}
+.cm-dwpt td,.cm-dwpt th{padding:4px 6px}
+.cm-dwpt tr.on td{background:#eef4fd}
+.cm-dwpk{display:inline-flex;align-items:center;justify-content:center;min-width:32px;min-height:32px}
+.cm-dwpk input{width:18px;height:18px}
+.cm-cc{display:flex;align-items:stretch;gap:4px;margin:4px 0;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.cm-cc.on{border-color:#1f6fd0;box-shadow:0 0 0 2px #cfe0f7}
+.cm-cc.done{opacity:.75}
+.cm-cc.over{border-color:#d03b3b}
+.cm-ccb{flex:1;text-align:left;background:none;border:0;padding:6px 8px;min-height:44px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:12.5px;cursor:pointer}
+.cm-ccb .m{margin-left:auto;font-weight:700}
+.cm-ccb small{flex-basis:100%;color:var(--ink2)}
+.cm-cca{display:flex;flex-direction:column;justify-content:center;gap:2px;padding:0 6px}
+.cm-cca .lnk{min-height:28px;min-width:28px}
+.cm-dwpchip{background:#eef4fd;border-color:#bcd3f2}
+/* 14/10 nuit — passe téléphone (audit : test/audit_mobile.mjs) : rien ne dépasse de l'écran du téléphone, la PAGE ne défile jamais en largeur
+   (un grand tableau défile DANS sa carte) ; boutons principaux d'au moins 40 px de haut (gants). Règles ciblées, téléphone seulement (≤ 600 px). */
+@media (max-width:600px){
+  .btn{max-width:100%}
+  .eq-acts .btn{flex:0 1 auto;min-width:0;white-space:normal}
+  .btn.primary{min-height:40px}
+  .btn.block{min-height:44px}
+  table.rc{display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .admNav{flex-wrap:wrap;min-width:0}
+  .admNav button{flex:1 1 auto}
+  .ac-two{grid-template-columns:minmax(0,1fr)}
+  .ac-two>*{min-width:0}
+  .ac-stats{grid-template-columns:repeat(auto-fit,minmax(80px,1fr))}
+  .ac-stat b{font-size:18px}
+  .ac-stat b,.ac-stat small{overflow-wrap:break-word}
+  .eq-app .btn{white-space:normal}
+  .eq-app .eq-subs .btn,.eq-app .eq-filtres .btn,.eq-app .chips .btn{white-space:nowrap}
+  .ct-seg button{min-height:40px}
+}
 </style>
 </head>
 <body>

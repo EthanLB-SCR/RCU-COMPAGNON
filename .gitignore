@@ -21,3 +21,9 @@ app/sql/blocs_memoire*.sql
 app/sql/liste_*
 prive/
 SCR-PRIVE/
+
+# 13/10/2026 (nuit) : docs/ = l'appli publiée par GitHub Pages — RIEN d'autre n'y entre dans le dépôt (documents SCR, mémoires, livrets… restent sur le poste)
+/docs/*
+!/docs/index.html
+!/docs/traceur.html
+!/docs/.nojekyll

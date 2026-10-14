@@ -49,9 +49,12 @@ out=await page.evaluate(()=>{const b=window.TRACE.reg.all('prix')[0];return {n:(
 console.log('3) réimport :',JSON.stringify(out));C.c3=out.n===1&&out.links===1&&out.imp;
 // ── 4) l'ATELIER DPGF : coûts à gauche (postes de la zone, prix de vente), la feuille du client à droite (n° de ligne Excel) ; ancienne vue repliée
 await click('tab|dpgf');await page.setInputFiles('#eq-app [data-afdpgf]',path.join(HERE,'fixture_dpgf.xlsx'));await wait(900);
+/* 14/10 nuit : l'atelier s'ouvre en mode « Prix composés · pointage » (défaut) ; l'ancien mode « Coûts à placer » (ce que vérifie cette suite) s'obtient par dwmode|couts */
+const mode0=await page.evaluate(()=>{const b=document.querySelector('#eq-app [data-act=af][data-v="dwmode|compo"]');return b?b.classList.contains('active'):null;});
+await click('dwmode|couts');
 out=await page.evaluate(()=>{const w=document.querySelector('#eq-app .cm-dw');const costs=[...document.querySelectorAll('#eq-app .cm-dwc')].map(b=>b.querySelector('.t').textContent);const rows=[...document.querySelectorAll('#eq-app .cm-dwt tr.cm-dwrow')].map(r=>r.querySelector('.xr').textContent);const old=document.querySelector('#eq-app details.cm-dwold');return {w:!!w,costs,rows,idle:!!document.querySelector('#eq-app .cm-dwsel.idle'),old:old?{open:old.open,map:!!old.querySelector('.cm-dpmap')}:null};});
-console.log('4) atelier :',JSON.stringify(out));
-C.c4=out.w&&out.costs.includes('Manchons')&&out.costs.includes('Soudure (compris manutention)')&&out.rows.length===5&&out.rows.every(x=>/^\d+$/.test(x))&&out.idle&&out.old&&!out.old.open&&out.old.map;
+console.log('4) atelier :',JSON.stringify({mode0,...out}));
+C.c4=mode0===true&&out.w&&out.costs.includes('Manchons')&&out.costs.includes('Soudure (compris manutention)')&&out.rows.length===5&&out.rows.every(x=>/^\d+$/.test(x))&&out.idle&&out.old&&!out.old.open&&out.old.map;
 // ── 5) toucher un coût puis une ligne → « Placer » : 100 % sur sa propre quantité → PU = montant ÷ quantité ; le coût passe « tout placé »
 const costKey=async lab=>page.evaluate(l=>{const b=[...document.querySelectorAll('#eq-app .cm-dwc')].find(x=>x.querySelector('.t').textContent===l);return b?decodeURIComponent(b.dataset.v.split('|').slice(1).join('|')):null;},lab);
 const kMan=await costKey('Manchons');const kSou=await costKey('Soudure (compris manutention)');const enc=encodeURIComponent;
