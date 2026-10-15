@@ -11,13 +11,13 @@
 //    variante) + autres pièces. Pour chacun : ⤓ l'original, 📎 la version complétée / signée, statut, « dans la remise » oui / non.
 //    Données : a.offre.oblig = {items:{<clé>:{inc, off, force, file:{id, name, size, type, url, local, at, by, v, total}, prev:[…]}}, custom:[{id, label}]}
 //    (clés : f:<id de la pièce du DCE>, e:<id entdoc>, p:dpgf|memoire|planning|variante, c:<id>) — dans a.offre : figé avec chaque version de chiffrage.
-// 3) 📦 DOSSIER DE REMISE (.zip) : les pièces cochées (formulaires complétés, documents de l'entreprise, mémoire Word, DPGF Excel du client remplie ou CSV, dépôts)
+// 3) 📦 DOSSIER DE REMISE (.zip) : les pièces cochées (formulaires complétés, documents de l'entreprise, mémoire en PDF — 14/10 soir (lot M3), sinon Word —, DPGF Excel du client remplie ou CSV, dépôts)
 //    + 00_Bordereau_des_pieces.html ; les manquantes sont listées dans le bordereau.
 import {regAll,regGet,regSet,regPending} from './reg.js';
 import {affGet,affSet,affState,calcAffaire,affWithVirtual} from './affaires.js';
 import {docsOf,catOf,docBlob} from './dce.js';
 import {stepState,memoireVars,memoireDocHTML,dpgfCSV} from './commerce.js';
-import {memLib,memLibMode,memLibDocHTML,memLibDocx} from './memoire2.js';
+import {memLib,memLibMode,memLibDocHTML,memLibDocx,memLibPdf} from './memoire2.js'; // 14/10 soir (lot M3) : mémoire en PDF dans le dossier de remise
 import {isXlDpgf,buildDossier} from './dpgfxl.js'; // 14/10 intégration : la DPGF du zip = le fichier du client tel que la grille « comme dans Excel » l'exporte (lot C)
 import {zipEntries,inflate,setCellsXml,rezip,colName} from './xlsx.js';
 import {docHTML} from './charte.js';
@@ -135,9 +135,9 @@ export function obligItems(a){const O=obligOf(a);const I=O.items||{};const cur=a
   const S=stepState(a);const D=a.dpgf||{};const L=(D.lignes||[]).filter(l=>!l.section);const M=a.memoire||{};const variante=/autoris|impos/.test(String((a.consult||{}).variante||''));
   const prod=PROD.filter(p=>p[0]!=='variante'||variante||(I['p:variante']||{}).file).map(([k,l,tab])=>{const key='p:'+k;const it=I[key]||{};let st;
     if(k==='dpgf')st=it.file?fileSt(it,true):!L.length?{sev:'todo',t:'pas encore importée (6 · DPGF)'}:S.dpgf?{sev:'ok',t:'remplie · total = prix de vente'}:{sev:'warn',t:'écart avec le prix de vente ou PU manquants'};
-    else if(k==='memoire')st=it.file?fileSt(it,false):S.memoire?{sev:'ok',t:'prêt (généré en Word)'}:((M.sections||[]).length||M.lib)?{sev:'warn',t:'en cours (5 · Mémoire)'}:{sev:'todo',t:'à rédiger (5 · Mémoire)'};
+    else if(k==='memoire')st=it.file?fileSt(it,false):S.memoire?{sev:'ok',t:'prêt (généré en '+(memLib()&&memLibMode(a)==='lib'?'PDF':'Word')+')'}:((M.sections||[]).length||M.lib)?{sev:'warn',t:'en cours (5 · Mémoire)'}:{sev:'todo',t:'à rédiger (5 · Mémoire)'};
     else st=fileSt(it,k==='variante')||{sev:'todo',t:'à déposer'};
-    return {key,grp:'prod',type:k,label:l,tab,it,file:it.file||null,st,inc:incOf(key,k!=='variante')};});
+    return {key,grp:'prod',type:k,label:l,tab,it,file:it.file||null,st,inc:incOf(key,k!=='variante'),pdf:k==='memoire'&&!!memLib()&&memLibMode(a)==='lib'};});
   const custom=(O.custom||[]).map(c=>{const key='c:'+c.id;const it=I[key]||{};return {key,grp:'autre',label:c.label,cid:c.id,it,file:it.file||null,st:fileSt(it,false)||{sev:'todo',t:'à déposer'},inc:incOf(key,true)};});
   const all=forms.concat(ent,prod,custom);return {forms,ign,ent,prod,custom,all,cur,tot};}
 const ready=x=>x.st&&x.st.sev==='ok';
@@ -152,7 +152,7 @@ function rowHTML(a,x,ro){const d=x.doc;const f=x.file;const btn=(v,l,t,cls)=>`<b
   if(x.grp!=='ent'){if(f)acts.push(btn('obget|'+x.key,'⤓ '+(x.grp==='form'?'Complété':'Déposé'),f.name));if(!ro)acts.push(btn('obfile|'+x.key,f?'📎 Remplacer':(x.grp==='form'?'📎 Déposer le complété':'📎 Déposer'),x.grp==='form'?'La version remplie / signée (PDF, Word, scan)':'',f?'':'primary'));if(f&&!ro)acts.push(btn('obunfile|'+x.key,'✕','Retirer le dépôt','dob-x'));}
   if(x.grp==='form'&&!ro)acts.push(btn('oboff|'+x.key,'🚫','Pas à remettre (ce n\'est pas un formulaire de cette consultation)'));if(x.grp==='autre'&&!ro)acts.push(btn('obcrm|'+x.cid,'🗑','Retirer cette pièce de la liste'));
   const fn=f?esc(f.name)+(f.url?'':' <span title="Pas encore au serveur : redépose-le connecté pour le partager">· 📱 sur cet appareil</span>'):'';
-  const sub=x.grp==='form'?esc(d.name)+(f?' → '+fn:''):x.grp==='ent'?esc(x.ent.title||'')+(x.ent.file?' · '+esc(x.ent.file):''):x.grp==='prod'&&x.type==='memoire'?'généré depuis 5 · Mémoire (Word)'+(f?' + '+fn:''):x.grp==='prod'&&x.type==='dpgf'?'générée depuis 6 · DPGF (Excel du client, sinon CSV)'+(f?' + '+fn:''):f?fn:'pièce à joindre (PDF, Word, Excel…)';
+  const sub=x.grp==='form'?esc(d.name)+(f?' → '+fn:''):x.grp==='ent'?esc(x.ent.title||'')+(x.ent.file?' · '+esc(x.ent.file):''):x.grp==='prod'&&x.type==='memoire'?'généré depuis 5 · Mémoire ('+(x.pdf?'PDF':'Word')+')'+(f?' + '+fn:''):x.grp==='prod'&&x.type==='dpgf'?'générée depuis 6 · DPGF (Excel du client, sinon CSV)'+(f?' + '+fn:''):f?fn:'pièce à joindre (PDF, Word, Excel…)';
   return `<div class="dob-row ${x.inc?'':'off'}" data-key="${esc(x.key)}"><div class="dob-rh"><label class="dob-inc" title="Dans la remise (dossier .zip)"><input type="checkbox" data-act="af" data-v="obinc|${esc(x.key)}" ${x.inc?'checked':''} ${ro?'disabled':''}></label><span class="tx"><b>${esc(x.label)}</b><small>${sub}</small></span><span class="dob-st ${x.st.sev}" title="${esc(x.st.t)}">${esc(x.st.t)}</span></div>${acts.length?`<div class="dob-ra">${acts.join('')}</div>`:''}</div>`;}
 export function docsObligHTML(a,canEdit,ctx,R0){lotDCss();const ro=!canEdit;const R=R0||obligItems(a);const inc=R.all.filter(x=>x.inc);const okN=inc.filter(ready).length;const bad=inc.filter(x=>x.st.sev==='bad').length;
   const others=docsOf(a).filter(d=>!d.superseded&&!d.archive&&d.text===undefined&&!d.ver&&!R.forms.some(x=>x.doc.id===d.id)&&!R.ign.some(x=>x.doc.id===d.id));
@@ -210,18 +210,21 @@ async function dpgfXlsxBytes(a){const D=a.dpgf||{};if(!D.kept)return null;let fi
   return {name:String(D.fichier||'DPGF.xlsx').replace(/\.xlsx$/i,'')+'_SCR.xlsx',u8:await rezip(Z,rep)};}
 function memoireDocx(a){if(a&&a._vview&&!a._vwrap)return affWithVirtual(a,()=>memoireDocx(Object.assign({},a,{_vwrap:true}))); /* la partie synchrone (modèle du document) est faite sous la version consultée */try{if(memLib()&&memLibMode(a)==='lib')return memLibDocx(a,memoireVars(a),null);}catch(e){console.warn(e);}return null;}
 function memoireWord(a){if(a&&a._vview&&!a._vwrap)return affWithVirtual(a,()=>memoireWord(Object.assign({},a,{_vwrap:true}))); /* version consultée : le mémoire de CETTE version */try{if(memLib()&&memLibMode(a)==='lib')return memLibDocHTML(a,memoireVars(a),{word:true});}catch(e){console.warn(e);}if(((a.memoire||{}).sections||[]).length)return memoireDocHTML(a);return null;}
+/* 14/10 soir (lot M3) : le mémoire en PDF (comme « ⬇ PDF ») ; PDF impossible (hors connexion sans moteur, fichiers absents…) → .docx, avec un message */
+function memoirePdf(a){if(a&&a._vview&&!a._vwrap)return affWithVirtual(a,()=>memoirePdf(Object.assign({},a,{_vwrap:true})));return memLibPdf(a,memoireVars(a),null);}
+let MEMNOTE='';async function memPdfTry(a){if(!(memLib()&&memLibMode(a)==='lib'))return null;try{const u=await memoirePdf(a);if(u&&u.length)return u;}catch(e){console.warn(e);MEMNOTE='mémoire en Word (.docx) : PDF impossible ('+((e&&e.message)||e)+')';}return null;}
 let LAST=null;export const lastZip=()=>LAST;
-export async function remiseZip(a){const R=obligItems(a);const inc=R.all.filter(x=>x.inc);const files={};const map={};const miss=[];const n={form:0,ent:0,prod:0,autre:0};say('Préparation du dossier de remise…');
+export async function remiseZip(a){const R=obligItems(a);const inc=R.all.filter(x=>x.inc);const files={};const map={};const miss=[];const n={form:0,ent:0,prod:0,autre:0};MEMNOTE='';say('Préparation du dossier de remise…');
   const put=async(x,name,blobOrU8)=>{if(!blobOrU8)return false;const u8=blobOrU8 instanceof Uint8Array?blobOrU8:new Uint8Array(await blobOrU8.arrayBuffer());n[x.grp]++;const dir=GRP_DIR[x.grp];let p=dir+'/'+pad(n[x.grp])+'_'+safe(name);let i=2;while(files[p])p=dir+'/'+pad(n[x.grp])+'_'+(i++)+'_'+safe(name);files[p]=u8;(map[x.key]=map[x.key]||[]).push(p);return true;};
   for(const x of inc){let ok=false;
     if(x.grp==='ent'){if(hasFile(x.ent)){const b=await entBlob(x.ent);const ext=(String(x.ent.file||'').match(/\.[a-z0-9]{2,5}$/i)||['.pdf'])[0];ok=await put(x,(x.label||x.ent.title)+ext,b);}}
-    else if(x.grp==='prod'&&x.type==='memoire'){if(x.file)ok=await put(x,x.file.name,await fileBlob(x.file));let dx=null;try{dx=await memoireDocx(a);}catch(e){console.warn(e);}if(dx){await put(x,'Memoire_technique_'+a.num+'.docx',dx);ok=true;}else{const h=memoireWord(a);if(h){await put(x,'Memoire_technique_'+a.num+'.doc',strToU8('﻿'+h));ok=true;}}}
+    else if(x.grp==='prod'&&x.type==='memoire'){if(x.file)ok=await put(x,x.file.name,await fileBlob(x.file));let dx=null;const pdf=await memPdfTry(a);if(pdf){await put(x,'Memoire_technique_'+a.num+'.pdf',pdf);ok=true;}else{try{dx=await memoireDocx(a);}catch(e){console.warn(e);}}if(dx){await put(x,'Memoire_technique_'+a.num+'.docx',dx);ok=true;}else if(!pdf){const h=memoireWord(a);if(h){await put(x,'Memoire_technique_'+a.num+'.doc',strToU8('﻿'+h));ok=true;}}}
     else if(x.grp==='prod'&&x.type==='dpgf'){if(x.file)ok=await put(x,x.file.name,await fileBlob(x.file));if(((a.dpgf||{}).lignes||[]).length){let X=null;if(isXlDpgf(a)){try{const R=await buildDossier(a);if(R&&R.bytes)X={name:R.name,u8:R.bytes};}catch(e){console.warn(e);}} /* grille du lot C (saisies, lignes insérées, formules) ; sinon l'ancienne écriture des PU */if(!X)try{X=await dpgfXlsxBytes(a);}catch(e){console.warn(e);}if(X){await put(x,X.name,X.u8);ok=true;}else{await put(x,'DPGF_'+a.num+'.csv',strToU8(dpgfCSV(a)));ok=true;}}}
     else if(x.file)ok=await put(x,x.file.name,await fileBlob(x.file));
     if(!ok)miss.push(x.label+(x.grp==='form'?' ('+x.doc.name+')':''));}
   const Z={map,miss};files['00_Bordereau_des_pieces.html']=strToU8(bordereauHTML(a,Z));
   const z=zipSync(files,{level:6});const name='Offre_'+safe(a.num)+'_v'+(a.chiffrageV||1)+'_'+todayIso()+'.zip';download(new Blob([z],{type:'application/zip'}),name);
-  LAST={name,files:Object.keys(files).sort(),miss,size:z.length};say('📦 '+name+' · '+(Object.keys(files).length-1)+' fichier'+(Object.keys(files).length>2?'s':'')+(miss.length?' · '+miss.length+' manquant'+(miss.length>1?'s':'')+' (voir le bordereau)':''));return LAST;}
+  LAST={name,files:Object.keys(files).sort(),miss,size:z.length,memNote:MEMNOTE};say('📦 '+name+' · '+(Object.keys(files).length-1)+' fichier'+(Object.keys(files).length>2?'s':'')+(miss.length?' · '+miss.length+' manquant'+(miss.length>1?'s':'')+' (voir le bordereau)':'')+(MEMNOTE?' · '+MEMNOTE:''));return LAST;}
 /* ═════════ 5 · LE MODULE BRANCHÉ (SCR → Documents de l'entreprise ; « À faire ») ═════════ */
 function hook(){try{if(typeof window!=='undefined'&&window.TRACE&&!window.TRACE.docsOblig)window.TRACE.docsOblig={ent:entList,state:entState,items:a=>obligItems(a),zip:a=>remiseZip(a),lastZip,formType};}catch(e){}} /* tests */
 function tasks(me,ctx){hook();if(!canEnt(me,ctx))return [];const L=entList().filter(d=>hasFile(d));const W=L.map(d=>({d,s:entState(d)})).filter(x=>x.s.k==='exp'||x.s.k==='soon');if(!W.length)return [];const bad=W.filter(x=>x.s.k==='exp');

@@ -34,7 +34,7 @@ let out=await page.evaluate(()=>({modes:[...document.querySelectorAll('#eq-app .
   cover:(document.querySelector('#memoire-scroll .memoire-cv')||{}).textContent||'',h2col:getComputedStyle(document.querySelector('#memoire-scroll h2')).color,th:getComputedStyle(document.querySelector('#memoire-scroll th')).backgroundColor,redCol:getComputedStyle(document.querySelector('#memoire-scroll .memoire-h')).color}));
 out.txt=await prev();out.tab=await tabOk();out.lib=await A().then(a=>!!(a.memoire&&a.memoire.lib));
 console.log('1) mode bibliothèque :',JSON.stringify({...out,txt:out.txt.slice(0,160)}));
-C.c1=out.modes.join('|')==='📚 Bibliothèque SCR*|✎ Sections libres'&&out.secs===3&&/^2 ?trous à combler/.test(out.stats[0])&&/^9 \/ 12 ?paragraphes cochés/.test(out.stats[1])&&/^5 \/ 5 ?blocs/.test(out.stats[2])&&out.stats.length===5&&/^≈ \d+ · \d+ ?pages Word · PDF/.test(out.stats[4])&&out.red===2&&out.h1===3&&out.h2===5
+C.c1=out.modes.join('|')==='📚 Bibliothèque SCR*|✎ Sections libres'&&out.secs===3&&/^2 ?infos à compléter \(2 trous\)/.test(out.stats[0])&& /* 14/10 soir (lot M2) : la vignette dit « n infos à compléter (m trous) » *//^9 \/ 12 ?paragraphes cochés/.test(out.stats[1])&&/^5 \/ 5 ?blocs/.test(out.stats[2])&&out.stats.length===5&&/^≈ \d+ · \d+ ?pages Word · PDF/.test(out.stats[4])&&out.red===2&&out.h1===3&&out.h2===5
   &&/Testville/.test(out.cover)&&/O2610-31/.test(out.cover)&&/MÉMOIRE\s*TECHNIQUE TEST/.test(out.cover)&&/CLIENT-TEST/.test(out.cover)&&/Objet : Réseau Lib – Testville/.test(out.txt)&&/Fin du mémoire de Réseau Lib/.test(out.txt)&&out.h2col==='rgb(18, 52, 86)'&&out.th==='rgb(255, 102, 1)'&&out.redCol==='rgb(238, 0, 0)'&&!/✓/.test(out.tab)&&!out.lib;
 // ── 2) décocher un paragraphe (section 3 › bloc Annexes) → absent de l'aperçu, choix enregistré sur l'affaire
 await click('mlbsec|2');await click('mlbexp|t-annexes');await click('mlbp|t-annexes-2');
@@ -42,12 +42,14 @@ out={txt:await prev(),sel:await A().then(a=>a.memoire.lib.sel),stat:await page.e
 console.log('2) paragraphe décoché :',JSON.stringify({...out,txt:undefined}));
 C.c2=!/Fin du mémoire/.test(out.txt)&&out.sel['t-annexes-2']===false&&/^8 \/ 12/.test(out.stat);
 // ── 3) cocher un bloc entier (Contrôles : 1 / 2 → 2 / 2) : la variable {{delai}} vide arrive en rouge
+//    14/10 soir (lot M1, règle changée exprès) : la case d'un bloc met son JEU STANDARD — ici déjà là (le paragraphe coché d'office) : case cochée, pas « partielle » ;
+//    tout le bloc (ajouts compris) = lien « ＋ tout le bloc » du détail du bloc
 await click('mlbsec|1');await click('mlbexp|t-controles');
-out={ind:await page.evaluate(()=>document.querySelector('#eq-app input[data-v="mlbb|t-controles"]').indeterminate)};await click('mlbb|t-controles');
+out={ind:await page.evaluate(()=>{const i=document.querySelector('#eq-app input[data-v="mlbb|t-controles"]');return [i.indeterminate,i.checked].join();})};await click('mlbball|t-controles');
 out.after=await page.evaluate(()=>({checked:document.querySelector('#eq-app input[data-v="mlbb|t-controles"]').checked,rows:[...document.querySelectorAll('#eq-app .memoire-prow input')].filter(x=>/t-controles/.test(x.dataset.v)).map(x=>x.checked)}));
 out.holes=await holes();out.txt=await prev();out.redVar=await page.evaluate(()=>!!document.querySelector('#memoire-p-t-controles-2 button.memoire-h[data-v="mlbv|delai"]'));
 console.log('3) bloc coché :',JSON.stringify({...out,txt:undefined}));
-C.c3=out.ind===true&&out.after.checked&&out.after.rows.join()==='true,true'&&out.holes===3&&/Délai d’exécution proposé/.test(out.txt)&&out.redVar;
+C.c3=out.ind==='false,true'&&out.after.checked&&out.after.rows.join()==='true,true'&&out.holes===3&&/Délai d’exécution proposé/.test(out.txt)&&out.redVar;
 // ── 4) combler un trou : le compteur baisse, plus de rouge pour ce trou
 await page.evaluate(()=>document.querySelector('#memoire-p-t-controles-1 button.memoire-h').click());await wait(250);
 out={modal:await page.evaluate(()=>({t:(document.querySelector('#modal.show')||{}).textContent||'',inp:!!document.getElementById('memoire-hv')}))};

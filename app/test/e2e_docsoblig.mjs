@@ -6,6 +6,8 @@
 // (AE, DC1, attestation de visite ; pas le CCTP ni la DPGF), étiquette « à remplir » dans le Dossier ; (4) 7 · Offre : original téléchargé, AE complété déposé,
 // DC1 retiré de la remise, Kbis « expire avant la remise », pièce libre ; liste de contrôle d'origine intacte (6 cases) ; (5) 📦 dossier de remise (.zip) : pièces
 // complétées + documents de l'entreprise + bordereau (manquants listés) ; (6) nouvelle version au prix changé → AE « à refaire » ; (7) droits : soudeur sans accès.
+// 14/10 soir (lot M3) : le mémoire part en PDF dans le dossier de remise quand il est fait avec la bibliothèque SCR (contrôlé dans e2e_memoire_pdf) ; ici, sans
+// bibliothèque, la ligne « Mémoire technique » annonce toujours le Word (sections libres) — contrôle ajouté au (4).
 import { chromium } from 'playwright';
 import { unzipSync, strFromU8 } from 'fflate';
 import fs from 'fs';
@@ -56,7 +58,7 @@ console.log('3) DCE et formulaires :',JSON.stringify(out));
 C.c3=out.pieces.length===5&&out.pieces.every(p=>/:L$/.test(p))&&out.tags.sort().join('|')==='AE_lot_2.pdf|Attestation de visite.pdf|DC1.pdf'&&out.ft==='ae,cadre,,,dume,dc2,';
 // ── 4) 7 · Offre : documents obligatoires — original téléchargé, AE complété déposé, DC1 hors remise, Kbis « expire avant la remise », pièce libre
 await click('tab|offre');
-out={sec:await page.evaluate(()=>{const s=document.getElementById('dob-offre');const rows=[...document.querySelectorAll('#dob-offre .dob-row')].map(r=>r.dataset.key+'='+r.querySelector('.dob-st').textContent);return {h:s&&s.querySelector('h3').textContent,rows,taches:document.querySelectorAll('#eq-app .cm-tache').length,forms:/Formulaires du DCE à remplir · 3/.test(s.textContent)};})};
+out={sec:await page.evaluate(()=>{const s=document.getElementById('dob-offre');const rows=[...document.querySelectorAll('#dob-offre .dob-row')].map(r=>r.dataset.key+'='+r.querySelector('.dob-st').textContent);return {h:s&&s.querySelector('h3').textContent,rows,taches:document.querySelectorAll('#eq-app .cm-tache').length,forms:/Formulaires du DCE à remplir · 3/.test(s.textContent),mem:(document.querySelector('#dob-offre .dob-row[data-key="p:memoire"] .tx small')||{}).textContent||''};})};
 const ids=await page.evaluate(n=>{const a=window.TRACE.affaires.get(n);const id=nm=>(a.dce.find(d=>d.name===nm)||{}).id;return {ae:id('AE_lot_2.pdf'),dc1:id('DC1.pdf'),vis:id('Attestation de visite.pdf')};},NUM);
 const [dlo]=await Promise.all([page.waitForEvent('download',{timeout:8000}),click('oborig|'+ids.ae)]);out.orig=dlo.suggestedFilename();
 await click('obfile|f:'+ids.ae);await page.setInputFiles('#dob-pick',{name:'AE_lot_2_signe.pdf',mimeType:'application/pdf',buffer:pdf('ae signé')});await wait(900);
@@ -67,7 +69,7 @@ await click('obfile|c:'+cid);await page.setInputFiles('#dob-pick',{name:'referen
 out.after=await page.evaluate(([n,ids])=>{const a=window.TRACE.affaires.get(n);const I=a.offre.oblig.items;const st=k=>{const r=document.querySelector(`#dob-offre .dob-row[data-key="${k}"] .dob-st`);return r?r.textContent:'';};
   return {ae:I['f:'+ids.ae].file&&{name:I['f:'+ids.ae].file.name,v:I['f:'+ids.ae].file.v,local:I['f:'+ids.ae].file.local},aeSt:st('f:'+ids.ae),dc1:I['f:'+ids.dc1].inc,kbis:st('e:kbis'),urssaf:st('e:urssaf'),rib:!!document.querySelector('#dob-offre .dob-row[data-key="e:rib"] input:checked'),hint:[...document.querySelectorAll('#eq-app .cm-tache small')].map(x=>x.textContent).join(' | '),taches:document.querySelectorAll('#eq-app .cm-tache').length,custom:st('c:'+a.offre.oblig.custom[0].id)};},[NUM,ids]);
 console.log('4) 7 · Offre :',JSON.stringify(out));
-C.c4=/Documents obligatoires/.test(out.sec.h)&&out.sec.forms&&out.sec.taches===6&&out.sec.rows.some(r=>/^e:assurance_decennale=à déposer/.test(r))&&!out.sec.rows.some(r=>/CCTP|DPGF à/.test(r))&&out.orig==='AE_lot_2.pdf'
+C.c4=/Documents obligatoires/.test(out.sec.h)&&out.sec.forms&&/^généré depuis 5 · Mémoire \(Word\)/.test(out.sec.mem)&&out.sec.taches===6&&out.sec.rows.some(r=>/^e:assurance_decennale=à déposer/.test(r))&&!out.sec.rows.some(r=>/CCTP|DPGF à/.test(r))&&out.orig==='AE_lot_2.pdf'
   &&out.after.ae&&out.after.ae.name==='AE_lot_2_signe.pdf'&&out.after.ae.v===1&&out.after.ae.local&&/complété · déposé le/.test(out.after.aeSt)&&out.after.dc1===false&&/expire avant la remise/.test(out.after.kbis)&&/valide jusqu'au/.test(out.after.urssaf)&&!out.after.rib
   &&/AE complété déposé ✓/.test(out.after.hint)&&/documents administratifs valides/.test(out.after.hint)&&out.after.taches===6&&/^déposé le/.test(out.after.custom);
 // ── 5) 📦 dossier de remise (.zip) : pièces cochées et complétées, documents de l'entreprise, bordereau avec les manquants

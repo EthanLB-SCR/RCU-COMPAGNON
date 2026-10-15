@@ -27,3 +27,10 @@ SCR-PRIVE/
 !/docs/index.html
 !/docs/traceur.html
 !/docs/.nojekyll
+
+# 14/10/2026 (nuit) : export PDF du mémoire — moteur (pdfmake, licence MIT) et police (Carlito, licence OFL) servis À CÔTÉ de l'appli, publiés aussi dans docs/
+!/docs/vendor/
+!/docs/fonts/
+
+# Sorties déposées par Claude dans le dossier (zips de documents SCR…) : jamais dans le dépôt
+Claude outputs/

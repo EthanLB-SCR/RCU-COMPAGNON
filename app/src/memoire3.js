@@ -140,6 +140,13 @@ export const VAR_LAB3={chargeEmail:'e-mail du chargé d’affaires',chargeTel:'t
   nbEpreuves:'nombre d’épreuves hydrauliques',nbDecharg:'nombre de déchargements',radioPct:'% de soudures radiographiées',purgesDn:'DN des purges',purgesPaires:'nombre de paires de purges',vidangesDn:'DN des vidanges',vidangesPaires:'nombre de paires de vidanges',
   vidangesType:'type de vidange',typeManchon:'type de manchon',assureurRc:'assureur (responsabilité civile)',policeRc:'n° de police (responsabilité civile)',validiteRc:'validité de l’attestation RC',assureurDec:'assureur (décennale)',policeDec:'n° de police (décennale)',validiteDec:'validité de l’attestation décennale',
   listeDn:'diamètres, ml et soudures (chiffrage)',listeEssais:'épreuves, rinçage et remplissage (chiffrage)',prestationsZones:'prestations par zone (chiffrage)',datesZones:'dates des zones (chiffrage)',docsDce:'documents du DCE',listeRacc:'raccordements (chiffrage)',listeSst:'sous-stations (chiffrage)',docsEntreprise:'documents d’entreprise',autresPrestations:'autres prestations (chiffrage)',autresFournitures:'autres fournitures (chiffrage)'};
+/* 14/10 soir (lot M2) : variables des trous remplis d'office en plus (contacts par personne, fronts, radio feeder / antennes, zones, raccordements, visite, vidanges) */
+Object.assign(VAR_LAB3,{nbFronts:'nombre de fronts (= équipes)',radioFd:'% de soudures radiographiées (feeder)',radioAnt:'% de soudures radiographiées (antennes)',zonesListe:'zones et linéaires (chiffrage)',raccTxt:'raccordements : nombre et DN (chiffrage)',
+  vidangesMode:'type de vidange (et déport)',visiteTxt:'visite du site (1 · Dossier) ou analyse sur plans',admin:'administratif et finances',chargeNomTel:'nom et téléphone du chargé d’affaires',
+  reContact:'contact du responsable d’exploitation (téléphone · e-mail)',chargeContact:'contact du chargé d’affaires (téléphone · e-mail)',cdtxContact:'contact du conducteur de travaux (téléphone · e-mail)',chefContact:'contact du chef de chantier (téléphone · e-mail)',
+  qhseContact:'contact du responsable QHSE (téléphone · e-mail)',adminContact:'contact administratif (téléphone · e-mail)',chefTel:'téléphone du chef de chantier',chefEmail:'e-mail du chef de chantier',qhseTel:'téléphone du responsable QHSE',qhseEmail:'e-mail du responsable QHSE',
+  adminTel:'téléphone administratif',adminEmail:'e-mail administratif'});
+const etList=l=>l.length<2?(l[0]||''):l.slice(0,-1).join(', ')+' et '+l[l.length-1];
 /* variables calculées : V (déjà là : nom, ville, client, nb, ml, jS…) complété ; I = interlocuteurs, E = documents d'entreprise */
 export function memVars3(a,F,I,E){a=a||{};const out={};const z=F.zones;const one=x=>x===undefined||x===null?'':x;
   const P=p=>p||{};out.chargeEmail=P(I.charge).email||'';out.chargeTel=P(I.charge).tel||'';out.email=out.chargeEmail;out.tel=out.chargeTel;out.chargeFonction=a.charge?'Chargé d’affaires':'';
@@ -171,6 +178,16 @@ export function memVars3(a,F,I,E){a=a||{};const out={};const z=F.zones;const one
   const pr=[...new Set(z.flatMap(x=>x.q?x.q.prest.concat(x.q.paniers):[]))];if(pr.length)out.autresPrestations=R(`<ul>${pr.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`);
   const fo=[...new Set(z.flatMap(x=>x.q?x.q.four:[]))];if(fo.length)out.autresFournitures=R(`<ul>${fo.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`);
   out.docsEntreprise=R(docsEntHTML(E));
+  /* 14/10 soir (lot M2) : contact de chaque interlocuteur (« 06 … · prenom.nom@… »), fronts = équipes, radio feeder / antennes, zones, raccordements, visite, vidanges */
+  const ct=p=>p?[p.tel,p.email].filter(Boolean).join(' · '):'';const adm=I.admin||[];const pn=p=>persName(p)||p.name||'';
+  out.reContact=ct(I.re);out.chargeContact=ct(I.charge);out.cdtxContact=ct(I.cdtx);out.chefContact=ct(I.chef);out.qhseContact=ct(I.qhse);out.adminContact=adm.map(ct).filter(Boolean).join(' ; ');
+  out.chefTel=P(I.chef).tel||'';out.chefEmail=P(I.chef).email||'';out.qhseTel=P(I.qhse).tel||'';out.qhseEmail=P(I.qhse).email||'';out.adminTel=adm.map(p=>p.tel).filter(Boolean).join(' ; ');out.adminEmail=adm.map(p=>p.email).filter(Boolean).join(' ; ');
+  out.admin=etList(adm.map(pn).filter(Boolean));out.chargeNomTel=I.charge?pn(I.charge)+((I.charge.tel||I.charge.email)?' – '+(I.charge.tel||I.charge.email):''):'';out.nbFronts=out.nbEquipes;
+  const vs=String((a.consult||{}).visite||'').slice(0,10);out.visiteTxt=vs?'la visite du site du '+dFR(vs):'l’analyse sur plans';
+  out.zonesListe=etList(z.map(x=>x.nom+(x.ml?' ('+nb(x.ml)+' ml)':'')));
+  if(F.v2){const rad=z.map(x=>x.q.radio).filter(r=>r.on);const rg=k=>{const v=[...new Set(rad.map(r=>r[k]).filter(x=>x>0))].sort((p,q)=>p-q);return !v.length?'':v.length===1?nb(v[0])+' %':nb(v[0])+' à '+nb(v[v.length-1])+' %';};out.radioFd=rg('fd');out.radioAnt=rg('ant');
+    const vi2=z.find(x=>x.q.vidanges.paires>0);out.vidangesMode=out.vidangesType?out.vidangesType+(vi2&&vi2.q.vidanges.dep?' déportées':''):'';
+    const rb={};z.forEach(x=>x.q.racc.forEach(r=>{rb[r.dn]=(rb[r.dn]||0)+r.q;}));out.raccTxt=etList(Object.keys(rb).map(Number).sort((p,q)=>p-q).map(d=>nb(rb[d])+' × DN '+d));}
   return out;}
 /* prestations chiffrées d'UNE zone (li HTML) — par zone quand il y en a plusieurs */
 function zonePrest(x){const q=x.q,P=x.P||{};const has=k=>Math.abs(num(P[k]))>0.005;const L=[];const dns=x.dn.map(r=>r.dn);
@@ -190,7 +207,34 @@ const AUTO_HOLES=[[/^e-?mail( de contact)?$/,'chargeEmail'],[/^telephone( de con
   [/^nom du chef (de chantier|d'equipe)$/,'chef'],[/^nom du maitre d'oeuvre$/,'moe'],[/^nom du maitre d'ouvrage$/,'moa'],[/^nombre de sous-?stations$/,'nbSst'],[/^% de soudures radiographiees$/,'radioPct'],[/^dn des purges$/,'purgesDn'],[/^dn des vidanges$/,'vidangesDn'],
   [/^nombre de vannes( preisolees)?$/,'nbVpi'],[/^date de (demarrage|debut)$/,'debut'],[/^date de fin$/,'fin'],[/^nombre d'equipes$/,'nbEquipes'],[/^nombre de raccordements$/,'nbRacc'],[/^nombre de zones$/,'nbZones'],[/^nom de l'assureur$/,'assureurRc'],[/^n° de police$/,'policeRc'],
   [/^date de remise de l'offre$/,'dateReponse'],[/^nom du signataire scr$/,'charge'],[/^fonction du signataire/,'chargeFonction'],[/^nombre d'epreuves( hydrauliques)?$/,'nbEpreuves'],[/^type de manchon/,'typeManchon']];
+/* 14/10 soir (lot M2, re-scan des trous de la bibliothèque) : fronts = équipes, purges / vidanges (paires), mode des vidanges, taux radio (feeder / antennes),
+   linéaire, total des sous-stations, zones, raccordements, interlocuteurs (administratif, environnement, SAV), lot, visite du site ;
+   « téléphone et e-mail » seul = chargé d'affaires (dans un tableau ou après un nom : la personne de la ligne, memoire_trous.js) */
+AUTO_HOLES.push([/^nombre de fronts\b/,'nbFronts'],[/^nombre de purges$/,'purgesPaires'],[/^nombre de vidanges$/,'vidangesPaires'],[/^par aspiration ou par gravite/,'vidangesMode'],[/^taux de controle radiographique$/,'radioPct'],
+  [/^% (des soudures )?(du )?feeder\b/,'radioFd'],[/^% (des soudures )?(d')?antennes\b/,'radioAnt'],[/^lineaire en ml$/,'ml'],[/^nombre total de sous-?stations$/,'nbSst'],[/^designation et lineaire de chaque zone$/,'zonesListe'],
+  [/^nombre et dn des raccordements$/,'raccTxt'],[/^nom de l'interlocuteur administratif$/,'admin'],[/^nom de l'interlocuteur$/,'charge'],[/^nom et telephone de l'interlocuteur sav$/,'chargeNomTel'],[/^lot du donneur d'ordre\b/,'lot'],
+  [/^visite du site\b/,'visiteTxt'],[/^telephone et e-?mail$/,'chargeContact']);
 export function autoHoleVar(lab){const k=normTxt(lab);for(const [re,v] of AUTO_HOLES)if(re.test(k))return v;return null;}
+/* ═════════ 6 bis · TROUS FACULTATIFS, VALEURS D'ENTREPRISE, CONTACTS, ANNEXES (14/10 soir, lot M2 — libellés génériques normalisés par normTxt) ═════════ */
+/* facultatifs : vides, ils disparaissent de l'export (séparateurs orphelins nettoyés) — seulement à une place où la phrase reste juste sans eux (memoire_trous.js) */
+export const OPT_HOLES=[/^reference et indice du document/,/\ble cas echeant\b/,/\bsi exigee?s?\b/,/^n° d'annexe ou de figure$/,/^adresse et telephone\b/,/^dn ou troncons concernes/,/^produit de passivation/,/^points d'arret complementaires/,/^objet du detail/,
+  /^(date|duree|conforme \/ non conforme|pression (initiale|finale) en bar)$/];
+/* valeurs de l'entreprise : « Retenir pour les prochains mémoires » coché d'office */
+export const ENT_HOLES=[/chiffre d'affaires/,/^effectifs?\b/,/qualifications?\b.*certificats?|^certificats?\b/,/^chartes\b/,/\bevaluation\b/,/^norme de qualification/,/^organisme de certification/,/\b(dmos|qmos)\b/,/\bpcr\b/,/^nom du prestataire\b/,/^prestations sous-traitees/,
+  /^horaires de travail/,/^duree de validite/,/^duree, ex\./,/^delai d'intervention/,/\bgarantie\b/,/^produit de passivation/,/\bagence\b/,/^annee visee/,/^debit du compresseur/,/^adresse et telephone du maitre d'(ouvrage|oeuvre)$/];
+/* jamais proposés à « Retenir » : trop génériques, ou propres à chaque affaire */
+export const NEVER_RET=[/^(date|dates|duree|annee|ville, client|zone ou tranche|adresse et telephone)$/,/^(protection|cheminement|conforme)\b/,/^%/,/^(n°|no |numero)/,
+  /^(date|dates|pression|temperature|lineaire|nombre|designation|detail|taux|zone|lieu|nature|fabricant|fournisseur|exutoire|forages|objet du detail|estimation|moyen de transfert|lot)\b/,/^nom du (maitre|coordonnateur|bureau)/,/^nom et adresse\b/,/^adresse du point\b/,
+  /^adresse et telephone du maitre d'ouvrage delegue/,/\bconcerne/,/^sous-stations?\b/,/^dn\b/,/^references similaires/,/^type de (reseau|tube)/,/^sectorielles/,/prescriptions de la collectivite/,/\bimposee?s? par le cctp/,/^duree de la periode/,/^reference et indice\b/,/^description du systeme\b/];
+export const optHole=nl=>OPT_HOLES.some(r=>r.test(nl));
+export const entHole=nl=>ENT_HOLES.some(r=>r.test(nl));
+export const neverRet=nl=>NEVER_RET.some(r=>r.test(nl));
+/* contact d'une personne (ligne de tableau, paragraphe) : « téléphone et e-mail » / « téléphone » / « e-mail » ; n° d'annexe (calculé depuis la liste des annexes) */
+export const contactKind=nl=>/^telephone et e-?mail$/.test(nl)?'both':/^telephone$/.test(nl)?'tel':/^e-?mail$/.test(nl)?'email':null;
+export const annexKind=nl=>/^(n°|no|numero) (d'|de l')annexe\b/.test(nl);
+/* puces de suggestion : le « ex. … » du libellé (« ex. 4 mois » → « 4 mois » ; « ex. thermorétractable ou électrosoudable » → deux puces) */
+export function exChips(lab){const m=/\bex\.\s*(.+)$/i.exec(String(lab||''));if(!m)return [];const raw=m[1].replace(/\s*[.…]+\s*$/,'').trim();
+  return [...new Set(raw.split(/\s*,\s+|\s+ou\s+|\s+\/\s+/).map(s=>s.trim()).filter(s=>s&&s.length<=80))].slice(0,6);}
 
 /* ═════════ 7 · IMAGES DU PACK ═════════ */
 export function imgOf(L,id){const im=L&&L.images&&L.images[id];if(!im)return null;const src=im.url||im.data||'';if(!src)return null;return {id,src,w:+im.w||0,h:+im.h||0,png:/png/i.test(im.mime||'')||/^data:image\/png/.test(im.data||''),titre:im.titre||''};}
