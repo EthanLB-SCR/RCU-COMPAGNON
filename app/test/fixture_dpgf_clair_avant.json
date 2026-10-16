@@ -1,0 +1,756 @@
+{
+ "note": "DPGF FICTIF travaillé avec le build e79e2a (avant le lot C2) — make_fixture_dpgfclair_avant.mjs",
+ "dpgf": {
+  "xl": {
+   "ed": {
+    "DPGF": {
+     "E10": {
+      "v": 114.34
+     },
+     "E17": {
+      "v": 235.71
+     },
+     "E25": {
+      "v": 15.24
+     },
+     "E6": {
+      "v": 1142.86
+     },
+     "E11": {
+      "v": 14.11
+     },
+     "E12": {
+      "v": 63.15
+     },
+     "E13": {
+      "v": 63.67
+     },
+     "E14": {
+      "v": 63.67
+     }
+    }
+   },
+   "ops": [],
+   "rev": 9
+  },
+  "lignes": [
+   {
+    "n": "1",
+    "des": "INSTALLATION DE CHANTIER",
+    "section": true,
+    "row": 5
+   },
+   {
+    "n": "1.1",
+    "des": "Installation de chantier, base vie et repli",
+    "u": "ft",
+    "qte": 1,
+    "pu": 1142.86,
+    "row": 6
+   },
+   {
+    "n": "1.2",
+    "des": "Amené et repli du matériel de soudage",
+    "u": "ft",
+    "qte": 1,
+    "pu": 0,
+    "row": 7
+   },
+   {
+    "n": "",
+    "des": "Sous-total chapitre 1",
+    "section": true,
+    "row": 8
+   },
+   {
+    "n": "2",
+    "des": "RÉSEAU PRÉ-ISOLÉ",
+    "section": true,
+    "row": 9
+   },
+   {
+    "n": "2.1",
+    "des": "Fourniture et pose tube acier pré-isolé DN 100 — rue des Essais",
+    "u": "ml",
+    "qte": 420,
+    "pu": 114.34,
+    "row": 10
+   },
+   {
+    "n": "2.2",
+    "des": "Fourniture et pose tube acier pré-isolé DN 100 — traversée du parc",
+    "u": "ml",
+    "qte": 180,
+    "pu": 14.11,
+    "row": 11
+   },
+   {
+    "n": "2.3",
+    "des": "Fourniture et pose tube acier pré-isolé DN 80 — avenue Fictive",
+    "u": "ml",
+    "qte": 300,
+    "pu": 63.15,
+    "row": 12
+   },
+   {
+    "n": "2.4",
+    "des": "Tube pré-isolé DN50/125 — antenne bâtiment A",
+    "u": "ml",
+    "qte": 120,
+    "pu": 63.67,
+    "row": 13
+   },
+   {
+    "n": "2.5",
+    "des": "Tube pré-isolé DN50/125 — antenne bâtiment B",
+    "u": "ml",
+    "qte": 80,
+    "pu": 63.67,
+    "row": 14
+   },
+   {
+    "n": "",
+    "des": "Sous-total chapitre 2",
+    "section": true,
+    "row": 15
+   },
+   {
+    "n": "3",
+    "des": "OUVRAGES À L'UNITÉ",
+    "section": true,
+    "row": 16
+   },
+   {
+    "n": "3.1",
+    "des": "Soudure bout à bout DN 100 en fouille",
+    "u": "u",
+    "qte": 40,
+    "pu": 235.71,
+    "row": 17
+   },
+   {
+    "n": "3.2",
+    "des": "Vanne d'isolement préisolée DN 80",
+    "u": "u",
+    "qte": 2,
+    "pu": 0,
+    "row": 18
+   },
+   {
+    "n": "3.3",
+    "des": "Purges et vidanges, y compris robinetterie",
+    "u": "ens.",
+    "qte": 1,
+    "pu": 0,
+    "row": 19
+   },
+   {
+    "n": "",
+    "des": "Sous-total chapitre 3",
+    "section": true,
+    "row": 20
+   },
+   {
+    "n": "4",
+    "des": "ESSAIS ET AUTOCONTRÔLES",
+    "section": true,
+    "row": 21
+   },
+   {
+    "n": "4.1",
+    "des": "Épreuve hydraulique du réseau",
+    "u": "ft",
+    "qte": 1,
+    "pu": 0,
+    "row": 22
+   },
+   {
+    "n": "4.2",
+    "des": "Contrôle Itopo des manchons DN 100",
+    "u": "u",
+    "qte": 120,
+    "pu": 0,
+    "row": 23
+   },
+   {
+    "n": "4.3",
+    "des": "Essai de dépression des manchons DN 100",
+    "u": "u",
+    "qte": 120,
+    "pu": 0,
+    "row": 24
+   },
+   {
+    "n": "4.4",
+    "des": "Autocontrôles des manchons DN 80 (tous types)",
+    "u": "u",
+    "qte": 50,
+    "pu": 15.24,
+    "row": 25
+   },
+   {
+    "n": "",
+    "des": "Sous-total chapitre 4",
+    "section": true,
+    "row": 26
+   },
+   {
+    "n": "5",
+    "des": "DIVERS",
+    "section": true,
+    "row": 27
+   },
+   {
+    "n": "5.1",
+    "des": "Divers et sujétions d'exécution",
+    "u": "ft",
+    "qte": 1,
+    "pu": 0,
+    "row": 28
+   },
+   {
+    "n": "",
+    "des": "Sous-total chapitre 5",
+    "section": true,
+    "row": 29
+   },
+   {
+    "n": "",
+    "des": "TVA",
+    "section": true,
+    "row": 32
+   }
+  ],
+  "liens": [
+   {
+    "id": "Lmvaygidzz97",
+    "sh": "DPGF",
+    "a": "E10",
+    "qa": "D10",
+    "q": 420,
+    "qfix": false,
+    "u": "ml",
+    "comps": [
+     {
+      "k": "z0|soudure|dn100",
+      "q": 84
+     },
+     {
+      "k": "z0|manchons|dn100",
+      "q": 84
+     },
+     {
+      "k": "z0|autoctrl|dn100",
+      "q": 84
+     },
+     {
+      "k": "z0|conteneur",
+      "q": 420
+     },
+     {
+      "k": "z0|soudure|dn100",
+      "q": 4.2,
+      "rep": "Rmvaygmemj2n"
+     },
+     {
+      "k": "z0|manchons|dn100",
+      "q": 25.2,
+      "rep": "Rmvaygmemj2n"
+     },
+     {
+      "k": "z0|autoctrl|dn100",
+      "q": 25.2,
+      "rep": "Rmvaygmemj2n"
+     }
+    ],
+    "pu": 114.34,
+    "amt": 48023.56,
+    "v": 1,
+    "at": "2026-10-16T12:40:06.766Z",
+    "by": "Ethan L.",
+    "col": 0
+   },
+   {
+    "id": "Lmvaygjhcjxq",
+    "sh": "DPGF",
+    "a": "E17",
+    "qa": "D17",
+    "q": 40,
+    "qfix": false,
+    "u": "u",
+    "comps": [
+     {
+      "k": "z0|soudure|dn100",
+      "q": 30
+     }
+    ],
+    "pu": 235.71,
+    "amt": 9428.57,
+    "v": 1,
+    "at": "2026-10-16T12:40:02.976Z",
+    "by": "Ethan L.",
+    "col": 1
+   },
+   {
+    "id": "Lmvaygkd5v8i",
+    "sh": "DPGF",
+    "a": "E25",
+    "qa": "D25",
+    "q": 50,
+    "qfix": false,
+    "u": "u",
+    "comps": [
+     {
+      "k": "z0|autoctrl|dn80",
+      "q": 50
+     }
+    ],
+    "pu": 15.24,
+    "amt": 761.9,
+    "v": 1,
+    "at": "2026-10-16T12:40:04.121Z",
+    "by": "Ethan L.",
+    "col": 2
+   },
+   {
+    "id": "Lmvayglh86kt",
+    "sh": "DPGF",
+    "a": "E6",
+    "qa": "D6",
+    "q": 1,
+    "qfix": false,
+    "u": "ft",
+    "comps": [
+     {
+      "k": "z0|amene",
+      "q": 550
+     }
+    ],
+    "pu": 1142.86,
+    "amt": 1142.86,
+    "v": 1,
+    "at": "2026-10-16T12:40:05.564Z",
+    "by": "Ethan L.",
+    "col": 3
+   },
+   {
+    "id": "Lmvaygmengf6u",
+    "sh": "DPGF",
+    "a": "E11",
+    "qa": "D11",
+    "q": 180,
+    "qfix": false,
+    "u": "ml",
+    "comps": [
+     {
+      "k": "z0|soudure|dn100",
+      "q": 1.8,
+      "rep": "Rmvaygmemj2n"
+     },
+     {
+      "k": "z0|manchons|dn100",
+      "q": 10.8,
+      "rep": "Rmvaygmemj2n"
+     },
+     {
+      "k": "z0|autoctrl|dn100",
+      "q": 10.8,
+      "rep": "Rmvaygmemj2n"
+     }
+    ],
+    "pu": 14.11,
+    "amt": 2540.57,
+    "v": 1,
+    "at": "2026-10-16T12:40:06.766Z",
+    "by": "Ethan L.",
+    "col": 4,
+    "rep": "Rmvaygmemj2n",
+    "prev": {
+     "e": null
+    }
+   },
+   {
+    "id": "Lmvaygmenjwmt",
+    "sh": "DPGF",
+    "a": "E12",
+    "qa": "D12",
+    "q": 300,
+    "qfix": false,
+    "u": "ml",
+    "comps": [
+     {
+      "k": "z0|soudure|dn80",
+      "q": 50,
+      "rep": "Rmvaygmemj2n"
+     },
+     {
+      "k": "z0|manchons|dn80",
+      "q": 50,
+      "rep": "Rmvaygmemj2n"
+     }
+    ],
+    "pu": 63.15,
+    "amt": 18945.05,
+    "v": 1,
+    "at": "2026-10-16T12:40:06.766Z",
+    "by": "Ethan L.",
+    "col": 4,
+    "rep": "Rmvaygmemj2n",
+    "prev": {
+     "e": null
+    }
+   },
+   {
+    "id": "Lmvaygmen64h6",
+    "sh": "DPGF",
+    "a": "E13",
+    "qa": "D13",
+    "q": 120,
+    "qfix": false,
+    "u": "ml",
+    "comps": [
+     {
+      "k": "z0|soudure|dn50",
+      "q": 18,
+      "rep": "Rmvaygmemj2n"
+     },
+     {
+      "k": "z0|manchons|dn50",
+      "q": 18,
+      "rep": "Rmvaygmemj2n"
+     },
+     {
+      "k": "z0|autoctrl|dn50",
+      "q": 18,
+      "rep": "Rmvaygmemj2n"
+     },
+     {
+      "k": "z1|soudure|dn50",
+      "q": 12,
+      "rep": "Rmvaygmemj2n"
+     },
+     {
+      "k": "z1|manchons|dn50",
+      "q": 12,
+      "rep": "Rmvaygmemj2n"
+     }
+    ],
+    "pu": 63.67,
+    "amt": 7640,
+    "v": 1,
+    "at": "2026-10-16T12:40:06.766Z",
+    "by": "Ethan L.",
+    "col": 4,
+    "rep": "Rmvaygmemj2n",
+    "prev": {
+     "e": null
+    }
+   },
+   {
+    "id": "Lmvaygmenj8ug",
+    "sh": "DPGF",
+    "a": "E14",
+    "qa": "D14",
+    "q": 80,
+    "qfix": false,
+    "u": "ml",
+    "comps": [
+     {
+      "k": "z0|soudure|dn50",
+      "q": 12,
+      "rep": "Rmvaygmemj2n"
+     },
+     {
+      "k": "z0|manchons|dn50",
+      "q": 12,
+      "rep": "Rmvaygmemj2n"
+     },
+     {
+      "k": "z0|autoctrl|dn50",
+      "q": 12,
+      "rep": "Rmvaygmemj2n"
+     },
+     {
+      "k": "z1|soudure|dn50",
+      "q": 8,
+      "rep": "Rmvaygmemj2n"
+     },
+     {
+      "k": "z1|manchons|dn50",
+      "q": 8,
+      "rep": "Rmvaygmemj2n"
+     }
+    ],
+    "pu": 63.67,
+    "amt": 5093.33,
+    "v": 1,
+    "at": "2026-10-16T12:40:06.766Z",
+    "by": "Ethan L.",
+    "col": 4,
+    "rep": "Rmvaygmemj2n",
+    "prev": {
+     "e": null
+    }
+   }
+  ],
+  "reps": [
+   {
+    "id": "Rmvaygmemj2n",
+    "nom": "Au ml par DN",
+    "sh": "DPGF",
+    "lignes": [
+     "E10",
+     "E11",
+     "E12",
+     "E13",
+     "E14"
+    ],
+    "ks": [
+     "z0|soudure|dn100",
+     "z0|soudure|dn80",
+     "z0|soudure|dn50",
+     "z0|manchons|dn100",
+     "z0|manchons|dn80",
+     "z0|manchons|dn50",
+     "z0|autoctrl|dn100",
+     "z0|autoctrl|dn50",
+     "z1|soudure|dn50",
+     "z1|soudure|dn40",
+     "z1|manchons|dn50",
+     "z1|manchons|dn40"
+    ],
+    "mode": "dn",
+    "com": {
+     "mode": "prorata",
+     "ligne": "E28"
+    },
+    "orphan": false,
+    "qs": {},
+    "dnOf": {},
+    "col": 4,
+    "v": 1,
+    "at": "2026-10-16T12:40:06.766Z",
+    "by": "Ethan L."
+   }
+  ]
+ },
+ "disp": {
+  "vsum": "Notre prix 101 355 €pointé 93 576 € (92 %)reste à placer 7 779 €⇶ Répartir au ml",
+  "rows": [
+   [
+    "Chantier et linéaire"
+   ],
+   [
+    "Amené - Repli - Nettoyage chantier",
+    "2 286reste 1 143",
+    "",
+    "2 286",
+    "",
+    "",
+    "",
+    "2 286",
+    "1 143",
+    "1 143"
+   ],
+   [
+    "Contener - Benne - Pelle",
+    "879reste 543",
+    "",
+    "879",
+    "",
+    "",
+    "",
+    "879",
+    "336",
+    "543"
+   ],
+   [
+    "Prestation"
+   ],
+   [
+    "Soudure (compris manutention)",
+    "54 516✓ placé",
+    "4 540reste 1 39712 soud. ≈ 60 ml",
+    "59 056",
+    "59 056",
+    "",
+    "",
+    "",
+    "57 659",
+    "1 397"
+   ],
+   [
+    "Manchons",
+    "29 562✓ placé",
+    "2 673reste 84412 manch. ≈ 60 ml",
+    "32 234",
+    "32 234",
+    "",
+    "",
+    "",
+    "31 390",
+    "844"
+   ],
+   [
+    "Purges",
+    "1 365reste 1 365",
+    "",
+    "1 365",
+    "589",
+    "776",
+    "",
+    "",
+    "",
+    "1 365"
+   ],
+   [
+    "Contrôles - Essais"
+   ],
+   [
+    "Autocontrôle interne",
+    "3 048✓ placé",
+    "",
+    "3 048",
+    "3 048",
+    "",
+    "",
+    "",
+    "3 048",
+    "✓"
+   ],
+   [
+    "Épreuve hydraulique",
+    "1 269reste 1 269",
+    "1 150reste 1 150",
+    "2 419",
+    "1 882",
+    "537",
+    "",
+    "",
+    "",
+    "2 419"
+   ],
+   [
+    "Autres"
+   ],
+   [
+    "Étiquettes",
+    "69reste 69",
+    "",
+    "69",
+    "",
+    "69",
+    "",
+    "",
+    "",
+    "69"
+   ],
+   [
+    "Total",
+    "92 993reste 4 388",
+    "8 362reste 3 391",
+    "101 355",
+    "96 809",
+    "1 381",
+    "0",
+    "3 165",
+    "93 576",
+    "7 779"
+   ]
+  ],
+  "lkr": [
+   "1E102.1 Fourniture et pose tube acier pré-isolé DN 100 — rue des Essais114,34 €48 024 € · 7 comp.⇶ Au ml par DN✕",
+   "2E173.1 Soudure bout à bout DN 100 en fouille235,71 €9 429 € · 1 comp.✕",
+   "3E254.4 Autocontrôles des manchons DN 80 (tous types)15,24 €762 € · 1 comp.✕",
+   "4E61.1 Installation de chantier, base vie et repli1 142,86 €1 143 € · 1 comp.✕",
+   "5E112.2 Fourniture et pose tube acier pré-isolé DN 100 — traversée du parc14,11 €2 541 € · 3 comp.⇶ Au ml par DN✕",
+   "6E122.3 Fourniture et pose tube acier pré-isolé DN 80 — avenue Fictive63,15 €18 945 € · 2 comp.⇶ Au ml par DN✕",
+   "7E132.4 Tube pré-isolé DN50/125 — antenne bâtiment A63,67 €7 640 € · 5 comp.⇶ Au ml par DN✕",
+   "8E142.5 Tube pré-isolé DN50/125 — antenne bâtiment B63,67 €5 093 € · 5 comp.⇶ Au ml par DN✕"
+  ],
+  "reps": [
+   "Au ml par DN | par DN · 5 lignes · 40 147 € · DN 100, 80, 50"
+  ],
+  "cells": {
+   "6": [
+    "1 142,86 €",
+    "1 142,86 €"
+   ],
+   "7": [
+    "",
+    "0,00 €"
+   ],
+   "10": [
+    "114,34 €",
+    "48 022,80 €"
+   ],
+   "11": [
+    "14,11 €",
+    "2 539,80 €"
+   ],
+   "12": [
+    "63,15 €",
+    "18 945,00 €"
+   ],
+   "13": [
+    "63,67 €",
+    "7 640,40 €"
+   ],
+   "14": [
+    "63,67 €",
+    "5 093,60 €"
+   ],
+   "17": [
+    "235,71 €",
+    "9 428,40 €"
+   ],
+   "18": [
+    "",
+    "0,00 €"
+   ],
+   "19": [
+    "",
+    "0,00 €"
+   ],
+   "22": [
+    "",
+    "0,00 €"
+   ],
+   "23": [
+    "",
+    "0,00 €"
+   ],
+   "24": [
+    "",
+    "0,00 €"
+   ],
+   "25": [
+    "15,24 €",
+    "762,00 €"
+   ],
+   "28": [
+    "",
+    "0,00 €"
+   ]
+  },
+  "lkCls": {
+   "6": "dx-lk",
+   "10": "dx-lk",
+   "17": "dx-lk",
+   "25": "dx-lk"
+  },
+  "taches": [
+   "○ Total DPGF = prix de vente du chiffrage (101 355 €)",
+   "○ Toutes les lignes ont un prix (aucune à 0)",
+   "✓ Quantités = celles du fichier du client",
+   "✓ Prix liés au chiffrage à jour (8)",
+   "○ Montant du devis (fiche) = total DPGF — se remplit à la remise de l'offre"
+  ],
+  "stats": [
+   "—montant devis HT",
+   "0 €facturé cumulé",
+   "—restant à facturer"
+  ],
+  "calcE10": "Σ 48 023,56 € ÷ 420 ml= 114,34 € / ml"
+ }
+}

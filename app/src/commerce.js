@@ -11,6 +11,7 @@ import {zipEntries as zipEntriesX,inflate as inflateX,setCellsXml,rezip,colName}
 import {initDpgfWb,dpgfWorkbenchHTML,dpgfWbAct,refreshPopup as dwRefresh,dwState} from './dpgfwb.js'; // 13/10 soir : atelier DPGF (coûts ↔ lignes du client, 2e écran)
 import {initDpgfXl,dpgfXlHTML,dpgfXlAct,isXlDpgf,lignesToGrid,bookOf,buildDossier,dxState,qtyModsOf,dxReset,staleCount,puDetailBlock} from './dpgfxl.js'; // 14/10 après-midi (lot C) : le DPGF « comme dans Excel » (grille fidèle, formules, calculateur, ventilation, export du fichier du client)
 import {readBook} from './xlsx.js'; // 14/10 après-midi (lot C) : la feuille du DPGF cherchée dans tout le classeur
+import {oldToolsHTML} from './dpgfclair.js'; // 16/10 (lot C2) : bordereau simplifié et atelier rangés dans un pli « Anciens outils » quand la grille Excel est là
 import {memLibInit,memLib,memLibMode,memLibModeBar,memLibHTML,memLibAct,memLibActive,memLibReady,memLibWord,memLibPrint,memLibPdfDownload} from './memoire2.js'; // 14/10 nuit : bibliothèque de blocs du mémoire technique SCR (étape 5 · Mémoire)
 import {docsObligHTML,obligAct,obligHint,obligItems} from './docsoblig.js'; // 14/10 après-midi (lot D) : documents obligatoires (7 · Offre) et dossier de remise
 import {vHistoryHTML} from './versions.js'; // 14/10 après-midi (lot D) : historique des versions (consultables, écrits officiels)
@@ -170,6 +171,9 @@ export function dpgfHTML(a,canEdit,ctx){const D=a.dpgf||{};const L=D.lignes||[];
   /* repliés sous la grille (ouverts d'office si le fichier Excel n'est pas sur cet appareil) ; un gros bordereau replié n'est pas dessiné du tout */
   const XS2=dxState(),DWs=dwState();const heavy=L.length>300;const bst=bookOf(a).st;const noGrid=bst==='nofile'||bst==='err';
   const sec=(k,title,open,body)=>`<details class="dx-old" data-dxdet="${k}" data-o="${open?1:0}"${open?' open':''}${!open&&heavy?' data-empty="1"':''}><summary>${title}</summary>${open||!heavy?body():''}</details>`;
+  /* 16/10 (lot C2, Ethan : « la partie bordereau du client on ne la comprend pas, bordereau simplifié non plus ; l'atelier DPGF non plus ») : avec la grille Excel, les deux quittent
+     l'écran principal — un seul pli fermé tout en bas, après les contrôles (rien n'est supprimé ; ouvert d'office si l'un des deux sert déjà) ; sans grille, comme avant */
+  if(!noGrid){const bo=!!XS2.det[a.num+'|bord'],ao=!!(XS2.det[a.num+'|atelier']||DWs.used===a.num||DWs.full);return stats+dpgfXlHTML(a,canEdit,ctx)+ctrl+oldToolsHTML(a,sec('bord','📋 Bordereau simplifié · répartir le prix de vente, arrondir, CSV',bo,bord)+sec('atelier','🧮 Atelier · prix composés et coûts à placer (méthode du 13/10)',ao,atel),bo||ao);}
   return stats+dpgfXlHTML(a,canEdit,ctx)+sec('bord','📋 Bordereau simplifié · répartir le prix de vente, arrondir, CSV',noGrid||!!XS2.det[a.num+'|bord'],bord)+sec('atelier','🧮 Atelier · prix composés et coûts à placer (méthode du 13/10)',noGrid||!!(XS2.det[a.num+'|atelier']||DWs.used===a.num||DWs.full),atel)+(noGrid?puBlock():'')+ctrl;}
 export function dpgfCSV(a){const L=((a.dpgf||{}).lignes||[]);const f=v=>'"'+String(v??'').replace(/"/g,'""')+'"';const n=v=>String(+v||0).replace('.',',');return '﻿'+['N°;Désignation;U;Quantité;PU HT;Total HT'].concat(L.map(l=>l.section?[f(l.n),f(l.des),'','','',''].join(';'):[f(l.n),f(l.des),f(l.u),n(l.qte),n(l.pu),n((+l.pu||0)*(+l.qte||0))].join(';'))).join('\r\n')+'\r\n';}
 /* ═════════ 6 · OFFRE ═════════ */

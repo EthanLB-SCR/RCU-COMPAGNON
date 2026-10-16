@@ -24,7 +24,7 @@ const numIn=s=>{s=String(s??'').trim().replace(/[\s  ]/g,'').replace(',','.')
 const fin=x=>String(+(+x).toFixed(3)).replace('.',',');const fin1=x=>String(+(+x).toFixed(1)).replace('.',',');
 const RS={flt:{},tool:{},pd:null,chipAt:null};
 const LS_AUTO='trace:dpgfxl:calcauto';let AUTO=true;try{AUTO=localStorage.getItem(LS_AUTO)!=='0';}catch(e){}
-export function reset(num){delete RS.flt[num];delete RS.tool[num];}
+export function reset(num){delete RS.flt[num];delete RS.tool[num];if(RS.simple)delete RS.simple[num];}
 /* ═════════ 1 · COMPOSANTES PAR DN : LEUR LINÉAIRE ═════════ */
 const PDN=['soudure','manchons','autoctrl'];
 export function withMl(CP){if(!CP||CP._ml)return CP;CP._ml=1;CP.list.forEach(c=>{const m=/\|dn(\d+)$/.exec(c.k);if(c.z<0||!m||!PDN.includes(c.p))return;const e=CP.C&&CP.C.etudes&&CP.C.etudes[c.z];
@@ -36,8 +36,15 @@ export const mlPu=c=>perMl(c)?` · ${nb(c.amtV/c.ml,2)} € / ml`:'';
 export const restMl=(c,r)=>perMl(c)&&r>1e-6?' · reste '+fq(r)+' '+esc(c.u)+mlQ(c,r):'';
 export function mlTake(c,C,ro){if(!perMl(c))return '';const t=C.mlt&&C.mlt[c.k]!==undefined?C.mlt[c.k]:fin1(toMl(c,X.parseQ(C.chk[c.k],c)));
   return ` ≈ <input inputmode="decimal" data-rp="cqml" data-k="${esc(c.k)}" value="${esc(t)}" ${ro?'disabled':''} aria-label="${esc('En ml : '+c.lab)}" title="Saisir en ml : la quantité de ${esc(c.u)} = ml × ${esc(nb(c.qty/c.ml,4))}"> ml`;}
-/* quantité prise d'office quand on coche : ligne au ml + composante par DN → la part de la ligne (ses ml en soudures), sinon comme avant */
-export function defTake(c,T,q,rest){if(q>0&&T&&isMlU(T.u)&&perMl(c))return Math.min(rest,fromMl(c,q));if(q>0&&T&&c.u===String(T.u||'').toLowerCase())return Math.min(rest,q);return rest;}
+/* quantité prise d'office quand on coche : ligne au ml + composante par DN → la part de la ligne (ses ml en soudures), sinon comme avant
+   16/10 (lot C2, Ethan : « quand je rentre une fois des ml, ça remette les mêmes ml dans tout ce que je coche, mais modifiable ») : les derniers ml tapés pour une
+   composante de CETTE ligne (C.mlLast), sinon la quantité de la ligne si elle est au ml, pour tout ce qui se compte au ml ; ligne « à l'unité » (u, pce…) + soudures,
+   manchons, vannes, unités → la quantité de la ligne (« Soudure DN 100 · 40 u » → 40 soudures, plus tout le reste) ; toujours limité au reste */
+const CNT_C=['soud.','manch.','u','vanne'];
+export const isCntU=u=>/^(u|un|unite|unites|nb|nbre|pc|pce|pces|piece|pieces)$/.test(String(u||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[\s.]/g,''));
+export function mlDef(T,q){const C=X&&X.XS&&X.XS.calc[X.XS.num];return C&&T&&C.key===T.sh+'!'+T.a&&C.mlLast>0?C.mlLast:(q>0&&T&&isMlU(T.u)?q:0);}
+export function defTake(c,T,q,rest){const ml=mlDef(T,q);if(ml>0&&perMl(c))return Math.min(rest,fromMl(c,ml));if(ml>0&&c.u==='ml')return Math.min(rest,ml);
+  if(q>0&&T&&c.u===String(T.u||'').toLowerCase())return Math.min(rest,q);if(q>0&&T&&isCntU(T.u)&&CNT_C.includes(c.u))return Math.min(rest,q);return rest;}
 /* ═════════ 2 · LES LIGNES DU DPGF (unité, DN lu, lien, PU saisi) ═════════ */
 export const isMlU=u=>/^(ml|m|mlineaires?|metres?lineaires?)$/.test(String(u||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[\s.]/g,''));
 const dnOf=t=>{const m=String(t||'').match(/\bDN\s?(\d{2,3})\b/i);return m?+m[1]:null;};
@@ -92,7 +99,7 @@ export function calcParts(a,CP,lk){if(!lk||!CP)return '';const P=(lk.comps||[]).
 export function ventMl(CP,P,kk){const i=kk.indexOf('|');const zk=kk.slice(0,i),pk=kk.slice(i+1);if(!PDN.includes(pk))return '';let q=0,m=0,u='';
   CP.list.forEach(c=>{if((c.z<0?'inst':'z'+c.z)!==zk||c.p!==pk||!perMl(c))return;const r=Math.max(0,c.qty-(P.byComp.get(c.k)||0));q+=r;m+=toMl(c,r);u=c.u;});return q>1e-6?`<span class="sub">${fq(q)} ${esc(u)} ≈ ${fml(m)} ml</span>`:'';}
 export function lkTag(a,L){const ids=[...new Set((L.comps||[]).filter(x=>x.rep).map(x=>x.rep))];if(!ids.length)return '';const reps=(a.dpgf||{}).reps||[];
-  return ids.map(id=>{const R=reps.find(r=>r.id===id);return `<span class="rp-tag" title="Parts de répartition au ml sur cette ligne">⇶ ${esc(R?R.nom:'répartition')}</span>`;}).join('');}
+  return ids.map(id=>{const R=reps.find(r=>r.id===id);return `<span class="rp-tag" title="Ce que « ${esc(R?R.nom:'répartition')} » a mis au ml sur cette ligne">⇶ ${esc(R?R.nom:'répartition')}</span>`;}).join('');}
 /* ═════════ 4 · LA PASTILLE « 🧮 Calculer » ET L'OUVERTURE AU CLIC ═════════ */
 const autoCell=(a,M,s)=>{const D=a.dpgf||{};const S=M.S(s.sh);if(!S)return false;if(X.linkOfRow(a,S.name,s.r))return true;if(S!==X.dpSheet(M,D))return false;
   const line=(D.lignes||[]).find(l=>!l.section&&l.row===s.r);if(!line)return false;const tc=X.totColOf(D);return s.c===X.puColOf(D)||(tc&&s.c===tc);};
@@ -170,8 +177,8 @@ function cfgNew(a,M,CP,mode){const LS=linesOf(a,M);const rest=restFn(a,CP,null);
 const autoName=(cfg,plan,D)=>{if(cfg.mode==='grp'){const ns=plan.tgt.map(l=>l.n||l.a);return 'Groupe '+(ns.length>3?ns.slice(0,2).join(', ')+'… ('+ns.length+' lignes)':ns.join(', '));}const n=(D.reps||[]).filter(r=>r.mode!=='grp').length;return 'Au ml par DN'+(n?' n° '+(n+1):'');};
 /* ═════════ 6 · L'OUTIL (fenêtre) ═════════ */
 const tool=num=>RS.tool[num]||null;
-export function barBtn(a,canEdit){return canEdit?`<button class="btn sm" data-act="af" data-v="dxrptool|" title="Le reste de notre prix (pas encore pointé) sur les lignes au ml du DPGF : toutes les lignes d'un même DN au même € / ml">⇶ Répartir au ml</button>`:'';}
-export function toolHTML(a,M,canEdit){const T=tool(a.num);if(!T||!canEdit||!M)return '';css(document);return `<div class="rp-ov" id="rp-ov"><div class="rp-dlg" id="rp-tool" role="dialog" aria-modal="true" aria-label="Répartir au ml">${toolInner(a,M,T)}</div></div>`;}
+export function barBtn(a,canEdit){return canEdit?`<button class="btn sm" data-act="af" data-v="dxrpsimple|" title="Tout ce qui n'est pas encore pointé va sur les lignes au ml du DPGF (toutes les lignes d'un même DN au même € / ml) : on voit le résultat avant de valider">⇶ Mettre le reste au ml</button>`:'';} /* 16/10 (lot C2) : la fenêtre courte ; l'outil détaillé = « Personnaliser… » */
+export function toolHTML(a,M,canEdit){const T=tool(a.num);if(!T||!canEdit||!M)return simpleHTML(a,M,canEdit);css(document);return `<div class="rp-ov" id="rp-ov"><div class="rp-dlg" id="rp-tool" role="dialog" aria-modal="true" aria-label="Répartir au ml">${toolInner(a,M,T)}</div></div>`;}
 /* la fenêtre en morceaux : la liste des lignes (la plus lourde, jusqu'à des milliers) est dessinée une fois ; cocher met à jour les lignes en place, puis les
    en-têtes, les composantes, l'aperçu et le pied (petits) */
 function toolInner(a,M,cfg){const CP=X.compsOf(a);const D=a.dpgf||{};const R=cfg.id?(D.reps||[]).find(r=>r.id===cfg.id):null;
@@ -199,10 +206,10 @@ function toolParts(a,M,CP,cfg){const D=a.dpgf||{};const R=cfg.id?(D.reps||[]).fi
   const dnG=[...new Set(pd.map(c=>c.dn))].sort((x,y)=>y-x).map(d=>`<div class="rp-gh">DN ${d}</div>`+pd.filter(c=>c.dn===d).map(cRow).join('')).join('');
   const zG=CP.zones.map(z=>({nom:z.nom,L:cm.filter(c=>c.z===z.i)})).concat([{nom:'Installations',L:cm.filter(c=>c.z<0)}]).filter(g=>g.L.length).map(g=>`<div class="rp-gh">${esc(g.nom)}</div>`+g.L.map(cRow).join('')).join('');
   const lineOpt=LS.map(l=>`<option value="${esc(l.a)}"${cfg.com.ligne===l.a?' selected':''}>${esc((l.n?l.n+' · ':'')+String(l.des).slice(0,60)+' ('+l.u+')')}</option>`).join('');
-  const comOpt=grp?'':`<div class="rp-com"><span>Les communes cochées${cfg.orphan?' (et ce qui n\'a pas de ligne de son DN)':''} :</span><label><input type="radio" name="rp-cm" data-rp="cm" value="prorata"${cfg.com.mode!=='ligne'?' checked':''}> au prorata des ml de toutes les lignes cochées</label><label><input type="radio" name="rp-cm" data-rp="cm" value="ligne"${cfg.com.mode==='ligne'?' checked':''}> sur une seule ligne :</label><select data-rp="cl" aria-label="Ligne qui reçoit">${lineOpt}</select></div>`;
+  const comOpt=grp?'':`<div class="rp-com"><span>Les autres postes cochés${cfg.orphan?' (et ce qui n\'a pas de ligne de son DN)':''} :</span><label><input type="radio" name="rp-cm" data-rp="cm" value="prorata"${cfg.com.mode!=='ligne'?' checked':''}> au prorata des ml de toutes les lignes cochées</label><label><input type="radio" name="rp-cm" data-rp="cm" value="ligne"${cfg.com.mode==='ligne'?' checked':''}> sur une seule ligne :</label><select data-rp="cl" aria-label="Ligne qui reçoit">${lineOpt}</select></div>`;
   const s2=`<h4>2 · Ce qu'on glisse au ml <span class="hint">· le reste non pointé${grp?' · coche et indique la quantité (en soudures ou en ml)':''}</span></h4>
-    <div class="rp-chips"><button class="btn sm" data-act="af" data-v="dxrpks|dn">☑ toutes les « par DN »</button><button class="btn sm" data-act="af" data-v="dxrpks|com">☑ toutes les communes</button><button class="btn sm" data-act="af" data-v="dxrpks|none">☐ rien</button></div>
-    ${pd.length||cm.length?`<div class="rp-cols"><div class="rp-grp"><div class="rp-gt">Par DN <span class="hint">· soudures, manchons, autocontrôle : ${grp?'sur le groupe':'sur les lignes du même DN, au prorata de leurs ml'}</span></div>${dnG||'<div class="eq-s">Rien à placer.</div>'}</div><div class="rp-grp"><div class="rp-gt">Communes <span class="hint">· épreuve, base vie, amené, installations…</span></div>${zG||'<div class="eq-s">Rien à placer.</div>'}${comOpt}</div></div>`:'<div class="eq-s">✓ Tout notre prix est déjà pointé : rien à répartir.</div>'}`;
+    <div class="rp-chips"><button class="btn sm" data-act="af" data-v="dxrpks|dn">☑ toutes les « par DN »</button><button class="btn sm" data-act="af" data-v="dxrpks|com">☑ tous les autres postes</button><button class="btn sm" data-act="af" data-v="dxrpks|none">☐ rien</button></div>
+    ${pd.length||cm.length?`<div class="rp-cols"><div class="rp-grp"><div class="rp-gt">Par DN <span class="hint">· soudures, manchons, autocontrôle : ${grp?'sur le groupe':'sur les lignes du même DN, au prorata de leurs ml'}</span></div>${dnG||'<div class="eq-s">Rien à placer.</div>'}</div><div class="rp-grp"><div class="rp-gt">Autres postes <span class="hint">· installations, épreuve, base vie, amené…</span></div>${zG||'<div class="eq-s">Rien à placer.</div>'}${comOpt}</div></div>`:'<div class="eq-s">✓ Tout notre prix est déjà pointé : rien à répartir.</div>'}`;
   return {plan,dns,s1h,chips,s2,pv:pvHTML(a,M,CP,cfg,plan),ft:ftHTML(a,cfg,plan,R)};}
 /* une ligne cible : le DN se choisit à la main seulement là où la désignation n'en dit rien (sinon il est lu) */
 function lnRow(a,M,CP,cfg,l,dns){const on=!!cfg.sel[l.a];const d=lineDn(cfg,l);const grp=cfg.mode==='grp';
@@ -214,8 +221,8 @@ function pvHTML(a,M,CP,cfg,plan){const all=plan.rows.filter(r=>r.parts.length||c
   const tr=rows.map(r=>{const l=r.l;const pm=r.q>0?r.addA/r.q:0;return `<tr${r.parts.length?'':' class="nil"'}><td class="l"><b>${esc(l.n||l.a)}</b> ${esc(String(l.des).slice(0,70))}${r.manual&&r.parts.length?' <span class="rp-w">remplace le PU saisi</span>':''}</td><td>${nb(r.q,r.q%1?2:0)} ${esc(l.u)}</td><td>${r.linked?nb(r.oldPu,2):r.manual?'<s>'+nb(l.pu,2)+'</s>':'—'}</td><td class="add">${r.parts.length?'+ '+nb(pm,2)+(l.isMl?' € / ml':' €'):'—'}</td><td class="pu">${r.parts.length?nb(r2(r.npu),2)+' €':'—'}</td></tr>`;}).join('')
     +(all.length>rows.length?`<tr class="nil"><td class="l" colspan="5">… et ${all.length-rows.length} autres lignes (même € / ml que les lignes de leur DN, ci-dessous)</td></tr>`:'');
   const dn=plan.byDn.length?`<div class="rp-dns">${plan.byDn.map(x=>`<span class="rp-dn"><b>DN ${x.dn}</b> : ${x.amt>0.004?'<b>+ '+nb(x.pm,2)+' € / ml</b>':'rien à ajouter'} · ${x.n} ligne${x.n>1?'s':''} · ${nb(x.ml)} ml${x.amt>0.004?' · '+eur(x.amt):''}</span>`).join('')}</div>`:'';
-  const un=plan.unDn.length||plan.unCom>0.004?`<div class="rp-un">⚠ Non placé : ${plan.unDn.map(u=>`<span>DN ${u.dn} : aucune ligne DN ${u.dn} cochée — ${[u.soud?fq(u.soud)+' soud.':'',u.manch?fq(u.manch)+' manch.':''].filter(Boolean).join(', ')}, ${eur(u.amt)}</span>`).join('')}${plan.unCom>0.004?`<span>${plan.unComN} commune${plan.unComN>1?'s':''} : ${plan.unWhy==='ligne'?'la ligne choisie n\'a pas de quantité':'aucune ligne cochée'} — ${eur(plan.unCom)}</span>`:''}${!cfg.orphan&&plan.unDn.length&&cfg.mode==='dn'?`<label class="rp-orph"><input type="checkbox" data-rp="orph"> le mettre avec les communes (prorata ou ligne choisie)</label>`:''}</div>`:'';
-  const orphOn=cfg.orphan&&cfg.mode==='dn'?`<label class="rp-orph"><input type="checkbox" data-rp="orph" checked> ce qui n'a pas de ligne de son DN va avec les communes</label>`:'';
+  const un=plan.unDn.length||plan.unCom>0.004?`<div class="rp-un">⚠ Non placé : ${plan.unDn.map(u=>`<span>DN ${u.dn} : aucune ligne DN ${u.dn} cochée — ${[u.soud?fq(u.soud)+' soud.':'',u.manch?fq(u.manch)+' manch.':''].filter(Boolean).join(', ')}, ${eur(u.amt)}</span>`).join('')}${plan.unCom>0.004?`<span>${plan.unComN} autre${plan.unComN>1?'s':''} poste${plan.unComN>1?'s':''} : ${plan.unWhy==='ligne'?'la ligne choisie n\'a pas de quantité':'aucune ligne cochée'} — ${eur(plan.unCom)}</span>`:''}${!cfg.orphan&&plan.unDn.length&&cfg.mode==='dn'?`<label class="rp-orph"><input type="checkbox" data-rp="orph"> le mettre avec les autres postes (prorata ou ligne choisie)</label>`:''}</div>`:'';
+  const orphOn=cfg.orphan&&cfg.mode==='dn'?`<label class="rp-orph"><input type="checkbox" data-rp="orph" checked> ce qui n'a pas de ligne de son DN va avec les autres postes</label>`:'';
   return (all.length?`<div class="rp-pvw"><table class="rp-pvt"><thead><tr><th class="l">Ligne</th><th>Qté</th><th>PU déjà lié</th><th>+ répartition</th><th>= nouveau PU</th></tr></thead><tbody>${tr}</tbody></table></div>`:'<div class="eq-s">Coche des lignes et ce qu\'on y glisse : l\'aperçu s\'affiche ici.</div>')+dn+un+orphOn;}
 function ftHTML(a,cfg,plan,R){const n=plan.rows.filter(r=>r.parts.length).length;const D=a.dpgf||{};const nom=cfg.nomSet?cfg.nom:autoName(cfg,plan,D);
   return `<div class="rp-ft" id="rp-ft"><label class="rp-nom">Nom <input data-rp="nom" value="${esc(nom)}" maxlength="80" aria-label="Nom de la répartition"></label><span class="rp-tot" id="rp-tot">${totHTML(plan,n)}</span><span class="rp-btns"><button class="btn sm" data-act="af" data-v="dxrpclose|">Annuler</button><button class="btn sm primary" data-act="af" data-v="dxrpapply|"${n?'':' disabled'}>⇶ ${R?'Appliquer les changements':'Appliquer'}${n?' · '+n+' ligne'+(n>1?'s':''):''}</button></span></div>`;}
@@ -233,12 +240,12 @@ function refreshTool(num,how){const el=document.getElementById('rp-tool');const 
   const bd2=document.getElementById('rp-body');if(bd2)bd2.scrollTop=st;
   if(fk&&fk[0]){const g=[...el.querySelectorAll(`[data-rp="${fk[0]}"]`)].find(x=>(x.dataset.k||x.dataset.a||'')===fk[1]);if(g&&g!==document.activeElement)try{g.focus({preventScroll:true});}catch(e){}}}
 function closeTool(num){RS.tool[num]=null;const o=document.getElementById('rp-ov');if(o)o.remove();}
-function openTool(a,M,repId){const CP=X.compsOf(a);const D=a.dpgf||{};const R=repId?(D.reps||[]).find(r=>r.id===repId):null;if(repId&&!R){X.say('Répartition introuvable');return;}
+function openTool(a,M,repId){if(RS.simple)RS.simple[a.num]=null; /* 16/10 (lot C2) */const CP=X.compsOf(a);const D=a.dpgf||{};const R=repId?(D.reps||[]).find(r=>r.id===repId):null;if(repId&&!R){X.say('Répartition introuvable');return;}
   RS.tool[a.num]=R?cfgOfRep(R):CP?cfgNew(a,M,CP,'dn'):{id:null,mode:'dn',sel:{},dnOf:{},ks:{},qs:{},qt:{},qm:{},com:{mode:'prorata',ligne:null},orphan:false,nom:'',nomSet:false};
   const card=document.getElementById('dx-card');const o=document.getElementById('rp-ov');if(o)o.remove();if(card)card.insertAdjacentHTML('beforeend',toolHTML(a,M,true));
   setTimeout(()=>{const b=document.querySelector('#rp-tool .rp-hd button');if(b)try{b.focus({preventScroll:true});}catch(e){}},30);}
 /* ═════════ 7 · LA VENTILATION : les répartitions (refaire, défaire, ouvrir) ═════════ */
-export function ventBtn(a,canEdit){return canEdit&&X.compsOf(a)?`<button class="btn sm" data-act="af" data-v="dxrptool|" title="Le reste pas encore pointé, ventilé au prix au ml sur les lignes du DPGF">⇶ Répartir au ml</button>`:'';}
+export function ventBtn(a,canEdit){return canEdit&&X.compsOf(a)?`<button class="btn sm" data-act="af" data-v="dxrpsimple|" title="Tout ce qui n'est pas encore pointé va sur les lignes au ml du DPGF : on voit le résultat avant de valider">⇶ Mettre le reste au ml</button>`:'';} /* 16/10 (lot C2) */
 export function ventReps(a,M,CP,canEdit){const D=a.dpgf||{};const R=D.reps||[];if(!R.length||!CP||!M)return '';
   const rows=R.map(r=>{let amt=0;const lines=new Set();(D.liens||[]).forEach(L=>(L.comps||[]).forEach(x=>{if(x.rep!==r.id)return;const c=CP.by.get(x.k);if(c)amt+=(+x.q||0)*c.puV;lines.add(L.a);}));
     /* ce que « ↻ Refaire » changerait : les quantités du chiffrage ont bougé → du reste à reprendre, ou trop pris */let left=0;try{left=planOf(a,M,CP,cfgOfRep(r)).tot-amt;}catch(e){left=0;}const dns=[...new Set((D.liens||[]).flatMap(L=>(L.comps||[]).filter(x=>x.rep===r.id).map(x=>{const c=CP.by.get(x.k);return c&&c.dn;})).filter(Boolean))].sort((x,y)=>y-x);
@@ -268,8 +275,43 @@ export function act(k,arg,arg2,a,canEdit,M){const num=a.num;
       commit(a,M,CP,rec.id,plan,rec);closeTool(num);X.say('⇶ '+rec.nom+' : '+n+' ligne'+(n>1?'s':'')+', '+eur(plan.tot,2)+' répartis'+(Math.abs(plan.gap)>=0.005?' · écart d\'arrondi '+eur(plan.gap,2):'')+' — ↶ pour revenir');X.rerender();return true;}
     case 'dxrpredo':{if(!canEdit||!M)return true;const CP=X.compsOf(a);const R=((a.dpgf||{}).reps||[]).find(r=>r.id===arg);if(!CP||!R)return true;const cfg=cfgOfRep(R);cfg.qt={};const plan=planOf(a,M,CP,cfg);
       commit(a,M,CP,R.id,plan,Object.assign({},R,{ks:R.ks.filter(k=>CP.by.has(k))}));const n=plan.rows.filter(r=>r.parts.length).length;X.say('↻ '+R.nom+' refaite avec le reste actuel : '+n+' ligne'+(n>1?'s':'')+', '+eur(plan.tot,2));X.rerender();return true;}
-    case 'dxrpundo':{if(!canEdit||!M)return true;const CP=X.compsOf(a);const R=((a.dpgf||{}).reps||[]).find(r=>r.id===arg);if(!CP||!R)return true;commit(a,M,CP,R.id,null,null);X.say('✕ '+R.nom+' défaite : parts retirées, PU réécrits (↶ pour revenir)');X.rerender();return true;}}
+    case 'dxrpundo':{if(!canEdit||!M)return true;const CP=X.compsOf(a);const R=((a.dpgf||{}).reps||[]).find(r=>r.id===arg);if(!CP||!R)return true;commit(a,M,CP,R.id,null,null);X.say('✕ '+R.nom+' défaite : parts retirées, PU réécrits (↶ pour revenir)');X.rerender();return true;}
+    /* 16/10 (lot C2) : « ⇶ Mettre le reste au ml » (fenêtre courte, section 11) */
+    case 'dxrpsimple':{if(!canEdit||!M)return true;closeTool(num);RS.simple[num]={orph:false};const card=document.getElementById('dx-card');if(card)card.insertAdjacentHTML('beforeend',simpleHTML(a,M,true));
+      setTimeout(()=>{const b=document.querySelector('#rp-simple .rp-btns .primary:not([disabled])')||document.querySelector('#rp-simple .rp-hd button');if(b)try{b.focus({preventScroll:true});}catch(e){}},30);return true;}
+    case 'dxrpsimplex':closeSimple(num);return true;
+    case 'dxrpsimplecustom':{if(!canEdit||!M)return true;const CP=X.compsOf(a);const S=RS.simple[num]||{};closeSimple(num);if(!CP){openTool(a,M,null);return true;}RS.tool[num]=cfgSimple(a,M,CP,S.orph);
+      const card=document.getElementById('dx-card');if(card)card.insertAdjacentHTML('beforeend',toolHTML(a,M,true));return true;}
+    case 'dxrpsimpleok':{if(!canEdit||!M)return true;const CP=X.compsOf(a);const S=RS.simple[num];if(!CP||!S)return true;const cfg=cfgSimple(a,M,CP,S.orph);const plan=planOf(a,M,CP,cfg);const n=plan.rows.filter(r=>r.parts.length).length;
+      if(!n){X.say('Rien à mettre au ml : pas de ligne au ml où un DN est lu, ou tout est déjà pointé');return true;}const D=a.dpgf||{};
+      const rec={id:'R'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),nom:cfg.nom,sh:plan.LS.length?plan.LS[0].sh:'',lignes:plan.LS.filter(l=>cfg.sel[l.a]).map(l=>l.a),ks:Object.keys(cfg.ks).filter(k=>cfg.ks[k]&&CP.by.has(k)),mode:'dn',com:{mode:'prorata',ligne:null},orphan:!!cfg.orphan,qs:{},dnOf:{},col:freeCol(D)};
+      commit(a,M,CP,rec.id,plan,rec);closeSimple(num);X.say('⇶ '+rec.nom+' : '+eur(plan.tot,2)+' mis au ml sur '+n+' ligne'+(n>1?'s':'')+(Math.abs(plan.gap)>=0.005?' · écart d\'arrondi '+eur(plan.gap,2):'')+' — ↶ pour revenir');X.rerender();return true;}}
   return false;}
+/* ═════════ 11 · « ⇶ METTRE LE RESTE AU ML » (16/10, lot C2) ═════════
+   Ethan (16/10) : « « répartir au ml » incompréhensible aussi, trop compliqué je pense ». Une fenêtre courte, en phrases : tout ce qui n'est pas encore pointé va sur
+   les lignes au ml où un DN est lu (pas celles au PU saisi à la main) : soudures, manchons et autocontrôles d'un DN sur les lignes de ce DN, le reste (installations,
+   épreuves…) au prorata des ml de toutes ces lignes ; ce qui ne trouve pas de ligne est dit (et peut suivre le prorata, une case) ; « Mettre le reste au ml » = une
+   répartition comme les autres (a.dpgf.reps, mode « par DN », nom « Reste au ml » : refaire / défaire dans la ventilation, un seul ↶) ; « Personnaliser… » = l'outil
+   détaillé (section 6, inchangé), pré-rempli avec la même proposition. */
+RS.simple={};
+const simpleName=a=>{const n=((a.dpgf||{}).reps||[]).filter(r=>/^Reste au ml/.test(r.nom||'')).length;return 'Reste au ml'+(n?' n° '+(n+1):'');};
+function cfgSimple(a,M,CP,orph){const c=cfgNew(a,M,CP,'dn');const rest=restFn(a,CP,null);c.ks={};CP.list.forEach(x=>{if(rest(x.k)>1e-9)c.ks[x.k]=true;});c.orphan=!!orph;c.com={mode:'prorata',ligne:null};c.nom=simpleName(a);c.nomSet=true;return c;}
+function closeSimple(num){RS.simple[num]=null;const o=document.getElementById('rp-ov');if(o&&o.querySelector('#rp-simple'))o.remove();}
+function refreshSimple(num){const el=document.getElementById('rp-simple');const a=X.affOf(num);const M=a&&X.modelOf(a);if(!el||!a||!M)return;const t=document.createElement('div');t.innerHTML=simpleHTML(a,M,X.XS.canEdit);const n=t.querySelector('#rp-simple');if(n)el.replaceWith(n);}
+function simpleHTML(a,M,canEdit){const S=RS.simple[a.num];if(!S||!canEdit||!M)return '';css(document);const CP=X.compsOf(a);let body='',n=0,plan=null;
+  const hd=`<div class="rp-hd"><h3>⇶ Mettre le reste au ml</h3><button class="btn sm" data-act="af" data-v="dxrpsimplex|" aria-label="Fermer">✕</button></div>`;
+  if(!CP)body=`<div class="eq-s">Pas encore de chiffrage complet (zones, postes) : fais le chiffrage à l'étape 4, puis reviens ici.</div>`;
+  else{const cfg=cfgSimple(a,M,CP,S.orph);plan=planOf(a,M,CP,cfg);const rest=restFn(a,CP,null);const R=CP.list.reduce((s,c)=>s+rest(c.k)*c.puV,0);n=plan.rows.filter(r=>r.parts.length).length;
+    if(R<1)body=`<p class="c2r-p"><b style="color:#15803d">✓ Tout notre prix est déjà pointé</b> : il n'y a rien à mettre au ml.</p>`;
+    else{const tg=plan.tgt;const ml=tg.reduce((s,l)=>s+l.q,0);const out=plan.LS.filter(l=>l.isMl&&l.q>0&&!cfg.sel[l.a]);const unAmt=plan.unDn.reduce((s,u)=>s+u.amt,0)+plan.unCom;
+      body=`<p class="c2r-p">Tout ce qui n'est pas encore pointé (<b>${eur(R)}</b>) va sur les lignes au ml : <b>soudures, manchons et autocontrôles d'un DN sur les lignes de ce DN</b>, le reste (installations, épreuves…) <b>au prorata des ml de toutes les lignes</b>.</p>
+        <p class="c2r-p">${tg.length?`Lignes qui reçoivent : <b>${tg.length} ligne${tg.length>1?'s':''} au ml</b> où un DN est lu (${nb(ml)} ml). Ce qu'elles ont déjà ne bouge pas : elles reçoivent en plus.`:'⚠ Aucune ligne au ml où un DN est lu : rien ne peut aller au ml (« Personnaliser… » pour choisir les lignes).'}${out.length?` Ne bougent pas : ${out.slice(0,6).map(l=>esc(l.n||l.a)).join(', ')}${out.length>6?'…':''} (PU saisi à la main ou DN illisible).`:''}</p>
+        ${plan.byDn.length?`<div class="c2r-dns">${plan.byDn.map(x=>`<div class="c2r-dn"><b>DN ${x.dn}</b> : ${x.amt>0.004?'<b>+ '+nb(x.pm,2)+' € / ml</b>':'rien à ajouter'} sur ${x.n} ligne${x.n>1?'s':''} <span class="dim">· ${nb(x.ml)} ml${x.amt>0.004?' · '+eur(x.amt):''}</span></div>`).join('')}</div>`:''}
+        ${unAmt>0.5?`<div class="rp-un"><b>⚠ Ce qui ne trouve pas de ligne : ${eur(unAmt)}</b>${plan.unDn.map(u=>`<span>DN ${u.dn} : aucune ligne au ml de ce DN — ${[u.soud?fq(u.soud)+' soud.':'',u.manch?fq(u.manch)+' manch.':''].filter(Boolean).join(', ')}, ${eur(u.amt)}</span>`).join('')}${plan.unCom>0.004?`<span>installations, épreuves… : aucune ligne pour les recevoir — ${eur(plan.unCom)}</span>`:''}<span class="dim">À placer au calculateur sur une ligne, ou avec « Personnaliser… ».</span></div>`:''}
+        ${plan.unDn.length||S.orph?`<label class="rp-orph"><input type="checkbox" data-rp="sorph"${S.orph?' checked':''}> mettre aussi ce qui n'a pas de ligne de son DN au prorata des ml de toutes les lignes</label>`:''}
+        <p class="c2r-p dim">Ensuite : la ventilation la montre (« ⇶ Répartitions au ml ») avec ↻ Refaire et ✕ Défaire ; ↶ annule tout d'un coup.</p>`;}}
+  const ft=`<div class="rp-ft"><span class="rp-tot">${n?`<b>${eur(plan.tot,2)}</b> sur ${n} ligne${n>1?'s':''}${Math.abs(plan.gap)>=0.005?' · écart d\'arrondi '+(plan.gap<-0.004?'−':'')+eur(Math.abs(plan.gap),2):''}`:''}</span><span class="rp-btns"><button class="btn sm" data-act="af" data-v="dxrpsimplex|">Annuler</button>${CP?`<button class="btn sm" data-act="af" data-v="dxrpsimplecustom|" title="L'outil détaillé : choisir les lignes, ce qu'on y met, les quantités">Personnaliser…</button>`:''}<button class="btn sm primary" data-act="af" data-v="dxrpsimpleok|"${n?'':' disabled'}>⇶ Mettre le reste au ml</button></span></div>`;
+  return `<div class="rp-ov" id="rp-ov"><div class="rp-dlg c2r-dlg" id="rp-simple" role="dialog" aria-modal="true" aria-label="Mettre le reste au ml">${hd}<div class="rp-body">${body}</div>${ft}</div></div>`;}
 /* ═════════ 9 · SAISIES (calculateur en ml, outil), Échap ═════════ */
 let WIRED=false;export function wire(){if(WIRED||!docOK())return;WIRED=true;
   document.addEventListener('input',e=>{const t=e.target;if(!t||!t.dataset)return;const num=X.XS.num;if(!num)return;
@@ -290,7 +332,8 @@ let WIRED=false;export function wire(){if(WIRED||!docOK())return;WIRED=true;
     else if(d==='ck'){if(t.checked)T.ks[t.dataset.k]=true;else{delete T.ks[t.dataset.k];delete T.qs[t.dataset.k];delete T.qt[t.dataset.k];delete T.qm[t.dataset.k];}}
     else if(d==='cm'){T.com.mode=t.value==='ligne'?'ligne':'prorata';}else if(d==='cl'){T.com.ligne=t.value;T.com.mode='ligne';}else if(d==='orph'){T.orphan=!!t.checked;}
     else if(d==='q'||d==='qml'){refreshTool(num,'pv');return;}else if(d==='nom'){T.nom=t.value;T.nomSet=true;return;}else return;refreshTool(num,'soft');});
-  document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;const num=X.XS.num;if(!num)return;if(tool(num)){e.preventDefault();closeTool(num);return;}
+  document.addEventListener('change',e=>{const t=e.target;if(!t||!t.dataset||t.dataset.rp!=='sorph')return;const num=X.XS.num;const S=num&&RS.simple[num];if(!S)return;S.orph=!!t.checked;refreshSimple(num);}); /* 16/10 (lot C2) */
+  document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;const num=X.XS.num;if(!num)return;if(tool(num)){e.preventDefault();closeTool(num);return;}if(RS.simple[num]){e.preventDefault();closeSimple(num);return;}
     if(RS.flt[num]&&!X.XS.full&&!X.XS.edit&&!document.querySelector('#modal.show')){const ae=document.activeElement;if(ae&&/^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)&&!ae.closest('#dx-calc'))return;shut(num,false);}});
   window.addEventListener('resize',()=>{clearTimeout(wire.t);wire.t=setTimeout(()=>{fitFlt();chip();},150);});
   let raf=0;document.addEventListener('scroll',()=>{if(raf||!document.querySelector('#dx-card .dx-split.flt'))return;raf=requestAnimationFrame(()=>{raf=0;fitFlt();});},{capture:true,passive:true});}

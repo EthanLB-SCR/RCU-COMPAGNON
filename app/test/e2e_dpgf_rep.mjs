@@ -72,7 +72,8 @@ out.ml=await page.$eval('#dx-calc [data-rp="cqml"][data-k="z0|soudure|dn100"]',e
 out.L1=L1&&{a:L1.a,keys:Object.keys(L1).sort().join(','),comps:JSON.stringify(L1.comps)};out.reps=a.dpgf.reps===undefined;out.split2=await split();
 console.log('   lien 3.1 :',JSON.stringify(out));
 // c14 (début) : un lien classique reste exactement comme avant (mêmes champs, quantité en soudures), pas de champ reps
-C.c14=out.take==='120'&&/120 soud\. ≈ 600 ml/.test(out.row)&&/€ \/ ml/.test(out.row)&&out.ml==='200'&&out.L1&&out.L1.a==='E18'&&out.L1.keys==='a,amt,at,by,col,comps,id,pu,q,qa,qfix,sh,u,v'&&out.L1.comps==='[{"k":"z0|soudure|dn100","q":40}]'&&out.reps&&/\bflt\b/.test(out.split2);
+// 16/10 (lot C2) : ligne « à l'unité » (3.1 : 40 u) → cocher les soudures DN 100 propose d'office 40 soudures (avant : tout le reste, 120) — changement voulu
+C.c14=out.take==='40'&&/120 soud\. ≈ 600 ml/.test(out.row)&&/€ \/ ml/.test(out.row)&&out.ml==='200'&&out.L1&&out.L1.a==='E18'&&out.L1.keys==='a,amt,at,by,col,comps,id,pu,q,qa,qfix,sh,u,v'&&out.L1.comps==='[{"k":"z0|soudure|dn100","q":40}]'&&out.reps&&/\bflt\b/.test(out.split2);
 // ── c2) la pastille : sur une désignation rien ne s'ouvre, une pastille « 🧮 Calculer » apparaît près de la cellule ; elle ouvre le calculateur
 await click('dxrpshut|');out={closed:!/\bflt\b/.test(await split())};await page.click(td(10,2));await wait(400);
 out.split=await split();out.chip=await page.evaluate(()=>{const c=document.querySelector('#dx-vp .rp-chip');if(!c||c.hidden)return null;const b=c.getBoundingClientRect();return {t:c.textContent,l:Math.round(b.left),r:Math.round(b.right),tp:Math.round(b.top),b:Math.round(b.bottom),h:Math.round(b.height)};});out.cell=await rect(td(10,2));
