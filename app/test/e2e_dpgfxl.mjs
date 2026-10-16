@@ -12,6 +12,7 @@
 import { chromium } from 'playwright';
 import fs from 'fs';import os from 'os';import path from 'path';import {fileURLToPath} from 'url';import {execFileSync} from 'child_process';
 import {zipEntries,inflate,openXlsx,makeStyledXlsx} from '../src/xlsx.js';
+import {cles} from './dpgf_cles.mjs'; /* 16/10 après-midi (lot C3) : les liens enregistrent des clés stables « z:<id de zone>|… » ; K('z0|…') / U(…) pour les lire ici */
 const HERE=path.dirname(fileURLToPath(import.meta.url));
 const BASE=process.env.BASE||'http://localhost:8765';
 const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
@@ -51,7 +52,7 @@ await unfold('chantier');await chg('#eq-app [data-afx="e§chantier.d0"]','2026-1
 await click('tab|dpgf');
 const ORIG=fs.readFileSync(path.join(HERE,'fixture_dpgf_xl.xlsx'));
 await page.setInputFiles('#eq-app [data-afdpgf]',{name:'DPGF_lot02_essai.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:ORIG});
-await page.waitForSelector('#dx-vp',{timeout:15000});await wait(400);
+await page.waitForSelector('#dx-vp',{timeout:15000});await wait(400);const {K,U,KS}=await cles(page,NUM);
 // ── 1) import : la feuille du bordereau (en-tête ligne 4), les lignes et chapitres ; la grille en tête ; l'existant replié dessous
 let a=await A();let out={sheet:a.dpgf.sheetName,hdr:a.dpgf.hdrRow,cols:a.dpgf.cols,lines:a.dpgf.lignes.filter(l=>!l.section).map(l=>l.row+':'+l.n+':'+l.u+':'+l.qte),secs:a.dpgf.lignes.filter(l=>l.section).length,
   tabs:await page.$$eval('#dx-card .dx-tabs button',b=>b.map(x=>x.textContent)),old:await page.$$eval('#eq-app details.dx-old',d=>d.map(x=>x.dataset.dxdet+':'+x.open))};
@@ -92,18 +93,18 @@ await page.hover(td(11,5));await wait(200);out.hover=await page.evaluate(id=>({c
 out.vent=await page.evaluate(()=>{const rows=[...document.querySelectorAll('#dx-vent .dx-vt tbody tr')].map(r=>[...r.cells].map(c=>c.textContent.replace(/[\s\u00A0\u202F]+/g,' ').trim()));return {sum:document.querySelector('#dx-vent .dx-vsum').textContent.replace(/[\s\u00A0\u202F]+/g,' '),sou:rows.find(r=>/^Soudure/.test(r[0])),man:rows.find(r=>/^Manchons/.test(r[0])),ep:rows.find(r=>/^Épreuve/.test(r[0]))};});
 out.calcDone=await page.$$eval('#dx-calc .dx-cr.full',L=>L.length);
 // 2e ligne : 2.1 (600 ml) avec la moitié de l'épreuve (« 50 % ») → reste à placer sur l'épreuve
-await page.click(td(10,2));await wait(250);await page.evaluate(()=>{const cb=document.querySelector('#dx-calc input[data-dx="ck"][data-k="z0|epreuve"]');cb.checked=true;cb.dispatchEvent(new Event('change',{bubbles:true}));});await wait(250);
-await page.fill('#dx-calc [data-dx="cq"][data-k="z0|epreuve"]','50 %');await page.dispatchEvent('#dx-calc [data-dx="cq"][data-k="z0|epreuve"]','change');await wait(250);
+await page.click(td(10,2));await wait(250);await page.evaluate(k=>{const cb=document.querySelector(`#dx-calc input[data-dx="ck"][data-k="${k}"]`);cb.checked=true;cb.dispatchEvent(new Event('change',{bubbles:true}));},K('z0|epreuve'));await wait(250);
+await page.fill(KS('#dx-calc [data-dx="cq"][data-k="z0|epreuve"]'),'50 %');await page.dispatchEvent(KS('#dx-calc [data-dx="cq"][data-k="z0|epreuve"]'),'change');await wait(250);
 out.half=sp(await page.$eval('#dx-cres',e=>e.textContent));await click('dxput|');await wait(300);a=await A();
-out.l2=a.dpgf.liens.length===2&&a.dpgf.liens[1].a==='E10'&&a.dpgf.liens[1].comps[0].k==='z0|epreuve'?Math.abs(a.dpgf.liens[1].comps[0].q-300)<1e-6:false;out.e10=sp(await T(10,5));
+out.l2=a.dpgf.liens.length===2&&a.dpgf.liens[1].a==='E10'&&U(a.dpgf.liens[1].comps[0].k)==='z0|epreuve'?Math.abs(a.dpgf.liens[1].comps[0].q-300)<1e-6:false;out.e10=sp(await T(10,5));
 out.ep2=await page.evaluate(()=>{const r=[...document.querySelectorAll('#dx-vent .dx-vt tbody tr')].find(r=>/^Épreuve/.test(r.cells[0].textContent));return r?[...r.cells].map(c=>c.textContent.replace(/[\s\u00A0\u202F]+/g,' ').trim()):null;});
 // trop pointé : manchons DN 100 (déjà tout pris par la ligne 2.2) sur la ligne 2.3 → « ⚠ dépasse »
-await page.click(td(12,2));await wait(250);await page.evaluate(()=>{const cb=document.querySelector('#dx-calc input[data-dx="ck"][data-k="z0|manchons|dn100"]');cb.checked=true;cb.dispatchEvent(new Event('change',{bubbles:true}));});await wait(200);
-await page.fill('#dx-calc [data-dx="cq"][data-k="z0|manchons|dn100"]','50');await page.dispatchEvent('#dx-calc [data-dx="cq"][data-k="z0|manchons|dn100"]','change');await wait(250);out.over=await page.$eval('#dx-calc .dx-cr.over',e=>e.textContent.replace(/[\s\u00A0\u202F]+/g,' ')).catch(()=>'');await click('dxcclr|');
+await page.click(td(12,2));await wait(250);await page.evaluate(k=>{const cb=document.querySelector(`#dx-calc input[data-dx="ck"][data-k="${k}"]`);cb.checked=true;cb.dispatchEvent(new Event('change',{bubbles:true}));},K('z0|manchons|dn100'));await wait(200);
+await page.fill(KS('#dx-calc [data-dx="cq"][data-k="z0|manchons|dn100"]'),'50');await page.dispatchEvent(KS('#dx-calc [data-dx="cq"][data-k="z0|manchons|dn100"]'),'change');await wait(250);out.over=await page.$eval('#dx-calc .dx-cr.over',e=>e.textContent.replace(/[\s\u00A0\u202F]+/g,' ')).catch(()=>'');await click('dxcclr|');
 console.log('4) calculateur, lien, décompte :',JSON.stringify(out),JSON.stringify({puExp}));
 const colOf=x=>x.replace(/\s/g,'');
-C.c4=/ligne 11/.test(out.h)&&out.q==='100'&&out.on.join()==='z0|soudure|dn100=100,z0|manchons|dn100=100'&&out.res.includes(String(puExp).replace('.',','))&&out.link&&out.link.a==='E11'&&out.link.qa==='D11'&&out.link.q===100&&out.link.pu===puExp
-  &&out.link.comps.join()==='z0|soudure|dn100:100,z0|manchons|dn100:100'&&out.e11===puExp.toLocaleString('fr-FR',{minimumFractionDigits:2}).replace(/\u202F/g,' ')+' €'&&/dx-lk/.test(out.vis.cls)&&out.vis.lk===L1.id&&colOf(out.vis.col)==='#1f6fd0'&&out.vis.dot&&out.vis.segs>=3&&out.vis.segCol==='rgb(31, 111, 208)'&&out.vis.qa
+C.c4=/ligne 11/.test(out.h)&&out.q==='100'&&U(out.on.join())==='z0|soudure|dn100=100,z0|manchons|dn100=100'&&out.res.includes(String(puExp).replace('.',','))&&out.link&&out.link.a==='E11'&&out.link.qa==='D11'&&out.link.q===100&&out.link.pu===puExp
+  &&U(out.link.comps.join())==='z0|soudure|dn100:100,z0|manchons|dn100:100'&&out.e11===puExp.toLocaleString('fr-FR',{minimumFractionDigits:2}).replace(/\u202F/g,' ')+' €'&&/dx-lk/.test(out.vis.cls)&&out.vis.lk===L1.id&&colOf(out.vis.col)==='#1f6fd0'&&out.vis.dot&&out.vis.segs>=3&&out.vis.segCol==='rgb(31, 111, 208)'&&out.vis.qa
   &&out.hover.cell&&out.hover.segs>=3&&/pointé/.test(out.vent.sum)&&out.vent.sou&&/✓ placé/.test(out.vent.sou[1])&&/✓ placé/.test(out.vent.man[1])&&out.calcDone===2&&/reste/.test(out.vent.ep[1])
   &&out.l2&&/= [\d ,]+ €/.test(out.half)&&out.e10!==''&&out.ep2&&/reste/.test(out.ep2[1])&&/dépasse de 50/.test(out.over);
 // ── 5) ⬇ DPGF pour le dossier : le fichier du client, seules les cellules changées ; formules d'origine ; valeurs en cache à jour ; recalcul à l'ouverture ; rien de l'appli

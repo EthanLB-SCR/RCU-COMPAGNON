@@ -15,6 +15,7 @@ import {readBook,patchSheetXml,cellKey,rezip,inflate,dropCalcChain,makeStyledXls
 import {parseFormula,evalFormula,Unsupported,fmtValue,fmtKind,parseInput,editText,shiftFormula,shiftRowsFormula,fxToFr,BUILTIN_FMT,addrOf,parseAddr,isErr} from './xlcalc.js';
 import * as REP from './dpgfrep.js'; // 15/10 (lot R) : calculateur qui s'ouvre au clic, soudures en ml, « ⇶ Répartir au ml »
 import * as CL from './dpgfclair.js'; // 16/10 (lot C2) : écran plus clair, « Mettre et ligne suivante », autocontrôle par type, même panier de cases, autre écran sans grand cadre
+import * as SV from './dpgfsuivi.js'; // 16/10 après-midi (lot C3) : clés stables, liste des changements du chiffrage à traiter, écran plus léger (bouton flottant, groupes repliables, ventilation compacte)
 let H=null;export function initDpgfXl(h){H=h;}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nb=(x,d)=>{x=+x||0;return x.toLocaleString('fr-FR',{maximumFractionDigits:d===undefined?0:d,minimumFractionDigits:d===undefined?0:d});};
@@ -114,9 +115,9 @@ function syncFromGrid(a,D,rowMap){const B=BOOK[a.num];if(!B||B.st!=='ok')return;
     if(anyPu&&isEmpty(hv)&&!cur[ha]){edSet(D,S.name,ha,{v:'PU HT (SCR)',auto:1});changed=true;}else if(!anyPu&&cur[ha]&&cur[ha].auto){edSet(D,S.name,ha,null);changed=true;}}
   const M=changed?buildModel(B.book,D.xl):M0;const oldL=D.lignes||[];const L=deriveLines(M,D);D.map=remapMap(D,oldL,L,rowMap);D.lignes=L;}
 /* ═════════ 6 · SAISIES (et annuler / rétablir) ═════════ */
-const snapOf=D=>JSON.stringify({xl:D.xl||null,lignes:D.lignes||[],map:D.map||{},liens:D.liens||[],hdrRow:D.hdrRow,reps:D.reps||null});
+const snapOf=D=>JSON.stringify({xl:D.xl||null,lignes:D.lignes||[],map:D.map||{},liens:D.liens||[],hdrRow:D.hdrRow,reps:D.reps||null,suivi:D.suivi||null}); /* 16/10 (lot C3) : + le suivi des changements (un traitement s'annule d'un seul ↶) */
 function pushUndo(a){const D=a.dpgf||{};const U=XS.undo[a.num]=XS.undo[a.num]||[];U.push(snapOf(D));if(U.length>40)U.shift();XS.redo[a.num]=[];}
-function restore(a,snap){const o=JSON.parse(snap);const D=Object.assign({},a.dpgf||{},{xl:o.xl||undefined,lignes:o.lignes,map:o.map,liens:o.liens,hdrRow:o.hdrRow});if(!o.xl)delete D.xl;if(o.reps&&o.reps.length)D.reps=o.reps;else delete D.reps;H.affSet(a.num,{dpgf:D});}
+function restore(a,snap){const o=JSON.parse(snap);const D=Object.assign({},a.dpgf||{},{xl:o.xl||undefined,lignes:o.lignes,map:o.map,liens:o.liens,hdrRow:o.hdrRow});if(!o.xl)delete D.xl;if(o.reps&&o.reps.length)D.reps=o.reps;else delete D.reps;if(o.suivi!==undefined){if(o.suivi)D.suivi=o.suivi;else delete D.suivi;}H.affSet(a.num,{dpgf:D});}
 export function dxUndo(a,redo){const from=redo?XS.redo:XS.undo,to=redo?XS.undo:XS.redo;const L=from[a.num]||[];if(!L.length){say(redo?'Rien à rétablir':'Rien à annuler');return false;}const snap=L.pop();(to[a.num]=to[a.num]||[]).push(snapOf(a.dpgf||{}));restore(a,snap);return true;}
 const sameV=(x,y)=>{if(x===undefined)x=null;if(y===undefined)y=null;if(typeof x==='number'&&typeof y==='number')return Math.abs(x-y)<=1e-9*Math.max(1,Math.abs(x));if(isErr(x)&&isErr(y))return x.e===y.e;return x===y;};
 function edSet(D,sh,ad,e){const xl=D.xl=Object.assign({ed:{},ops:[]},D.xl||{});xl.ed=Object.assign({},xl.ed||{});const m=Object.assign({},xl.ed[sh]||{});if(e===null||e===undefined)delete m[ad];else m[ad]=e;xl.ed[sh]=m;if(!Object.keys(m).length)delete xl.ed[sh];xl.rev=(xl.rev||0)+1;}
@@ -131,7 +132,7 @@ function inputToEd(M,S,r,c,text,D){const k=cellKey(r,c);const cell=S.cells.get(k
 export function dxWrite(a,vals,opt){opt=opt||{};const M=modelOf(a);if(!M)return false;const D=Object.assign({},a.dpgf||{});let n=0;pushUndo(a);
   for(const x of vals){const S=M.S(x.sh);if(!S)continue;const ad=addrOf(x.r,x.c);let e=x.e!==undefined?x.e:inputToEd(M,S,x.r,x.c,x.text,a.dpgf);if(e===undefined){XS.undo[a.num].pop();return false;}
     if(e&&e.f===undefined&&x.e!==undefined){const cell=S.cells.get(cellKey(x.r,x.c));const base=cell?(cell.ed?cell.o:cell):null;if((base&&!base.f&&sameV(base.v,e.v))||(!base&&isEmpty(e.v)))e=null;}edSet(D,S.name,ad,e);n++;}
-  syncFromGrid(a,D);if(opt.liens)D.liens=opt.liens(D.liens||[]);if(opt.dp)opt.dp(D);H.affSet(a.num,{dpgf:D});return n;}
+  syncFromGrid(a,D);if(opt.liens)D.liens=opt.liens(D.liens||[]);if(opt.dp)opt.dp(D);SV.onWrite(a,D,opt); /* 16/10 (lot C3) : le suivi des changements du chiffrage suit chaque écriture */H.affSet(a.num,{dpgf:D});return n;}
 /* rétablir la valeur d'origine d'une cellule */
 export function dxRevert(a,sh,ad){const D=Object.assign({},a.dpgf||{});pushUndo(a);edSet(D,sh,ad,null);syncFromGrid(a,D);H.affSet(a.num,{dpgf:D});}
 /* insérer n lignes sous la ligne r (copie des formats et des formules de la ligne r) / supprimer des lignes */
@@ -162,14 +163,15 @@ function splitPoste(k,R,z,ml){const DT=R.detail||{};const dn=(DT.dn&&DT.dn.rows)
   else if(k==='purges'&&z.purges&&+z.purges.paires>0)o=[{key:'',lab:'DN '+z.purges.dn,u:'paire',qty:+z.purges.paires,w:1}];else if(k==='vidanges'&&z.vidanges&&+z.vidanges.paires>0)o=[{key:'',lab:'DN '+z.vidanges.dn,u:'paire',qty:+z.vidanges.paires,w:1}];
   return o&&o.length?o:whole;}
 const CPC={};const baseOf=()=>{try{return H.base?H.base():null;}catch(e){return null;}};
-export function compsOf(a){const b=baseOf();const c0=CPC[a.num];if(c0&&c0.ch===a.chiffrage&&c0.b===b&&c0.cl===a.client&&c0.v===a.chiffrageV)return c0.R;const C=H.calc(a);if(!C||!C.v2){CPC[a.num]={ch:a.chiffrage,b,cl:a.client,v:a.chiffrageV,R:null};return null;}
+export function compsOf(a){const b=baseOf();const c0=CPC[a.num];const al=SV.alOf(a); /* 16/10 (lot C3) : les anciennes clés figées par le suivi */if(c0&&c0.ch===a.chiffrage&&c0.b===b&&c0.cl===a.client&&c0.v===a.chiffrageV&&c0.al===al)return c0.R;const C=H.calc(a);if(!C||!C.v2){CPC[a.num]={ch:a.chiffrage,b,cl:a.client,v:a.chiffrageV,al,R:null};return null;}
   const coef=C.coef>0?C.coef:1;const V=x=>x/coef;const out=[];const zones=C.etudes.map((e,i)=>({i,k:'z'+i,nom:e.z.nom||('Zone '+(i+1)),ml:e.r.ml||0}));
   const postes=C.postes.filter(p=>!p.tete);const grp={};C.postes.filter(p=>p.tete).forEach(p=>{grp[p.k]=p.label;});
   const add=(zi,zn,P,L,parts)=>{const W=parts.reduce((s,x)=>s+x.w,0)||1;parts.forEach(x=>{const f=x.w/W;const amtA=L.achat*f;out.push({k:(zi<0?'inst':'z'+zi)+'|'+P.k+(x.key?'|'+x.key:''),z:zi,zn,p:P.k,pl:P.label,g:grp[P.grp]||'',lab:x.lab,u:x.u,qty:x.qty,amtA,amtV:V(amtA),mo:(L.mo||0)*f,fo:(L.fo||0)*f,st:(L.st||0)*f,loc:(L.loc||0)*f});});};
   C.etudes.forEach((e,ei)=>{const R=e.r;const ml=R.ml||0;postes.forEach(P=>{const L=R.postes[P.k];if(!L||Math.abs(L.achat)<0.005)return;add(ei,zones[ei].nom,P,L,splitPoste(P.k,R,e.z||{},ml));});});
   if(C.inst)postes.forEach(P=>{const L=C.inst.postes[P.k];if(!L||Math.abs(L.achat)<0.005)return;const ml=C.ml||0;add(-1,'Installations',P,L,[{key:'',lab:'',u:ml?'ml':'%',qty:ml||100,w:1}]);});
   out.forEach(c=>{c.puV=c.qty?c.amtV/c.qty:0;c.puA=c.qty?c.amtA/c.qty:0;});
-  const R={C,list:out,by:new Map(out.map(c=>[c.k,c])),zones,inst:!!C.inst,coef,postes,grp,v:a.chiffrageV||1};CPC[a.num]={ch:a.chiffrage,b,cl:a.client,v:a.chiffrageV,R};return REP.withMl(R);} /* 15/10 (lot R) : c.ml, c.dn des composantes par DN */
+  const R={C,list:out,by:new Map(out.map(c=>[c.k,c])),zones,inst:!!C.inst,coef,postes,grp,v:a.chiffrageV||1};SV.stable(R,a); /* 16/10 (lot C3) : c.k = clé stable (zone par son id, lignes par leur contenu), c.ok = l'ancienne ; CP.by lit les deux */
+  CPC[a.num]={ch:a.chiffrage,b,cl:a.client,v:a.chiffrageV,al,R};return REP.withMl(R);} /* 15/10 (lot R) : c.ml, c.dn des composantes par DN */
 const compName=c=>c.pl+(c.lab?' · '+c.lab:'');
 /* ═════════ 8 · LIENS DE POINTAGE (ligne du DPGF ↔ composantes) ═════════ */
 const qOfCell=(M,sh,ad)=>{if(!M||!ad)return null;const S=M.S(sh);const p=parseAddr(ad);if(!S||!p)return null;return numOf(val(M,S,p.r,p.c));};
@@ -178,7 +180,7 @@ export function linkNow(L,CP,M){let amt=0,mo=0,fo=0,st=0,loc=0;const miss=[];(L.
   return {amt,q,pu,pur:r2(pu),cell,stale,miss,mo,fo,st,loc};}
 /* pointé par composante (quantités) et par case zone × poste (montants), en laissant de côté un lien (celui qu'on recalcule) */
 export function pointage(a,CP,M,skipId){const D=a.dpgf||{};const byComp=new Map(),byCell=new Map();
-  (D.liens||[]).forEach(L=>{(L.comps||[]).forEach(x=>{if(L.id===skipId&&!x.rep)return; /* 15/10 (lot R) : les parts de répartition de la ligne recalculée restent pointées */const c=CP.by.get(x.k);if(!c)return;byComp.set(x.k,(byComp.get(x.k)||0)+(+x.q||0));const kk=(c.z<0?'inst':'z'+c.z)+'|'+c.p;if(!byCell.has(kk))byCell.set(kk,[]);byCell.get(kk).push({id:L.id,col:L.col,amt:(+x.q||0)*c.puV});});});
+  (D.liens||[]).forEach(L=>{(L.comps||[]).forEach(x=>{if(L.id===skipId&&!x.rep)return; /* 15/10 (lot R) : les parts de répartition de la ligne recalculée restent pointées */const c=CP.by.get(x.k);if(!c)return;byComp.set(c.k,(byComp.get(c.k)||0)+(+x.q||0)); /* 16/10 (lot C3) : compté sous la clé stable (une ancienne clé y mène aussi) */const kk=(c.z<0?'inst':'z'+c.z)+'|'+c.p;if(!byCell.has(kk))byCell.set(kk,[]);byCell.get(kk).push({id:L.id,col:L.col,amt:(+x.q||0)*c.puV});});});
   try{const T=translateOf(a);Object.keys(T.usedAmt||{}).forEach(key=>{const m=key.split('|');let kk=null;if(m[0]==='p')kk='z'+m[1]+'|'+m[2];else if(m[0]==='b')kk='z'+m[1]+'|paniers';else if(m[0]==='i')kk='inst|'+m[1];const v=T.usedAmt[key];if(!kk||!(v>0.004))return;if(!byCell.has(kk))byCell.set(kk,[]);byCell.get(kk).push({id:'atelier',col:-1,amt:v});});}catch(e){}
   return {byComp,byCell};}
 const TRC={};function translateOf(a){const b=baseOf();const t=TRC[a.num];if(t&&t.ch===a.chiffrage&&t.d===a.dpgf&&t.b===b)return t.T;const T=H.translate(a);TRC[a.num]={ch:a.chiffrage,d:a.dpgf,b,T};return T;}
@@ -187,7 +189,7 @@ const linkOfRow=(a,sh,r)=>((a.dpgf||{}).liens||[]).find(L=>up(L.sh)===up(sh)&&pa
 const nextCol=D=>{const used=new Set((D.liens||[]).map(L=>L.col));for(let i=0;i<LK_COLS.length;i++)if(!used.has(i))return i;return (D.liens||[]).length%LK_COLS.length;};
 /* prix liés devenus faux (chiffrage changé, quantité changée, PU retouché) → on les réécrit */
 export function dxApplyLinks(a,ids){const M=modelOf(a);const CP=compsOf(a);if(!M||!CP)return 0;const D=a.dpgf||{};const vals=[];const now=new Date().toISOString();const upd={};
-  (D.liens||[]).forEach(L=>{if(ids&&!ids.includes(L.id))return;const X=linkNow(L,CP,M);if(!X.stale)return;const p=parseAddr(L.a);if(!p)return;vals.push({sh:L.sh,r:p.r,c:p.c,e:{v:X.pur}});upd[L.id]={pu:X.pur,amt:r2(X.amt),v:CP.v,at:now};});
+  (D.liens||[]).forEach(L=>{if(ids&&!ids.includes(L.id))return;const X=linkNow(L,CP,M);if(!X.stale)return;const p=parseAddr(L.a);if(!p)return;vals.push({sh:L.sh,r:p.r,c:p.c,e:{v:X.pur}});upd[L.id]={pu:X.pur,amt:r2(X.amt),v:CP.v,at:now,comps:SV.canonComps(L.comps,CP)};}); /* 16/10 (lot C3) : un lien réécrit passe aux clés stables */
   if(!vals.length)return 0;dxWrite(a,vals,{liens:LL=>LL.map(L=>upd[L.id]?Object.assign({},L,upd[L.id]):L)});return vals.length;}
 /* ═════════ 9 · RENDU DE LA GRILLE « COMME DANS EXCEL » ═════════ */
 const DX_CSS=`
@@ -354,7 +356,8 @@ function calcTarget(a,M){const s=XS.sel[a.num];if(!s||!M)return null;const D=a.d
 const tgtKey=t=>t?t.sh+'!'+t.a:'';
 /* état du calculateur pour la cible : composantes cochées et quantités prises (repris du lien s'il existe) */
 function calcState(a,t,M){let C=XS.calc[a.num];if(C&&C.key===tgtKey(t))return C;const lk=t?linkAt(a,t.sh,t.a):null;const qc=t&&t.qa?qOfCell(M,t.sh,t.qa):null;
-  C=XS.calc[a.num]={key:tgtKey(t),chk:{},q:lk?String(qc!==null&&qc>0?qc:lk.q):(qc!==null?String(qc):''),wq:false,open:{}};if(lk)(lk.comps||[]).forEach(x=>{if(x.rep)return;if(x.sub){CL.subIn(C,x);return;} /* 16/10 (lot C2) : un type d'autocontrôle pris seul */C.chk[x.k]=String(x.q);});return C;}
+  C=XS.calc[a.num]={key:tgtKey(t),chk:{},q:lk?String(qc!==null&&qc>0?qc:lk.q):(qc!==null?String(qc):''),wq:false,open:{}};const CP=lk?compsOf(a):null; /* 16/10 (lot C3) : cases sous la clé stable */
+  if(lk)(lk.comps||[]).forEach(x0=>{if(x0.rep)return;const x=Object.assign({},x0,{k:SV.ck(CP,x0.k)});if(x.sub){CL.subIn(C,x);return;} /* 16/10 (lot C2) : un type d'autocontrôle pris seul */C.chk[x.k]=C.chk[x.k]!==undefined?String(+C.chk[x.k]+(+x.q||0)):String(x.q);});return C;}
 const parseQ=(txt,c)=>{const s=String(txt||'').trim().replace(/[\s  ]/g,'').replace(',','.');if(!s)return 0;if(/%$/.test(s)){const p=parseFloat(s);return isFinite(p)?c.qty*p/100:0;}const x=parseFloat(s);return isFinite(x)?x:0;};
 function calcSum(a,CP,C){let amt=0;Object.keys(C.chk).forEach(k=>{const c=CP.by.get(k);if(!c)return;amt+=parseQ(C.chk[k],c)*c.puV;});return amt+REP.partsAmt(a,CP,C.key)+CL.subAmt(a,CP,C);}
 const dnOfTxt=t=>{const m=String(t||'').match(/\bDN\s?(\d{2,3})\b/i);return m?+m[1]:null;};
@@ -441,11 +444,11 @@ export function dpgfXlHTML(a,canEdit,ctx){ensureCss(document);wireSide();XS.ctx=
     <button class="btn sm${side?' on':''}" data-act="af" data-v="dxlay|side" title="Le DPGF à gauche, notre prix à droite (grand écran)">◫ Côte à côte</button><button class="btn sm${side?'':' on'}" data-act="af" data-v="dxlay|stack" title="Notre prix sous le DPGF (écran simple)">⬒ Empilé</button><button class="btn sm${pop?' on':''}" data-act="af" data-v="dxpop|" title="Le DPGF dans une fenêtre à glisser sur le 2e écran">⧉ Autre écran</button><button class="btn sm" data-act="af" data-v="dxfull|" title="${XS.full?'Quitter le plein écran (Échap)':'Plein écran'}">${XS.full?'✕ Quitter':'⤢ Plein écran'}</button></div>`;
   const fb=`<div class="dx-fb"><input class="dx-nm" id="dx-nm" value="${addrOf(s.r,s.c)}" aria-label="Cellule" title="Aller à une cellule (ex. E12)"><span class="dx-fxl">fx</span><input class="dx-fi" id="dx-fi" value="${esc(editText(cur&&cur.f?cur:{v:val(M,S,s.r,s.c)}))}" ${ro?'readonly':''} aria-label="Contenu de la cellule"><span class="dx-fbx" id="dx-fbx"${cellInfo(a,M,S,s)?'':' hidden'}>${cellInfo(a,M,S,s)}</span></div>`;
   queueMicrotask(()=>{try{dxMount(a.num);}catch(e){console.warn(e);}});
-  {const h=CL.cardHTML(a,M,canEdit,{z,side,pop,grid,fb,sideHTML:()=>sideHTML(a,M,canEdit)});if(h!==null)return h;} /* 16/10 (lot C2) : barre courte (« ⋯ »), autre écran = une barre fine, calculateur et ventilation sur toute la largeur */
+  {const h=CL.cardHTML(a,M,canEdit,{z,side,pop,grid,fb,sideHTML:()=>sideHTML(a,M,canEdit),top:SV.topHTML(a,M,canEdit),end:SV.endHTML(a,M,canEdit)});if(h!==null)return h;} /* 16/10 (lot C2) : barre courte (« ⋯ »), autre écran = une barre fine, calculateur et ventilation sur toute la largeur — (lot C3) : top = bandeau « le chiffrage a changé », end = bouton flottant « 🧮 Calculer » et la liste à traiter */
   return `<div class="card dx-card${XS.full?' full':''}" id="dx-card">${head}${bar}${pop?'':fb}<div class="dx-split${side?' side':''}${REP.splitCls(a)}">${grid}<div class="dx-side" id="dx-side">${sideHTML(a,M,canEdit)}</div></div>
     <div class="hint" style="margin-top:6px">Clique une cellule et tape (formules en français : <i>=SOMME(F7:F9)</i>, <i>=ARRONDI(D10*E10;2)</i>) ; Entrée valide, Échap annule, Ctrl+Z annule. Le coin bleu = cellule modifiée ; « ⬇ DPGF pour le dossier » rend le fichier du client avec ces seules cellules changées.</div>${REP.toolHTML(a,M,canEdit)}</div>`;}
 function tabsHTML(a,M,S){return `<div class="dx-tabs">${M.sheets.map((x,i)=>x.hidden?'':`<button class="${x===S?'on':''}" data-act="af" data-v="dxsheet|${i}">${esc(x.name)}</button>`).join('')}<span class="dx-st" id="dx-st">${statusHTML(a,M,S)}</span></div>`;}
-function sideHTML(a,M,canEdit){return (XS.showMods?modsHTML(a,M):'')+calcHTML(a,M,canEdit)+ventHTML(a,M,canEdit)+puDetailBlock(a,canEdit);}
+function sideHTML(a,M,canEdit){return (XS.showMods?modsHTML(a,M):'')+calcHTML(a,M,canEdit)+(SV.ventHTML(a,M,canEdit)??ventHTML(a,M,canEdit))+puDetailBlock(a,canEdit);} /* 16/10 (lot C3) : ventilation compacte (zones repliables, coûts au choix), toujours sous le calculateur */
 /* ═════════ 13 · MONTAGE APRÈS LE RENDU, ÉVÉNEMENTS DE LA GRILLE ═════════ */
 function viewOf(doc){return {doc,win:doc.defaultView||window,vp:doc.getElementById('dx-vp'),cnt:doc.getElementById('dx-cnt'),fi:doc.getElementById('dx-fi'),nm:doc.getElementById('dx-nm'),fbx:doc.getElementById('dx-fbx'),st:doc.getElementById('dx-st')};}
 export function dxMount(num,doc){doc=doc||document;const a=affOf(num);if(!a)return;const M=modelOf(a);if(!M)return;const V=viewOf(doc);if(!V.vp)return;const S=curSheet(a,M);V.num=num;V.sh=S.name;V.key=num+'|'+S.name;
@@ -562,6 +565,7 @@ const fmtIn=x=>String(+(+x).toFixed(3)).replace('.',',');
 export function dpgfXlAct(k,arg,arg2,a,ctx){if(!/^dx/.test(k))return false;XS.ctx=ctx||XS.ctx;const canEdit=!!(ctx&&ctx.canEdit);const M=modelOf(a);
   if(/^dxrp/.test(k))return REP.act(k,arg,arg2,a,canEdit,M); /* 15/10 (lot R) : calculateur à côté de la grille, « ⇶ Répartir au ml » */
   if(CL.act(k,arg,arg2,a,canEdit,M))return true; /* 16/10 (lot C2) : « ↦ Mettre » (aussi par type d'autocontrôle), « Mettre et ligne suivante », ◀ ▶, « Comme la ligne », sélections gardées */
+  if(/^dxc3/.test(k))return SV.act(k,arg,arg2,a,canEdit,M); /* 16/10 après-midi (lot C3) : liste des changements à traiter, groupes repliables, bouton flottant */
   switch(k){
     case 'dxsheet':{if(!M)return true;const S=M.sheets[+arg];if(S){XS.sh[a.num]=S.name;}rerender();return true;}
     case 'dxzoom':{if(!M)return true;const S=curSheet(a,M);const z=zoomOf(a,S);let i=0;ZOOMS.forEach((x,j)=>{if(Math.abs(x-z)<Math.abs(ZOOMS[i]-z))i=j;});i=Math.max(0,Math.min(ZOOMS.length-1,i+(+arg||0)));XS.zoom[a.num+'|'+S.name]=ZOOMS[i];rerender();return true;}
@@ -751,10 +755,12 @@ export function refreshPopup(){if(!popLive())return;const a=affOf(XS.pop.num);co
     <div class="dx-fb"><input class="dx-nm" id="dx-nm" value="${addrOf(s.r,s.c)}"><span class="dx-fxl">fx</span><input class="dx-fi" id="dx-fi" value="${esc(editText(cur&&cur.f?cur:{v:val(M,S,s.r,s.c)}))}" ${XS.canEdit?'':'readonly'}><span class="dx-fbx" id="dx-fbx"${cellInfo(a,M,S,s)?'':' hidden'}>${cellInfo(a,M,S,s)}</span></div>
     <div class="dx-grid"><div class="dx-vp" id="dx-vp" tabindex="0"><div class="dx-cnt" id="dx-cnt">${T.html}</div></div>${tabsHTML(a,M,S)}</div></div>`;
   doc.title=(a.num||'')+' — DPGF';dxMount(a.num,doc);if(had||doc.hasFocus()){const vp=doc.getElementById('dx-vp');if(vp&&XS.focus)try{vp.focus({preventScroll:true});}catch(e){}}}
-export function dxReset(num){[XS.undo,XS.redo,XS.calc,XS.sel,XS.sh].forEach(m=>{delete m[num];});Object.keys(XS.det).forEach(k=>{if(k.startsWith(num+'|'))delete XS.det[k];});Object.keys(XS.scroll).forEach(k=>{if(k.startsWith(num+'|'))delete XS.scroll[k];});if(XS.free&&XS.free.num===num)XS.free=null;delete BOOK[num];REP.reset(num);}
+export function dxReset(num){[XS.undo,XS.redo,XS.calc,XS.sel,XS.sh].forEach(m=>{delete m[num];});Object.keys(XS.det).forEach(k=>{if(k.startsWith(num+'|'))delete XS.det[k];});Object.keys(XS.scroll).forEach(k=>{if(k.startsWith(num+'|'))delete XS.scroll[k];});if(XS.free&&XS.free.num===num)XS.free=null;delete BOOK[num];REP.reset(num);SV.reset(num);}
 /* quantités changées dans la grille (contrôles avant export) */
 export function qtyModsOf(a){const M=modelOf(a);if(!M)return 0;const D=a.dpgf||{};const S=dpSheet(M,D);const qc=qtyColOf(D);if(!qc)return 0;let n=0;(D.lignes||[]).forEach(l=>{if(l.section)return;const cell=S.cells.get(cellKey(l.row,qc));if(cell&&cell.ed&&!cell.ed.auto)n++;});return n;}
 /* 15/10 (lot R) : ce que dpgfrep.js emprunte au DPGF (aucun import circulaire) */
 REP.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,linkOfRow,dpSheet,puColOf,qtyColOf,totColOf,calcTarget,calcState,calcResHTML,calcSum,parseQ,fmtIn,compName,dxWrite,refreshSide,rerender,popLive,scrollToCell,LK_COLS,say});
 /* 16/10 (lot C2) : ce que dpgfclair.js emprunte au DPGF */
 CL.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,dpSheet,puColOf,calcTarget,calcState,calcSum,parseQ,fmtIn,compName,dxWrite,refreshSide,rerender,popLive,scrollToCell,qOfCell,nextCol,LK_COLS,say});
+/* 16/10 après-midi (lot C3) : ce que dpgfsuivi.js emprunte au DPGF */
+SV.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,dpSheet,puColOf,qtyColOf,calcTarget,qOfCell,nextCol,compName,dxWrite,refreshSide,rerender,popLive,LK_COLS,say,REP,CL});

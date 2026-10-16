@@ -15,6 +15,7 @@
 //   était ; on ne prend que le RESTE (quantité − pointé), jamais rien à un lien existant (sauf ses propres parts quand on la refait / défait) ; un seul pas
 //   d'annulation (↶ du DPGF) par application. Tout ce que dpgfxl.js prête passe par init() (aucun import circulaire).
 import {addrOf,parseAddr} from './xlcalc.js';
+import {canonComps,canonRep,canonCfg} from './dpgfsuivi.js'; // 16/10 après-midi (lot C3) : clés stables (une répartition refaite ou réécrite y passe)
 let X=null;export function init(api){X=api;}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nb=(x,d)=>{x=+x||0;return x.toLocaleString('fr-FR',{maximumFractionDigits:d===undefined?0:d,minimumFractionDigits:d===undefined?0:d});};
@@ -52,7 +53,7 @@ function linesOf(a,M){const D=a.dpgf||{};const S=X.dpSheet(M,D);const pc=X.puCol
   return (D.lignes||[]).filter(l=>!l.section&&l.row).map(l=>{const ad=addrOf(l.row,pc);const L=byA.get(ad)||null;
     return {row:l.row,a:ad,qa:qc?addrOf(l.row,qc):null,n:l.n||'',des:l.des||'',u:l.u||'',q:+l.qte||0,pu:+l.pu||0,isMl:isMlU(l.u),dnR:dnOf(l.des),L,ed:ed[ad]||null,sh:S.name};});}
 /* reste de chaque composante (quantité − pointé par les liens), en laissant de côté les parts d'une répartition (celle qu'on refait) */
-function restFn(a,CP,skip){const by=new Map();((a.dpgf||{}).liens||[]).forEach(L=>(L.comps||[]).forEach(x=>{if(skip&&x.rep===skip)return;by.set(x.k,(by.get(x.k)||0)+(+x.q||0));}));
+function restFn(a,CP,skip){const by=new Map();((a.dpgf||{}).liens||[]).forEach(L=>(L.comps||[]).forEach(x=>{if(skip&&x.rep===skip)return;const c=CP.by.get(x.k);const k=c?c.k:x.k; /* 16/10 (lot C3) : sous la clé stable */by.set(k,(by.get(k)||0)+(+x.q||0));}));
   return k=>{const c=CP.by.get(k);return c?Math.max(0,c.qty-(by.get(k)||0)):0;};}
 /* ═════════ 3 · LE CALCULATEUR À CÔTÉ DE LA GRILLE ═════════ */
 const docOK=()=>typeof document!=='undefined';
@@ -91,7 +92,7 @@ export function calcHead(a,M,canEdit){css(document);wire();const CP=X.compsOf(a)
 /* les parts de répartition déjà sur la ligne (comptées dans Σ, gardées quand on remet le prix) */
 export function partsAmt(a,CP,key){const i=String(key||'').lastIndexOf('!');if(i<0||!CP)return 0;const sh=key.slice(0,i),ad=key.slice(i+1);const L=((a.dpgf||{}).liens||[]).find(x=>up(x.sh)===up(sh)&&x.a===ad);
   return L?(L.comps||[]).reduce((s,x)=>{if(!x.rep)return s;const c=CP.by.get(x.k);return s+(c?(+x.q||0)*c.puV:0);},0):0;}
-export const keepParts=(L,CP)=>L?(L.comps||[]).filter(x=>x.rep&&CP.by.has(x.k)).map(x=>({k:x.k,q:+x.q||0,rep:x.rep})):[];
+export const keepParts=(L,CP)=>L?(L.comps||[]).filter(x=>x.rep&&CP.by.has(x.k)).map(x=>({k:CP.by.get(x.k).k,q:+x.q||0,rep:x.rep})):[]; /* 16/10 (lot C3) : clé stable */
 export function calcParts(a,CP,lk){if(!lk||!CP)return '';const P=(lk.comps||[]).filter(x=>x.rep);if(!P.length)return '';const reps=(a.dpgf||{}).reps||[];const g=new Map();P.forEach(x=>{if(!g.has(x.rep))g.set(x.rep,[]);g.get(x.rep).push(x);});
   return `<div class="rp-parts">${[...g].map(([id,L])=>{const R=reps.find(r=>r.id===id);const amt=L.reduce((s,x)=>{const c=CP.by.get(x.k);return s+(c?(+x.q||0)*c.puV:0);},0);
     return `<div class="rp-ph">⇶ ${esc(R?R.nom:'Répartition au ml')} <span class="dim">· ${eur(amt,2)} déjà sur cette ligne, comptés dans Σ · se gère dans la ventilation</span></div><div class="rp-pl">${L.map(x=>{const c=CP.by.get(x.k);return c?`<span>${esc(c.zn)} › ${esc(X.compName(c))} : ${fq(+x.q)} ${esc(c.u)}${mlQ(c,+x.q)} = ${eur((+x.q)*c.puV,2)}</span>`:'<span>(composante disparue du chiffrage)</span>';}).join('')}</div>`;}).join('')}</div>`;}
@@ -160,15 +161,17 @@ function commit(a,M,CP,repId,plan,rec){const D=a.dpgf||{};const now=new Date().t
   (plan?plan.rows:[]).forEach(R=>{if(!R.parts.length)return;const l=R.l;let L=byA.get(up(l.sh)+'!'+l.a);
     if(!L){L={id:'L'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),sh:l.sh,a:l.a,qa:l.qa||null,q:l.q,qfix:false,u:l.u||'',comps:[],pu:0,amt:0,v:CP.v,at:now,by,col,rep:repId,prev:{e:l.ed||null}};liens.push(L);byA.set(up(l.sh)+'!'+l.a,L);}
     L.comps=L.comps.concat(R.parts.map(x=>({k:x.k,q:x.q,rep:repId})));touched.add(L.id);});
+  liens.forEach(L=>{if(touched.has(L.id))L.comps=canonComps(L.comps,CP);}); /* 16/10 (lot C3) : un lien réécrit passe aux clés stables */
   const vals=[];
   liens=liens.filter(L=>{if(L.rep&&touched.has(L.id)&&!L.comps.length){const p=parseAddr(L.a);if(p)vals.push({sh:L.sh,r:p.r,c:p.c,e:L.prev&&L.prev.e?L.prev.e:null});return false;}return true;});
   liens.forEach(L=>{if(!touched.has(L.id))return;const Xn=X.linkNow(L,CP,M);const p=parseAddr(L.a);if(!p)return;vals.push({sh:L.sh,r:p.r,c:p.c,e:{v:Xn.pur}});Object.assign(L,{pu:Xn.pur,amt:r2(Xn.amt),v:CP.v,at:now});});
-  const R2=rec?Object.assign({},rec,{v:CP.v,at:now,by}):null;if(R2)delete R2.prev;
+  const R2=rec?Object.assign({},rec,{v:CP.v,at:now,by}):null;if(R2){delete R2.prev;canonRep(R2,CP);}
   X.dxWrite(a,vals,{liens:()=>liens,dp:D2=>{let L=(D2.reps||[]).slice();const i=L.findIndex(r=>r.id===repId);if(R2){if(i>=0)L[i]=R2;else L.push(R2);}else if(i>=0)L.splice(i,1);if(L.length)D2.reps=L;else delete D2.reps;}});
   X.XS.calc[a.num]=null;return vals.length;}
 /* couleur d'une répartition : une libre, de préférence loin de l'orange « à mettre à jour » (#c2410c, #b45309 en dernier) */
 const COL_PREF=[0,1,2,4,5,6,7,9,10,11,3,8];const freeCol=D=>{const used=new Set((D.liens||[]).map(L=>L.col).concat((D.reps||[]).map(r=>r.col)));const n=X.LK_COLS.length;const pref=COL_PREF.filter(i=>i<n);for(const i of pref)if(!used.has(i))return i;return pref[((D.liens||[]).length+(D.reps||[]).length)%pref.length];};
-const cfgOfRep=R=>({id:R.id,mode:R.mode==='grp'?'grp':'dn',sel:Object.fromEntries((R.lignes||[]).map(x=>[x,true])),dnOf:Object.assign({},R.dnOf||{}),ks:Object.fromEntries((R.ks||[]).map(k=>[k,true])),
+const cfgOfRep=R=>{const a=X.affOf(X.XS.num);return canonCfg(cfgOfRep0(R),a?X.compsOf(a):null);}; /* 16/10 (lot C3) : composantes et quantités sous les clés stables */
+const cfgOfRep0=R=>({id:R.id,mode:R.mode==='grp'?'grp':'dn',sel:Object.fromEntries((R.lignes||[]).map(x=>[x,true])),dnOf:Object.assign({},R.dnOf||{}),ks:Object.fromEntries((R.ks||[]).map(k=>[k,true])),
   qs:Object.assign({},R.qs||{}),qt:{},qm:{},com:Object.assign({mode:'prorata',ligne:null},R.com||{}),orphan:!!R.orphan,nom:R.nom||'',nomSet:true});
 /* défauts : par DN → les lignes au ml où un DN est lu (pas celles au PU saisi à la main), les composantes par DN qui ont un reste ; groupe → rien de coché */
 function cfgNew(a,M,CP,mode){const LS=linesOf(a,M);const rest=restFn(a,CP,null);const cfg={id:null,mode,sel:{},dnOf:{},ks:{},qs:{},qt:{},qm:{},com:{mode:'prorata',ligne:null},orphan:false,nom:'',nomSet:false};

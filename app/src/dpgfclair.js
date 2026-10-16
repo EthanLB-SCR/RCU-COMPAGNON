@@ -21,6 +21,7 @@
 // prête passe par init() (aucun import circulaire).
 import {parseAddr} from './xlcalc.js';
 import * as REP from './dpgfrep.js';
+import {calcGroups,grpHTML,chipsHTML,ckeys} from './dpgfsuivi.js'; // 16/10 après-midi (lot C3) : groupes repliables (installations en tête), puces, clés stables
 let X=null;export function init(api){X=api;}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nb=(x,d)=>{x=+x||0;return x.toLocaleString('fr-FR',{maximumFractionDigits:d===undefined?0:d,minimumFractionDigits:d===undefined?0:d});};
@@ -62,8 +63,8 @@ function syncSubs(a,CP){const D=a.dpgf||{};let ch=false;const liens=(D.liens||[]
 function labOfLink(a,M){const D=a.dpgf||{};const S=M?X.dpSheet(M,D):null;const byRow=new Map((D.lignes||[]).filter(l=>!l.section&&l.row).map(l=>[l.row,l.n||'']));
   return L=>{const p=parseAddr(L.a||'');const n=p&&S&&up(L.sh)===up(S.name)?byRow.get(p.r):'';return n||L.a;};}
 /* par composante : q pris (les parts de répartition de la ligne comptent, comme dans pointage), dont pris par type (tq, tx en manchons), et les lignes qui l'ont prise */
-function useOf(a,M,skipId){const D=a.dpgf||{};const lab=labOfLink(a,M);const U=new Map();const RO=U.rowOf=new Map(); /* les lignes citées dans l'ordre du DPGF */
-  (D.liens||[]).forEach(L=>{const n=lab(L);const p=parseAddr(L.a||'');if(!RO.has(n))RO.set(n,p?p.r:1e9);(L.comps||[]).forEach(x=>{if(L.id===skipId&&!x.rep)return;let o=U.get(x.k);if(!o){o={q:0,tq:0,tx:{},by:[],byT:{}};U.set(x.k,o);}const q=+x.q||0;o.q+=q;
+function useOf(a,M,skipId){const D=a.dpgf||{};const lab=labOfLink(a,M);const U=new Map();const RO=U.rowOf=new Map(); /* les lignes citées dans l'ordre du DPGF */const CP=X.compsOf(a);const kk=k=>{const c=CP&&CP.by.get(k);return c?c.k:k;}; /* 16/10 (lot C3) : sous la clé stable */
+  (D.liens||[]).forEach(L=>{const n=lab(L);const p=parseAddr(L.a||'');if(!RO.has(n))RO.set(n,p?p.r:1e9);(L.comps||[]).forEach(x=>{if(L.id===skipId&&!x.rep)return;let o=U.get(kk(x.k));if(!o){o={q:0,tq:0,tx:{},by:[],byT:{}};U.set(kk(x.k),o);}const q=+x.q||0;o.q+=q;
     if(x.sub&&!x.rep){o.tq+=q;o.tx[x.sub]=(o.tx[x.sub]||0)+(+x.x||0);const b=o.byT[x.sub]=o.byT[x.sub]||[];if(!b.includes(n))b.push(n);}else if(!o.by.includes(n))o.by.push(n);});});return U;}
 /* reste d'un type (en manchons), vu de la ligne qu'on calcule (mine = ses prises par type, en manchons) : les prises par type (des autres lignes et de celle-ci) d'abord ;
    les prises du DN entier des autres lignes (parts de répartition comprises) couvrent ensuite ce qui reste de chaque type, au prorata — pas de « dépasse » tant que
@@ -78,14 +79,14 @@ const stateOf=(a,M,T)=>{const C=X.calcState(a,T,M);if(!C.sub)C.sub={};return C;}
 /* un type coché : les ml de la ligne (ou les derniers tapés), une ligne « à l'unité » → sa quantité, sinon tout le reste */
 function subTake(c,T,q,av){const ml=REP.mlDef(T,q);if(ml>0&&perMl(c))return Math.min(av,fromMl(c,ml));if(q>0&&T&&REP.isCntU(T.u))return Math.min(av,q);return av;}
 /* cocher une liste de cases (« Comme la ligne », sélection gardée, DN de la désignation) : quantités proposées pour CETTE ligne ; rien sur ce qui est déjà coché */
-function pick(a,M,CP,T,keys){const C=stateOf(a,M,T);const AV=availOf(a,CP,M,T,C);const q=X.parseQ(C.q,{qty:0});const R={n:0,had:0,ex:[],gone:0};
+function pick(a,M,CP,T,keys){keys=ckeys(CP,keys); /* 16/10 (lot C3) : anciennes clés → clés stables */const C=stateOf(a,M,T);const AV=availOf(a,CP,M,T,C);const q=X.parseQ(C.q,{qty:0});const R={n:0,had:0,ex:[],gone:0};
   [...new Set(keys)].forEach(key=>{const i=key.indexOf('#');const k=i<0?key:key.slice(0,i),t=i<0?null:key.slice(i+1);const c=CP.by.get(k);if(!c){R.gone++;return;}
     if(t){if(!ratioOf(CP,k,t)){R.gone++;return;}if(C.chk[k]!==undefined||(C.sub[k]&&C.sub[k][t]!==undefined)){R.had++;return;}const av=AV.restT(k,t);if(av<=1e-6){R.ex.push(X.compName(c)+' › '+typeLab(t));return;}(C.sub[k]=C.sub[k]||{})[t]=fin(subTake(c,T,q,av));R.n++;return;}
     if(C.chk[k]!==undefined){R.had++;return;}const av=AV.rest(k);if(av<=1e-6){R.ex.push(X.compName(c));return;}C.chk[k]=X.fmtIn(REP.defTake(c,T,q,av));R.n++;});return R;}
 const pickMsg=R=>`${R.n} case${R.n>1?'s':''} cochée${R.n>1?'s':''}${R.had?' ('+R.had+' déjà cochée'+(R.had>1?'s':'')+')':''}${R.ex.length?' · déjà tout pointé : '+R.ex.slice(0,3).join(', ')+(R.ex.length>3?'…':''):''}${R.gone?' · '+R.gone+' n\'existe'+(R.gone>1?'nt':'')+' plus dans le chiffrage':''}`;
 const selKeys=C=>Object.keys(C.chk||{}).concat(Object.keys(C.sub||{}).flatMap(k=>C.chk&&C.chk[k]!==undefined?[]:Object.keys(C.sub[k]).map(t=>k+'#'+t)));
 const nChecked=C=>selKeys(C).length;
-function selStat(CP,C,AV,S){const ks=S.ks||[];let on=0;const miss=[],ex=[],gone=[];
+function selStat(CP,C,AV,S){const ks=ckeys(CP,S.ks||[]);let on=0;const miss=[],ex=[],gone=[];
   ks.forEach(key=>{const i=key.indexOf('#');const k=i<0?key:key.slice(0,i),t=i<0?null:key.slice(i+1);const c=CP.by.get(k);if(!c||(t&&!ratioOf(CP,k,t))){gone.push(key);return;}
     const isOn=t?(C.chk[k]!==undefined||!!(C.sub[k]&&C.sub[k][t]!==undefined)):C.chk[k]!==undefined;if(isOn){on++;return;}const nm=X.compName(c)+(t?' › '+typeLab(t):'');if((t?AV.restT(k,t):AV.rest(k))>1e-6)miss.push(nm);else ex.push(nm);});
   return {n:ks.length,on,miss,ex,gone};}
@@ -103,7 +104,7 @@ export function calcHTML(a,M,canEdit,CP,t){if(!CP||!M)return null;css(document);
       <span class="c2-lt" title="${esc(ln?(ln.n?ln.n+' ':'')+ln.des:t.a)}">${ln?`<b class="c2-n">${esc(ln.n||'')}</b> ${esc(ln.des)}`:`Cellule <b>${esc(t.a)}</b>`}</span>
       <label class="c2-q">Qté <input inputmode="decimal" data-dx="q" value="${esc(C.q)}" ${ro?'disabled':''} aria-label="Quantité de la ligne"> <span>${esc(t.u||'')}</span></label><button class="btn sm rp-fo c2-shut" data-act="af" data-v="dxrpshut|" title="Fermer le calculateur (Échap)" aria-label="Fermer le calculateur">✕</button></div>
     ${t.qa&&!ro&&q>0&&(qc===null||Math.abs(qc-q)>1e-9)?`<label class="c2-wq"><input type="checkbox" data-dx="wq" ${C.wq?'checked':''}> écrire aussi ${esc(fq(q))} dans ${esc(t.qa)} <span class="dim">(sinon la quantité du DPGF ne change pas)</span></label>`:''}
-    <div class="dx-res" id="dx-cres">${resHTML(a,t,C,amt,q,pu,lk,ro)}</div></div>`;
+    <div class="dx-res" id="dx-cres">${resHTML(a,t,C,amt,q,pu,lk,ro)}</div>${chipsHTML(a,CP) /* 16/10 après-midi (lot C3) : puces « 🏗 Installations · Zone 1 · … » pour aller droit à un groupe */}</div>`;
   const subOld=lk?(lk.comps||[]).filter(x=>x.sub&&!x.rep&&!ratioOf(CP,x.k,x.sub)):[];
   const warn=`${XL&&XL.stale?`<div class="dx-stale">⚠ ${XL.cell===null?'PU vide':'PU du DPGF '+nb(XL.cell,2)+' €'} → le chiffrage donne <b>${nb(XL.pur,2)} €</b>${lk.v&&lk.v!==CP.v?' (v'+lk.v+' → v'+CP.v+')':''}${ro?'':` <button class="btn sm" data-act="af" data-v="dxrelink|${esc(lk.id)}">↻ Appliquer</button>`}</div>`:''}${XL&&XL.miss.length?`<div class="dx-stale">⚠ ${XL.miss.length} case${XL.miss.length>1?'s':''} de cette ligne n'existe${XL.miss.length>1?'nt':''} plus dans le chiffrage (comptée${XL.miss.length>1?'s':''} 0 €) : recoche ce qu'il faut.</div>`:''}${subOld.length?`<div class="dx-stale">⚠ ${subOld.map(x=>esc(typeLab(x.sub))).join(', ')} : plus coché${subOld.length>1?'s':''} dans la zone (ou sans minutes), compté 0 € : recoche le type dans la zone, ou décoche-le ici.</div>`:''}`;
   /* outils : même panier de cases d'une ligne à l'autre ; ml proposés */
@@ -121,7 +122,7 @@ let ROT=null;function fitTop(){const k=document.getElementById('dx-calc'),t=k&&k
   if(typeof ResizeObserver!=='undefined'){if(!ROT)ROT=new ResizeObserver(es=>es.forEach(e=>{const c=e.target.closest('#dx-calc');if(c)c.style.setProperty('--c2t',(e.target.offsetHeight-1)+'px');}));ROT.disconnect();ROT.observe(t);}}
 /* la liste à plat : titres de zone ; dans chaque zone ce qui reste à pointer, puis ce qui est tout pointé (barré, grisé, non cochable) */
 function listHTML(a,M,CP,C,AV,ro){const f=normF(X.XS.cfilter).trim();const fw=f?f.split(/\s+/):[];const hit=s=>!fw.length||fw.every(w=>normF(s).includes(w));
-  const groups=CP.zones.map(z=>({nom:z.nom,list:CP.list.filter(c=>c.z===z.i)})).concat(CP.inst?[{nom:'🏗 Installations',list:CP.list.filter(c=>c.z<0)}]:[]);
+  const groups=calcGroups(CP); /* 16/10 après-midi (lot C3) : 🏗 Installations en tête, les zones, ✔ Autocontrôles ; groupes repliables (dpgfsuivi.js) */
   const subRow=(c,o,x,u,pOn)=>{const k=c.k,t=x.t;const sOn=!pOn&&!!(C.sub[k]&&C.sub[k][t]!==undefined);const av=typeRest(o,u,t,pOn?{}:mineOf(C,c,k));const xq=sOn?X.parseQ(C.sub[k][t],c):0;const lft=av-xq;const amtT=c.amtV*x.min/o.m;const perM=o.K>0?amtT/o.K:0;const sDone=!pOn&&!sOn&&av<=1e-6;
     const by=u?[...new Set((u.byT[t]||[]).concat(u.by))]:[];
     return `<div class="c2-sub${sOn?' on':''}${sOn&&lft<-1e-6?' over':''}${sDone?' c2-done':''}${pOn?' c2-inc':''}" data-k="${esc(k)}" data-t="${esc(t)}"><input type="checkbox" data-c2="sk" data-k="${esc(k)}" data-t="${esc(t)}" ${sOn?'checked':''} ${ro||pOn||sDone?'disabled':''} aria-label="${esc(x.lab+' · DN '+c.dn)}"><span class="c2-nm">${esc(x.lab)} · DN ${c.dn}<small> · ${fq(o.K)} manch. × ${nb(x.min,x.min%1?1:0)} min = ${dur(o.K*x.min)} · ${eur(amtT)} · ${nb(perM,2)} € / manch.${!sDone&&!pOn&&!sOn&&av<o.K-1e-6?` · <b class="c2-rs">reste ${fq(av)} manch.</b>`:''}</small></span>
@@ -133,9 +134,9 @@ function listHTML(a,M,CP,C,AV,ro){const f=normF(X.XS.cfilter).trim();const fw=f?
       ${on?`<div class="dx-cq">prendre <input inputmode="decimal" data-dx="cq" data-k="${esc(k)}" value="${esc(C.chk[k])}" ${ro?'disabled':''}> ${esc(c.u)}${REP.mlTake(c,C,ro)} = <b data-amt="${esc(k)}">${eur(qq*c.puV,2)}</b> <span class="dx-rst">${left<-1e-6?'⚠ dépasse de '+fq(-left):Math.abs(left)<1e-6?'✓ tout pointé':'reste '+fq(left)+' '+esc(c.u)+REP.mlQ(c,left)}</span></div>`:''}${done?`<div class="c2-dn">✓ tout pointé${byAll.length?' · ligne'+(byAll.length>1?'s':'')+' '+esc(lst(byAll,AV.U.rowOf)):''}</div>`:''}</div>`;
     if(o&&ts.length)h+=`<div class="c2-subs${done?' c2-done':''}" data-k="${esc(k)}">${ts.map(x=>subRow(c,o,x,u,on)).join('')}</div>`;
     return {h,done,on:on||subOn};};
-  return groups.map(g=>{const rows=[];g.list.forEach(c=>{const o=ctrlOf(CP,c);const base=g.nom+' '+X.compName(c);const mine=hit(base);const tH=o?o.ts.filter(x=>hit(base+' '+x.lab)):[];if(!mine&&!tH.length)return;rows.push(rowOf(c,o,mine&&o?o.ts:tH));});if(!rows.length)return '';
+  return groups.map(g=>{const rows=[];g.list.forEach(c=>{const o=ctrlOf(CP,c);const base=g.nom+' '+(c.zn||'')+' '+X.compName(c);const mine=hit(base);const tH=o?o.ts.filter(x=>hit(base+' '+x.lab)):[];if(!mine&&!tH.length)return;rows.push(rowOf(c,o,mine&&o?o.ts:tH));});if(!rows.length)return '';
     const nOn=rows.filter(r=>r.on).length,nD=rows.filter(r=>r.done).length;
-    return `<div class="c2-zh">${esc(g.nom)} <small>· ${eur(g.list.reduce((s,c)=>s+c.amtV,0))}${nOn?' · '+nOn+' cochée'+(nOn>1?'s':''):''}${nD?' · '+nD+' tout pointée'+(nD>1?'s':''):''}</small></div>${rows.filter(r=>!r.done).map(r=>r.h).join('')}${rows.filter(r=>r.done).map(r=>r.h).join('')}`;}).join('')||'<div class="eq-s" style="padding:8px">Rien ne correspond au filtre.</div>';}
+    return grpHTML(g,rows,nOn,nD,fw.length>0,CP);}).join('')||'<div class="eq-s" style="padding:8px">Rien ne correspond au filtre.</div>';} /* 16/10 après-midi (lot C3) : en-tête qui replie, lignes rangées (dpgfsuivi.js) */
 /* Σ, PU et les boutons (redessiné seul pendant la frappe) */
 export function resHTML(a,t,C,amt,q,pu,lk,ro){const ok=nChecked(C)>0&&q>0;
   return `<span class="c2-sum">Σ <b>${eur(amt,2)}</b> ÷ ${q>0?fq(q)+' '+esc(t.u||''):'<b style="color:#b91c1c">quantité ?</b>'}</span><span class="c2-pu">= <b class="pu">${q>0?nb(r2(pu),2)+' €':'—'}</b>${t.u?' / '+esc(t.u):''}</span>${ro?'':`<span class="c2-acts"><button class="btn sm" data-act="af" data-v="dxput|" ${ok?'':'disabled'} title="Écrire ce PU dans ${esc(t.a)} et relier la ligne à notre chiffrage">↦ Mettre dans ${esc(t.a)}</button>${t.line?`<button class="btn sm primary" data-act="af" data-v="dxc2next|" ${ok?'':'disabled'} title="Écrire ce PU dans ${esc(t.a)}, puis ouvrir la ligne suivante du DPGF (Ctrl+Entrée)">↦ Mettre et ligne suivante ▶</button>`:''}</span>`}`;}
@@ -164,8 +165,8 @@ export function act(k,arg,arg2,a,canEdit,M){const num=a.num;
     case 'dxc2like':{if(!canEdit||!M)return true;const CP=X.compsOf(a);const T=X.calcTarget(a,M);const L=((a.dpgf||{}).liens||[]).find(x=>x.id===arg);if(!CP||!T||!L)return true;
       /* la ligne copiée parle d'un DN (« … DN 100 … ») et celle-ci d'un autre (« … DN 80 … ») : ses soudures, manchons, autocontrôles du DN suivent (même zone) */
       const p=parseAddr(L.a||'');const lS=p?((a.dpgf||{}).lignes||[]).find(x=>!x.section&&x.row===p.r):null;const dS=dnOfDes(lS&&lS.des),dT=dnOfDes(T.line&&T.line.des);let nod=0;
-      const map=key=>{if(!dS||!dT||dS===dT)return key;const i=key.indexOf('#');const m=/^(z\d+)\|(soudure|manchons|autoctrl)\|dn(\d+)$/.exec(i<0?key:key.slice(0,i));if(!m||+m[3]!==dS)return key;const k2=m[1]+'|'+m[2]+'|dn'+dT;if(!CP.by.has(k2)){nod++;return null;}return k2+(i<0?'':key.slice(i));};
-      const R=pick(a,M,CP,T,(L.comps||[]).filter(x=>!x.rep).map(x=>map(x.sub?x.k+'#'+x.sub:x.k)).filter(Boolean));
+      const map=key=>{if(!dS||!dT||dS===dT)return key;const i=key.indexOf('#');const m=/^(z\d+|z:[^|]+)\|(soudure|manchons|autoctrl)\|dn(\d+)$/.exec(i<0?key:key.slice(0,i)); /* 16/10 (lot C3) : aussi « z:<id de zone> » */if(!m||+m[3]!==dS)return key;const k2=m[1]+'|'+m[2]+'|dn'+dT;if(!CP.by.has(k2)){nod++;return null;}return k2+(i<0?'':key.slice(i));};
+      const R=pick(a,M,CP,T,ckeys(CP,(L.comps||[]).filter(x=>!x.rep).map(x=>x.sub?x.k+'#'+x.sub:x.k)).map(map).filter(Boolean));
       X.say('↺ Comme la ligne '+labOfLink(a,M)(L)+(dS&&dT&&dS!==dT?' (DN '+dS+' → DN '+dT+')':'')+' : '+pickMsg(R)+(nod?' · '+nod+' sans DN '+dT+' dans sa zone':'')+(R.n?' — quantités pour cette ligne':''));X.refreshSide(a);return true;}
     case 'dxc2sel':{if(!canEdit||!M)return true;const CP=X.compsOf(a);const T=X.calcTarget(a,M);const S=((a.dpgf||{}).sels||[]).find(x=>x.id===arg);if(!CP||!T||!S)return true;const R=pick(a,M,CP,T,S.ks||[]);X.say('« '+S.nom+' » : '+pickMsg(R));X.refreshSide(a);return true;}
     case 'dxc2seldel':{if(!canEdit)return true;const D=Object.assign({},a.dpgf||{});const S=(D.sels||[]).find(x=>x.id===arg);if(!S)return true;if(!confirm('Supprimer la sélection « '+S.nom+' » ? (les prix déjà mis ne changent pas)'))return true;
@@ -190,7 +191,7 @@ export function cardHTML(a,M,canEdit,o){if(!M)return null;css(document);wire();c
   const popbar=`<div class="c2-popbar" id="c2-popbar"><span class="c2-pt"><b>⧉ DPGF ouvert sur l'autre écran</b> <span class="hint">· touche un PU là-bas, le calcul se fait ici</span></span><button class="btn sm" data-act="af" data-v="dxpopclose|" title="Remettre le DPGF dans cette fenêtre">↩ Ramener ici</button></div>`;
   const hint=`<div class="hint c2-hint">Comme dans Excel : clique une cellule et tape (formules en français, ex. <i>=SOMME(F7:F9)</i>) ; Entrée valide, Échap annule, Ctrl+Z annule ; coin bleu = cellule modifiée.</div>`;
   if(pop)queueMicrotask(fit);
-  return `<div class="card dx-card c2-card${XS.full?' full':''}" id="dx-card">${head}${bar}${pop?popbar:o.fb}<div class="dx-split${pop?' c2-pop':(o.side?' side':'')+REP.splitCls(a)}">${pop?'':o.grid}<div class="dx-side" id="dx-side">${o.sideHTML()}</div></div>${pop?'':hint}${REP.toolHTML(a,M,canEdit)}</div>`;}
+  return `<div class="card dx-card c2-card${XS.full?' full':''}" id="dx-card">${head}${o.top||''}${bar}${pop?popbar:o.fb}<div class="dx-split${pop?' c2-pop':(o.side?' side':'')+REP.splitCls(a)}">${pop?'':o.grid}<div class="dx-side" id="dx-side">${o.sideHTML()}</div></div>${pop?'':hint}${REP.toolHTML(a,M,canEdit)}${o.end||''}</div>`;} /* 16/10 après-midi (lot C3) : o.top = bandeau des changements, o.end = bouton flottant et liste */
 /* autre écran : le calculateur collé en haut, aussi haut que la zone qui défile */
 function fit(){if(!docOK())return;const sp=document.querySelector('#dx-card .dx-split.c2-pop');if(!sp)return;const sc=sp.closest('.dx-card.full')||document.getElementById('homeBody');const h=sc?sc.clientHeight:(window.innerHeight||800);sp.style.setProperty('--c2h',Math.max(320,h-16)+'px');}
 /* ═════════ 7 · LES ANCIENS OUTILS (commerce.js) : un seul pli fermé, tout en bas ═════════ */

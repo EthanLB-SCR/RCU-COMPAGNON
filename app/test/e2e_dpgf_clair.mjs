@@ -14,6 +14,7 @@
 import { chromium } from 'playwright';
 import fs from 'fs';import path from 'path';import {fileURLToPath} from 'url';
 import {setupAffaire} from './dpgf_clair_setup.mjs';
+import {cles} from './dpgf_cles.mjs'; /* 16/10 après-midi (lot C3) : les liens enregistrent des clés stables « z:<id de zone>|… » ; K('z0|…') / U(…) pour les lire ici */
 const HERE=path.dirname(fileURLToPath(import.meta.url));
 const BASE=process.env.BASE||'http://localhost:8765';const SHOTS=process.env.SHOTS||'/root/work/dc_shots';try{fs.mkdirSync(SHOTS,{recursive:true});}catch(e){}
 const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
@@ -21,11 +22,11 @@ const ctx=await browser.newContext({viewport:{width:1366,height:768},acceptDownl
 const logs=[];const watch=p=>{p.on('pageerror',e=>logs.push('PAGEERROR: '+e.message.slice(0,300)));p.on('console',m=>{if(m.type()==='error'&&!/supabase|Failed to fetch|net::ERR|404|WebSocket|pdf\.worker|cdnjs/i.test(m.text()))logs.push(m.text().slice(0,200));});p.on('dialog',d=>d.accept().catch(()=>{}));};watch(page);
 const C={};const wait=ms=>page.waitForTimeout(ms);const sp=t=>String(t||'').replace(/[\s  ]+/g,' ').trim();
 const nbv=t=>{const x=parseFloat(String(t||'').replace(/[\s  €]/g,'').replace(/[−–]/g,'-').replace(',','.'));return isFinite(x)?x:NaN;};
-const S=await setupAffaire(page,BASE+'/index.html',HERE);const {chg,click,td,A,NUM}=S;
+const S=await setupAffaire(page,BASE+'/index.html',HERE);const {chg,click,td,A,NUM}=S;const {K,U,KS}=await cles(page,NUM);
 const has=v=>page.evaluate(v=>!!document.querySelector(`#eq-app [data-act=af][data-v="${v}"]`),v);
 const rect=s=>page.evaluate(s=>{const e=document.querySelector(s);if(!e)return null;const b=e.getBoundingClientRect();return {l:Math.round(b.left),t:Math.round(b.top),r:Math.round(b.right),b:Math.round(b.bottom),w:Math.round(b.width),h:Math.round(b.height)};},s);
-const ck=async(k,on=true)=>chg(`#dx-calc input[data-dx="ck"][data-k="${k}"]`,on);const sk=async(k,t,on=true)=>chg(`#dx-calc input[data-c2="sk"][data-k="${k}"][data-t="${t}"]`,on);
-const cq=k=>page.$eval(`#dx-calc [data-dx="cq"][data-k="${k}"]`,e=>e.value).catch(()=>null);
+const ck=async(k,on=true)=>chg(`#dx-calc input[data-dx="ck"][data-k="${K(k)}"]`,on);const sk=async(k,t,on=true)=>chg(`#dx-calc input[data-c2="sk"][data-k="${K(k)}"][data-t="${t}"]`,on);
+const cq=k=>page.$eval(`#dx-calc [data-dx="cq"][data-k="${K(k)}"]`,e=>e.value).catch(()=>null);
 const h4=async()=>sp(await page.$eval('#dx-calc h4',e=>e.textContent).catch(()=>''));const toast=()=>page.evaluate(()=>{const t=document.getElementById('toast');return t?t.textContent:'';});
 const shot=async(name,sel,p)=>{p=p||page;try{if(sel){const el=await p.$(sel);if(el)await el.screenshot({path:path.join(SHOTS,name)});}else await p.screenshot({path:path.join(SHOTS,name)});}catch(e){console.log('(capture '+name+' : '+e.message.slice(0,80)+')');}};
 const lk=(a,ad)=>(a.dpgf.liens||[]).find(L=>L.a===ad);
@@ -48,8 +49,8 @@ let out=await page.evaluate(()=>{const sp=t=>String(t||'').replace(/[\s  ]+/g
 const R0=REC.disp;const noBtn=t=>t.replace(/⇶.*$/,'').trim();const sameRows=out.rows.length===R0.rows.length&&out.rows.every((r,i)=>{const o=R0.rows[i];return r.length===o.length&&r.every((c,j)=>j===0&&/^Autocontrôle interne/.test(o[0])?c.startsWith(o[0]):c===o[j]);});
 await page.click(td(10,5));await wait(500);out.calcE10=sp(await page.$eval('#dx-cres',e=>e.textContent)).replace(/↦.*$/,'').trim();a=await A();
 out.noWrite=JSON.stringify(a.dpgf.liens)===JSON.stringify(REC.dpgf.liens)&&JSON.stringify(a.dpgf.reps)===JSON.stringify(REC.dpgf.reps)&&JSON.stringify(a.dpgf.xl)===JSON.stringify(REC.dpgf.xl);
-out.auto100=await page.evaluate(()=>[...document.querySelectorAll('#dx-calc .c2-sub[data-k="z0|autoctrl|dn100"]')].map(x=>x.dataset.t+':'+(x.classList.contains('c2-done')?'done':'')+':'+(x.querySelector('input').disabled?'dis':'')));
-out.par100=await page.evaluate(()=>{const r=document.querySelector('#dx-calc .dx-cr[data-k="z0|autoctrl|dn100"]');return r?{on:r.classList.contains('on'),full:r.classList.contains('full')}:null;});
+out.auto100=await page.evaluate(k=>[...document.querySelectorAll(`#dx-calc .c2-sub[data-k="${k}"]`)].map(x=>x.dataset.t+':'+(x.classList.contains('c2-done')?'done':'')+':'+(x.querySelector('input').disabled?'dis':'')),K('z0|autoctrl|dn100'));
+out.par100=await page.evaluate(k=>{const r=document.querySelector(`#dx-calc .dx-cr[data-k="${k}"]`);return r?{on:r.classList.contains('on'),full:r.classList.contains('full')}:null;},K('z0|autoctrl|dn100'));
 console.log('c0) compatibilité :',JSON.stringify({vsum:out.vsum,E10:out.calcE10,noWrite:out.noWrite,sameRows,auto100:out.auto100,par100:out.par100,lkr:out.lkr.length,reps:out.reps}));
 C.c0=noBtn(out.vsum)===noBtn(R0.vsum)&&sameRows&&JSON.stringify(out.lkr)===JSON.stringify(R0.lkr)&&JSON.stringify(out.reps)===JSON.stringify(R0.reps)&&JSON.stringify(out.cells)===JSON.stringify(R0.cells)&&JSON.stringify(out.lkCls)===JSON.stringify(R0.lkCls)
   &&JSON.stringify(out.taches)===JSON.stringify(R0.taches)&&JSON.stringify(out.stats)===JSON.stringify(R0.stats)&&out.calcE10===R0.calcE10&&out.noWrite
@@ -74,63 +75,65 @@ const visBtn=v=>page.evaluate(v=>{const b=document.querySelector(`#dx-calc [data
 out.vis=[await visBtn('dxput|'),await visBtn('dxc2next|'),await visBtn('dxc2go|1'),await page.evaluate(()=>{const b=document.querySelector('#dx-calc .c2-top .c2-shut');return !!b&&b.checkVisibility();})];out.scrolled=await page.evaluate(()=>document.getElementById('dx-calc').scrollTop>50); /* le volet défile en entier (liste comprise), l'en-tête reste collé en haut */
 await shot('pc_1366_calculateur_liste_defilee.png');
 console.log('c2) calculateur :',JSON.stringify(out));
-C.c2=/ligne 17/.test(out.h4)&&/3\.1 Soudure bout à bout DN 100 en fouille/.test(out.ln)&&/Qté u✕$/.test(out.ln)&&out.q==='40'&&out.det===0&&out.zh.join()==='Zone 1,Zone 2'&&/pointé 0 %/.test(out.rc)&&/reste à placer/.test(out.rc)&&out.fTop&&out.nav==='dxc2go|-1,dxc2go|1'&&out.vis.every(Boolean)&&out.scrolled;
+/* 16/10 après-midi (lot C3, changement voulu) : 🏗 Installations en tête, les zones, ✔ Autocontrôles en dernier ; chaque titre replie son groupe (▾) */
+C.c2=/ligne 17/.test(out.h4)&&/3\.1 Soudure bout à bout DN 100 en fouille/.test(out.ln)&&/Qté u✕$/.test(out.ln)&&out.q==='40'&&out.det===0&&out.zh.join()==='▾ 🏗 Installations,▾ Zone 1,▾ Zone 2,▾ ✔ Autocontrôles'&&/pointé 0 %/.test(out.rc)&&/reste à placer/.test(out.rc)&&out.fTop&&out.nav==='dxc2go|-1,dxc2go|1'&&out.vis.every(Boolean)&&out.scrolled;
 // ── c3) « ↦ Mettre et ligne suivante ▶ » (méthode d'Ethan, 1) : 3.1 à l'unité → cocher les soudures DN 100 propose 40 → la 3.2 s'ouvre ; ◀ ▶ sans rien mettre
 await page.evaluate(()=>{document.getElementById('dx-calc').scrollTop=0;});await ck('z0|soudure|dn100');out={take:await cq('z0|soudure|dn100'),res:sp(await page.$eval('#dx-cres',e=>e.textContent))};
-await page.focus('#dx-calc [data-dx="cq"][data-k="z0|soudure|dn100"]');await page.keyboard.press('Control+Enter');await wait(600); /* Ctrl+Entrée = « ↦ Mettre et ligne suivante ▶ » */a=await A();const L31=lk(a,'E17');
+await page.focus(KS('#dx-calc [data-dx="cq"][data-k="z0|soudure|dn100"]'));await page.keyboard.press('Control+Enter');await wait(600); /* Ctrl+Entrée = « ↦ Mettre et ligne suivante ▶ » */a=await A();const L31=lk(a,'E17');
 out.L31=L31&&{comps:JSON.stringify(L31.comps),pu:L31.pu,keys:Object.keys(L31).sort().join(',')};out.h4=await h4();out.sel=await page.evaluate(n=>{const s=window.TRACE&&document.querySelector('#dx-vp td.dx-on');return s?s.dataset.r+':'+s.dataset.c:'';},NUM);out.split=await page.evaluate(()=>document.querySelector('#dx-card .dx-split').className);
 out.cellVis=await page.evaluate(()=>{const c=document.querySelector('#dx-vp td.dx-on'),vp=document.getElementById('dx-vp');if(!c)return false;const r=c.getBoundingClientRect(),v=vp.getBoundingClientRect();return r.top>=v.top&&r.bottom<=v.bottom;});
 const n0=a.dpgf.liens.length;await click('dxc2go|-1');await wait(400);out.back=await h4();out.backOn=await page.$$eval('#dx-calc .dx-cr.on',L=>L.map(x=>x.dataset.k).join());await click('dxc2go|1');await wait(300);await click('dxc2go|1');await wait(400);out.fwd=await h4();a=await A();out.nLinks=[n0,a.dpgf.liens.length];
 console.log('c3) mettre et ligne suivante :',JSON.stringify(out));
-C.c3=out.take==='40'&&/= 314,29 € \/ u/.test(out.res)&&out.L31&&out.L31.comps==='[{"k":"z0|soudure|dn100","q":40}]'&&out.L31.pu===314.29&&out.L31.keys==='a,amt,at,by,col,comps,id,pu,q,qa,qfix,sh,u,v'&&/ligne 18/.test(out.h4)&&out.sel==='18:5'&&/\bflt\b/.test(out.split)&&out.cellVis
-  &&/ligne 17 🔗 lié/.test(out.back)&&out.backOn==='z0|soudure|dn100'&&/ligne 19/.test(out.fwd)&&out.nLinks[0]===1&&out.nLinks[1]===1;
+C.c3=out.take==='40'&&/= 314,29 € \/ u/.test(out.res)&&out.L31&&U(out.L31.comps)==='[{"k":"z0|soudure|dn100","q":40}]'&&out.L31.comps!==U(out.L31.comps)&&out.L31.pu===314.29&&out.L31.keys==='a,amt,at,by,col,comps,id,pu,q,qa,qfix,sh,u,v'&&/ligne 18/.test(out.h4)&&out.sel==='18:5'&&/\bflt\b/.test(out.split)&&out.cellVis
+  &&/ligne 17 🔗 lié/.test(out.back)&&U(out.backOn)==='z0|soudure|dn100'&&/ligne 19/.test(out.fwd)&&out.nLinks[0]===1&&out.nLinks[1]===1; /* (lot C3) : la clé enregistrée est la clé stable de la zone */
 // ── c4) tout pointé : la 3.3 prend toutes les purges ; sur la ligne suivante, « Purges · DN 32 » est barrée, grisée, non cochable, en bas de la zone 1, « ✓ tout pointé · ligne 3.3 » ;
 //    sur la 3.3 elle-même, elle reste cochée et modifiable ; une composante en partie pointée dit son reste
 await ck('z0|purges');out={take:await cq('z0|purges')};await click('dxc2next|');await wait(500);out.h4=await h4();
-out.row=await page.evaluate(()=>{const r=document.querySelector('#dx-calc .dx-cr[data-k="z0|purges"]');if(!r)return null;const nm=r.querySelector('.c2-nm');const all=[...document.querySelectorAll('#dx-cl > *')];const i=all.indexOf(r);const z2=all.findIndex(x=>x.classList.contains('c2-zh')&&/Zone 2/.test(x.textContent));
-  const zone1=all.slice(0,z2);const after=zone1.slice(i+1).filter(x=>x.classList.contains('dx-cr'));return {done:r.classList.contains('c2-done'),dis:r.querySelector('input').disabled,txt:r.querySelector('.c2-dn')?r.querySelector('.c2-dn').textContent:'',strike:getComputedStyle(nm).textDecorationLine,color:getComputedStyle(nm).color,afterNotDone:after.filter(x=>!x.classList.contains('c2-done')).length};});
-out.sou=sp(await page.$eval('#dx-calc .dx-cr[data-k="z0|soudure|dn100"] small',e=>e.textContent));await click('dxc2go|-1');await wait(400);
-out.own=await page.evaluate(()=>{const r=document.querySelector('#dx-calc .dx-cr[data-k="z0|purges"]');return r?{on:r.classList.contains('on'),done:r.classList.contains('c2-done'),dis:r.querySelector('input').disabled,q:(r.querySelector('[data-dx="cq"]')||{}).value}:null;});
+/* (lot C3) : les lignes vivent dans leur groupe repliable (.c3-g) : « en bas de la zone 1 » = en bas de son groupe */
+out.row=await page.evaluate(k=>{const r=document.querySelector(`#dx-calc .dx-cr[data-k="${k}"]`);if(!r)return null;const nm=r.querySelector('.c2-nm');const g=r.closest('.c3-g');const rows=[...g.querySelectorAll('.dx-cr')];const i=rows.indexOf(r);
+  const after=rows.slice(i+1);return {done:r.classList.contains('c2-done'),dis:r.querySelector('input').disabled,txt:r.querySelector('.c2-dn')?r.querySelector('.c2-dn').textContent:'',strike:getComputedStyle(nm).textDecorationLine,color:getComputedStyle(nm).color,afterNotDone:after.filter(x=>!x.classList.contains('c2-done')).length,grp:/Zone 1/.test(g.querySelector('.c3-gh').textContent)};},K('z0|purges'));
+out.sou=sp(await page.$eval(KS('#dx-calc .dx-cr[data-k="z0|soudure|dn100"] small'),e=>e.textContent));await click('dxc2go|-1');await wait(400);
+out.own=await page.evaluate(k=>{const r=document.querySelector(`#dx-calc .dx-cr[data-k="${k}"]`);return r?{on:r.classList.contains('on'),done:r.classList.contains('c2-done'),dis:r.querySelector('input').disabled,q:(r.querySelector('[data-dx="cq"]')||{}).value}:null;},K('z0|purges'));
 console.log('c4) tout pointé :',JSON.stringify(out));
-C.c4=out.take==='3'&&/ligne 22/.test(out.h4)&&out.row&&out.row.done&&out.row.dis&&/✓ tout pointé · ligne 3\.3/.test(out.row.txt)&&/line-through/.test(out.row.strike)&&out.row.afterNotDone===0&&/reste 80 soud\. ≈ 400 ml/.test(out.sou)&&out.own&&out.own.on&&!out.own.done&&!out.own.dis&&out.own.q==='3';
-await click('dxc2go|1');await wait(300);await page.evaluate(()=>{const r=document.querySelector('#dx-calc .dx-cr[data-k="z0|purges"]');const k=document.getElementById('dx-calc');if(r){r.scrollIntoView({block:'center'});}});await wait(200);await shot('pc_1366_tout_pointe_barre.png');
+C.c4=out.take==='3'&&/ligne 22/.test(out.h4)&&out.row&&out.row.done&&out.row.dis&&/✓ tout pointé · ligne 3\.3/.test(out.row.txt)&&/line-through/.test(out.row.strike)&&out.row.afterNotDone===0&&out.row.grp&&/reste 80 soud\. ≈ 400 ml/.test(out.sou)&&out.own&&out.own.on&&!out.own.done&&!out.own.dis&&out.own.q==='3';
+await click('dxc2go|1');await wait(300);await page.evaluate(k=>{const r=document.querySelector(`#dx-calc .dx-cr[data-k="${k}"]`);if(r){r.scrollIntoView({block:'center'});}},K('z0|purges'));await wait(200);await shot('pc_1366_tout_pointe_barre.png');
 // ── c5) AUTOCONTRÔLE PAR TYPE (méthode d'Ethan, 3) : sous « Autocontrôle · DN 100 » une ligne par type coché dans la zone (dépression, itopo, pression ; la zone 2 n'en a pas) ;
 //    4.2 « Contrôle Itopo DN 100 · 120 u » : Itopo seul → lien {k, q = 120 × 2 ÷ 10, sub, x} ; 4.3 dépression ; 2.2 prend le DN entier : il ne reste que la pression
 const A100=await autoV(100);await click('dxc2go|1');await wait(400);out={h4:await h4()};
-out.subs=await page.evaluate(()=>[...document.querySelectorAll('#dx-calc .c2-sub')].map(x=>x.dataset.k+'#'+x.dataset.t));
-out.txt=await page.evaluate(()=>[...document.querySelectorAll('#dx-calc .c2-sub[data-k="z0|autoctrl|dn100"] .c2-nm')].map(x=>x.textContent.replace(/[\s  ]+/g,' ').trim()));
-out.amts=out.txt.map(t=>nbv((t.match(/= [\d,]+ (?:h|min) · ([\d\s  ]+) €/)||[])[1]));out.par=nbv(await page.$eval('#dx-calc .dx-cr[data-k="z0|autoctrl|dn100"] .m',e=>e.textContent));
-await sk('z0|autoctrl|dn100','itopo');out.take=await page.$eval('#dx-calc [data-c2="sq"][data-k="z0|autoctrl|dn100"][data-t="itopo"]',e=>e.value).catch(()=>null);out.res=sp(await page.$eval('#dx-cres',e=>e.textContent));
-await page.evaluate(()=>{const r=document.querySelector('#dx-calc .dx-cr[data-k="z0|autoctrl|dn100"]');if(r)r.scrollIntoView({block:'start'});const k=document.getElementById('dx-calc');const t=k.querySelector('.c2-top');if(r&&t)k.scrollTop-=t.offsetHeight+30;});await wait(200);await shot('pc_1366_autocontrole_par_type.png');await click('dxc2next|');await wait(500);a=await A();const L42=lk(a,'E23');out.L42=L42&&L42.comps;out.pu42=L42&&L42.pu;
-out.h4b=await h4();out.itopoDone=await page.evaluate(()=>{const r=document.querySelector('#dx-calc .c2-sub[data-k="z0|autoctrl|dn100"][data-t="itopo"]');return r?{done:r.classList.contains('c2-done'),dis:r.querySelector('input').disabled,t:(r.querySelector('.c2-dn')||{}).textContent||''}:null;});
-out.parRest=sp(await page.$eval('#dx-calc .dx-cr[data-k="z0|autoctrl|dn100"] small',e=>e.textContent));
-await sk('z0|autoctrl|dn100','depression');out.take2=await page.$eval('#dx-calc [data-c2="sq"][data-k="z0|autoctrl|dn100"][data-t="depression"]',e=>e.value).catch(()=>null);await click('dxput|');await wait(400);a=await A();const L43=lk(a,'E24');out.L43=L43&&L43.comps;
+out.subs=(await page.evaluate(()=>[...document.querySelectorAll('#dx-calc .c2-sub')].map(x=>x.dataset.k+'#'+x.dataset.t))).map(U);
+out.txt=await page.evaluate(k=>[...document.querySelectorAll(`#dx-calc .c2-sub[data-k="${k}"] .c2-nm`)].map(x=>x.textContent.replace(/[\s  ]+/g,' ').trim()),K('z0|autoctrl|dn100'));
+out.amts=out.txt.map(t=>nbv((t.match(/= [\d,]+ (?:h|min) · ([\d\s  ]+) €/)||[])[1]));out.par=nbv(await page.$eval(KS('#dx-calc .dx-cr[data-k="z0|autoctrl|dn100"] .m'),e=>e.textContent));
+await sk('z0|autoctrl|dn100','itopo');out.take=await page.$eval(KS('#dx-calc [data-c2="sq"][data-k="z0|autoctrl|dn100"][data-t="itopo"]'),e=>e.value).catch(()=>null);out.res=sp(await page.$eval('#dx-cres',e=>e.textContent));
+await page.evaluate(kk=>{const r=document.querySelector(`#dx-calc .dx-cr[data-k="${kk}"]`);if(r)r.scrollIntoView({block:'start'});const k=document.getElementById('dx-calc');const t=k.querySelector('.c2-top');if(r&&t)k.scrollTop-=t.offsetHeight+30;},K('z0|autoctrl|dn100'));await wait(200);await shot('pc_1366_autocontrole_par_type.png');await click('dxc2next|');await wait(500);a=await A();const L42=lk(a,'E23');out.L42=L42&&L42.comps;out.pu42=L42&&L42.pu;
+out.h4b=await h4();out.itopoDone=await page.evaluate(k=>{const r=document.querySelector(`#dx-calc .c2-sub[data-k="${k}"][data-t="itopo"]`);return r?{done:r.classList.contains('c2-done'),dis:r.querySelector('input').disabled,t:(r.querySelector('.c2-dn')||{}).textContent||''}:null;},K('z0|autoctrl|dn100'));
+out.parRest=sp(await page.$eval(KS('#dx-calc .dx-cr[data-k="z0|autoctrl|dn100"] small'),e=>e.textContent));
+await sk('z0|autoctrl|dn100','depression');out.take2=await page.$eval(KS('#dx-calc [data-c2="sq"][data-k="z0|autoctrl|dn100"][data-t="depression"]'),e=>e.value).catch(()=>null);await click('dxput|');await wait(400);a=await A();const L43=lk(a,'E24');out.L43=L43&&L43.comps;
 // 2.2 (180 ml) : l'autocontrôle DN 100 entier → d'office la part de ses ml (36 manch.) = ce qui reste (la pression) ; les liens par type ne bougent pas
 await gridTop();await page.click(td(11,5));await wait(500);await ck('z0|autoctrl|dn100');out.take3=await cq('z0|autoctrl|dn100');await click('dxput|');await wait(400);a=await A();const L22=lk(a,'E11');
 out.sum=[lk(a,'E23'),lk(a,'E24'),L22].reduce((s,L)=>s+(L?L.amt:0),0);out.A100=A100;out.pu42b=lk(a,'E23').pu;
-await page.click(td(23,5));await wait(500);out.again=await page.evaluate(()=>({rst:sp0((document.querySelector('#dx-calc .c2-sub.on[data-k="z0|autoctrl|dn100"][data-t="itopo"] .dx-rst')||{}).textContent),over:document.querySelectorAll('#dx-calc .c2-sub.over,#dx-calc .dx-cr.over').length,pres:!!document.querySelector('#dx-calc .c2-sub.c2-done[data-k="z0|autoctrl|dn100"][data-t="pression"]')}));
-await page.click(td(25,5));await wait(500);out.full100=await page.evaluate(()=>{const r=document.querySelector('#dx-calc .dx-cr[data-k="z0|autoctrl|dn100"]');return r?{done:r.classList.contains('c2-done'),subsDone:[...document.querySelectorAll('#dx-calc .c2-sub[data-k="z0|autoctrl|dn100"]')].every(x=>x.classList.contains('c2-done'))}:null;});
+await page.click(td(23,5));await wait(500);out.again=await page.evaluate(k=>({rst:sp0((document.querySelector(`#dx-calc .c2-sub.on[data-k="${k}"][data-t="itopo"] .dx-rst`)||{}).textContent),over:document.querySelectorAll('#dx-calc .c2-sub.over,#dx-calc .dx-cr.over').length,pres:!!document.querySelector(`#dx-calc .c2-sub.c2-done[data-k="${k}"][data-t="pression"]`)}),K('z0|autoctrl|dn100'));
+await page.click(td(25,5));await wait(500);out.full100=await page.evaluate(k=>{const r=document.querySelector(`#dx-calc .dx-cr[data-k="${k}"]`);return r?{done:r.classList.contains('c2-done'),subsDone:[...document.querySelectorAll(`#dx-calc .c2-sub[data-k="${k}"]`)].every(x=>x.classList.contains('c2-done'))}:null;},K('z0|autoctrl|dn100'));
 out.vent=await page.evaluate(()=>{const r=[...document.querySelectorAll('#dx-vent .dx-vt tbody tr')].find(r=>/^Autocontrôle interne/.test(r.cells[0].textContent));return r?r.cells[0].textContent.replace(/[\s  ]+/g,' '):'';});
 out.stale=await page.evaluate(()=>!!document.querySelector('#dx-vent .dx-stale'));
 console.log('c5) autocontrôle par type :',JSON.stringify(out));
 const parts=out.amts.reduce((s,x)=>s+x,0);
 C.c5=/ligne 23/.test(out.h4)&&out.subs.filter(x=>/^z0\|autoctrl\|dn100#/.test(x)).join()==='z0|autoctrl|dn100#depression,z0|autoctrl|dn100#itopo,z0|autoctrl|dn100#pression'&&!out.subs.some(x=>/^z1/.test(x))
   &&/^Itopo · DN 100 · 120 manch\. × 2 min = 4 h · [\d ]+ € · [\d,]+ € \/ manch\.$/.test(out.txt[1])&&/^Dépression · DN 100 · 120 manch\. × 5 min = 10 h/.test(out.txt[0])&&Math.abs(parts-out.par)<=2&&Math.abs(out.amts[1]-Math.round(A100*0.2))<=1
-  &&out.take==='120'&&out.L42&&out.L42.length===1&&out.L42[0].k==='z0|autoctrl|dn100'&&out.L42[0].sub==='itopo'&&out.L42[0].x===120&&Math.abs(out.L42[0].q-24)<1e-9&&Math.abs(out.pu42-Math.round(A100*0.2/120*100)/100)<0.006
+  &&out.take==='120'&&out.L42&&out.L42.length===1&&U(out.L42[0].k)==='z0|autoctrl|dn100'&&out.L42[0].sub==='itopo'&&out.L42[0].x===120&&Math.abs(out.L42[0].q-24)<1e-9&&Math.abs(out.pu42-Math.round(A100*0.2/120*100)/100)<0.006
   &&/ligne 24/.test(out.h4b)&&out.itopoDone&&out.itopoDone.done&&out.itopoDone.dis&&/✓ tout pointé · ligne 4\.2/.test(out.itopoDone.t)&&/reste 96 manch\./.test(out.parRest)
-  &&out.take2==='120'&&out.L43&&out.L43[0].sub==='depression'&&Math.abs(out.L43[0].q-60)<1e-9&&out.take3==='36'&&L22&&JSON.stringify(L22.comps)==='[{"k":"z0|autoctrl|dn100","q":36}]'&&Math.abs(out.sum-A100)<0.03&&out.pu42b===out.pu42
+  &&out.take2==='120'&&out.L43&&out.L43[0].sub==='depression'&&Math.abs(out.L43[0].q-60)<1e-9&&out.take3==='36'&&L22&&U(JSON.stringify(L22.comps))==='[{"k":"z0|autoctrl|dn100","q":36}]'&&Math.abs(out.sum-A100)<0.03&&out.pu42b===out.pu42
   &&out.again.rst==='✓ tout pointé'&&out.again.over===0&&out.again.pres&&out.full100&&out.full100.done&&out.full100.subsDone&&/dont Dépression [\d ]+ € · Itopo [\d ]+ € · Pression [\d ]+ €/.test(out.vent)&&!out.stale;
 // ── c6) LE MÊME PANIER (méthode d'Ethan, 2) : 2.1 → amené, conteneur, épreuve, étiquettes (zone 1) = « 💾 Garder cette sélection » « Installations » ; + soudures / manchons DN 100 ;
 //    2.2 : « ↺ Comme la ligne 2.1 » (180 ml) ; puce « Installations · 4 / 4 ✓ » ; décochée une → « 3 / 4 : il manque … » ; la puce recoche ; 2.3 (DN 80) : le DN suit ; ✕ supprime
 await gridTop();await page.click(td(10,5));await wait(500);const INST=['z0|amene','z0|conteneur','z0|epreuve','z0|etiquettes'];for(const k of INST)await ck(k);
 out={takes:await Promise.all(INST.map(cq))};await click('dxc2save|1');await wait(200);await page.fill('#dx-calc [data-c2="snom"]','Installations');await click('dxc2savok|');await wait(400);a=await A();
-out.sels=(a.dpgf.sels||[]).map(s=>s.nom+':'+s.ks.join('+'));out.selKeys=Object.keys((a.dpgf.sels||[])[0]||{}).sort().join(',');
+out.sels=(a.dpgf.sels||[]).map(s=>s.nom+':'+U(s.ks.join('+')));out.selKeys=Object.keys((a.dpgf.sels||[])[0]||{}).sort().join(',');
 await ck('z0|soudure|dn100');await ck('z0|manchons|dn100');out.t100=[await cq('z0|soudure|dn100'),await cq('z0|manchons|dn100')];await click('dxc2next|');await wait(500);
 out.h4=await h4();out.likeBtn=sp(await page.$eval('#dx-calc [data-v^="dxc2like|"]',e=>e.textContent).catch(()=>''));out.chip0=sp(await page.$eval('#dx-calc .c2-chip .c2-cb',e=>e.textContent).catch(()=>''));
-await page.click('#dx-calc [data-v^="dxc2like|"]');await wait(400);out.on=await page.$$eval('#dx-calc .dx-cr.on',L=>L.map(x=>x.dataset.k+'='+x.querySelector('[data-dx="cq"]').value).sort().join(' '));out.toast=await toast();
+await page.click('#dx-calc [data-v^="dxc2like|"]');await wait(400);out.on=U(await page.$$eval('#dx-calc .dx-cr.on',L=>L.map(x=>x.dataset.k+'='+x.querySelector('[data-dx="cq"]').value).sort().join(' ')));out.toast=await toast();
 out.chip1=sp(await page.$eval('#dx-calc .c2-chip .c2-cb',e=>e.textContent));await ck('z0|etiquettes',false);out.chip2=sp(await page.$eval('#dx-calc .c2-chip .c2-cb',e=>e.textContent));out.miss=await page.$eval('#dx-calc .c2-chip',e=>e.classList.contains('miss'));
 await shot('pc_1366_panier_il_manque.png');await page.click('#dx-calc .c2-chip .c2-cb');await wait(400);out.chip3=sp(await page.$eval('#dx-calc .c2-chip .c2-cb',e=>e.textContent));out.et=await cq('z0|etiquettes');
-await click('dxc2next|');await wait(500);out.h4c=await h4();await page.click('#dx-calc [data-v^="dxc2like|"]');await wait(400);out.on80=await page.$$eval('#dx-calc .dx-cr.on',L=>L.map(x=>x.dataset.k).sort().join(' '));out.toast80=await toast();
+await click('dxc2next|');await wait(500);out.h4c=await h4();await page.click('#dx-calc [data-v^="dxc2like|"]');await wait(400);out.on80=U(await page.$$eval('#dx-calc .dx-cr.on',L=>L.map(x=>x.dataset.k).sort().join(' ')));out.toast80=await toast();
 await shot('pc_1366_comme_la_ligne.png');await click('dxcclr|');out.cleared=await page.$$eval('#dx-calc .dx-cr.on',L=>L.length);
 await click('dxc2seldel|'+(a.dpgf.sels||[])[0].id);await wait(300);a=await A();out.selsAfter=a.dpgf.sels;out.chipGone=!await page.$('#dx-calc .c2-chip');
 console.log('c6) même panier :',JSON.stringify(out));
@@ -143,10 +146,10 @@ C.c6=out.takes.every(x=>x==='420')&&out.sels.join()==='Installations:z0|amene+z0
 // ── c7) LES ML UNE FOIS : sur une ligne au forfait (5.1), 60 ml tapés pour les soudures DN 50 → proposés pour les manchons DN 50, l'épreuve de la zone 2 ; modifiables ;
 //    une ligne au ml (2.4, 120 ml) : ses ml d'office
 await gridTop();await page.click(td(28,5));await wait(500);await ck('z0|soudure|dn50');out={t0:await cq('z0|soudure|dn50')};
-await page.fill('#dx-calc [data-rp="cqml"][data-k="z0|soudure|dn50"]','60');await wait(150);out.t1=await cq('z0|soudure|dn50');await page.dispatchEvent('#dx-calc [data-rp="cqml"][data-k="z0|soudure|dn50"]','change');await wait(300);
-await ck('z0|manchons|dn50');await ck('z1|epreuve');out.m=[await cq('z0|manchons|dn50'),await page.$eval('#dx-calc [data-rp="cqml"][data-k="z0|manchons|dn50"]',e=>e.value),await cq('z1|epreuve')];out.hint=sp(await page.$eval('#dx-calc .c2-mlh',e=>e.textContent).catch(()=>''));
-await page.fill('#dx-calc [data-dx="cq"][data-k="z1|epreuve"]','50');await page.dispatchEvent('#dx-calc [data-dx="cq"][data-k="z1|epreuve"]','change');await wait(300);out.ep=await cq('z1|epreuve');await click('dxcclr|');
-await gridTop();await page.click(td(13,5));await wait(500);await ck('z0|soudure|dn50');out.l24=[await cq('z0|soudure|dn50'),await page.$eval('#dx-calc [data-rp="cqml"][data-k="z0|soudure|dn50"]',e=>e.value)];await click('dxcclr|');
+await page.fill(KS('#dx-calc [data-rp="cqml"][data-k="z0|soudure|dn50"]'),'60');await wait(150);out.t1=await cq('z0|soudure|dn50');await page.dispatchEvent(KS('#dx-calc [data-rp="cqml"][data-k="z0|soudure|dn50"]'),'change');await wait(300);
+await ck('z0|manchons|dn50');await ck('z1|epreuve');out.m=[await cq('z0|manchons|dn50'),await page.$eval(KS('#dx-calc [data-rp="cqml"][data-k="z0|manchons|dn50"]'),e=>e.value),await cq('z1|epreuve')];out.hint=sp(await page.$eval('#dx-calc .c2-mlh',e=>e.textContent).catch(()=>''));
+await page.fill(KS('#dx-calc [data-dx="cq"][data-k="z1|epreuve"]'),'50');await page.dispatchEvent(KS('#dx-calc [data-dx="cq"][data-k="z1|epreuve"]'),'change');await wait(300);out.ep=await cq('z1|epreuve');await click('dxcclr|');
+await gridTop();await page.click(td(13,5));await wait(500);await ck('z0|soudure|dn50');out.l24=[await cq('z0|soudure|dn50'),await page.$eval(KS('#dx-calc [data-rp="cqml"][data-k="z0|soudure|dn50"]'),e=>e.value)];await click('dxcclr|');
 console.log('c7) ml une fois :',JSON.stringify(out));
 C.c7=out.t0==='30'&&out.t1==='9'&&out.m.join()==='9,60,60'&&/60 ml proposés/.test(out.hint)&&out.ep==='50'&&out.l24.join()==='18,120';
 // ── c8) « ⇶ Mettre le reste au ml » (méthode d'Ethan, 4) : une fenêtre courte, en phrases, résultat par DN, ce qui ne trouve pas de ligne ; un clic ; ↶ ; puis « Personnaliser… »
@@ -165,18 +168,20 @@ C.c8=/Tout ce qui n'est pas encore pointé \([\d ]+ €\) va sur les lignes au m
   &&out.btns.join('|')==='Annuler|Personnaliser…|⇶ Mettre le reste au ml'&&!/ne trouve pas de ligne/.test(out.orph)&&out.dlg&&out.dlg.h<760
   &&out.rep&&out.rep.nom==='Reste au ml'&&out.rep.mode==='dn'&&out.rep.lignes==='E10,E11,E12,E13,E14'&&out.rep.com==='{"mode":"prorata","ligne":null}'&&out.rep.orphan===false&&out.closed&&out.pus.every(x=>x>0)&&/Reste au ml/.test(out.repRow)
   &&out.undo[0]===0&&out.undo[1]===out.nL[0]&&out.redo===1&&out.tool&&out.toolKs>0&&out.simpleGone;
-// ── c1) ⧉ AUTRE ÉCRAN : ici une barre fine (plus de grand cadre), le calculateur (à gauche, collé en haut) et la ventilation (à droite) sur toute la largeur ;
+// ── c1) ⧉ AUTRE ÉCRAN : ici une barre fine (plus de grand cadre), le calculateur puis la ventilation DESSOUS (lot C3), sur toute la largeur ;
 //    touché là-bas → calculé ici ; « Mettre et ligne suivante » sélectionne la ligne suivante LÀ-BAS
 await gridTop();const [pop]=await Promise.all([ctx.waitForEvent('page'),click('dxpop|')]);watch(pop);await wait(900);
 out={grid:await page.evaluate(()=>!!document.querySelector('#dx-card .dx-grid')||!!document.getElementById('dx-vp')),bar:await rect('#c2-popbar'),barTxt:sp(await page.$eval('#c2-popbar',e=>e.textContent).catch(()=>'')),calc:await rect('#dx-calc'),vent:await rect('#dx-vent'),card:await rect('#dx-card')};
 await pop.click('#dx-vp td[data-r="18"][data-c="5"]');await wait(500);out.h4=await h4();await shot('pc_1366_autre_ecran_principal.png');
 await page.evaluate(()=>{document.getElementById('homeBody').scrollTop+=700;});await wait(300);out.calc2=await rect('#dx-calc');out.hb=await rect('#homeBody');out.vent2=await rect('#dx-vent');
+/* 16/10 après-midi (lot C3, changement voulu) : la ventilation SOUS le calculateur ; descendu sur la ventilation, le bouton flottant « 🧮 Calculer » ramène le calculateur */
+out.fab=await page.evaluate(()=>{const f=document.querySelector('#dx-card .c3-fab');return !!f&&f.checkVisibility()&&!f.classList.contains('c3-off');});await click('dxc3calc|');await wait(900);out.calc3=await rect('#dx-calc');out.fab2=await page.evaluate(()=>{const f=document.querySelector('#dx-card .c3-fab');return !!f&&f.checkVisibility();});
 await click('dxc2go|1');await wait(600);out.popSel=await pop.evaluate(()=>{const c=document.querySelector('#dx-vp td.dx-on');const vp=document.getElementById('dx-vp');if(!c)return null;const r=c.getBoundingClientRect(),v=vp.getBoundingClientRect();return {rc:c.dataset.r+':'+c.dataset.c,vis:r.top>=v.top&&r.bottom<=v.bottom};});out.h4b=await h4();
 await shot('pc_1366_autre_ecran_dpgf.png',null,pop);
 await pop.evaluate(()=>document.querySelector('[data-v="dxpopclose|"]').click());await wait(800);out.back=await page.evaluate(()=>!!document.getElementById('dx-vp'));
 console.log('c1) autre écran :',JSON.stringify(out));
-C.c1=!out.grid&&out.bar&&out.bar.h<=48&&/⧉ DPGF ouvert sur l'autre écran/.test(out.barTxt)&&/↩ Ramener ici/.test(out.barTxt)&&out.calc&&out.vent&&out.calc.r<=out.vent.l&&Math.abs(out.calc.t-out.vent.t)<=12&&out.calc.w>=0.4*out.card.w&&out.vent.w>=0.4*out.card.w
-  &&/ligne 18/.test(out.h4)&&out.calc2.t>=out.hb.t-1&&out.calc2.t<=out.hb.t+20&&out.vent2.t<out.vent.t-300&&out.popSel&&out.popSel.rc==='19:5'&&out.popSel.vis&&/ligne 19/.test(out.h4b)&&out.back;
+C.c1=!out.grid&&out.bar&&out.bar.h<=48&&/⧉ DPGF ouvert sur l'autre écran/.test(out.barTxt)&&/↩ Ramener ici/.test(out.barTxt)&&out.calc&&out.vent&&out.vent.t>=out.calc.b-2&&out.calc.w>=0.9*out.card.w&&out.vent.w>=0.9*out.card.w
+  &&/ligne 18/.test(out.h4)&&out.calc2.b<out.hb.t+60&&out.vent2.t<out.vent.t-300&&out.fab&&out.calc3.t>=out.hb.t-1&&out.calc3.t<=out.hb.t+60&&!out.fab2&&out.popSel&&out.popSel.rc==='19:5'&&out.popSel.vis&&/ligne 19/.test(out.h4b)&&out.back;
 // ── c9) LES ANCIENS OUTILS : un seul pli fermé tout en bas « 🗄 Anciens outils (avant le DPGF comme dans Excel) » (bordereau simplifié, atelier : rien de supprimé) ;
 //    un DPGF collé (sans fichier Excel) : l'écran reste comme avant
 out=await page.evaluate(()=>{const o=document.querySelector('#eq-app details.c2-old');const kids=[...document.querySelectorAll('#eq-app > *, #eq-app .ac-body > *')];const last=[...o.parentElement.children].pop();
@@ -201,11 +206,12 @@ await page.setViewportSize({width:1920,height:1080});await click('dxlay|side');a
 out={split:await page.evaluate(()=>document.querySelector('#dx-card .dx-split').className),grid:await rect('#dx-grid'),calc:await rect('#dx-calc'),shut:await page.evaluate(()=>{const b=document.querySelector('#dx-calc .c2-shut');return !!b&&b.checkVisibility();})};
 await page.evaluate(()=>{const s=document.getElementById('dx-side');s.scrollTop=400;});await wait(300);out.top=await rect('#dx-calc .c2-top');out.side=await rect('#dx-side');
 await page.evaluate(()=>{document.getElementById('dx-side').scrollTop=0;});await wait(200);await shot('pc_1920_cote_a_cote.png');
-// la fenêtre principale quand le DPGF est sur l'autre écran (le cas d'Ethan) : calculateur à gauche, ventilation à droite
+// la fenêtre principale quand le DPGF est sur l'autre écran (le cas d'Ethan) : le calculateur, la ventilation dessous (lot C3)
 {const [pop2]=await Promise.all([ctx.waitForEvent('page'),click('dxpop|')]);watch(pop2);await wait(900);await gridTop();out.pc=await rect('#dx-calc');out.pv=await rect('#dx-vent');out.pb=await rect('#c2-popbar');await shot('pc_1920_autre_ecran_principal.png');
   await pop2.evaluate(()=>document.querySelector('[data-v="dxpopclose|"]').click());await wait(800);}
 console.log('c12) 1 920 px :',JSON.stringify(out));
-C.c12=/\bside\b/.test(out.split)&&!out.shut&&out.calc.l>=out.grid.r-2&&out.top&&out.side&&Math.abs(out.top.t-out.side.t)<=4&&out.pc&&out.pv&&out.pc.r<=out.pv.l&&out.pc.w>=700&&out.pb&&out.pb.h<=48;
+/* (lot C3, changement voulu) : autre écran → la ventilation SOUS le calculateur, les deux sur toute la largeur */
+C.c12=/\bside\b/.test(out.split)&&!out.shut&&out.calc.l>=out.grid.r-2&&out.top&&out.side&&Math.abs(out.top.t-out.side.t)<=4&&out.pc&&out.pv&&out.pv.t>=out.pc.b-2&&out.pc.w>=1700&&out.pv.w>=1700&&out.pb&&out.pb.h<=48;
 await click('dxlay|stack');await wait(300);
 // ── c11) TÉLÉPHONE 390 px : rien ne déborde ; calculateur en bas ; boutons ≥ 34 px (≥ 40 px pour Mettre) ; menu « ⋯ » et « Mettre le reste au ml » dans l'écran
 await page.setViewportSize({width:390,height:844});await page.evaluate(()=>{document.getElementById('app').classList.remove('wide');});await click('tab|offre');await click('tab|dpgf');await page.waitForSelector('#dx-vp',{timeout:15000});await wait(600);
