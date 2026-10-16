@@ -127,7 +127,8 @@ export function equipeHTML(M,imgSrc,mode,ro){const app=mode==='app';
 let ENT_ASKED=false;
 export function entDocs(onLoad){if(!ENT_ASKED){ENT_ASKED=true;try{const p=regLoad(['entdoc']);if(p&&p.then&&onLoad)p.then(()=>{try{if(['assurance_rc','assurance_decennale','kbis','urssaf'].some(t=>regGet('entdoc',t)))onLoad();}catch(e){}}).catch(()=>{});}catch(e){}}
   const g=t=>{try{const r=regGet('entdoc',t);return r&&!r.deleted?r:null;}catch(e){return null;}};const out={};['assurance_rc','assurance_decennale','kbis','urssaf','fiscale','rib','qualification','autre'].forEach(t=>{out[t]=g(t);});return out;}
-const expired=d=>!!(d&&d.validUntil&&String(d.validUntil).slice(0,10)<new Date().toISOString().slice(0,10));
+let PDF_=null;const parisToday=()=>{try{return (PDF_=PDF_||new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit'})).format(new Date());}catch(e){return new Date().toISOString().slice(0,10);}}; /* 15/10 : date de Paris (comme les documents administratifs), pas UTC */
+const expired=d=>!!(d&&d.validUntil&&String(d.validUntil).slice(0,10)<parisToday());
 export const entValid=d=>!!d&&!expired(d); /* déposé ET pas périmé (une attestation périmée compte comme absente) */
 const ENT_LAB={assurance_rc:'Attestation d’assurance responsabilité civile',assurance_decennale:'Attestation d’assurance décennale',kbis:'Extrait Kbis',urssaf:'Attestation de vigilance URSSAF',fiscale:'Attestation de régularité fiscale',rib:'Relevé d’identité bancaire',qualification:'Qualifications et certificats',autre:'Autre document'};
 function docsEntHTML(E){const L=Object.keys(ENT_LAB).map(t=>[t,E[t]]).filter(([t,d])=>d&&t!=='rib');if(!L.length)return '';

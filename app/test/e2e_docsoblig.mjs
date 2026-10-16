@@ -11,6 +11,7 @@
 import { chromium } from 'playwright';
 import { unzipSync, strFromU8 } from 'fflate';
 import fs from 'fs';
+process.env.TZ='Europe/Paris'; // 15/10 (lot E) : l'appli compte les échéances à la date de Paris — le test aussi (sinon un jour d'écart entre 0 h et 2 h, heure de Paris)
 const BASE=process.env.BASE||'http://localhost:8765';
 const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
 const ctx=await browser.newContext({viewport:{width:430,height:900},acceptDownloads:true});const page=await ctx.newPage();
