@@ -131,8 +131,10 @@ let PDF_=null;const parisToday=()=>{try{return (PDF_=PDF_||new Intl.DateTimeForm
 const expired=d=>!!(d&&d.validUntil&&String(d.validUntil).slice(0,10)<parisToday());
 export const entValid=d=>!!d&&!expired(d); /* déposé ET pas périmé (une attestation périmée compte comme absente) */
 const ENT_LAB={assurance_rc:'Attestation d’assurance responsabilité civile',assurance_decennale:'Attestation d’assurance décennale',kbis:'Extrait Kbis',urssaf:'Attestation de vigilance URSSAF',fiscale:'Attestation de régularité fiscale',rib:'Relevé d’identité bancaire',qualification:'Qualifications et certificats',autre:'Autre document'};
-function docsEntHTML(E){const L=Object.keys(ENT_LAB).map(t=>[t,E[t]]).filter(([t,d])=>d&&t!=='rib');if(!L.length)return '';
-  return '<ul>'+L.map(([t,d])=>`<li>${esc(d.title||ENT_LAB[t])}${d.assureur?' – '+esc(d.assureur):''}${d.police?' (police n° '+esc(d.police)+')':''}${d.validUntil?(expired(d)?' – <b>expirée le '+esc(dFR(d.validUntil))+'</b>':' – valable jusqu’au '+esc(dFR(d.validUntil))):''}</li>`).join('')+'</ul>';}
+/* 16/10 soir (lot AM) : RC + décennale en un seul document (la suiveuse porte same = la source, docsoblig.js) → une seule ligne « … responsabilité civile et décennale » */
+const PAIR_ENT={assurance_rc:'assurance_decennale',assurance_decennale:'assurance_rc'};const pairFol=(E,t)=>{const o=PAIR_ENT[t];return !!(o&&E[o]&&E[o].same===t&&!E[t].same);};
+function docsEntHTML(E){const L=Object.keys(ENT_LAB).map(t=>[t,E[t]]).filter(([t,d])=>d&&t!=='rib'&&!(d.same&&PAIR_ENT[t]===d.same&&E[d.same]&&!E[d.same].same));if(!L.length)return '';
+  return '<ul>'+L.map(([t,d])=>`<li>${esc(pairFol(E,t)?'Attestation d’assurance responsabilité civile et décennale':d.title||ENT_LAB[t])}${d.assureur?' – '+esc(d.assureur):''}${d.police?' (police n° '+esc(d.police)+')':''}${d.validUntil?(expired(d)?' – <b>expirée le '+esc(dFR(d.validUntil))+'</b>':' – valable jusqu’au '+esc(dFR(d.validUntil))):''}</li>`).join('')+'</ul>';}
 
 /* ═════════ 5 · VARIABLES DU MÉMOIRE (texte, ou {html} = bloc généré) ═════════ */
 export const VAR_LAB3={chargeEmail:'e-mail du chargé d’affaires',chargeTel:'téléphone du chargé d’affaires',email:'e-mail de contact',tel:'téléphone de contact',chargeFonction:'fonction du signataire',cdtxEmail:'e-mail du conducteur de travaux',cdtxTel:'téléphone du conducteur de travaux',

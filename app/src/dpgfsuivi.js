@@ -19,6 +19,8 @@
 //   référence à la 1re ouverture (seul le sur-pointage réel est signalé). Changements : en moins (sur-pointé), en plus (à imputer), poste au ml / au forfait (« refaire
 //   la balance »), prix seul, supprimée, sur-pointé ; chaque action réécrit les liens ET les PU, en un seul ↶, et les cellules retouchées s'allument dans la grille.
 // Tout ce que dpgfxl.js prête passe par init() (aucun import circulaire) ; dpgfrep.js et dpgfclair.js importent les petites fonctions de clés et de groupes.
+// · 16/10 nuit (lot DK, dpgfrecap.js par X.RC) : élément « ligne sans part » (kind 'part', après les changements ; « ✓ Rien à faire » → suivi.ok['part:<id du lien>'],
+//   « Tout traiter » ne le traite pas) ; actions give (donner sa part), multi (« en plus » sur les lignes cochées), rebal (balance sur les lignes cochées) dans run().
 import {addrOf,parseAddr} from './xlcalc.js';
 let X=null;export function init(api){X=api;}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -66,7 +68,7 @@ const deadOf=(a,k)=>{const al=alOf(a);return al&&al[k]?al[k]:k;};
 /* pointé par composante (clé stable) ; les clés qui ne mènent plus à rien (composante supprimée) à part */
 function ptOf(a,CP){const P=new Map(),O=new Map();((a.dpgf||{}).liens||[]).forEach(L=>(L.comps||[]).forEach(x=>{const q=+x.q||0;if(!(q>0))return;const c=CP.by.get(x.k);
   if(c){let o=P.get(c.k);if(!o)P.set(c.k,o={P:0,ids:new Set(),W:0,X:{}});o.P+=q;o.ids.add(L.id);if(x.sub&&!x.rep)o.X[x.sub]=(o.X[x.sub]||0)+(+x.x||0);else o.W+=q;return;} /* W : pris en entier ; X : manchons pris par type d'autocontrôle */const t=deadOf(a,x.k);let o=O.get(t);if(!o)O.set(t,o={P:0,ids:new Set(),raw:new Set()});o.P+=q;o.ids.add(L.id);o.raw.add(x.k);}));return {P,O};}
-const isInst=c=>!!c&&(c.z<0||INST.includes(c.p));
+export const isInst=c=>!!c&&(c.z<0||INST.includes(c.p));
 /* la liste : une ligne par composante changée (pointée), avec ce qu'il reste à faire ; vide = rien à traiter */
 export function itemsOf(a,CP,M,noOk){const D=a.dpgf||{};const S=D.suivi||null;const ok=(!noOk&&S&&S.ok)||{};const PT=ptOf(a,CP);const byId=new Map((D.liens||[]).map(L=>[L.id,L]));const its=[];
   PT.P.forEach((o,k)=>{const c=CP.by.get(k);const ref=refOf(S,c);const Q=c.qty,A=c.amtV,t=TQ(Q);const dq=ref?Q-ref.q:0,dA=ref?A-ref.m:0;
@@ -80,6 +82,7 @@ export function itemsOf(a,CP,M,noOk){const D=a.dpgf||{};const S=D.suivi||null;co
     if(!kind||(ok[k]&&ok[k]===sigOf(Q,A,o.P)))return;
     its.push({k,c,kind,Q,A,P:o.P,ref,dq,dA,over:Math.max(0,over),imp,lines,sub,fT:sub&&Tm-Q>t&&Tm>0?Q/Tm:0});});
   PT.O.forEach((o,k)=>{if(ok[k]&&ok[k]==='del|'+r3(o.P))return;its.push({k,c:null,kind:'del',P:o.P,raw:[...o.raw],lines:[...o.ids].map(id=>byId.get(id)).filter(Boolean)});});
+  if(X.RC)X.RC.partItems(a,CP,M,ok).forEach(it=>its.push(it)); /* 16/10 nuit (lot DK) : « ligne sans part » des postes répartis (dpgfrecap.js), après les changements */
   const rank=it=>it.c?(isInst(it.c)?0:1)*1e7+(it.c.z<0?0:it.c.z+1)*1e4+CP.list.indexOf(it.c):9e9;return its.sort((x,y)=>rank(x)-rank(y));}
 /* l'état du jour des composantes pointées (1re ouverture d'un DPGF pointé avant ce lot, ou 1er pointage) */
 function snapAll(a,CP){const PT=ptOf(a,CP);const S={v:CP.v,at:new Date().toISOString(),q:{},m:{}};PT.P.forEach((o,k)=>{const c=CP.by.get(k);S.q[k]=r3(c.qty);S.m[k]=r2(c.amtV);});const al=freeze(a.dpgf||{},CP);if(al)S.al=al;return S;}
@@ -91,8 +94,8 @@ export function onWrite(a,D,opt){try{const S0=D.suivi||null;if(!(D.liens||[]).le
   PT.P.forEach((o,k)=>{const c=CP.by.get(k);const r=refOf(S,c);if(r&&c.ok&&c.ok!==k&&S.q[c.ok]!==undefined){S.q[k]=r.q;S.m[k]=r.m;delete S.q[c.ok];delete S.m[c.ok];} /* référence prise sous l'ancienne clé : passe à la clé stable */
     if(!r||!todo.has(k)||sv[k]){S.q[k]=r3(c.qty);S.m[k]=r2(c.amtV);}});
   Object.keys(S.q).forEach(k=>{const c=CP.by.get(k);if(!c||!PT.P.has(c.k)){delete S.q[k];delete S.m[k];}});
-  const ok=Object.assign({},(S0&&S0.ok)||{});Object.keys(sv).forEach(k=>{if(sv[k]!=='ok')return;const o=PT.P.get(k);if(o){const c=CP.by.get(k);ok[k]=sigOf(c.qty,c.amtV,o.P);}else{const d=PT.O.get(k);if(d)ok[k]='del|'+r3(d.P);}});
-  Object.keys(ok).forEach(k=>{const o=PT.P.get(k);if(o){const c=CP.by.get(k);if(ok[k]!==sigOf(c.qty,c.amtV,o.P))delete ok[k];}else{const d=PT.O.get(k);if(!d||ok[k]!=='del|'+r3(d.P))delete ok[k];}});
+  const ok=Object.assign({},(S0&&S0.ok)||{});Object.keys(sv).forEach(k=>{if(sv[k]!=='ok')return;if(/^part:/.test(k)){const g=X.RC&&M2?X.RC.partSig(a2,CP,M2,k):null;if(g)ok[k]=g;return;} /* 16/10 nuit (lot DK) : « ligne sans part » marquée « rien à faire » */const o=PT.P.get(k);if(o){const c=CP.by.get(k);ok[k]=sigOf(c.qty,c.amtV,o.P);}else{const d=PT.O.get(k);if(d)ok[k]='del|'+r3(d.P);}});
+  Object.keys(ok).forEach(k=>{if(/^part:/.test(k)){if(X.RC&&M2&&X.RC.partSig(a2,CP,M2,k)!==ok[k])delete ok[k];return;} /* (lot DK) la case revient si la ligne ou les postes répartis changent */const o=PT.P.get(k);if(o){const c=CP.by.get(k);if(ok[k]!==sigOf(c.qty,c.amtV,o.P))delete ok[k];}else{const d=PT.O.get(k);if(!d||ok[k]!=='del|'+r3(d.P))delete ok[k];}});
   if(Object.keys(ok).length)S.ok=ok;else delete S.ok;S.v=CP.v;S.at=new Date().toISOString();D.suivi=S;}catch(e){console.warn(e);}}
 /* 1re ouverture (modifiable, pas en consultation) : un id sur les zones qui n'en ont pas, puis l'état du jour comme référence — écritures différées, une fois */
 const newId=()=>'E'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
@@ -101,23 +104,24 @@ function ensureInit(a,canEdit){if(!canEdit||a._vview||SS.busy[a.num])return;cons
     if((ch.etudes||[]).some(z=>z&&!z.id)){H.affSet(a.num,{chiffrage:Object.assign({},ch,{etudes:ch.etudes.map(z=>z&&!z.id?Object.assign({},z,{id:newId()}):z)})});X.rerender();return;}
     const D2=a2.dpgf||{};if(D2.suivi||!(D2.liens||[]).length)return;const CP=X.compsOf(a2);if(!CP)return;H.affSet(a.num,{dpgf:Object.assign({},D2,{suivi:snapAll(a2,CP)})});X.rerender();},0);}
 /* ═════════ 4 · LES ACTIONS : réécrire les liens et les PU (un seul ↶) ═════════ */
-function splitQ(q,ws){const U=1000;const tot=Math.round(q*U);const raw=ws.map(w=>w*tot);const fl=raw.map(Math.floor);let rem=tot-fl.reduce((s,x)=>s+x,0);raw.map((x,i)=>[x-fl[i],i]).sort((p,q2)=>q2[0]-p[0]).forEach(([,i])=>{if(rem>0){fl[i]++;rem--;}});return fl.map(x=>x/U);}
-const kOf=(CP,x)=>{const c=CP.by.get(x.k);return c?c.k:null;};
-const tOf=(CP,L,k)=>(L.comps||[]).reduce((s,x)=>s+(kOf(CP,x)===k?(+x.q||0):0),0);
+export function splitQ(q,ws){const U=1000;const tot=Math.round(q*U);const raw=ws.map(w=>w*tot);const fl=raw.map(Math.floor);let rem=tot-fl.reduce((s,x)=>s+x,0);raw.map((x,i)=>[x-fl[i],i]).sort((p,q2)=>q2[0]-p[0]).forEach(([,i])=>{if(rem>0){fl[i]++;rem--;}});return fl.map(x=>x/U);}
+export const kOf=(CP,x)=>{const c=CP.by.get(x.k);return c?c.k:null;};
+export const tOf=(CP,L,k)=>(L.comps||[]).reduce((s,x)=>s+(kOf(CP,x)===k?(+x.q||0):0),0);
 /* une ligne : sa part de la composante k passe de T à T2 (ses morceaux gardent leurs proportions : saisie, parts de répartition, types d'autocontrôle) */
-function scaleLine(CP,L,k,T,T2){const E=L.comps.filter(x=>kOf(CP,x)===k);if(!(T>0)){if(T2>1e-9)L.comps.push({k,q:r3(T2)});return;}const f=T2/T;let qs=0;
+export function scaleLine(CP,L,k,T,T2){const E=L.comps.filter(x=>kOf(CP,x)===k);if(!(T>0)){if(T2>1e-9)L.comps.push({k,q:r3(T2)});return;}const f=T2/T;let qs=0;
   const sub=E.filter(x=>x.sub&&!x.rep),oth=E.filter(x=>!(x.sub&&!x.rep));sub.forEach(x=>{const r=X.CL.ratioOf(CP,k,x.sub);x.x=r3((+x.x||0)*f);x.q=x.x*r;qs+=x.q;});
   if(oth.length){const W=oth.reduce((s,x)=>s+(+x.q||0),0);const sp=splitQ(Math.max(0,T2-qs),oth.map(x=>W>0?(+x.q||0)/W:1/oth.length));oth.forEach((x,i)=>{x.q=sp[i];});}
   L.comps=L.comps.filter(x=>!E.includes(x)||(x.sub&&!x.rep?(+x.x||0)>0&&(+x.q||0)>0:(+x.q||0)>0));}
 /* ce que fait l'action par défaut : par ligne, la quantité gardée (« au prorata », « refaire la balance ») */
-function targets(CP,it,act,W){const ls=it.lines.map(L0=>{const L=W?W.find(x=>x.id===L0.id)||L0:L0;return {id:L0.id,t:tOf(CP,L,it.k)};}).filter(x=>x.t>0);const P=ls.reduce((s,x)=>s+x.t,0);if(!ls.length)return ls;
+export function targets(CP,it,act,W){const ls=it.lines.map(L0=>{const L=W?W.find(x=>x.id===L0.id)||L0:L0;return {id:L0.id,t:tOf(CP,L,it.k)};}).filter(x=>x.t>0);const P=ls.reduce((s,x)=>s+x.t,0);if(!ls.length)return ls;
   const G=act==='bal'?(it.ref&&it.ref.q>0?P*it.Q/it.ref.q:P):it.sub?P*(it.ref&&it.ref.q>0&&Math.abs(it.dq)>TQ(it.Q)?it.Q/it.ref.q:(it.fT||1)) /* par type : tout à la même échelle */:it.kind==='plus'?P+it.imp:Math.min(P,it.Q);const sp=splitQ(Math.max(0,G),ls.map(x=>x.t/P));ls.forEach((x,i)=>{x.tg=sp[i];});return ls;}
-export const DEF={moins:'pro',over:'pro',plus:'pro',bal:'bal',prix:'apply',del:'del'};
-const labOf=(a,M)=>{const D=a.dpgf||{};const S=M?X.dpSheet(M,D):null;const byRow=new Map((D.lignes||[]).filter(l=>!l.section&&l.row).map(l=>[l.row,l.n||'']));return L=>{const p=parseAddr(L.a||'');const n=p&&S&&up(L.sh)===up(S.name)?byRow.get(p.r):'';return n||L.a;};};
+export const DEF={moins:'pro',over:'pro',plus:'pro',bal:'bal',prix:'apply',del:'del',part:'give'}; /* (lot DK) part : la ligne reçoit sa part (dpgfrecap.js) */
+export const labOf=(a,M)=>{const D=a.dpgf||{};const S=M?X.dpSheet(M,D):null;const byRow=new Map((D.lignes||[]).filter(l=>!l.section&&l.row).map(l=>[l.row,l.n||'']));return L=>{const p=parseAddr(L.a||'');const n=p&&S&&up(L.sh)===up(S.name)?byRow.get(p.r):'';return n||L.a;};};
 /* todo = [{it, act, arg}] → nouveaux liens, cellules PU à écrire, avant → après (aperçu), suivi des clés traitées */
-function run(a,CP,M,todo){const D=a.dpgf||{};const W=(D.liens||[]).slice();const ix=new Map(W.map((L,i)=>[L.id,i]));const sv={};const now=new Date().toISOString();const H=X.H();const by=H&&H.A&&H.A.userName?H.A.userName():'';const msg=[];
+export function run(a,CP,M,todo){const D=a.dpgf||{};const W=(D.liens||[]).slice();const ix=new Map(W.map((L,i)=>[L.id,i]));const sv={};const now=new Date().toISOString();const H=X.H();const by=H&&H.A&&H.A.userName?H.A.userName():'';const msg=[];
   const ed=id=>{const i=ix.get(id);if(i===undefined)return null;if(!W[i]._c)W[i]=Object.assign({},W[i],{comps:(W[i].comps||[]).map(x=>Object.assign({},x)),_c:1});return W[i];};
   todo.forEach(({it,act,arg})=>{const k=it.k;if(act==='ok'){sv[k]='ok';return;}sv[k]='ref';
+    if(X.RC&&X.RC.runAct(a,CP,M,it,act,arg,{W,ix,ed,D,now,by,msg}))return; /* 16/10 nuit (lot DK) : donner sa part (give), mettre / refaire la balance sur les lignes cochées (multi, rebal) */
     if(act==='del'){it.lines.forEach(L0=>{const L=ed(L0.id);if(L)L.comps=L.comps.filter(x=>!it.raw.includes(x.k));});return;}
     if(act==='apply'||act==='keep'){it.lines.forEach(L0=>ed(L0.id));return;}
     if(act==='one'){const imp=it.imp>0?it.imp:Math.max(0,it.Q-it.P);const v=String(arg||'');let L=null;
@@ -132,20 +136,20 @@ function run(a,CP,M,todo){const D=a.dpgf||{};const W=(D.liens||[]).slice();const
     if(!L.comps.length){if(p)vals.push({sh:L.sh,r:p.r,c:p.c,e:L.rep&&L.prev&&L.prev.e?L.prev.e:null});chg.push({id:L.id,lab:lab(L),old,neu:null,r:p?p.r:0,gone:true});return;}
     const Xn=X.linkNow(L,CP,M);if(p)vals.push({sh:L.sh,r:p.r,c:p.c,e:{v:Xn.pur}});Object.assign(L,{pu:Xn.pur,amt:r2(Xn.amt),v:CP.v,at:now});out.push(L);chg.push({id:L.id,lab:lab(L),old,neu:Xn.pur,r:p?p.r:0});});
   chg.sort((x,y)=>x.r-y.r);return {W:out,vals,chg,sv,msg};}
-const moved=ch=>ch.filter(x=>x.neu===null||x.old===null||Math.abs(x.neu-x.old)>=0.005);
+export const moved=ch=>ch.filter(x=>x.neu===null||x.old===null||Math.abs(x.neu-x.old)>=0.005);
 /* les cellules retouchées s'allument dans la grille (ici et sur l'autre écran) : une feuille de style éphémère (la grille se redessine en défilant) */
-function flash(ids){if(!docOK()||!ids.length)return;const sel=ids.map(id=>CSS.escape(id));const css=`#dx-vp td[data-lk]:is(${sel.map(s=>`[data-lk="${s}"]`).join(',')}){outline:3px solid #f59e0b!important;outline-offset:-3px;animation:c3hl .55s ease-in-out 0s 6 alternate}#dx-vp th .dx-dot:is(${sel.map(s=>`[data-lk="${s}"]`).join(',')}){box-shadow:0 0 0 3px #f59e0b}@keyframes c3hl{from{outline-color:#f59e0b}to{outline-color:rgba(245,158,11,.15)}}`;
+export function flash(ids){if(!docOK()||!ids.length)return;const sel=ids.map(id=>CSS.escape(id));const css=`#dx-vp td[data-lk]:is(${sel.map(s=>`[data-lk="${s}"]`).join(',')}){outline:3px solid #f59e0b!important;outline-offset:-3px;animation:c3hl .55s ease-in-out 0s 6 alternate}#dx-vp th .dx-dot:is(${sel.map(s=>`[data-lk="${s}"]`).join(',')}){box-shadow:0 0 0 3px #f59e0b}@keyframes c3hl{from{outline-color:#f59e0b}to{outline-color:rgba(245,158,11,.15)}}`;
   const docs=[document];if(X.popLive())try{docs.push(X.XS.pop.w.document);}catch(e){}docs.forEach(d=>{let s=d.getElementById('c3-flash');if(!s){s=d.createElement('style');s.id='c3-flash';d.head.appendChild(s);}s.textContent=css;});
   clearTimeout(SS.ft);SS.ft=setTimeout(()=>{docs.forEach(d=>{try{const s=d.getElementById('c3-flash');if(s)s.textContent='';}catch(e){}});},9000);}
 /* ═════════ 5 · LA LISTE (fenêtre) ET LE BANDEAU ═════════ */
 const UW={'soud.':['soudure','soudures',1],'manch.':['manchon','manchons',0],'paire':['paire','paires',1],'vanne':['vanne','vannes',1],'u':['u','u',0],'ml':['ml','ml',0],'%':['%','%',0]};
-const uw=(u,q)=>{const w=UW[u]||[u,u,0];return Math.abs(q)<=1+1e-9?w[0]:w[1];};const qn=(q,u)=>fq(q)+' '+uw(u,q);const ptd=u=>(UW[u]||[])[2]?'pointées':'pointés';
+export const uw=(u,q)=>{const w=UW[u]||[u,u,0];return Math.abs(q)<=1+1e-9?w[0]:w[1];};export const qn=(q,u)=>fq(q)+' '+uw(u,q);const ptd=u=>(UW[u]||[])[2]?'pointées':'pointés';
 const DNP={soudure:'Soudure',manchons:'Manchons',autoctrl:'Autocontrôle'};
 function keyName(CP,k){const m=/^(inst|z:[^|]+|z\d+)\|([^|]+)(?:\|(.+))?$/.exec(k)||[];const zt=m[1]||'',p=m[2]||'',part=m[3]||'';let zn='';
   if(zt==='inst')zn='Installations';else if(/^z\d+$/.test(zt)){const z=CP.zones[+zt.slice(1)];zn=z?z.nom:'zone supprimée';}else{const i=(CP.tok||[]).indexOf(zt);zn=i>=0?CP.zones[i].nom:'zone supprimée';}
   const P=(CP.postes||[]).find(x=>x.k===p);let det='';if(/^dn\d+$/.test(part))det='DN '+part.slice(2);else if(/^d\d+/.test(part)){const s=part.split('.');det='DN '+s[0].slice(1)+(s[1]?' · '+s[1].replace(/^(sst|racc)_/,'').replace(/_/g,' '):'');}
   else if(/^r\d+$/.test(part))det='ligne '+(+part.slice(1)+1);else if(part)det=part.replace(/^[pn]/,'').replace(/_/g,' ');return {nm:(P?P.label:p||k)+(det?' '+det:''),zn};}
-const nameOf=(CP,it)=>it.c?{nm:it.c.dn&&DNP[it.c.p]?DNP[it.c.p]+' DN '+it.c.dn:it.c.pl+(it.c.lab?' '+it.c.lab:''),zn:it.c.zn}:keyName(CP,it.k);
+const nameOf=(CP,it)=>it.nm!==undefined?{nm:it.nm,zn:it.zn||''} /* (lot DK) « ligne sans part » */:it.c?{nm:it.c.dn&&DNP[it.c.p]?DNP[it.c.p]+' DN '+it.c.dn:it.c.pl+(it.c.lab?' '+it.c.lab:''),zn:it.c.zn}:keyName(CP,it.k);
 const lnList=(it,lab)=>{const L=it.lines.map(x=>({t:lab(x),r:(parseAddr(x.a||'')||{}).r||0})).sort((x,y)=>x.r-y.r).map(x=>x.t);return esc(L.slice(0,8).join(', ')+(L.length>8?' +'+(L.length-8):''));};
 function phrase(it,lab){const u=it.c?it.c.u:'';const n=it.lines.length;const L=lnList(it,lab);
   switch(it.kind){case 'moins':return `<b class="c3-m">${esc(qn(-it.dq,u))} EN MOINS</b> (${fq(it.ref.q)} → ${fq(it.Q)}) — ${ptd(u)} sur ${L} : <b class="c3-bad">sur-pointé de ${fq(it.over)}</b>`;
@@ -153,27 +157,29 @@ function phrase(it,lab){const u=it.c?it.c.u:'';const n=it.lines.length;const L=l
     case 'bal':return `${Math.abs(it.dq)>TQ(it.Q)?`${fq(it.ref.q)} → ${fq(it.Q)} ${esc(u)}, `:''}montant ${Math.abs(it.dA)>0.01?eur(it.ref.m)+' → '+eur(it.A):eur(it.A)+' (inchangé)'} — ${n>1?'réparti sur '+n+' lignes ('+L+')':'pointé sur '+L}${it.over>TQ(it.Q)?` · <b class="c3-bad">sur-pointé de ${fq(it.over)} ${esc(u)}</b>`:''}`;
     case 'prix':return `prix : ${nb(it.ref.q?it.ref.m/it.ref.q:0,2)} → ${nb(it.Q?it.A/it.Q:0,2)} € / ${esc(uw(u,1))} — ${n} ligne${n>1?'s':''} (${L})`;
     case 'over':return `pointé ${fq(it.P)} pour ${esc(qn(it.Q,u))} — <b class="c3-bad">sur-pointé de ${fq(it.over)}</b> (${L})`;
-    case 'del':return `<b class="c3-bad">supprimée du chiffrage</b> — pointée sur ${L}`;}return '';}
-const KIND={moins:['▼','#b91c1c','En moins'],plus:['▲','#1d4ed8','En plus'],bal:['⇶','#7c3aed','Au ml / forfait'],prix:['€','#b45309','Prix'],over:['⚠','#b91c1c','Sur-pointé'],del:['✕','#6b7280','Supprimée']};
-const short=(CP,it)=>{const {nm}=nameOf(CP,it);const u=it.c?it.c.u:'';return it.kind==='moins'?nm+' : '+qn(-it.dq,u)+' en moins':it.kind==='plus'?nm+' : '+qn(it.dq,u)+' en plus':it.kind==='del'?nm+' supprimée':it.kind==='over'?nm+' : sur-pointé':it.kind==='bal'?nm+' : à rééquilibrer':nm+' : nouveau prix';};
-function puHTML(ch){const m=moved(ch);return m.length?`<div class="c3-pu"><span class="c3-pul">PU qui changent :</span> ${m.map(x=>`<span class="c3-puc"><b>${esc(x.lab)}</b> ${x.old===null?'vide':nb(x.old,2)} → ${x.neu===null?'<i>vide (lien retiré)</i>':'<b>'+nb(x.neu,2)+' €</b>'}</span>`).join('')}</div>`:'<div class="c3-pu dim">PU : aucun ne change</div>';}
+    case 'del':return `<b class="c3-bad">supprimée du chiffrage</b> — pointée sur ${L}`;
+    case 'part':return X.RC?X.RC.phrase(it):'';}return '';} /* (lot DK) */
+const KIND={moins:['▼','#b91c1c','En moins'],plus:['▲','#1d4ed8','En plus'],bal:['⇶','#7c3aed','Au ml / forfait'],prix:['€','#b45309','Prix'],over:['⚠','#b91c1c','Sur-pointé'],del:['✕','#6b7280','Supprimée'],part:['⇶','#0f766e','Ligne sans part']};
+const short=(CP,it)=>{if(it.kind==='part')return it.short; /* (lot DK) */const {nm}=nameOf(CP,it);const u=it.c?it.c.u:'';return it.kind==='moins'?nm+' : '+qn(-it.dq,u)+' en moins':it.kind==='plus'?nm+' : '+qn(it.dq,u)+' en plus':it.kind==='del'?nm+' supprimée':it.kind==='over'?nm+' : sur-pointé':it.kind==='bal'?nm+' : à rééquilibrer':nm+' : nouveau prix';};
+export function puHTML(ch){const m=moved(ch);return m.length?`<div class="c3-pu"><span class="c3-pul">PU qui changent :</span> ${m.map(x=>`<span class="c3-puc"><b>${esc(x.lab)}</b> ${x.old===null?'vide':nb(x.old,2)} → ${x.neu===null?'<i>vide (lien retiré)</i>':'<b>'+nb(x.neu,2)+' €</b>'}</span>`).join('')}</div>`:'<div class="c3-pu dim">PU : aucun ne change</div>';}
 function itemHTML(a,CP,M,it,ro,lab){const k=it.k;const {nm,zn}=nameOf(CP,it);const K=KIND[it.kind];const u=it.c?it.c.u:'';const n=it.lines.length;
   const R=run(a,CP,M,[{it,act:DEF[it.kind]}]);const B=(act,lbl,cls,tip)=>`<button class="btn sm${cls?' '+cls:''}" data-act="af" data-v="dxc3do|${enc(k)}|${act}"${tip?` title="${esc(tip)}"`:''}>${esc(lbl)}</button>`;
   const okB=B('ok','✓ Rien à faire','','Marquer traité sans rien changer');let acts='';
   if(!ro){if(it.kind==='moins'||it.kind==='over')acts=B('pro','Retirer au prorata des lignes','primary','Chaque ligne perd sa part (au prorata de ce qu\'elle a)')+(it.sub?'':`<button class="btn sm${SS.pick[a.num]===k?' on':''}" data-act="af" data-v="dxc3pick|${enc(k)}" title="Un champ par ligne : la somme doit faire le retrait">Choisir ligne par ligne…</button>`)+okB;
     else if(it.kind==='plus'){const D=a.dpgf||{};const S=M?X.dpSheet(M,D):null;const mine=new Set(it.lines.map(L=>L.id));const opts=it.lines.map(L=>({v:'L:'+L.id,t:lab(L)+' · déjà '+fq(tOf(CP,L,k))+' '+uw(u,2),r:(parseAddr(L.a)||{}).r||0,s:tOf(CP,L,k)})).sort((x,y)=>y.s-x.s);
       const others=S?(D.lignes||[]).filter(l=>!l.section&&l.row&&!(D.liens||[]).some(L=>mine.has(L.id)&&up(L.sh)===up(S.name)&&(parseAddr(L.a)||{}).r===l.row)).map(l=>({v:'R:'+l.row,t:(l.n?l.n+' · ':'')+String(l.des||'').slice(0,56)})):[];
-      acts=B('pro','Ajouter au prorata des lignes déjà pointées','primary')+`<span class="c3-one"><label>Sur une ligne : <select data-c3="one" data-k="${esc(k)}" aria-label="Ligne qui reçoit">${opts.map(o=>`<option value="${esc(o.v)}">${esc(o.t)}</option>`).join('')}${others.length?`<optgroup label="Autres lignes du DPGF">${others.map(o=>`<option value="${esc(o.v)}">${esc(o.t)}</option>`).join('')}</optgroup>`:''}</select></label>${B('one','Mettre')}</span>`+B('keep','Laisser dans le reste','','Plus tard : « ⇶ Mettre le reste au ml » ou le calculateur')+okB;}
-    else if(it.kind==='bal')acts=B('bal','↻ Refaire la balance sur '+(n>1?'les '+n+' lignes':'la ligne'),'primary','Mêmes proportions qu\'avant, à la nouvelle quantité / au nouveau montant')+(it.dq>TQ(it.Q)?B('keep','Laisser dans le reste'):'')+okB;
+      acts=B('pro','Ajouter au prorata des lignes déjà pointées','primary')+`<span class="c3-one"><label>Sur une ligne : <select data-c3="one" data-k="${esc(k)}" aria-label="Ligne qui reçoit">${opts.map(o=>`<option value="${esc(o.v)}">${esc(o.t)}</option>`).join('')}${others.length?`<optgroup label="Autres lignes du DPGF">${others.map(o=>`<option value="${esc(o.v)}">${esc(o.t)}</option>`).join('')}</optgroup>`:''}</select></label>${B('one','Mettre')}</span>`+(X.RC?X.RC.multiBtn(a,it):'')+B('keep','Laisser dans le reste','','Plus tard : « ⇶ Mettre le reste au ml » ou le calculateur')+okB;} /* (lot DK) « Sur les lignes que je coche… » */
+    else if(it.kind==='bal')acts=B('bal','↻ Refaire la balance sur '+(n>1?'les '+n+' lignes':'la ligne'),'primary','Mêmes proportions qu\'avant, à la nouvelle quantité / au nouveau montant')+(X.RC?X.RC.multiBtn(a,it):'')+(it.dq>TQ(it.Q)?B('keep','Laisser dans le reste'):'')+okB;
     else if(it.kind==='prix')acts=B('apply','↻ Appliquer '+(n>1?'ces '+n+' lignes':'cette ligne'),'primary')+okB;
-    else if(it.kind==='del')acts=B('del','Retirer des lignes','primary','Les lignes perdent ce qui venait de cette composante')+okB;}
+    else if(it.kind==='del')acts=B('del','Retirer des lignes','primary','Les lignes perdent ce qui venait de cette composante')+okB;
+    else if(it.kind==='part')acts=(X.RC?X.RC.partBtn(a,it):'')+okB;} /* (lot DK) « ⇶ Lui donner sa part » ouvre la fenêtre */
   let pk='';if(!ro&&SS.pick[a.num]===k&&(it.kind==='moins'||it.kind==='over')){const ls=targets(CP,it,'pro');
     pk=`<div class="c3-pk" data-k="${esc(k)}" data-need="${r3(it.over)}"><div class="c3-pkh">Retirer ${esc(qn(it.over,u))} en tout :</div>${ls.map(x=>{const L=it.lines.find(y=>y.id===x.id);return `<label class="c3-pkr"><span><b>${esc(lab(L))}</b> <small>· ${fq(x.t)} ${esc(uw(u,x.t))}</small></span><span>retirer <input inputmode="decimal" data-c3="rm" data-k="${esc(k)}" data-l="${esc(x.id)}" data-max="${r3(x.t)}" value="${esc(fin(r3(x.t-x.tg)))}" aria-label="${esc('Retirer de '+lab(L))}"> ${esc(uw(u,2))}</span></label>`;}).join('')}<div class="c3-pks" data-c3="sum"></div>${B('pick','Retirer ces quantités','primary')}</div>`;}
-  return `<div class="c3-it" data-k="${esc(k)}" style="--c3c:${K[1]}"><div class="c3-ih"><span class="c3-ik" title="${esc(K[2])}">${K[0]}</span><b class="c3-in">${esc(nm)}</b><span class="c3-iz">· ${esc(zn)}</span></div><div class="c3-is">${phrase(it,lab)}</div>${puHTML(R.chg)}${acts?`<div class="c3-acts">${acts}</div>`:''}${pk}</div>`;}
+  return `<div class="c3-it" data-k="${esc(k)}" style="--c3c:${K[1]}"><div class="c3-ih"><span class="c3-ik" title="${esc(K[2])}">${K[0]}</span><b class="c3-in">${esc(nm)}</b><span class="c3-iz">· ${esc(zn)}</span></div><div class="c3-is">${phrase(it,lab)}</div>${puHTML(R.chg)}${acts?`<div class="c3-acts">${acts}</div>`:''}${pk}${X.RC&&!ro?X.RC.multiHTML(a,CP,M,it,lab):'' /* (lot DK) les cases des lignes */}</div>`;}
 function dlgHTML(a,M,canEdit){const CP=X.compsOf(a);if(!CP||!M)return '';const ro=!canEdit||!!a._vview;const its=itemsOf(a,CP,M);const lab=labOf(a,M);
-  let all='';if(its.length&&!ro){const R=run(a,CP,M,its.map(it=>({it,act:DEF[it.kind]})));const m=moved(R.chg);
+  let all='';const itc=its.filter(it=>it.kind!=='part'); /* (lot DK) « Tout traiter » : les changements du chiffrage, pas les lignes sans part */if(itc.length&&!ro){const R=run(a,CP,M,itc.map(it=>({it,act:DEF[it.kind]})));const m=moved(R.chg);
     all=`<div class="c3-all"><button class="btn primary" data-act="af" data-v="dxc3all|">Tout traiter au prorata</button><span class="c3-allt">Le choix le plus courant partout : en moins → retiré au prorata des lignes ; en plus → ajouté au prorata ; postes au ml ou au forfait → balance refaite ; nouveaux prix appliqués ; composantes supprimées retirées. <b>${m.length} PU ${m.length>1?'changent':'change'}</b> · un seul ↶ pour revenir.</span>${m.length?`<details class="c3-alld"><summary>Voir les ${m.length} PU</summary>${puHTML(R.chg)}</details>`:''}</div>`;}
-  const body=its.length?`<p class="c3-intro">Le chiffrage a bougé depuis le pointage. Pour chaque composante : ce qui change, les lignes du DPGF où elle est pointée, et leurs PU (avant → après l'action proposée).</p>${all}${its.map(it=>itemHTML(a,CP,M,it,ro,lab)).join('')}`:'<p class="c3-intro"><b style="color:#15803d">✓ Rien à traiter</b> : les lignes pointées suivent le chiffrage.</p>';
+  const body=its.length?`${itc.length?`<p class="c3-intro">Le chiffrage a bougé depuis le pointage. Pour chaque composante : ce qui change, les lignes du DPGF où elle est pointée, et leurs PU (avant → après l'action proposée).</p>`:X.RC?X.RC.introPart():''}${all}${its.map(it=>itemHTML(a,CP,M,it,ro,lab)).join('')}`:'<p class="c3-intro"><b style="color:#15803d">✓ Rien à traiter</b> : les lignes pointées suivent le chiffrage.</p>';
   if(docOK())setTimeout(()=>{const b=document.getElementById('c3-body');if(b&&SS.st){b.scrollTop=SS.st;SS.st=0;}document.querySelectorAll('#c3-dlg .c3-pk').forEach(sumPick);},0);
   return `<div class="rp-ov c3-ov" id="c3-ov"><div class="rp-dlg c3-dlg" id="c3-dlg" role="dialog" aria-modal="true" aria-label="Changements du chiffrage à traiter"><div class="rp-hd"><h3>Changements du chiffrage à traiter <span class="hint">· ${its.length}</span></h3><button class="btn sm" data-act="af" data-v="dxc3close|" aria-label="Fermer la liste">✕</button></div>
     <div class="rp-body" id="c3-body">${body}</div><div class="rp-ft">${ro?'<span class="hint">Lecture seule</span>':`<button class="btn sm" data-act="af" data-v="dxundo|" title="Annuler la dernière action sur le DPGF (Ctrl+Z)">↶ Annuler la dernière action</button>`}<span class="rp-btns"><button class="btn sm" data-act="af" data-v="dxc3close|">Fermer</button></span></div></div></div>`;}
@@ -183,8 +189,8 @@ function sumPick(box){if(!box)return;const need=+box.dataset.need||0;let s=0,bad
   const b=box.querySelector('[data-v^="dxc3do|"]');if(b)b.disabled=!ok;}
 /* le bandeau, en haut de l'onglet (pas en consultation d'une version) */
 export function topHTML(a,M,canEdit){if(!docOK())return '';css(document);wire();ensureInit(a,canEdit);if(!M||a._vview)return '';const CP=X.compsOf(a);if(!CP)return '';const its=itemsOf(a,CP,M);if(!its.length)return '';
-  const n=its.length;const allOver=its.every(x=>x.kind==='over');const sm=its.slice(0,3).map(it=>short(CP,it)).join(' · ')+(n>3?' · …':'');
-  return `<div class="c3-band" id="c3-band" role="status"><span class="c3-bi" aria-hidden="true">⚠</span><span class="c3-bt"><b>${allOver?'Pointé au-delà du chiffrage':'Le chiffrage a changé'}</b> : ${n} ${allOver?'composante'+(n>1?'s':'')+' à reprendre':'changement'+(n>1?'s':'')+' à traiter'}<span class="c3-bs">${esc(sm)}</span></span><button class="btn sm primary" data-act="af" data-v="dxc3list|">Voir la liste</button></div>`;}
+  const n=its.length;const allOver=its.every(x=>x.kind==='over'),allPart=its.every(x=>x.kind==='part') /* (lot DK) */;const sm=its.slice(0,3).map(it=>short(CP,it)).join(' · ')+(n>3?' · …':'');
+  return `<div class="c3-band" id="c3-band" role="status"><span class="c3-bi" aria-hidden="true">⚠</span><span class="c3-bt"><b>${allPart?'Postes répartis':allOver?'Pointé au-delà du chiffrage':'Le chiffrage a changé'}</b> : ${n} ${allPart?'ligne'+(n>1?'s':'')+' sans sa part':allOver?'composante'+(n>1?'s':'')+' à reprendre':'changement'+(n>1?'s':'')+' à traiter'}<span class="c3-bs">${esc(sm)}</span></span><button class="btn sm primary" data-act="af" data-v="dxc3list|">Voir la liste</button></div>`;}
 /* le bouton flottant (seulement quand le calculateur n'est pas à l'écran), le rappel des changements (quand le bandeau n'est pas à l'écran), la fenêtre de la liste */
 export function endHTML(a,M,canEdit){if(!docOK()||!M)return '';const fab=`<button type="button" class="c3-fab" data-act="af" data-v="dxc3calc|" title="Calculer le prix de la ligne sélectionnée : ouvre ou ramène le calculateur, sans remonter" aria-label="Calculer le prix de la ligne sélectionnée"><span aria-hidden="true">🧮</span> Calculer</button>`;
   let pill='';if(!a._vview){const CP=X.compsOf(a);const n=CP?itemsOf(a,CP,M).length:0;if(n)pill=`<button type="button" class="c3-fab2 c3-off" data-act="af" data-v="dxc3list|" title="Le chiffrage a changé depuis le pointage : voir la liste à traiter">⚠ ${n} changement${n>1?'s':''} à traiter</button>`;}
@@ -235,7 +241,7 @@ export function ventHTML(a,M,canEdit){const CP=X.compsOf(a);if(!CP||!M)return nu
       <tbody>${rows}<tr class="tot"><td>Total</td>${colT.map((x,i)=>`<td class="${cols[i].fold?'c3-zf':''}" data-st="${Math.abs(x.amt-x.pt)<1?'✓':'•'}">${nb(x.amt)}<span class="sub">${Math.abs(x.amt-x.pt)<1?'✓ placé':'reste '+nb(x.amt-x.pt)}</span></td>`).join('')}<td>${nb(T.amt)}</td><td class="c3-cc">${nb(T.mo)}</td><td class="c3-cc">${nb(T.fo)}</td><td class="c3-cc">${nb(T.st)}</td><td class="c3-cc">${nb(T.loc)}</td><td class="c3-cc">${nb(T.pt)}</td><td>${Math.abs(T.amt-T.pt)<1?'✓':nb(T.amt-T.pt)}</td></tr></tbody></table></div>
     ${liens.length?`<details class="c3-lks" data-c3d="lks"${lkOpen?' open':''}><summary>Lignes pointées · ${liens.length} <span class="hint">· couleurs, prix à mettre à jour (↻), délier (✕)</span></summary>${leg}${lkList}</details>`:'<div class="hint" style="margin-top:6px">Aucune ligne pointée : touche une ligne du DPGF, coche ce que son prix comprend, « ↦ Mettre dans le DPGF ».</div>'}${REP.ventReps(a,M,CP,canEdit)}</div>`;}
 /* ═════════ 8 · ACTIONS (data-v="dxc3…|…", depuis dpgfXlAct) ═════════ */
-function keepScroll(){const b=docOK()&&document.getElementById('c3-body');SS.st=b?b.scrollTop:0;}
+export function keepScroll(){const b=docOK()&&document.getElementById('c3-body');SS.st=b?b.scrollTop:0;}
 export function act(k,arg,arg2,a,canEdit,M){const num=a.num;
   switch(k){
     case 'dxc3list':SS.open[num]=true;SS.pick[num]=null;X.rerender();setTimeout(()=>{const b=document.querySelector('#c3-dlg .c3-all .btn,#c3-dlg .rp-hd .btn');if(b)try{b.focus({preventScroll:true});}catch(e){}},40);return true;
@@ -243,7 +249,7 @@ export function act(k,arg,arg2,a,canEdit,M){const num=a.num;
     case 'dxc3pick':{const key=dec(arg);SS.pick[num]=SS.pick[num]===key?null:key;keepScroll();X.rerender();
       if(SS.pick[num])setTimeout(()=>{const it=[...document.querySelectorAll('#c3-dlg .c3-it')].find(x=>x.dataset.k===key);const pk=it&&it.querySelector('.c3-pk');if(pk){try{pk.scrollIntoView({block:'nearest'});}catch(e){}const i=pk.querySelector('input');if(i)try{i.focus({preventScroll:true});i.select();}catch(e){}}},40);return true;}
     case 'dxc3do':case 'dxc3all':{if(!canEdit||!M||a._vview)return true;const CP=X.compsOf(a);if(!CP)return true;const its=itemsOf(a,CP,M);let todo;const lab=labOf(a,M);
-      if(k==='dxc3all')todo=its.map(it=>({it,act:DEF[it.kind]}));
+      if(k==='dxc3all')todo=its.filter(it=>it.kind!=='part').map(it=>({it,act:DEF[it.kind]})); /* (lot DK) */
       else{const key=dec(arg),ac=String(arg2||'');const it=its.find(x=>x.k===key);if(!it){X.say('Ce changement est déjà traité');X.rerender();return true;}let ag=null;
         if(ac==='pick'){const box=[...document.querySelectorAll('#c3-dlg .c3-pk')].find(x=>x.dataset.k===key);ag={};let s=0;if(box)box.querySelectorAll('[data-c3="rm"]').forEach(i=>{const v=numIn(i.value)||0;ag[i.dataset.l]=v;s+=v;});if(Math.abs(s-it.over)>=0.0015){X.say('La somme des retraits doit faire '+fq(it.over));return true;}}
         if(ac==='one'){const sl=[...document.querySelectorAll('#c3-dlg select[data-c3="one"]')].find(x=>x.dataset.k===key);ag=sl?sl.value:'';}

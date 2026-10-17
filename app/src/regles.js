@@ -30,10 +30,17 @@ export function lmaxOf(R,dn,prof,temp,sigma){const T=R&&R.lmax;if(!T||!T.tables)
   let L;if(P.length<2)L=+row.v[0][j];else{let i=0;while(i<P.length-2&&p>P[i+1])i++;const a=+row.v[i][j],b=+row.v[i+1][j];const t=P[i+1]>P[i]?(p-P[i])/(P[i+1]-P[i]):0;L=a+(b-a)*Math.max(0,Math.min(1,t));}
   return {L,dn:+row.dn,below,prof:p,clamped:Math.abs(p-p0)>1e-9};}
 // le tableau importé (registre prix / regles) → localStorage['trace:regles'] pour le traceur ; rien n'est effacé si le registre ne le connaît pas (appareil pas encore chargé)
+// 16/10 (lot TA) : la copie peut échouer (mémoire du navigateur pleine : localStorage ≈ 5 Mo, partagé avec les tracés) — elle échouait SANS RIEN DIRE → reglesSyncErr
+let syncErr='';export const reglesSyncErr=()=>syncErr;
 export function reglesSync(){try{const r=regGet('prix','regles');if(!r)return false;const o=Object.assign({},r);delete o.id;if(o.deleted){localStorage.removeItem(REGLES_LS);return false;}if(reglesCheck(o))return false;
-  const s=JSON.stringify(o);if(localStorage.getItem(REGLES_LS)!==s)localStorage.setItem(REGLES_LS,s);return true;}catch(e){return false;}}
+  const s=JSON.stringify(o);syncErr='';try{if(localStorage.getItem(REGLES_LS)!==s)localStorage.setItem(REGLES_LS,s);}catch(e){syncErr='mémoire du navigateur pleine';return false;}return true;}catch(e){return false;}}
+/* 16/10 (lot TA) — Ethan : « les notes de dilatation n'ont pas l'air de fonctionner ». Le traceur ne lisait le tableau QUE dans localStorage['trace:regles'] : copie absente
+   (mémoire pleine, pack importé sur un autre appareil, registre pas encore relu) → règle « lyre » muette, dite seulement dans l'onglet Notes. Le traceur relit maintenant aussi
+   le registre de l'appareil (miroir IndexedDB trace:reg:prix, même origine que l'appli, hors connexion aussi) ; trouvé là, il est recopié dans localStorage si possible. */
+export async function reglesFromStore(kv){try{if(!kv||!kv.get)return null;const R=await kv.get('trace:reg:prix');const row=R&&R.regles;const d=row&&row.data;if(!d||d.deleted)return null;const o=Object.assign({},d);delete o.id;if(reglesCheck(o))return null;
+  try{localStorage.setItem(REGLES_LS,JSON.stringify(o));}catch(e){}return o;}catch(e){return null;}}
 // partie « regles » du pack SCR (src/packscr.js)
 export const reglesPack={key:'regles',label:'Règles de tracé : longueurs maximales entre coudes (dilatation)',import:async part=>{let p=part;if(typeof p==='string')p=JSON.parse(p);const err=reglesCheck(p);if(err)throw new Error(err);
-  const o=JSON.parse(JSON.stringify(p));o.at=new Date().toISOString();regSet('prix','regles',o,{replace:true});reglesSync();return reglesSummary(o);}};
+  const o=JSON.parse(JSON.stringify(p));o.at=new Date().toISOString();regSet('prix','regles',o,{replace:true});const ok=reglesSync();return reglesSummary(o)+(ok?' — pris par le traceur':` — copie pour le traceur impossible (${syncErr||'registre'}) : le traceur le relira dans la mémoire de l'appareil`);}};
 // accroche : registre « prix » chargé (appareil puis serveur) ou reçu → copie pour le traceur
 onReg(kind=>{if(kind==='prix')reglesSync();});

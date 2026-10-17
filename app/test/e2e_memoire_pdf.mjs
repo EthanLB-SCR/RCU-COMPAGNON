@@ -63,10 +63,19 @@ let {ctx,page}=await open({viewport:{width:1280,height:900}},FAKE_M3_BLOCS,NUM,'
 const wait=ms=>page.waitForTimeout(ms);
 const click=async v=>{await page.evaluate(v=>{const el=document.querySelector(`#eq-app [data-act=af][data-v="${v}"]`);if(!el)throw new Error('bouton absent '+v);el.click();},v);await wait(250);};
 const toast=()=>page.evaluate(()=>(document.getElementById('toast')||{}).textContent||'');
+/* 16/10 soir (lot AM) : un mémoire qui a encore des trous rouges ne s'exporte plus tel quel (fenêtre « ⚠ Il reste N trous… » → paragraphes à trous RETIRÉS) ; pour contrôler
+   ici TOUT le contenu dans le PDF, on complète d'abord le mémoire comme Ethan (« Compléter d'abord ») : 👥 interlocuteurs (resp. d'exploitation, chef, QHSE) puis « 📝 Tout compléter »
+   (chaque info rouge = « Rempli : <libellé> », pas retenue pour les autres mémoires). Le gros mémoire (12) garde ses trous : il passe par la fenêtre. */
+async function complete(pg){const ck=v=>pg.evaluate(v=>{const el=document.querySelector(`#eq-app [data-act=af][data-v="${v}"]`);if(el)el.click();return !!el;},v);
+  await ck('mlbinter|');await pg.waitForTimeout(300);await pg.evaluate(()=>{const s=(id,re)=>{const e=document.getElementById(id);const o=e&&[...e.options].find(o=>re.test(o.textContent));if(o)e.value=o.value;};s('mem3-re',/Rémi/);s('mem3-chef',/Charles/);s('mem3-qhse',/Quentin/);document.getElementById('mem3-iok').click();});await pg.waitForTimeout(400);
+  await ck('mlbtc|');await pg.waitForTimeout(300);const n=await pg.evaluate(()=>{const rows=[...document.querySelectorAll('#m2-all > .m2-row')].filter(r=>r.querySelector('.m2-in'));rows.forEach(r=>{r.querySelector('.m2-in').value='Rempli : '+r.querySelector('.m2-lab b').textContent.trim();const k=r.querySelector('.m2-ret input');if(k)k.checked=false;});const b=document.getElementById('m2-allok');if(b)b.click();return rows.length;});
+  await pg.waitForTimeout(500);return {n,tile:await pg.evaluate(()=>(document.getElementById('memoire-nholes')||{}).textContent||'')};}
+const C0=await complete(page);console.log('0) mémoire complété avant les exports :',JSON.stringify(C0));C.c0=C0.n>=5&&/aucun trou/.test(C0.tile);
 /* clic « ⬇ PDF » → téléchargement ; renvoie {file, name, ms, toasts} */
 async function pdfClick(pg,tag,sel){const t0=Date.now();const seen=[];const iv=setInterval(()=>{pg.evaluate(()=>(document.getElementById('toast')||{}).textContent||'').then(t=>{if(t&&!seen.includes(t))seen.push(t);}).catch(()=>{});},150);
-  const [dl]=await Promise.all([pg.waitForEvent('download',{timeout:60000}),pg.evaluate(s=>document.querySelector(s).click(),sel||'#eq-app .memoire-head [data-v="mpdf|"]')]);const f=path.join(TMP,tag+'.pdf');await dl.saveAs(f);const ms=Date.now()-t0;
-  await pg.waitForTimeout(400);clearInterval(iv);seen.push(await pg.evaluate(()=>(document.getElementById('toast')||{}).textContent||''));return {file:f,name:dl.suggestedFilename(),ms,toasts:seen,info:await pg.evaluate(()=>window.TRACE&&window.TRACE.m3pdf?Object.assign({},window.TRACE.m3pdf()):null)};}
+  /* 16/10 soir (lot AM) : s'il reste des trous rouges, la fenêtre « ⚠ Il reste N trous… » s'ouvre → « Télécharger sans ces paragraphes » (mx = elle s'est ouverte) */
+  const [dl,mx]=await Promise.all([pg.waitForEvent('download',{timeout:60000}),pg.evaluate(s=>{document.querySelector(s).click();const b=document.getElementById('mx-go');if(b)b.click();return !!b;},sel||'#eq-app .memoire-head [data-v="mpdf|"]')]);const f=path.join(TMP,tag+'.pdf');await dl.saveAs(f);const ms=Date.now()-t0;
+  await pg.waitForTimeout(400);clearInterval(iv);seen.push(await pg.evaluate(()=>(document.getElementById('toast')||{}).textContent||''));return {file:f,name:dl.suggestedFilename(),ms,toasts:seen,mx,info:await pg.evaluate(()=>window.TRACE&&window.TRACE.m3pdf?Object.assign({},window.TRACE.m3pdf()):null)};}
 // ── 1) en-tête du mémoire : ⬇ PDF (principal, en premier), ⬇ Word, 🖨 Imprimer, plein écran ; plus de « 🖨 PDF »
 let out=await page.evaluate(()=>{const h=document.querySelector('#memoire-card .memoire-head .mem3-exp');return h?{btn:[...h.querySelectorAll('button')].map(b=>(b.dataset.v||'')+':'+b.textContent.trim()),prim:(h.querySelector('[data-v="mpdf|"]')||{}).className||'',old:[...document.querySelectorAll('#eq-app button')].some(b=>b.textContent.trim()==='🖨 PDF')}:null;});
 console.log('1) boutons :',JSON.stringify(out));
@@ -84,7 +93,7 @@ C.c4=/TESTVILLE/.test(p1)&&p1.includes(y)&&/O2610-61/.test(p1)&&/MÉMOIRE/.test(
 const p2=txt(F,2);const toc=tocOf(F);const tbad=tocOk(F,toc,N);
 out={som:/SOMMAIRE/.test(p2),trous:/\d+ trous? encore à compléter \(en rouge\)/.test(p2),n:toc.length,first:toc.slice(0,4),bad:tbad};console.log('4) sommaire :',JSON.stringify(out));
 const pOf=re=>(toc.find(e=>re.test(e.lab))||{}).p;out.nob=[pOf(/^4\. Garanties/),pOf(/^5\. Annexes/),pOf(/^6\. Moyens/)];
-C.c5=out.som&&out.trous&&toc.length>=14&&tbad.length===0&&toc[0].p===3&&toc.some(e=>/^2\.1 /.test(e.lab))&&toc.every((e,i)=>!i||e.p>=toc[i-1].p)&&out.nob[0]===out.nob[1]&&out.nob[2]>out.nob[1]; /* section sans saut (gabarit) : sur la même page que la précédente */
+C.c5=out.som&&!out.trous&&toc.length>=14&&tbad.length===0&&toc[0].p===3&&toc.some(e=>/^2\.1 /.test(e.lab))&&toc.every((e,i)=>!i||e.p>=toc[i-1].p)&&out.nob[0]===out.nob[1]&&out.nob[2]>out.nob[1]; /* section sans saut (gabarit) : sur la même page que la précédente */
 // ── 5) corps : titres numérotés (capitales / petites capitales du gabarit), titre de paragraphe (n.n.n), bandeau d'en-tête, pied « Page 2 / N »
 const all=txt(F);const lastP=txt(F,N);
 out={h1:/1\. PRÉSENTATION DE L’ENTREPRISE TEST/.test(all),h2:/1\.1 IDENTITÉ/.test(all),h3:/\d\.1\.1 LISTE DU MATÉRIEL|\d\.1\.1 Liste du matériel/.test(all),h4:/ÉTAPE ANNEXE/i.test(all),band:/Réseau test PDF\s+MÉMOIRE TECHNIQUE/.test(p2),foot2:new RegExp('Page 2 / '+N).test(p2),footN:new RegExp('Page '+N+' / '+N).test(lastP),ref:/Réf\. O2610-61 – Testville/.test(p2)};
@@ -102,11 +111,11 @@ const qh=findW(/^QHSE$/);let qhPx={n:0,t:1};if(qh){const img=ppm(F,qh.p,144);qhP
 const hse=(()=>{for(let p=3;p<=N;p++){const ws=words(F,p);const i=ws.findIndex((w,j)=>w.t==='Texte'&&ws[j+1]&&ws[j+1].t==='HSE');if(i>=0)return {p,w:ws[i],ws,i};}return null;})();let just=null; /* début du paragraphe « Texte HSE fictif… » */if(hse){const ws=hse.ws;const y0=hse.w.y0-2;const end=ws.find(w=>w.t==='Port'&&w.y0>y0);const lines={};ws.filter(w=>w.y0>=y0&&(!end||w.y0<end.y0-2)).forEach(w=>{const k=Math.round(w.y0);lines[k]=Math.max(lines[k]||0,w.x1);});
   const xs=Object.keys(lines).map(Number).sort((a,b)=>a-b).map(k=>lines[k]);const R0=595.28-21*72/25.4;just={n:xs.length,right:xs.slice(0,-1).map(x=>Math.round(R0-x)),last:Math.round(R0-xs[xs.length-1])};}
 out={red:red&&{p:red.p,n:redPx.n},bul:bul&&{p:bul.p,n:bulPx.n},th:th&&{p:th.p,r:+(thPx.n/thPx.t).toFixed(2)},band:+(band.n/band.t).toFixed(2),tab:/Poste de soudage test\s+4\s+Soudage des tubes/.test(all)&&/Total fictif\s+9 éléments/.test(all),
-  odd:+(oddPx.n/oddPx.t).toFixed(2),qhse:+(qhPx.n/qhPx.t).toFixed(2),just,orga:/Pôle administratif test/.test(all)&&/CHARGÉ Alain/.test(all)&&/alain\.charge@exemple\.test/.test(all)&&/Supervision générale \(fictif\)/.test(all)&&/\[À COMPLÉTER : Chef d’équipe\]/.test(all),
+  odd:+(oddPx.n/oddPx.t).toFixed(2),qhse:+(qhPx.n/qhPx.t).toFixed(2),just,orga:/Pôle administratif test/.test(all)&&/CHARGÉ Alain/.test(all)&&/alain\.charge@exemple\.test/.test(all)&&/Supervision générale \(fictif\)/.test(all)&&/CHANTIER Charles/.test(all)&&/QUALITÉ Quentin/.test(all),
   lit:/Balises écrites telles quelles : <script>alert\(1\)<\/script> et <b>pas en gras<\/b>\./.test(txt(F,0,false).replace(/\s+/g,' ')),
-  ol:/1\.\s+Première étape fictive/.test(all)&&/3\.\s+Troisième étape fictive/.test(all),fmt:/l’apostrophe & la légende «\s?test\s?» – fin\./.test(all)&&/12 m\s?3/.test(txt(F,0,false))&&/H\s?2\s?O/.test(txt(F,0,false)),hole:/\[À COMPLÉTER : point fictif A\]/.test(txt(F,0,false))};
+  ol:/1\.\s+Première étape fictive/.test(all)&&/3\.\s+Troisième étape fictive/.test(all),fmt:/l’apostrophe & la légende «\s?test\s?» – fin\./.test(all)&&/12 m\s?3/.test(txt(F,0,false))&&/H\s?2\s?O/.test(txt(F,0,false)),hole:/Point à préciser : Rempli : point fictif A\./.test(txt(F,0,false).replace(/\s+/g,' '))&&!/COMPLÉTER/.test(txt(F,0,false))}; /* 16/10 soir (lot AM) : complété avant l'export, plus rien en rouge */
 console.log('6) texte, puces, tableau :',JSON.stringify(out));
-C.c7=!!red&&redPx.n>=20&&!!bul&&bulPx.n>=6&&!!th&&thPx.n/thPx.t>0.3&&band.n/band.t>0.6&&out.tab&&out.ol&&out.fmt&&out.hole&&out.odd>0.6&&out.qhse>0.6&&out.orga&&out.lit
+C.c7=!red&&!!bul&&bulPx.n>=6&&!!th&&thPx.n/thPx.t>0.3&&band.n/band.t>0.6&&out.tab&&out.ol&&out.fmt&&out.hole&&out.odd>0.6&&out.qhse>0.6&&out.orga&&out.lit
   &&!!just&&just.n>=4&&just.right.every(d=>Math.abs(d)<=1.5)&&just.last>20;
 // ── 7) images (pdfimages : garde, logo, carte, icône, WebP converti ; l'illisible est remplacée par un message), Carlito incorporée (pdffonts)
 const il=sh('pdfimages',['-list',F]).toString().split('\n').slice(2).filter(Boolean).map(l=>l.trim().split(/\s+/));const uniq=new Set(il.filter(x=>x[2]==='image').map(x=>x[10])).size;const fonts=sh('pdffonts',[F]).toString();
@@ -114,8 +123,9 @@ out={dialogs,svg:/Schéma SVG converti/.test(all),n:il.length,uniq,types:[...new
 console.log('7) images et polices :',JSON.stringify(out));
 C.c8=uniq>=6&&out.svg&&dialogs===0&&out.illisible&&out.webp&&/Carlito-Regular yes yes/.test(out.fonts.join('|'))&&/Carlito-Bold yes yes/.test(out.fonts.join('|'))&&/Carlito-Italic yes yes/.test(out.fonts.join('|'))&&fonts.split('\n').slice(2).filter(Boolean).every(l=>/Carlito/.test(l));
 // ── 8) Word et impression gardés (⬇ Word → .docx ; 🖨 Imprimer → fenêtre d'impression paginée)
-let [dlw]=await Promise.all([page.waitForEvent('download'),click('mword|')]);const zw=unzipSync(new Uint8Array(fs.readFileSync(await dlw.path())));
-const [pop]=await Promise.all([page.waitForEvent('popup'),click('mprint|')]);await pop.waitForLoadState().catch(()=>{});for(let i=0;i<30;i++){await pop.waitForTimeout(200);if(await pop.evaluate(()=>!!document.documentElement.dataset.paged).catch(()=>false))break;}
+const sansTrous=()=>page.evaluate(()=>{const b=document.getElementById('mx-go');if(b)b.click();return !!b;}); /* 16/10 soir (lot AM) */
+const dlwP=page.waitForEvent('download');await click('mword|');const mxw=await sansTrous();const dlw=await dlwP;const zw=unzipSync(new Uint8Array(fs.readFileSync(await dlw.path())));
+const popP=page.waitForEvent('popup');await click('mprint|');const mxp=await sansTrous();const pop=await popP;await pop.waitForLoadState().catch(()=>{});for(let i=0;i<30;i++){await pop.waitForTimeout(200);if(await pop.evaluate(()=>!!document.documentElement.dataset.paged).catch(()=>false))break;}
 out={word:dlw.suggestedFilename(),doc:!!zw['word/document.xml'],print:await pop.evaluate(()=>+document.documentElement.dataset.paged||0).catch(()=>0)};await pop.close().catch(()=>{});console.log('8) Word et impression :',JSON.stringify(out));
 C.c9=out.word==='Memoire_technique_'+NUM+'.docx'&&out.doc&&out.print>=6;
 // ── 9) hors connexion, moteur et polices déjà chargés : le PDF se fait quand même
@@ -124,23 +134,23 @@ C.c10=R.name==='Memoire_technique_'+NUM+'.pdf'&&out.pages===N;
 // ── 10) dossier de remise (.zip) : le mémoire y est en PDF ; la ligne dit « (PDF) »
 await click('tab|offre');await wait(400);
 out={sub:await page.evaluate(()=>{const r=document.querySelector('#dob-offre .dob-row[data-key="p:memoire"]');return r?r.textContent.replace(/\s+/g,' ').trim():'';}),btn:await page.evaluate(()=>!!document.querySelector('#eq-app [data-v="mpdf|"]'))};
-const [dlz]=await Promise.all([page.waitForEvent('download',{timeout:60000}),click('obzip|')]);const Z=unzipSync(new Uint8Array(fs.readFileSync(await dlz.path())));const zpdf=Object.keys(Z).find(k=>/Memoire_technique_O2610-61\.pdf$/.test(k));
+const dlzP=page.waitForEvent('download',{timeout:60000});await click('obzip|');const mxz=await sansTrous();const dlz=await dlzP;const Z=unzipSync(new Uint8Array(fs.readFileSync(await dlz.path())));const zpdf=Object.keys(Z).find(k=>/Memoire_technique_O2610-61\.pdf$/.test(k));
 out.files=Object.keys(Z).sort();out.pdf=zpdf&&strFromU8(Z[zpdf].subarray(0,5));out.docx=Object.keys(Z).some(k=>/Memoire.*\.docx?$/.test(k));out.bord=/Memoire_technique_O2610-61\.pdf/.test(strFromU8(Z['00_Bordereau_des_pieces.html']||new Uint8Array()));
 console.log('10) dossier de remise :',JSON.stringify(out));
 C.c11=/généré depuis 5 · Mémoire \(PDF\)/.test(out.sub)&&out.btn&&!!zpdf&&/^03_Pieces_produites\//.test(zpdf)&&out.pdf==='%PDF-'&&!out.docx&&out.bord;
 // ── 11) repli : moteur introuvable dans l'appli (404) et moteur ALTÉRÉ sur jsDelivr → refusé par son empreinte SRI → message clair + fenêtre d'impression ;
 //    puis jsDelivr authentique (moteur absent de l'appli, polices servies par l'appli) → le PDF se fait, empreinte acceptée ; puis l'appli revient
-await ctx.close();({ctx,page}=await open({viewport:{width:1280,height:900}},FAKE_M3_BLOCS,NUM,'Réseau test PDF'));
+await ctx.close();({ctx,page}=await open({viewport:{width:1280,height:900}},FAKE_M3_BLOCS,NUM,'Réseau test PDF'));await complete(page); /* 16/10 soir (lot AM) */
 allow=/Failed to load resource|404|net::ERR|integrity|digest/i;let vendor404=true,genuine=false;
 await page.route(/\/vendor\/pdfmake-0\.2\.23\.min\.js$/,r=>vendor404?r.fulfill({status:404,contentType:'text/plain',body:'absent'}):r.continue());
 const cdnFile=u=>/pdfmake@0\.2\.23\/build\/pdfmake\.min\.js$/.test(u)?path.join(PUB,'vendor','pdfmake-0.2.23.min.js'):(/carlito@[0-9a-f]{40}\/fonts\/ttf\/(Carlito-[A-Za-z]+\.ttf)$/.exec(u)||[])[1]?path.join(PUB,'fonts',/(Carlito-[A-Za-z]+\.ttf)$/.exec(u)[1]):null;
 await page.route(u=>u.hostname==='cdn.jsdelivr.net',r=>{const f=cdnFile(r.request().url());if(!f)return r.abort();let body=fs.readFileSync(f);if(!genuine&&/\.js$/.test(f))body=Buffer.concat([body,Buffer.from('\n// fichier altéré\n')]);
   r.fulfill({status:200,headers:{'Access-Control-Allow-Origin':'*'},contentType:/\.js$/.test(f)?'application/javascript':'font/ttf',body});});
-const [pop2]=await Promise.all([page.waitForEvent('popup',{timeout:30000}),page.evaluate(()=>document.querySelector('#eq-app .memoire-head [data-v="mpdf|"]').click())]);await pop2.waitForLoadState().catch(()=>{});await page.waitForTimeout(1600);
+const [pop2]=await Promise.all([page.waitForEvent('popup',{timeout:30000}),page.evaluate(()=>{document.querySelector('#eq-app .memoire-head [data-v="mpdf|"]').click();const b=document.getElementById('mx-go');if(b)b.click();})]);await pop2.waitForLoadState().catch(()=>{});await page.waitForTimeout(1600);
 out={modal:await page.evaluate(()=>(document.getElementById('m3-pdf-err')||{}).textContent||''),toast:await toast(),popup:await pop2.evaluate(()=>!!document.querySelector('#flow')).catch(()=>false),loaded:await page.evaluate(()=>!!window.pdfMake)};await pop2.close().catch(()=>{});
 await page.evaluate(()=>{const b=document.querySelector('#modal [data-close]');if(b)b.click();});
 /* dossier de remise pendant que le PDF est impossible : le mémoire y part en Word (.docx), avec un message */
-await click('tab|offre');await wait(400);const [dlz2]=await Promise.all([page.waitForEvent('download',{timeout:60000}),click('obzip|')]);const Z2=unzipSync(new Uint8Array(fs.readFileSync(await dlz2.path())));await wait(300);
+await click('tab|offre');await wait(400);const dlz2P=page.waitForEvent('download',{timeout:60000});await click('obzip|');await page.evaluate(()=>{const b=document.getElementById('mx-go');if(b)b.click();});const dlz2=await dlz2P;const Z2=unzipSync(new Uint8Array(fs.readFileSync(await dlz2.path())));await wait(300);
 out.zip={files:Object.keys(Z2).filter(k=>/Memoire/.test(k)),note:await page.evaluate(()=>(window.TRACE.docsOblig.lastZip()||{}).memNote||''),toast:await toast()};
 genuine=true;R=await pdfClick(page,'cdn','#eq-app [data-v="mpdf|"]');out.cdn={name:R.name,src:R.info&&R.info.src,fsrc:R.info&&R.info.fsrc,italic:R.info&&R.info.italic,pages:+info(R.file).Pages,fonts:(sh('pdffonts',[R.file]).toString().match(/Carlito-[A-Za-z]+/g)||[]).sort().join()};
 vendor404=false;R=await pdfClick(page,'apres_repli','#eq-app [data-v="mpdf|"]');out.after=R.name;allow=null;
@@ -153,8 +163,8 @@ await ctx.close();
 ({ctx,page}=await open({viewport:{width:1280,height:900}},bigBlocs(300,10),'O2610-62','Gros mémoire test',true));
 const nP=await page.evaluate(()=>{const b=document.querySelectorAll('#memoire-stats .ac-stat b')[1];return b?b.textContent:'';});R=await pdfClick(page,'gros');const NB=+info(R.file).Pages;shots(R.file,'gros_pdf');
 const tocB=tocOf(R.file);const tbB=tocOk(R.file,tocB,NB);const orph=orphans(R.file,NB,/^\d+\.\d+(\.\d+)? (BLOC|POINT|Point|Bloc)/);const imgsB=new Set(sh('pdfimages',['-list',R.file]).toString().split('\n').slice(2).filter(Boolean).map(l=>l.trim().split(/\s+/)).filter(x=>x[2]==='image').map(x=>x[10])).size;
-out={paras:nP,ms:R.ms,gen:R.info&&R.info.ms,pages:NB,toc:tocB.length,bad:tbB,orphans:orph,images:imgsB};console.log('12) gros mémoire :',JSON.stringify(out));
-C.c13=/^300 \/ 300/.test(nP)&&R.ms<15000&&NB>=40&&tocB.length===40&&tbB.length===0&&orph.length===0&&imgsB>=12;
+out={paras:nP,ms:R.ms,gen:R.info&&R.info.ms,pages:NB,toc:tocB.length,bad:tbB,orphans:orph,images:imgsB,mx:R.mx,ret:R.toasts.some(t=>/\d+ paragraphes? à trous retirés?/.test(t))};console.log('12) gros mémoire :',JSON.stringify(out));
+C.c13=/^300 \/ 300/.test(nP)&&R.ms<15000&&NB>=40&&tocB.length===40&&tbB.length===0&&orph.length===0&&imgsB>=12&&out.mx&&out.ret; /* 16/10 soir (lot AM) : fenêtre des trous, paragraphes à trous retirés */
 await ctx.close();
 // ── 12 bis) bibliothèque « piège » (66 petits blocs titrés) : des sauts sont forcés avant des titres, et aucun titre ne reste seul en bas de page ; aucune légende
 //    seule en haut de page

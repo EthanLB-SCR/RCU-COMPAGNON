@@ -84,7 +84,7 @@ export function sheetImagesSVG(sh){if(!sh)return '';if(Array.isArray(sh.plans)&&
    Une page de PDF ou une image reste un plan kind:'image' (calque visuel : opacité, œil, ordre) ; ses métadonnées voyagent avec lui (traceur, IndexedDB, chantier) :
    from:'pdf'|'image', page / pages (PDF), pageW_mm / pageH_mm (taille RÉELLE de la page : 1 pt = 25,4/72 mm), dpi (+ dpiSrc : 'JFIF' | 'EXIF' | 'PNG' | 'saisie'),
    srcW (largeur en pixels du fichier d'origine : l'image gardée est réduite), ech (dernière échelle 1/N appliquée). */
-export const PLAN_META=['from','page','pages','pageW_mm','pageH_mm','dpi','dpiSrc','srcW','ech'];
+export const PLAN_META=['from','page','pages','pageW_mm','pageH_mm','dpi','dpiSrc','srcW','ech','grp','coul']; // 16/10 (lot TA) : grp = groupe de planches {id, nom, couleur}, coul = couleur de la planche (maquette/planches.js)
 export function planMeta(p){const o={};if(p)PLAN_META.forEach(k=>{if(p[k]!==undefined&&p[k]!==null)o[k]=p[k];});return o;}
 // ce que propose la fenêtre de choix : DXF, PDF, images (le DWG est montré pour expliquer quoi en faire)
 export const PLAN_ACCEPT='.dxf,.pdf,image/*,.png,.jpg,.jpeg,.webp,.gif,.bmp,.dwg';

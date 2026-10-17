@@ -17,6 +17,7 @@
 //   · etudeSync ne crée plus de repère sur un site qui n'en a pas (sauf tracé ctx 'etude') : un chantier lié à la main reste un chantier (« Ouvrir » → écran Tracé).
 import {regAll,regGet,regSet,regLoad} from './reg.js';
 import {marcheSnapshot} from './marche.js';
+import {mutuVerse,mutuGuardOpen,mutuRowHTML} from './mutu.js'; // 16/10 soir (lot MU) : étude versée dans un chantier en cours (cachée de Chantiers, jamais rattachée à nouveau), ligne d'un chantier partagé
 /* intégration 14/10 soir : le bac à sable vient de l'appli (A.isSandboxSite) — importer sandbox.js tirait sites.json dans les tests Node (memoire2_test) */
 let A=null;
 export function initLiaison(api){A=api;
@@ -62,7 +63,7 @@ export function etudeAffOf(id){let L=[];try{L=regAll('affaire').filter(a=>a&&!a.
 /* étude ou pas (etudeOfSite de l'appli) — null tant que le module n'est pas branché (l'appli garde alors sa règle d'avant) :
    liée à une affaire → étude tant qu'aucune affaire liée n'est gagnée, sauf chantier réel (preuves) ; pas liée → seulement une VRAIE remise d'étude (contexte étude, repère du traceur)
    pas encore rattachée : ni gagnée, ni déliée (ici ou par un ✕ ailleurs : a.sitesOff) — un vieux repère posé par etudeSync ne cache plus un chantier de Chantiers */
-export function lzEtudeOf(id){if(!A)return null;if(isDemo(id))return false;const k=lzKind(id);let L=[];try{L=regAll('affaire').filter(a=>a&&!a.deleted&&Array.isArray(a.sites)&&a.sites.includes(id));}catch(e){L=[];}
+export function lzEtudeOf(id){if(!A)return null;if(isDemo(id))return false;if(mutuVerse(id))return true; /* lot MU : étude versée dans un chantier en cours → reste une étude (hors Chantiers) */const k=lzKind(id);let L=[];try{L=regAll('affaire').filter(a=>a&&!a.deleted&&Array.isArray(a.sites)&&a.sites.includes(id));}catch(e){L=[];}
   if(L.length)return !L.some(a=>WON.includes(a.etat))&&k!=='chantier';
   const e=etudeMark(id);if(!(e&&e.aff&&!e.gagne&&!e.delie)||k==='chantier')return false;const a=regGet('affaire',e.aff);if(a&&a.sitesOff&&a.sitesOff[id])return false;
   const n=siteOf(id);return !!((n&&n.traceur&&n.traceur.ctx==='etude')||traceurMark(id,e));}
@@ -77,7 +78,7 @@ function markRemise(k,v){try{const R=remises();R[k]=Object.assign({at:now()},v);
 const remiseKey=n=>n.id+'|'+((n.traceur&&n.traceur.savedAt)||'');
 let srvFresh=false; /* registre des affaires reçu du serveur dans cette session */
 export function lzLink(why){if(!A)return 0;let n=0;if(why==='affaires reçues'&&A.state.cloudUser)srvFresh=true;const R=remises();
-  Object.values(A.SITES).forEach(net=>{try{if(!net||!net.id||!Array.isArray(net.lines)||!net.lines.length||isDemo(net.id))return;const e=net.fiche&&net.fiche.etude;if(!e||!e.aff||e.delie)return;
+  Object.values(A.SITES).forEach(net=>{try{if(!net||!net.id||!Array.isArray(net.lines)||!net.lines.length||isDemo(net.id))return;const e=net.fiche&&net.fiche.etude;if(!e||!e.aff||e.delie||e.verse)return; /* lot MU : étude versée dans un chantier — jamais rattachée à nouveau */
     if(!etudeRemise(net,e))return; /* chantier réel, repère posé par etudeSync / un ancien lien, démo : jamais rattaché tout seul */
     const a=regGet('affaire',e.aff);if(!a||a.deleted)return; /* affaire pas encore là : on réessaiera à sa réception */
     const key=remiseKey(net);const sv=(net.traceur&&net.traceur.savedAt)||'';
@@ -104,7 +105,7 @@ export function lzTraceurUrl(id,num){const a=num?regGet('affaire',num):null;cons
 export function lzTraceurNew(num){location.href=lzTraceurUrl('new',num);}
 export function lzOpenEtude(id,num){if(!A)return;const n=siteOf(id);lg('traceur',{id,aff:num});A.toast('Étude « '+((n&&n.name)||id)+' » : ouverture dans le traceur de l\'affaire '+num+'…');setTimeout(()=>{location.href=lzTraceurUrl(id,num);},300);}
 /* openSiteFromHome (carte, liste, notifications, liens, « ↗ Ouvrir le tracé »…) : une étude n'ouvre JAMAIS l'écran Tracé → son traceur */
-export function lzGuardOpen(id){if(!A||!id||id==='__vide')return false;let et=false;try{et=!!A.etudeOf(id);}catch(e){}if(!et)return false;const num=etudeAffOf(id);
+export function lzGuardOpen(id){if(!A||!id||id==='__vide')return false;if(mutuGuardOpen(id))return true; /* lot MU : étude versée → son chantier */let et=false;try{et=!!A.etudeOf(id);}catch(e){}if(!et)return false;const num=etudeAffOf(id);
   if(!num){const n=siteOf(id);A.toast('« '+((n&&n.name)||id)+' » est une étude (dossier commercial) : elle s\'ouvre depuis son affaire, dans le traceur');return true;}
   lzOpenEtude(id,num);return true;}
 /* lien direct index.html?site=<étude> : on va dans son affaire (pas dans Tracé) */
@@ -146,7 +147,7 @@ export function lzGate(a,tab,body,consult){if(!A||!a||consult||!['quantites','ch
 export function lzBusy(a){if(!A||!a)return false;const L=(a.sites||[]).filter(id=>{need(id);return isLoading(id);});if(!L.length&&Date.now()-loadedAt>2500)return false;A.toast('⏳ chargement du tracé… réessaie dans un instant');return true;}
 /* ═════════ 5 · ONGLET « TRACÉ & CHANTIERS » ═════════ */
 export function lzRowsHTML(a,linked,canEdit,ctx){const won=WON.includes(a.etat);
-  return linked.map(s=>{const id=s.id;let et=false;try{et=!won&&!!A.etudeOf(id);}catch(e){}
+  return linked.map(s=>{{const mh=mutuRowHTML(a,s,canEdit,ctx);if(mh)return mh;} /* lot MU : chantier partagé */const id=s.id;let et=false;try{et=!won&&!!A.etudeOf(id);}catch(e){}
     let q=null;try{q=ctx&&ctx.traceQty?ctx.traceQty(id):null;}catch(e){q=null;}const L=LOAD[id];
     const qty=q&&q.loading?'<span class="lz-load">⏳ chargement du tracé…</span>':q&&q.rows&&q.rows.length&&q.tot?`<span class="lz-q"><b>${nb(q.tot.soud)}</b> soudures · <b>${nb(q.tot.mlTr,1)}</b> ml de tranchée</span>`:L&&L.st==='fail'?`<span class="lz-load">tracé pas sur cet appareil (${esc(L.why||'')})</span>`:(s.nw?nb(s.nw)+' soudures':'rien de tracé');
     const n=A.SITES[id];const mq=n&&n.marche&&won?' · marché figé'+(n.marche.at?' le '+new Date(n.marche.at).toLocaleDateString('fr-FR'):''):'';

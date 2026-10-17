@@ -14,6 +14,7 @@
 import {CRS,geocode,tilesFor,ignTileURL,lonLatToPlan,crsName,geoNorthUp,geoOfOrigin,geoMapPoint} from '../src/geo.js';
 import {tfNorm,tfApply,tfInverse,tfCompose,tfIsIdentity,planSimilarity,planFileKind,planScaleK,planScaleN,tfScaleAbout,imageDpi,paperName} from '../src/plans.js';
 import {fmt} from './traceur.js';
+import {plansOfLine,setLinePlans,tagNewLine,freezeLink,resolveUnit,followPlans,colorOf,groupOf,calOptionsHTML,planTagHTML,onMode as plOnMode,openPanel} from './planches.js'; // 16/10 (lot TA) : l.plans (plusieurs planches), groupes de planches, historique unique (K1, K2)
 export {planMeta,PLAN_ACCEPT as ACCEPT} from '../src/plans.js'; // pour main.js (IndexedDB, « ＋ Plan »)
 const SVGNS='http://www.w3.org/2000/svg';
 const $=(s,el=document)=>el.querySelector(s),$$=(s,el=document)=>[...el.querySelectorAll(s)];const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -109,24 +110,25 @@ export async function searchAddr(q){q=String(q||'').trim();if(!q){msg('Tape une 
   AER.addr=c.label||q;AER.show=true;saveAer();
   const p=lonLatToPlan(AER.geo,c.lon,c.lat);centerOn(p);renderTiles(true);syncBtn();
   const t=created?(from==='dxf'?`Vue aérienne calée sur le DXF géoréférencé « ${AER.geo.plan} » (${crsName(AER.geo.crs)}) — vue centrée sur « ${AER.addr} »`:`Vue aérienne en fond, « ${AER.addr} » au centre — ⌖ Caler sur la vue aérienne pour placer les lignes et leurs plans`):`Vue recentrée sur « ${AER.addr} »`;
-  msg(t);refreshUI();return {ok:true,created,from,p,label:c.label};}
+  msg(t);refreshUI();if(created&&A.histDone)A.histDone(`vue aérienne « ${AER.addr} »`);return {ok:true,created,from,p,label:c.label};} /* 16/10 (lot TA) : une étape (annulable) */
 export function setShow(on){AER.show=on!==false;saveAer();renderTiles(true);syncBtn();showCredit();}
 export function setOpacity(v){AER.op=Math.max(.2,Math.min(1,+v||1));saveAer();if(gAer)gAer.setAttribute('opacity',AER.op);}
 export function setLayer(k){if(!LAYERS[k])return false;AER.layer=k;saveAer();renderTiles(true);return true;}
 export function forget(){AER.geo=null;saveAer();renderTiles();syncBtn();refreshUI();flash('Vue aérienne retirée de ce tracé (le chantier garde son ancien calage s\'il en avait un)');}
+export function setGeo(g){g=validGeo(g);if(JSON.stringify(g||null)===JSON.stringify(AER.geo||null))return;AER.geo=g?JSON.parse(JSON.stringify(g)):null;saveAer();renderTiles(true);syncBtn();refreshUI();} // 16/10 (lot TA) : annuler / rétablir (historique du traceur)
 /* ================= fenêtres ================= */
 function openModal(html){const b=$('#modalBody');b.classList.add('t2m');b.innerHTML=html;$('#modal').classList.add('show');}
 function closeModal(){$('#modal').classList.remove('show');}
 function aerBox(){const g=AER.geo;let h=`<div class="card t2aer"><div style="display:flex;align-items:center;gap:6px"><b style="flex:1">📍 Vue aérienne (IGN)</b>${g?`<label class="muted" style="font-size:12px;display:flex;gap:4px;align-items:center"><input type="checkbox" data-t2="aerShow" ${AER.show?'checked':''}> afficher</label>`:''}</div>`;
   h+=`<div class="row"><input class="f t2addr" data-t2="aerAddr" placeholder="adresse, commune… ou « 47.47, -0.55 »" value="${esc(AER.addr||'')}" enterkeyhint="search" autocomplete="off"><button class="btn sm" data-t2="aerGo">${g?'Recentrer':'Afficher'}</button></div>`;
-  const lk=S().lines.length&&A.bgPlans().length?`<button class="btn sm" data-t2="linksOpen" title="à quel plan chaque ligne est rattachée (le plan suit ses lignes au calage)">🔗 Lignes ↔ plans</button>`:'';
+  const lk=S().lines.length&&A.bgPlans().length?`<button class="btn sm" data-t2="linksOpen" title="planches (plans de fond) et lignes : groupes, couleurs, liens — le plan suit ses lignes au calage">🔗 Planches et lignes</button>`:'';
   if(!g)h+=(lk?`<div class="row">${lk}</div>`:'')+`<div class="muted t2small" style="margin-top:4px">La photo aérienne se met en fond, <b>derrière</b> les plans, l'adresse au centre de l'écran. Ensuite : <b>⌖ Caler</b> les lignes (et leur plan) dessus — un point suffit pour un groupe déjà calé.${geoFromDxf()?' <b>Un DXF du tracé est en Lambert</b> : la photo se calera directement sur lui.':''}</div>`;
   else h+=`<div class="row"><select class="f" data-t2="aerLayer">${Object.entries(LAYERS).map(([k,v])=>`<option value="${k}" ${AER.layer===k?'selected':''}>${v.label}</option>`).join('')}</select><label class="muted" style="font-size:11.5px">opacité <input type="range" data-t2="aerOp" min="20" max="100" value="${Math.round(AER.op*100)}" style="width:80px;vertical-align:middle"></label></div>
     <div class="muted t2small" style="margin-top:4px">${esc(geoLabel())} · © IGN${navigator.onLine===false?' · <b>hors connexion</b> : tuiles déjà vues seulement':''}</div>
     <div class="row"><button class="btn sm" data-t2="calOpen" title="placer une ligne, un plan et ses lignes, ou tout le tracé sur la photo : 1 point (translation) ou 2 points (rotation)">⌖ Caler sur la vue aérienne</button>${lk}<button class="btn sm danger" data-t2="aerForget" title="retirer le géoréférencement de ce tracé">Oublier</button></div>`;
   return h+`<div class="muted t2small t2msg" style="margin-top:4px">${esc(lastMsg)}</div></div>`;}
 // section de l'onglet Fond (au-dessus de la liste des plans)
-export function fondSection(){return A?aerBox():'';}
+export function fondSection(){return A?aerBox()+(A.bgPlans().length&&!S().lines.length?`<div class="row" style="margin:-2px 0 8px"><button class="btn sm" data-t2="linksOpen" title="planches : groupes, couleurs, noms, lignes">🔗 Planches et lignes</button></div>`:''):'';} /* 16/10 (lot TA) : groupes et couleurs, même sans ligne */
 const aerModalHTML=()=>`<div class="t2"><h3 style="margin:0 0 6px">📍 Vue aérienne</h3>${aerBox()}<div class="actions"><button class="btn" data-t2="close">Fermer</button></div></div>`;
 export function openAerModal(t){openModal(aerModalHTML());if(t)msg(t,true);const i=$('#modalBody [data-t2="aerAddr"]');if(i&&!AER.geo)setTimeout(()=>{try{i.focus();}catch(e){}},50);}
 /* ================= « ＋ Plan » : formats ================= */
@@ -193,11 +195,12 @@ export function openEchModal(id){const P=A.bgPlans().filter(p=>p.kind==='image')
 // plan visible le plus haut sous un point (dans l'emprise serrée du plan), sinon null
 export function planUnder(pt){if(!pt)return null;const P=A.bgPlans();for(let i=P.length-1;i>=0;i--){const p=P[i];if(!A.planVisible(p))continue;const b=A.planTight(p);if(!b)continue;const q=tfApply(tfInverse(p.transform),pt);if(q[0]>=b[0]&&q[0]<=b[2]&&q[1]>=b[1]&&q[1]<=b[3])return p.id;}return null;}
 // plan d'une ligne : celui retenu à sa création (l.plan), sinon (ligne d'avant) celui sous son 1er sommet
-export function planOf(l){if(!l)return null;if('plan' in l)return l.plan&&A.bgPlan(l.plan)?l.plan:null;return planUnder(l.pts&&l.pts[0]);}
-// nouvelle ligne : le plan visible le plus haut sous son 1er sommet, sinon le plan actif de l'onglet Fond, sinon aucun
-export function tagLine(l){if(A&&l&&!('plan' in l)){const a=A.bgActive();l.plan=planUnder(l.pts&&l.pts[0])||(a?a.id:null);}return l;}
-const linesOn=id=>S().lines.filter(l=>planOf(l)===id);
-export function planInfo(p){if(!A)return '';const n=linesOn(p.id).length;return n?` · 🔗 ${n} ligne${n>1?'s':''}`:'';}
+export function planOf(l){if(!l)return null;return plansOfLine(l)[0]||null;} /* 16/10 (lot TA, K2) : l.plans (plusieurs planches) — la première ; l.plan d'avant lu */
+// nouvelle ligne : les planches visibles sous elle (sommets, milieux des tronçons), sinon le plan actif de l'onglet Fond, sinon aucun — 16/10 : l.plans + l.plan
+export function tagLine(l){return tagNewLine(l);}
+const linesOn=id=>S().lines.filter(l=>plansOfLine(l).includes(id));
+export function planInfo(p){if(!A)return '';const n=linesOn(p.id).length;return planTagHTML(p)+(n?` · 🔗 ${n} ligne${n>1?'s':''}`:'');}
+// ancienne fenêtre « 🔗 Lignes ↔ plans » (un plan par ligne) : remplacée le 16/10 par le panneau « 🔗 Planches et lignes » (planches.js), qui sait plusieurs planches par ligne
 function openLinks(){const L=S().lines,P=A.bgPlans();if(!L.length){flash('Aucune ligne tracée');return;}
   openModal(`<div class="t2"><h3 style="margin:0 0 6px">🔗 Lignes ↔ plans</h3><div class="muted t2small">Chaque ligne retient le plan sur lequel elle a été dessinée : caler un plan sur la vue aérienne emmène ses lignes ; caler une ligne emmène son plan s'il n'a qu'elle. « auto » : ligne d'avant, rattachée au plan sous son départ.</div>
     <table style="margin-top:6px"><tr><th>Ligne</th><th>Plan</th></tr>${L.map(l=>{const cur=planOf(l);return `<tr><td>${esc(l.name)}${l.parent?' <span class="muted">↳</span>':''}</td><td><select class="f" data-t2="lnkPlan" data-line="${esc(l.id)}"><option value="">— aucun —</option>${P.map(p=>`<option value="${esc(p.id)}" ${cur===p.id?'selected':''}>${p.kind==='dxf'?'📐':p.from==='pdf'?'📄':'🖼'} ${esc(p.name||p.id)}</option>`).join('')}</select>${'plan' in l?'':' <span class="muted">auto</span>'}</td></tr>`;}).join('')}</table>
@@ -213,22 +216,22 @@ export function movedSet(spec){const L=S().lines;const by=new Map(L.map(l=>[l.id
   const tree=r=>{const out=new Set();const walk=l=>{if(!l||out.has(l.id))return;out.add(l.id);L.filter(x=>x.parent&&x.parent.line===l.id).forEach(walk);};walk(r);return out;};
   if(spec.what==='all'){L.forEach(l=>ids.add(l.id));plans=A.bgPlans().slice();}
   else if(spec.what==='line'){const l=by.get(spec.line);if(l){let r=l,g=0;while(r.parent&&by.get(r.parent.line)&&g++<200)r=by.get(r.parent.line);if(r!==l)note.push(`« ${l.name} » est une antenne de « ${r.name} » : la ligne et toutes ses antennes bougent`);ids=tree(r);}}
-  else if(spec.what==='plan'){const p=A.bgPlan(spec.plan);if(p){plans=[p];const set=new Set(L.filter(l=>planOf(l)===p.id).map(l=>l.id));let ch=true;while(ch){ch=false;[...set].forEach(id=>{const l=by.get(id);if(l&&l.parent&&!set.has(l.parent.line)){set.delete(id);ch=true;note.push(`« ${l.name} » reste accrochée à sa ligne d'un autre plan`);}});}
+  else if(spec.what==='plan'){const U=resolveUnit(spec.plan);if(U.length){plans=U.slice();const set=new Set(L.filter(l=>plansOfLine(l).some(id=>U.some(x=>x.id===id))).map(l=>l.id));let ch=true; /* 16/10 (K2) : un plan d'un groupe = tout le groupe (« g:<id> ») ; lignes sur plusieurs planches */while(ch){ch=false;[...set].forEach(id=>{const l=by.get(id);if(l&&l.parent&&!set.has(l.parent.line)){set.delete(id);ch=true;note.push(`« ${l.name} » reste accrochée à sa ligne d'un autre plan`);}});}
     [...set].forEach(id=>tree(by.get(id)).forEach(x=>set.add(x)));ids=set;}}
-  if(spec.what!=='all')A.bgPlans().forEach(p=>{if(plans.includes(p))return;const mine=L.filter(l=>planOf(l)===p.id);if(!mine.length||!mine.some(l=>ids.has(l.id)))return;if(mine.every(l=>ids.has(l.id)))plans.push(p);else note.push(`plan « ${p.name||p.id} » pas déplacé : ${mine.filter(l=>!ids.has(l.id)).length} autre(s) ligne(s) y restent`);});
+  if(spec.what!=='all')plans=followPlans(ids,plans,note); /* 16/10 (K2) : une planche (avec tout son groupe) suit quand toutes ses lignes bougent */
   return {ids,plans,note};}
 export function openCal(){if(!AER.geo){openAerModal('Pour caler, il faut d\'abord la vue aérienne : donne une adresse.');return;}const L=S().lines,P=A.bgPlans();if(!L.length&&!P.length){flash('Rien à caler : trace une ligne ou ajoute un plan');return;}
   const sl=selLine();const act=A.bgActive();const def=sl?'line':P.length?'plan':'all';const tr=sl?movedSet({what:'line',line:sl.id}):null;
   openModal(`<div class="t2"><h3 style="margin:0 0 6px">⌖ Caler sur la vue aérienne</h3><div class="muted t2small">Les lignes bougent d'un bloc (pièces et soudures recalculées) ; leur plan suit. Annulable (↶ / Ctrl+Z).</div>
     <div class="t2opt"><b class="muted t2small">Ce qui bouge</b>
       <label><input type="radio" name="t2w" value="line" ${sl?'':'disabled'} ${def==='line'?'checked':''}> ${sl?`la ligne « ${esc(sl.name)} »${tr&&tr.ids.size>1?` et ${tr.ids.size-1===1?'son antenne':'ses '+(tr.ids.size-1)+' antennes'}`:''}`:'la ligne sélectionnée <span class="muted">(clique d\'abord une ligne)</span>'}</label>
-      <label><input type="radio" name="t2w" value="plan" ${P.length?'':'disabled'} ${def==='plan'?'checked':''}> un plan et toutes ses lignes :</label>${P.length?`<select class="f" data-t2="calPlan" style="margin-left:26px;max-width:calc(100% - 26px)">${P.map(p=>{const n=linesOn(p.id).length;return `<option value="${esc(p.id)}" ${p===act?'selected':''}>${p.kind==='dxf'?'📐':p.from==='pdf'?'📄':'🖼'} ${esc(p.name||p.id)} — ${n} ligne${n>1?'s':''}</option>`;}).join('')}</select>`:''}
+      <label><input type="radio" name="t2w" value="plan" ${P.length?'':'disabled'} ${def==='plan'?'checked':''}> un plan (ou un groupe de planches) et toutes ses lignes :</label>${P.length?`<select class="f" data-t2="calPlan" style="margin-left:26px;max-width:calc(100% - 26px)">${calOptionsHTML(act)}</select><div class="pl-calprev"></div>`:''}
       <label><input type="radio" name="t2w" value="all" ${def==='all'?'checked':''}> tout le tracé (${L.length} ligne${L.length>1?'s':''}, ${P.length} plan${P.length>1?'s':''}) d'un bloc</label>${appParts()?'<div class="note warn t2small">Chantier : ce qui est posé dans l\'appli (stock, hydraulique, notes…) ne suit pas une ligne ou un plan recalé seul. « Tout le tracé » ne déplace rien : c\'est la vue aérienne qui est recalée dessous.</div>':''}</div>
     <div class="t2opt"><b class="muted t2small">Repères</b>
       <label><input type="radio" name="t2n" value="1" checked> 1 point : translation (un groupe déjà calé entre lui)</label>
       <label><input type="radio" name="t2n" value="2"> 2 points : rotation + translation</label>
       <label style="margin-left:26px"><input type="checkbox" data-t2="calScale"> ajuster aussi l'échelle (un plan et ses lignes, 2 points)</label></div>
-    <div class="row"><button class="btn sm" data-t2="linksOpen" title="à quel plan chaque ligne est rattachée">🔗 Lignes ↔ plans…</button><span class="muted t2small">astuce : ① sur l'objet, puis 📍 une adresse pour y aller, puis ②</span></div>
+    <div class="row"><button class="btn sm" data-t2="linksOpen" title="planches et lignes : groupes, couleurs, liens (le dessin reste visible)">🔗 Planches et lignes…</button><span class="muted t2small">astuce : ① sur l'objet, puis 📍 une adresse pour y aller, puis ②</span></div>
     <div class="actions"><button class="btn" data-t2="close">Annuler</button><button class="btn on" data-t2="calGo">Commencer</button></div></div>`);}
 const STEPS=['① clique un point de l\'objet (sommet d\'une ligne, angle du plan…)','② clique sa place sur la vue aérienne (📍 pour aller à une adresse)','③ un 2e point de l\'objet, loin du premier','④ sa place sur la vue aérienne'];
 const STEPS_C=['① un point de l\'objet','② sa place sur la photo','③ 2e point de l\'objet','④ sa place sur la photo'];
@@ -239,7 +242,7 @@ export function startCal(spec){if(!AER.geo){openAerModal('Pour caler, il faut d\
   if(!AER.show)setShow(true);closeModal();A.setMode('calAer');S().calAer={spec,set,pts:[],cursor:null};$('#main').classList.add('trace');showStep();renderCal();if(calBar)calBar.style.display='block';
   if(set.note.length)setTimeout(()=>flash(set.note.join(' · ')),50);return true;}
 // changement de mode (setMode → renderBgSel) : hors calage, plus de repères ni de bouton
-export function onMode(){if(!A)return;const st=S();if(st.mode!=='calAer'){if(st.calAer)st.calAer=null;if(calBar)calBar.style.display='none';if(gCal&&gCal.firstChild)gCal.innerHTML='';}}
+export function onMode(){if(!A)return;const st=S();if(st.mode!=='calAer'){if(st.calAer)st.calAer=null;if(calBar)calBar.style.display='none';if(gCal&&gCal.firstChild)gCal.innerHTML='';}plOnMode();} /* 16/10 (lot TA) : mode « au clic » du panneau des planches */
 function snapObj(p,set){const k=S().view.k;const tol=10/k;let best=null;S().lines.forEach(l=>{if(!set.ids.has(l.id))return;l.pts.forEach(v=>{const d=Math.hypot(v[0]-p[0],v[1]-p[1]);if(d<tol&&(!best||d<best.d))best={d,q:v.slice()};});});return best?best.q:null;}
 export function click(p){const st=S();const c=st.calAer;if(st.mode!=='calAer'||!c){A.setMode('select');return;}let q=p;if(c.pts.length%2===0){const s=snapObj(p,c.set);if(s)q=s;}c.pts.push(q);
   const n=c.spec.n===2?4:2;if(c.pts.length<n){showStep();renderCal();return;}
@@ -256,18 +259,21 @@ function calApply(spec,pairs,set){const scale=!!(spec.scale&&spec.what==='plan'&
   if(spec.what==='all')return calGeo(T,pairs);
   const R=applyTf(T,set);let m=`Calé sur la vue aérienne : ${R.nL} ligne${R.nL>1?'s':''}${R.nP?` et ${R.nP} plan${R.nP>1?'s':''}`:''} — ${pairs.length>1?`rotation ${fmt(+T.rot.toFixed(2))}°${scale?`, échelle ×${fmt(+T.k.toFixed(4))}`:''}`:`déplacement ${fmt(+Math.hypot(T.tx,T.ty).toFixed(2))} m`} (↶ pour annuler)`;
   if(pairs.length>1&&!scale){const dp=Math.hypot(pairs[1].from[0]-pairs[0].from[0],pairs[1].from[1]-pairs[0].from[1]),dq=Math.hypot(pairs[1].to[0]-pairs[0].to[0],pairs[1].to[1]-pairs[0].to[1]);const e=Math.abs(dq-dp);if(dp>0&&e/dp>0.02)m+=` · ⚠ les repères diffèrent de ${fmt(+e.toFixed(1))} m (${fmt(+(e/dp*100).toFixed(1))} %) : plan pas à l'échelle ? (« un plan et ses lignes » + « ajuster l'échelle »)`;}
-  if(set.note.length)m+=' · '+set.note.join(' · ');return {T,msg:m,...R};}
+  if(set.note.length)m+=' · '+set.note.join(' · ');
+  {const U=spec.what==='plan'?resolveUnit(spec.plan):[];const g=U.length>1&&groupOf(U[0]);const nl=`${R.nL} ligne${R.nL>1?'s':''}`; /* 16/10 (lot TA, K1) : l'étape d'historique porte le nom du calage */
+    if(A.histDone)A.histDone(spec.what==='line'?`calage de « ${(S().lines.find(l=>l.id===spec.line)||{}).name||spec.line} »${R.nL>1?` (${nl})`:''}${R.nP?' et de son plan':''} sur la vue aérienne`:g?`calage du groupe « ${g.nom} » (${U.length} planches, ${nl}) sur la vue aérienne`:`calage du plan « ${U[0]?(U[0].name||U[0].id):''} »${R.nL?` et de ses ${nl}`:''} sur la vue aérienne`);}
+  return {T,msg:m,...R};}
 /* applique la transformation T (monde → monde) aux lignes de set.ids (sommets ; PK des pièces mis à l'échelle si T.k ≠ 1) et aux plans de set.plans (leur transform composée).
    Avant : snapshot() du traceur (annulable) ; les lignes d'avant sans plan retenu sont rattachées au plan sous leur 1er sommet (premier calage). */
-export function applyTf(T,set,o={}){const st=S();st.lines.forEach(l=>{if(!('plan' in l))l.plan=planUnder(l.pts&&l.pts[0]);});
+export function applyTf(T,set,o={}){const st=S();A.snapshot();st.lines.forEach(l=>freezeLink(l)); /* 16/10 (lot TA) : étape en attente close AVANT ; le lien figé fait partie de l'étape du calage */
   const ids=[...set.ids];const sigB=sig(ids),pB=plansOf(set.plans);const sp=siteParts(set.ids),xB=partsOf(sp);if(ids.length)A.snapshot();const k=+T.k||1;
   sp.m.forEach(x=>{x.axis=x.axis.map(p=>tfApply(T,p));});sp.t.forEach(it=>{it.geo=it.geo.map(sg=>Array.isArray(sg)?sg.map(p=>Array.isArray(p)?tfApply(T,p):p):sg);}); // chantier : tracé marché figé et TS des lignes recalées
   st.lines.forEach(l=>{if(!set.ids.has(l.id))return;l.pts=l.pts.map(p=>tfApply(T,p));if(Math.abs(k-1)>1e-12){(l.specials||[]).forEach(sp=>{if(isFinite(sp.m))sp.m*=k;if(sp.mR!=null&&isFinite(sp.mR))sp.mR*=k;});(l.cuts||[]).forEach(ct=>{ct.m*=k;});(l.drapeaux||[]).forEach(dp=>{dp.m0*=k;dp.m1*=k;});if(l.parent&&set.ids.has(l.parent.line))l.parent.m*=k;}});
   set.plans.forEach(p=>{p.transform=tfCompose(T,tfNorm(p.transform));p.geo=o.geo&&o.plan===p.id?o.geo:'aerien';p._lastKey=null;});
   if(AER.geo&&AER.geo.pts){delete AER.geo.pts;saveAer();} // repères d'un ancien calage de l'appli : plus sur le réseau qui vient de bouger (l'épingle de la carte prend le centre du réseau)
   if(ids.length)A.rebuild();A.renderBg();A.saveBg();if(set.plans.length)A.saveBgIDB();if(st.tab==='fond')A.renderPanel();
-  if(ids.length){CALH.push({ids,sigB,sigA:sig(ids),pB,pA:plansOf(set.plans),sp,xB,xA:partsOf(sp),st:'A'});if(CALH.length>30)CALH.shift();}
-  else if(set.plans.length){const pA=plansOf(set.plans);xPush({ok:()=>pA.every(x=>{const p=A.bgPlan(x.id);return p&&JSON.stringify(tfNorm(p.transform))===JSON.stringify(x.t);}),undo:()=>{setPlans(pB);A.renderBg();A.saveBg();A.saveBgIDB();if(S().tab==='fond')A.renderPanel();flash('Calage du plan annulé');}});} // plan sans ligne : annulable aussi
+  if(ids.length&&!A.histOn){CALH.push({ids,sigB,sigA:sig(ids),pB,pA:plansOf(set.plans),sp,xB,xA:partsOf(sp),st:'A'});if(CALH.length>30)CALH.shift();} /* 16/10 (lot TA) : histOn = l'historique du traceur garde les plans (planches.js) → plus de pile à part */
+  else if(set.plans.length&&!A.histOn){const pA=plansOf(set.plans);xPush({ok:()=>pA.every(x=>{const p=A.bgPlan(x.id);return p&&JSON.stringify(tfNorm(p.transform))===JSON.stringify(x.t);}),undo:()=>{setPlans(pB);A.renderBg();A.saveBg();A.saveBgIDB();if(S().tab==='fond')A.renderPanel();flash('Calage du plan annulé');}});} // plan sans ligne : annulable aussi
   return {nL:ids.length,nP:set.plans.length};}
 /* « tout le tracé » : rien ne bouge dans le tracé (lignes, plans, soudures, tracé marché, TS, ce qui est posé dans l'appli) — c'est le GÉORÉFÉRENCEMENT qui est recalé :
    Lambert'(p) = Lambert(T(p)) → le point ① de l'objet tombe, sur la photo, là où était le point ②. La vue suit (le dessin a l'air de bouger, la photo reste en place).
@@ -276,7 +282,7 @@ const D2R=Math.PI/180;const XH=[]; // calages sans ligne déplacée : annulés p
 export function geoCompose(g,T){const f=g.aff;const c=Math.cos(T.rot*D2R)*T.k,s=Math.sin(T.rot*D2R)*T.k;return {...g,aff:{a:f.a*c+f.b*s,b:-f.a*s+f.b*c,c:f.c*c+f.d*s,d:-f.c*s+f.d*c,e:f.a*T.tx+f.b*T.ty+f.e,f:f.c*T.tx+f.d*T.ty+f.f}};}
 function calGeo(T,pairs){const st=S();const gB=JSON.parse(JSON.stringify(AER.geo)),vB={...st.view};const g=geoCompose(AER.geo,T);g.src='traceur';g.at=new Date().toISOString();delete g.pts;delete g.plan;AER.geo=g;saveAer();
   const P1=pairs[0].from,Q1=pairs[0].to;st.view.tx+=(Q1[0]-P1[0])*st.view.k;st.view.ty+=(Q1[1]-P1[1])*st.view.k;A.applyView();A.render();A.save();renderTiles(true);refreshUI();
-  const gA=JSON.parse(JSON.stringify(g));xPush({ok:()=>!!AER.geo&&JSON.stringify(AER.geo.aff)===JSON.stringify(gA.aff),undo:()=>{AER.geo=gB;saveAer();S().view={...vB};A.applyView();A.render();A.save();renderTiles(true);refreshUI();flash('Calage du tracé entier annulé');}});
+  if(A.histDone)A.histDone('calage du tracé entier sur la vue aérienne');const gA=JSON.parse(JSON.stringify(g));if(!A.histOn)xPush({ok:()=>!!AER.geo&&JSON.stringify(AER.geo.aff)===JSON.stringify(gA.aff),undo:()=>{AER.geo=gB;saveAer();S().view={...vB};A.applyView();A.render();A.save();renderTiles(true);refreshUI();flash('Calage du tracé entier annulé');}});
   return {T,nL:st.lines.length,nP:A.bgPlans().length,msg:`Tracé entier calé sur la vue aérienne — ${pairs.length>1?`rotation ${fmt(+T.rot.toFixed(2))}°`:`décalage ${fmt(+Math.hypot(T.tx,T.ty).toFixed(2))} m`} : c'est le géoréférencement qui a bougé, rien dans le tracé (↶ pour annuler)`};}
 function xPush(e){e.sig=sig(S().lines.map(l=>l.id));XH.push(e);if(XH.length>10)XH.shift();}
 function xUndoable(){const h=XH[XH.length-1];return h&&sig(S().lines.map(l=>l.id))===h.sig&&h.ok()?h:null;}
@@ -298,7 +304,7 @@ function syncUndo(){if(!CALH.length)return;const by=new Map(S().lines.map(l=>[l.
 // repères du calage (①③ sur l'objet, ②④ sur la vue aérienne) et ce qui bouge (surligné)
 export function renderCal(){if(!gCal)return;const st=S();const c=st.calAer;if(st.mode!=='calAer'||!c){if(gCal.firstChild)gCal.innerHTML='';return;}const k=st.view.k;let h='';
   c.set.ids.forEach(id=>{const l=st.lines.find(x=>x.id===id);if(!l||!l.pts||l.pts.length<2)return;h+=`<path d="M${l.pts.map(p=>p[0]+' '+p[1]).join('L')}" fill="none" stroke="#ff9f1c" stroke-width="${10/k}" stroke-opacity=".4" stroke-linecap="round" stroke-linejoin="round"/>`;});
-  c.set.plans.forEach(p=>{const b=A.planTight(p);if(!b)return;const cs=[[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]]].map(q=>tfApply(p.transform,q));h+=`<path d="M${cs.map(q=>q[0]+' '+q[1]).join('L')}Z" fill="none" stroke="#ff9f1c" stroke-width="${2.5/k}" stroke-dasharray="${9/k} ${5/k}"/>`;});
+  c.set.plans.forEach(p=>{const b=A.planTight(p);if(!b)return;const cs=[[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]]].map(q=>tfApply(p.transform,q));h+=`<path d="M${cs.map(q=>q[0]+' '+q[1]).join('L')}Z" fill="none" stroke="${colorOf(p)}" stroke-width="${3/k}" stroke-dasharray="${9/k} ${5/k}"/>`;}); /* 16/10 : couleur de la planche (nom : planches.js) */
   c.pts.forEach((q,i)=>{const col=i%2?'#0ca30c':'#d9480f';if(i%2){const p0=c.pts[i-1];h+=`<line x1="${p0[0]}" y1="${p0[1]}" x2="${q[0]}" y2="${q[1]}" stroke="${col}" stroke-width="${2/k}"/>`;}h+=`<circle cx="${q[0]}" cy="${q[1]}" r="${8/k}" fill="#fff" fill-opacity=".6" stroke="${col}" stroke-width="${2.5/k}"/><text x="${q[0]+10/k}" y="${q[1]-6/k}" font-size="${13/k}" font-weight="700" fill="${col}" stroke="#fff" stroke-width="${3/k}" paint-order="stroke" font-family="system-ui,sans-serif">${'①②③④'[i]}</text>`;});
   if(c.cursor&&c.pts.length%2===1){const p0=c.pts[c.pts.length-1];h+=`<line x1="${p0[0]}" y1="${p0[1]}" x2="${c.cursor[0]}" y2="${c.cursor[1]}" stroke="#0ca30c" stroke-width="${1.5/k}" stroke-dasharray="${6/k} ${4/k}"/>`;}
   gCal.innerHTML=h;}
@@ -314,9 +320,9 @@ export function placeDxf(plan){if(!A)return false;const t=dxfTrueTf(plan);if(!t)
 const tfFar=(a,b,box)=>{if(!box)return true;const cs=[[box[0],box[1]],[box[2],box[3]]];return cs.some(c=>{const p=tfApply(a,c),q=tfApply(b,c);return Math.hypot(p[0]-q[0],p[1]-q[1])>0.05;});};
 // « 📍 vraie position » d'un DXF déjà là : le plan ET ses lignes (dessinées dessus) y vont ensemble — annulable
 export function placeDxfTrue(id){const p=A.bgPlan(id);const t=dxfTrueTf(p);if(!t){flash('Ce DXF n\'est pas en coordonnées Lambert (ou pas de vue aérienne) : cale-le à la main (⌖, ✥, ⟲)');return null;}
-  const T=tfCompose(t,tfInverse(tfNorm(p.transform)));const set=movedSet({what:'plan',plan:id});const R=applyTf(T,set,{geo:'coords',plan:id});flash(`« ${p.name||p.id} » à sa vraie position (${crsName(geoOfOrigin(p.origin,[0,0])?.crs||'')})${R.nL?` avec ${R.nL} ligne${R.nL>1?'s':''}`:''} (↶ pour annuler)`);return p.transform;}
+  const T=tfCompose(t,tfInverse(tfNorm(p.transform)));const set=movedSet({what:'plan',plan:id});const R=applyTf(T,set,{geo:'coords',plan:id});if(A.histDone)A.histDone(`« ${p.name||p.id} » à sa vraie position`);flash(`« ${p.name||p.id} » à sa vraie position (${crsName(geoOfOrigin(p.origin,[0,0])?.crs||'')})${R.nL?` avec ${R.nL} ligne${R.nL>1?'s':''}`:''} (↶ pour annuler)`);return p.transform;}
 // boutons de la carte d'un plan (onglet Fond) : ordre (dessus / dessous), vraie position d'un DXF géoréférencé
-export function planBtns(p){if(!A)return '';const id=esc(p.id);let h=`<button class="btn sm" data-t2="plUp" data-plan="${id}" title="mettre ce plan au-dessus des autres">▲</button><button class="btn sm" data-t2="plDown" data-plan="${id}" title="mettre ce plan en dessous">▼</button>`;
+export function planBtns(p){if(!A)return '';const id=esc(p.id);let h=`<button class="btn sm" data-t2="plLinks" data-plan="${id}" title="ses lignes, son groupe, sa couleur, son nom (panneau des planches)">🔗</button><button class="btn sm" data-t2="plUp" data-plan="${id}" title="mettre ce plan au-dessus des autres">▲</button><button class="btn sm" data-t2="plDown" data-plan="${id}" title="mettre ce plan en dessous">▼</button>`;
   if(p.kind==='dxf'&&AER.geo){const t=dxfTrueTf(p);if(t&&tfFar(t,tfNorm(p.transform),A.planTight(p)))h+=`<button class="btn sm" data-t2="dxfTrue" data-plan="${id}" title="DXF en coordonnées Lambert : le placer à sa vraie position sur la vue aérienne (ses lignes suivent)">📍 vraie position</button>`;}
   return h;}
 function movePlan(id,dir){const b=S().bg;if(!b)return;const i=b.plans.findIndex(p=>p.id===id);const j=i+dir;if(i<0||j<0||j>=b.plans.length)return;const [p]=b.plans.splice(i,1);b.plans.splice(j,0,p);A.renderBg();A.saveBg();A.saveBgIDB();if(S().tab==='fond')A.renderPanel();}
@@ -327,9 +333,10 @@ function onClick(e){const el=e.target.closest('[data-t2]');if(!el)return;const k
   if(k==='aerGo'){const i=box&&box.querySelector('[data-t2="aerAddr"]');const inModal=$('#modalBody').contains(el);searchAddr(i?i.value:'').then(r=>{if(r&&r.ok&&inModal)closeModal();});return;}
   if(k==='aerForget'){if(confirm('Retirer la vue aérienne (le géoréférencement) de ce tracé ?\nLes lignes et les plans restent où ils sont.'))forget();return;}
   if(k==='calOpen'){openCal();return;}
-  if(k==='linksOpen'){openLinks();return;}
+  if(k==='linksOpen'){closeModal();openPanel(true);return;} /* 16/10 (lot TA) : panneau « 🔗 Planches et lignes » (le dessin reste visible et cliquable) */
+  if(k==='plLinks'){const p=A.bgPlan(id);openPanel(true,p?(groupOf(p)?{k:'g',id:p.grp.id}:{k:'p',id:p.id}):null);return;}
   if(k==='calGo'){const m=$('#modalBody');const w=(m.querySelector('input[name="t2w"]:checked')||{}).value||'all';const n=+((m.querySelector('input[name="t2n"]:checked')||{}).value||1);const sl=selLine();const pl=(m.querySelector('[data-t2="calPlan"]')||{}).value;const sc=!!(m.querySelector('[data-t2="calScale"]')||{}).checked;startCal({what:w,line:sl&&sl.id,plan:pl,n,scale:sc});return;}
-  if(k==='lnkAuto'){S().lines.forEach(l=>{l.plan=planUnder(l.pts&&l.pts[0]);});A.save();openLinks();if(S().tab==='fond')A.renderPanel();flash('Chaque ligne rattachée au plan sous son départ');return;}
+  if(k==='lnkAuto'){S().lines.forEach(l=>{setLinePlans(l,[planUnder(l.pts&&l.pts[0])]);});A.save();openLinks();if(S().tab==='fond')A.renderPanel();flash('Chaque ligne rattachée au plan sous son départ');return;}
   if(k==='echGo'){const row=el.closest('.t2ech');const N=row&&row.querySelector('[data-t2="echN"]');const d=row&&row.querySelector('[data-t2="echDpi"]');applyEch(A.bgPlan(id),N?N.value:'',d?d.value:null);return;}
   if(k==='echMain'){const b=A.bgObj();b.active=id;A.renderBg();A.bgToolsSync();closeModal();A.setMode('scale');return;}
   if(k==='pdfAll'||k==='pdfNone'){$$('#modalBody input[data-pg]').forEach(c=>{c.checked=k==='pdfAll';});return;}
@@ -339,7 +346,7 @@ function onClick(e){const el=e.target.closest('[data-t2]');if(!el)return;const k
 function onChange(e){const el=e.target;const k=el.dataset&&el.dataset.t2;if(!k)return;
   if(k==='aerShow'){setShow(el.checked);if(S().tab==='fond')A.renderPanel();return;}
   if(k==='aerLayer'){setLayer(el.value);return;}
-  if(k==='lnkPlan'){const l=S().lines.find(x=>x.id===el.dataset.line);if(!l)return;l.plan=el.value||null;A.save();if(S().tab==='fond')A.renderPanel();const s=el.parentElement.querySelector('.muted');if(s)s.remove();return;}
+  if(k==='lnkPlan'){const l=S().lines.find(x=>x.id===el.dataset.line);if(!l)return;setLinePlans(l,[el.value]);A.save();if(S().tab==='fond')A.renderPanel();const s=el.parentElement.querySelector('.muted');if(s)s.remove();return;}
   if(k==='echPlan'){openEchModal(el.value);return;}}
 function onInput(e){const el=e.target;const k=el.dataset&&el.dataset.t2;if(!k)return;
   if(k==='aerOp'){setOpacity((+el.value)/100);return;}
@@ -352,4 +359,4 @@ const API={geo,aer:()=>JSON.parse(JSON.stringify(AER)),search:searchAddr,show:se
   kind:(n,t)=>planFileKind(n,t),addPdf,addImage,scale:(id,N,dpi)=>applyEch(A&&A.bgPlan(id),N,dpi),scaleN:id=>{const p=A.bgPlan(id);return p?planScaleN(p,p.pageW_mm>0?null:(p.dpi||300)):null;},
   planUnder,planOf:id=>planOf(S().lines.find(l=>l.id===id)),tag:tagLine,movedSet:spec=>{const s=movedSet(spec);return {ids:[...s.ids],plans:s.plans.map(p=>p.id),note:s.note};},
   cal:(spec,pairs)=>{const s={what:spec.what||'all',line:spec.line,plan:spec.plan,scale:!!spec.scale};const set=movedSet(s);return calApply(s,(pairs||[]).map(([f,t])=>({from:f,to:t})),set);},
-  startCal,openCal,openAer:openAerModal,openEch:openEchModal,openLinks,dxfTrueTf:id=>dxfTrueTf(A.bgPlan(id)),placeDxfTrue,siteGeo,loadPdfJs,pdfMaxSide};
+  startCal,openCal,openAer:openAerModal,openEch:openEchModal,openLinks:()=>openPanel(true),openLinksTable:openLinks,setGeo,dxfTrueTf:id=>dxfTrueTf(A.bgPlan(id)),placeDxfTrue,siteGeo,loadPdfJs,pdfMaxSide};

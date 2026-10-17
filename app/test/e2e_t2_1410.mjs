@@ -182,15 +182,19 @@ await page.mouse.click(5,300);await page.keyboard.press('Control+z');await wait(
 out=await page.evaluate(([ids,L6])=>{const M=window.MAQ;const S=M.state;return {same:L6.every(x=>JSON.stringify(S.lines.find(l=>l.id===x.id).pts)===JSON.stringify(x.pts)),tA:{...M.bg.get(ids.A).transform},geoA:M.bg.get(ids.A).geo};},[IDS6,L6]);
 console.log('6b) ↶ annulé :',JSON.stringify(out));
 C.c6=c6a&&out.same&&out.tA.tx===tA0.tx&&out.tA.ty===tA0.ty&&out.geoA!=='aerien';
-// 6c) réglage du rattachement (onglet Fond → 🔗 Lignes ↔ plans) : la 3e ligne passe sur la planche A, puis revient sur la B ; ordre des plans (▲)
+// 6c) réglage du rattachement (onglet Fond → 🔗 Planches et lignes) — 16/10 (lot TA, K2) : la fenêtre « Lignes ↔ plans » (un plan par ligne) devient un panneau flottant
+//     (le dessin reste cliquable) et une ligne peut être sur PLUSIEURS planches : la 3e ligne est AJOUTÉE à la planche A au clic sur le dessin, puis retirée ; ordre des plans (▲)
 await page.click('.tabs button[data-tab="fond"]');await wait(150);await page.click('#panel [data-t2="linksOpen"]');await wait(150);
-const lk=await page.evaluate(()=>({rows:document.querySelectorAll('#modalBody [data-t2="lnkPlan"]').length,title:document.querySelector('#modalBody h3').textContent}));
-await page.selectOption(`#modalBody [data-t2="lnkPlan"][data-line="${L6[2].id}"]`,IDS6.A);await wait(100);const lkA=await page.evaluate(id=>window.MAQ.state.lines.find(l=>l.id===id).plan,L6[2].id);
-await page.selectOption(`#modalBody [data-t2="lnkPlan"][data-line="${L6[2].id}"]`,IDS6.B);await wait(100);const lkB=await page.evaluate(id=>window.MAQ.state.lines.find(l=>l.id===id).plan,L6[2].id);await page.click('#modalBody [data-t2="close"]');await wait(100);
+const lk=await page.evaluate(()=>({rows:document.querySelectorAll('#plPanel .pl-it[data-k="p"]').length,title:document.querySelector('#plPanel .pl-h b').textContent}));
+const v6=await page.evaluate(()=>({...window.MAQ.state.view}));await page.evaluate(()=>{const M=window.MAQ;M.state.view={k:8,tx:-350,ty:300};M.rebuild();});await wait(100); /* la 3e ligne à gauche du panneau (vue remise ensuite) */
+await page.click(`#plPanel .pl-it[data-k="p"][data-id="${IDS6.A}"] .pl-th`);await wait(100);await page.click('#plPanel [data-pl="pick"][data-v="lines"]');await wait(100);
+const mid3=[(L6[2].pts[0][0]+L6[2].pts[1][0])/2,(L6[2].pts[0][1]+L6[2].pts[1][1])/2];
+await clickW(mid3[0],mid3[1]);await wait(100);const lkA=await page.evaluate(id=>window.MAQ.planches.plansOf(id).join(),L6[2].id);
+await clickW(mid3[0],mid3[1]);await wait(100);const lkB=await page.evaluate(id=>window.MAQ.planches.plansOf(id).join(),L6[2].id);await page.keyboard.press('Escape');await page.click('#plPanel [data-pl="close"]');await page.evaluate(v=>{const M=window.MAQ;M.state.view=v;M.rebuild();},v6);await wait(100);
 const ord0=await page.evaluate(()=>window.MAQ.bg.plans().map(p=>p.id));await page.click(`#panel [data-t2="plDown"][data-plan="${IDS6.B}"]`);await wait(150);const ord1=await page.evaluate(()=>window.MAQ.bg.plans().map(p=>p.id));
 await page.click(`#panel [data-t2="plUp"][data-plan="${IDS6.B}"]`);await wait(150);const ord2=await page.evaluate(()=>({ids:window.MAQ.bg.plans().map(p=>p.id),g:[...document.querySelectorAll('#bg g.plan')].map(g=>g.dataset.plan)}));
 console.log('6c) rattachement / ordre :',JSON.stringify({lk,lkA,lkB,iB:[ord0.indexOf(IDS6.B),ord1.indexOf(IDS6.B),ord2.ids.indexOf(IDS6.B)]}));
-C.c6c=lk.rows===3&&/Lignes ↔ plans/.test(lk.title)&&lkA===IDS6.A&&lkB===IDS6.B&&ord1.indexOf(IDS6.B)===ord0.indexOf(IDS6.B)-1&&ord2.ids.join()===ord0.join()&&ord2.g.join()===ord0.filter(id=>ord2.g.includes(id)).join();
+C.c6c=lk.rows===4&&/Planches et lignes/.test(lk.title)&&lkA===[IDS6.B,IDS6.A].join()&&lkB===IDS6.B&&ord1.indexOf(IDS6.B)===ord0.indexOf(IDS6.B)-1&&ord2.ids.join()===ord0.join()&&ord2.g.join()===ord0.filter(id=>ord2.g.includes(id)).join();
 // ── 7) ⌖ calage 2 points de la 3e ligne (seule sur la planche B) : rotation + translation ; la planche B suit
 const L3=L6[2];const len3=Math.hypot(L3.pts[1][0]-L3.pts[0][0],L3.pts[1][1]-L3.pts[0][1]);const ang0=Math.atan2(L3.pts[1][1]-L3.pts[0][1],L3.pts[1][0]-L3.pts[0][0])*180/Math.PI;const th=(ang0+25)*Math.PI/180;const Q1=[60,8],Q2=[60+len3*Math.cos(th),8+len3*Math.sin(th)];
 await page.click('.tabs button[data-tab="lignes"]');await wait(150);await page.click(`#panel tr[data-act="selLine"][data-line="${L3.id}"]`);await wait(200); // la ligne choisie dans l'onglet Lignes
@@ -207,13 +211,14 @@ console.log('7) calage 2 points d\'une ligne :',JSON.stringify({sel:sel7,def:def
 C.c7=sel7&&sel7.kind==='line'&&sel7.id===L3.id&&def7==='line'&&near(out.pts[0][0]+out.pts[1][0],Q1[0]+Q2[0],0.3)&&near(out.pts[0][1]+out.pts[1][1],Q1[1]+Q2[1],0.3)&&near(ang,ang0+25,0.6)&&near(len3b,len3,1e-9)&&near(out.tB.rot,ang-ang0,1e-6)&&near(out.tB.rot,25,0.6)&&near(chk[0],out.pts[0][0],1e-6)&&near(chk[1],out.pts[0][1],1e-6)&&out.tA.tx===tA0.tx&&out.mode==='select';
 // 7b) « un plan et toutes ses lignes » + « ajuster l'échelle » (API) : planche A ×1,1 autour du départ de la 1re ligne ; une ligne D'AVANT (sans plan retenu) posée sur la planche
 //     est rattachée au premier calage et suit ; la vanne à PK 10 passe à PK 11 (même place sur le plan) ; ↶ remet tout
+//     (16/10, lot TA : le rattachement figé fait partie de l'étape du calage — après ↶ la ligne d'avant retrouve son plan par le calcul, planche sous son départ)
 {const P1=L6[0].pts[0],P2=L6[0].pts[1];const Q2=[P1[0]+1.1*(P2[0]-P1[0]),P1[1]+1.1*(P2[1]-P1[1])];
   out=await page.evaluate(([idA,l1,P1,P2,Q2])=>{const M=window.MAQ;const S=M.state;const L1=S.lines.find(l=>l.id===l1);L1.specials=[{id:'vt',type:'valve',m:10}];S.lines.push({id:'L9',name:'Ligne d\'avant',dn:80,bar:12,pts:[[10,15],[30,15]],specials:[],parent:null,inv:true});S.seq=10;M.rebuild();
     const had='plan' in S.lines.find(l=>l.id==='L9');const k0=M.bg.get(idA).transform.k;const R=M.fond.cal({what:'plan',plan:idA,scale:true},[[P1,P1],[P2,Q2]]);const L1b=S.lines.find(l=>l.id===l1),L9=S.lines.find(l=>l.id==='L9');
     return {had,plan9:L9.plan,pts9:L9.pts,pts1:L1b.pts,vm:L1b.specials[0].m,k0,k:M.bg.get(idA).transform.k,T:R&&R.T,msg:R&&R.msg};},[IDS6.A,L6[0].id,P1,P2,Q2]);
   const e9=[P1[0]+1.1*(10-P1[0]),P1[1]+1.1*(15-P1[1])];
   await page.mouse.click(5,300);await page.keyboard.press('Control+z');await wait(400);
-  const back=await page.evaluate(([idA,l1])=>{const M=window.MAQ;const S=M.state;const L9=S.lines.find(l=>l.id==='L9');const r={k:M.bg.get(idA).transform.k,pts9:L9&&L9.pts,plan9:L9&&L9.plan,vm:S.lines.find(l=>l.id===l1).specials[0].m};
+  const back=await page.evaluate(([idA,l1])=>{const M=window.MAQ;const S=M.state;const L9=S.lines.find(l=>l.id==='L9');const r={k:M.bg.get(idA).transform.k,pts9:L9&&L9.pts,plan9:L9&&M.fond.planOf('L9'),vm:S.lines.find(l=>l.id===l1).specials[0].m};
     S.lines=S.lines.filter(l=>l.id!=='L9');S.lines.find(l=>l.id===l1).specials=[];M.rebuild();return r;},[IDS6.A,L6[0].id]);
   console.log('7b) calage avec échelle :',JSON.stringify({...out,e9,back}));
   C.c7b=out.had===false&&out.plan9===IDS6.A&&near(out.pts9[0][0],e9[0],1e-9)&&near(out.pts9[0][1],e9[1],1e-9)&&near(out.pts1[1][0],Q2[0],1e-9)&&near(out.pts1[1][1],Q2[1],1e-9)&&near(out.vm,11,1e-9)&&near(out.k,out.k0*1.1,1e-12)&&near(out.T.k,1.1,1e-9)&&/échelle ×1,1/.test(out.msg)

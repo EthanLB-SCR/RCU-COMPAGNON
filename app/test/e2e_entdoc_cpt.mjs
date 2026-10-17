@@ -78,7 +78,7 @@ C.c3=O.assurance_rc&&O.assurance_rc.pill==='encore 60 j'&&O.assurance_rc.rem==='
   &&O.kbis.pill==='J-20 · à renouveler'&&O.kbis.rem==='✗ expire 10 j avant la remise'&&/\bbad\b/.test(O.kbis.rc)&&/expire avant la remise/.test(O.kbis.st)
   &&O.urssaf.pill==='expire aujourd\'hui · à renouveler'&&O.urssaf.rem==='✗ expire 30 j avant la remise'&&O.fiscale.pill==='expiré depuis 3 j · à remplacer'&&O.fiscale.rem==='✗ déjà expiré : pas valable à la remise ('+jm(plus(30))+')'
   &&O.rib.pill==='sans échéance'&&O.rib.rem==='✓ valable à la remise ('+jm(plus(30))+')'&&O.assurance_decennale.pill===''&&O.assurance_decennale.rem===''&&/^à déposer/.test(O.assurance_decennale.st)
-  &&/· 6 dans la remise · ✗ 3 pas valables à la remise$/.test(out.lab);
+  &&/· 7 dans la remise · ✗ 3 pas valables à la remise$/.test(out.lab); // 16/10 soir (lot AM) : le premier RIB déposé est d'office dans la remise (avant : 6, RIB décoché d'office)
 // ── 4) remplacement par l'écran : l'expiré (bouton principal) puis l'URSSAF → ancienne version gardée, nouveau tri, « Prochaine échéance : Kbis dans 20 j », hub, « À faire »
 await click('x:dob:ent','xgo');out={h2:(await view()).h2};
 await click('dob|edit|fiscale','x');await page.setInputFiles('#ed-file',{name:'fiscale-nouvelle-fictive.pdf',mimeType:'application/pdf',buffer:pdf('fiscale 2')});await page.evaluate(v=>{document.getElementById('ed-valid').value=v;document.getElementById('ed-ok').click();},plus(365));await wait(800);

@@ -57,21 +57,26 @@ await page.fill('#memoire-hv','Jean Test');await page.click('#memoire-hok');awai
 out.holes=await holes();out.p=await page.evaluate(()=>({red:document.querySelectorAll('#memoire-p-t-controles-1 .memoire-h').length,f:(document.querySelector('#memoire-p-t-controles-1 .memoire-f')||{}).textContent}));out.fill=await A().then(a=>a.memoire.lib.fill);
 console.log('4) trou comblé :',JSON.stringify(out));
 C.c4=/nom du conducteur de travaux/.test(out.modal.t)&&out.modal.inp&&out.holes===2&&out.p.red===0&&out.p.f==='Jean Test'&&out.fill['t-controles-1|nom du conducteur de travaux|0']==='Jean Test';
-// ── 5) export Word (2 trous encore vides) : vrai .docx au gabarit du pack (styles, puces, tableaux), page de garde, en-tête / pied « page n / N », sommaire, trous restants en rouge
-let [dl]=await Promise.all([page.waitForEvent('download'),page.evaluate(()=>document.querySelector('#eq-app [data-act=af][data-v="mword|"]').click())]);const zip=unzipSync(new Uint8Array(fs.readFileSync(await dl.path())));const Z=k=>zip[k]?strFromU8(zip[k]):'';
-const dx=Z('word/document.xml'),sx=Z('word/styles.xml'),nx=Z('word/numbering.xml'),hx=Z('word/header1.xml'),fx=Z('word/footer1.xml');const txt=dx.replace(/<[^>]+>/g,'');let html=dx;
-out={name:dl.suggestedFilename(),parts:Object.keys(zip).length,h2:/w:styleId="Heading2"[\s\S]*?<w:color w:val="123456"\/>/.test(sx),th:/w:fill="FF6601"/.test(dx),band:/w:fill="FABF8E"/.test(dx),puce:/<w:numFmt w:val="bullet"\/><w:lvlText w:val="▪"\/>[\s\S]*?<w:color w:val="AA0011"\/>/.test(nx)&&/<w:numPr>/.test(dx),
-  cover:/O2610-31/.test(txt)&&/CLIENT-TEST/.test(txt)&&/Testville/.test(txt)&&/MÉMOIRE/.test(txt)&&/TECHNIQUE TEST/.test(txt)&&/\d\d\/\d\d\/\d{4}/.test(txt),filled:/Jean Test/.test(txt)&&!/nom du conducteur de travaux\]/.test(txt),
-  red:/<w:i\/><w:iCs\/><w:color w:val="EE0000"\/>(?:<w:sz [^>]*\/><w:szCs [^>]*\/>)?<\/w:rPr><w:t xml:space="preserve">\[À COMPLÉTER : nom du maître d’œuvre\]/.test(dx)&&/\[À COMPLÉTER : délai d’exécution/.test(txt),out:!/Fin du mémoire/.test(txt),
-  word:/MÉMOIRE TECHNIQUE/.test(hx)&&/PAGE/.test(fx)&&/NUMPAGES/.test(fx)&&/TOC \\o/.test(dx)&&/<w:titlePg\/>/.test(dx)&&/>2\.1 Soudage des tubes</.test(dx)};
-console.log('5) export Word :',JSON.stringify(out));
-C.c5=out.name==='Memoire_technique_O2610-31.docx'&&out.h2&&out.th&&out.band&&out.puce&&out.cover&&out.filled&&out.red&&out.out&&out.word;
+// ── 5) ⬇ Word avec 2 trous encore vides — 16/10 soir (lot AM) : un mémoire à trous ne s'exporte plus avec du rouge : fenêtre « ⚠ Il reste 2 trous dans 2 paragraphes »
+//    (liste) → « Compléter d'abord » : la fenêtre se ferme, le 1er trou rouge a le focus ; l'export Word est contrôlé en 5 bis, une fois les trous comblés (6)
+await page.evaluate(()=>document.querySelector('#eq-app [data-act=af][data-v="mword|"]').click());await wait(300);
+const dlg5=await page.evaluate(()=>({h:(document.getElementById('mx-h')||{}).textContent||'',n:document.querySelectorAll('#mx-list li').length,go:!!document.getElementById('mx-go')}));await page.evaluate(()=>document.getElementById('mx-fill').click());await wait(400);
+dlg5.first=await page.evaluate(()=>{const a=document.activeElement;return !!a&&a.classList.contains('memoire-h')&&!document.querySelector('#modal.show');});console.log('5) fenêtre des trous :',JSON.stringify(dlg5));
 // ── 6) variable vide + dernier trou → 0 trou : étape prête (✓ 5 · Mémoire)
 await click('mlbv|delai');await page.fill('#memoire-vv','12 semaines');await page.click('#memoire-vok');await wait(350);
 await page.evaluate(()=>document.querySelector('#memoire-p-t-acteurs-1 button.memoire-h').click());await wait(250);out={same:await page.evaluate(()=>!!document.getElementById('memoire-hall'))};await page.fill('#memoire-hv','BET Fictif');await page.keyboard.press('Enter');await wait(400);
 out.holes=await holes();out.stat=await page.evaluate(()=>document.getElementById('memoire-nholes').textContent.replace(/\s+/g,' ').trim());out.tab=await tabOk();out.txt=await prev();out.next=await page.evaluate(()=>!!document.querySelector('#eq-app [data-v="mlbnext|"]'));
 console.log('6) plus de trou :',JSON.stringify({...out,txt:undefined}));
 C.c6=!out.same&&out.holes===0&&/aucun trou : prêt/.test(out.stat)&&/^✓ 5 · Mémoire/.test(out.tab)&&/12 semaines/.test(out.txt)&&/BET Fictif/.test(out.txt)&&!out.next;
+// ── 5 bis) export Word (trous comblés en 6) : vrai .docx au gabarit du pack (styles, puces, tableaux), page de garde, en-tête / pied « page n / N », sommaire ; 16/10 soir (lot AM) : plus de rouge
+let [dl]=await Promise.all([page.waitForEvent('download'),page.evaluate(()=>document.querySelector('#eq-app [data-act=af][data-v="mword|"]').click())]);const zip=unzipSync(new Uint8Array(fs.readFileSync(await dl.path())));const Z=k=>zip[k]?strFromU8(zip[k]):'';
+const dx=Z('word/document.xml'),sx=Z('word/styles.xml'),nx=Z('word/numbering.xml'),hx=Z('word/header1.xml'),fx=Z('word/footer1.xml');const txt=dx.replace(/<[^>]+>/g,'');let html=dx;
+out={name:dl.suggestedFilename(),parts:Object.keys(zip).length,h2:/w:styleId="Heading2"[\s\S]*?<w:color w:val="123456"\/>/.test(sx),th:/w:fill="FF6601"/.test(dx),band:/w:fill="FABF8E"/.test(dx),puce:/<w:numFmt w:val="bullet"\/><w:lvlText w:val="▪"\/>[\s\S]*?<w:color w:val="AA0011"\/>/.test(nx)&&/<w:numPr>/.test(dx),
+  cover:/O2610-31/.test(txt)&&/CLIENT-TEST/.test(txt)&&/Testville/.test(txt)&&/MÉMOIRE/.test(txt)&&/TECHNIQUE TEST/.test(txt)&&/\d\d\/\d\d\/\d{4}/.test(txt),filled:/Jean Test/.test(txt)&&!/nom du conducteur de travaux\]/.test(txt),
+  red:!/COMPLÉTER/.test(txt)&&/BET Fictif/.test(txt)&&/12 semaines/.test(txt),out:!/Fin du mémoire/.test(txt),
+  word:/MÉMOIRE TECHNIQUE/.test(hx)&&/PAGE/.test(fx)&&/NUMPAGES/.test(fx)&&/TOC \\o/.test(dx)&&/<w:titlePg\/>/.test(dx)&&/>2\.1 Soudage des tubes</.test(dx)};
+console.log('5) export Word :',JSON.stringify(out));
+C.c5=/Il reste 2 trous dans 2 paragraphes/.test(dlg5.h)&&dlg5.n===2&&dlg5.go&&dlg5.first&&out.name==='Memoire_technique_O2610-31.docx'&&out.h2&&out.th&&out.band&&out.puce&&out.cover&&out.filled&&out.red&&out.out&&out.word;
 // ── 7) modifier un paragraphe POUR CETTE AFFAIRE : la bibliothèque ne change pas ; un trou déjà rempli le reste
 const endOf=async id=>{await page.evaluate(id=>{const ed=document.getElementById('memoire-ed');ed.focus();const r=document.createRange();r.selectNodeContents(ed.lastElementChild||ed);r.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(r);},id);};
 await click('mlbo|t-controles-1');out={modal:await page.evaluate(()=>!!document.getElementById('memoire-ped'))};await page.click('#memoire-ped');await wait(250);

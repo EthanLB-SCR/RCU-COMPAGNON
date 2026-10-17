@@ -16,6 +16,7 @@ import {parseFormula,evalFormula,Unsupported,fmtValue,fmtKind,parseInput,editTex
 import * as REP from './dpgfrep.js'; // 15/10 (lot R) : calculateur qui s'ouvre au clic, soudures en ml, « ⇶ Répartir au ml »
 import * as CL from './dpgfclair.js'; // 16/10 (lot C2) : écran plus clair, « Mettre et ligne suivante », autocontrôle par type, même panier de cases, autre écran sans grand cadre
 import * as SV from './dpgfsuivi.js'; // 16/10 après-midi (lot C3) : clés stables, liste des changements du chiffrage à traiter, écran plus léger (bouton flottant, groupes repliables, ventilation compacte)
+import * as RC from './dpgfrecap.js'; // 16/10 nuit (lot DK) : « ⇶ Donner sa part » des postes répartis, imputer sur les lignes cochées, « 🔎 Récap » en lecture seule
 let H=null;export function initDpgfXl(h){H=h;}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nb=(x,d)=>{x=+x||0;return x.toLocaleString('fr-FR',{maximumFractionDigits:d===undefined?0:d,minimumFractionDigits:d===undefined?0:d});};
@@ -444,7 +445,7 @@ export function dpgfXlHTML(a,canEdit,ctx){ensureCss(document);wireSide();XS.ctx=
     <button class="btn sm${side?' on':''}" data-act="af" data-v="dxlay|side" title="Le DPGF à gauche, notre prix à droite (grand écran)">◫ Côte à côte</button><button class="btn sm${side?'':' on'}" data-act="af" data-v="dxlay|stack" title="Notre prix sous le DPGF (écran simple)">⬒ Empilé</button><button class="btn sm${pop?' on':''}" data-act="af" data-v="dxpop|" title="Le DPGF dans une fenêtre à glisser sur le 2e écran">⧉ Autre écran</button><button class="btn sm" data-act="af" data-v="dxfull|" title="${XS.full?'Quitter le plein écran (Échap)':'Plein écran'}">${XS.full?'✕ Quitter':'⤢ Plein écran'}</button></div>`;
   const fb=`<div class="dx-fb"><input class="dx-nm" id="dx-nm" value="${addrOf(s.r,s.c)}" aria-label="Cellule" title="Aller à une cellule (ex. E12)"><span class="dx-fxl">fx</span><input class="dx-fi" id="dx-fi" value="${esc(editText(cur&&cur.f?cur:{v:val(M,S,s.r,s.c)}))}" ${ro?'readonly':''} aria-label="Contenu de la cellule"><span class="dx-fbx" id="dx-fbx"${cellInfo(a,M,S,s)?'':' hidden'}>${cellInfo(a,M,S,s)}</span></div>`;
   queueMicrotask(()=>{try{dxMount(a.num);}catch(e){console.warn(e);}});
-  {const h=CL.cardHTML(a,M,canEdit,{z,side,pop,grid,fb,sideHTML:()=>sideHTML(a,M,canEdit),top:SV.topHTML(a,M,canEdit),end:SV.endHTML(a,M,canEdit)});if(h!==null)return h;} /* 16/10 (lot C2) : barre courte (« ⋯ »), autre écran = une barre fine, calculateur et ventilation sur toute la largeur — (lot C3) : top = bandeau « le chiffrage a changé », end = bouton flottant « 🧮 Calculer » et la liste à traiter */
+  {const h=CL.cardHTML(a,M,canEdit,{z,side,pop,grid,fb,sideHTML:()=>sideHTML(a,M,canEdit),top:SV.topHTML(a,M,canEdit),end:SV.endHTML(a,M,canEdit)+RC.endHTML(a,M,canEdit) /* (lot DK) : récap, fenêtre « Donner sa part » */});if(h!==null)return h;} /* 16/10 (lot C2) : barre courte (« ⋯ »), autre écran = une barre fine, calculateur et ventilation sur toute la largeur — (lot C3) : top = bandeau « le chiffrage a changé », end = bouton flottant « 🧮 Calculer » et la liste à traiter */
   return `<div class="card dx-card${XS.full?' full':''}" id="dx-card">${head}${bar}${pop?'':fb}<div class="dx-split${side?' side':''}${REP.splitCls(a)}">${grid}<div class="dx-side" id="dx-side">${sideHTML(a,M,canEdit)}</div></div>
     <div class="hint" style="margin-top:6px">Clique une cellule et tape (formules en français : <i>=SOMME(F7:F9)</i>, <i>=ARRONDI(D10*E10;2)</i>) ; Entrée valide, Échap annule, Ctrl+Z annule. Le coin bleu = cellule modifiée ; « ⬇ DPGF pour le dossier » rend le fichier du client avec ces seules cellules changées.</div>${REP.toolHTML(a,M,canEdit)}</div>`;}
 function tabsHTML(a,M,S){return `<div class="dx-tabs">${M.sheets.map((x,i)=>x.hidden?'':`<button class="${x===S?'on':''}" data-act="af" data-v="dxsheet|${i}">${esc(x.name)}</button>`).join('')}<span class="dx-st" id="dx-st">${statusHTML(a,M,S)}</span></div>`;}
@@ -566,6 +567,7 @@ export function dpgfXlAct(k,arg,arg2,a,ctx){if(!/^dx/.test(k))return false;XS.ct
   if(/^dxrp/.test(k))return REP.act(k,arg,arg2,a,canEdit,M); /* 15/10 (lot R) : calculateur à côté de la grille, « ⇶ Répartir au ml » */
   if(CL.act(k,arg,arg2,a,canEdit,M))return true; /* 16/10 (lot C2) : « ↦ Mettre » (aussi par type d'autocontrôle), « Mettre et ligne suivante », ◀ ▶, « Comme la ligne », sélections gardées */
   if(/^dxc3/.test(k))return SV.act(k,arg,arg2,a,canEdit,M); /* 16/10 après-midi (lot C3) : liste des changements à traiter, groupes repliables, bouton flottant */
+  if(/^dxdk/.test(k))return RC.act(k,arg,arg2,a,canEdit,M); /* 16/10 nuit (lot DK) : donner sa part, lignes cochées, récap */
   switch(k){
     case 'dxsheet':{if(!M)return true;const S=M.sheets[+arg];if(S){XS.sh[a.num]=S.name;}rerender();return true;}
     case 'dxzoom':{if(!M)return true;const S=curSheet(a,M);const z=zoomOf(a,S);let i=0;ZOOMS.forEach((x,j)=>{if(Math.abs(x-z)<Math.abs(ZOOMS[i]-z))i=j;});i=Math.max(0,Math.min(ZOOMS.length-1,i+(+arg||0)));XS.zoom[a.num+'|'+S.name]=ZOOMS[i];rerender();return true;}
@@ -755,12 +757,14 @@ export function refreshPopup(){if(!popLive())return;const a=affOf(XS.pop.num);co
     <div class="dx-fb"><input class="dx-nm" id="dx-nm" value="${addrOf(s.r,s.c)}"><span class="dx-fxl">fx</span><input class="dx-fi" id="dx-fi" value="${esc(editText(cur&&cur.f?cur:{v:val(M,S,s.r,s.c)}))}" ${XS.canEdit?'':'readonly'}><span class="dx-fbx" id="dx-fbx"${cellInfo(a,M,S,s)?'':' hidden'}>${cellInfo(a,M,S,s)}</span></div>
     <div class="dx-grid"><div class="dx-vp" id="dx-vp" tabindex="0"><div class="dx-cnt" id="dx-cnt">${T.html}</div></div>${tabsHTML(a,M,S)}</div></div>`;
   doc.title=(a.num||'')+' — DPGF';dxMount(a.num,doc);if(had||doc.hasFocus()){const vp=doc.getElementById('dx-vp');if(vp&&XS.focus)try{vp.focus({preventScroll:true});}catch(e){}}}
-export function dxReset(num){[XS.undo,XS.redo,XS.calc,XS.sel,XS.sh].forEach(m=>{delete m[num];});Object.keys(XS.det).forEach(k=>{if(k.startsWith(num+'|'))delete XS.det[k];});Object.keys(XS.scroll).forEach(k=>{if(k.startsWith(num+'|'))delete XS.scroll[k];});if(XS.free&&XS.free.num===num)XS.free=null;delete BOOK[num];REP.reset(num);SV.reset(num);}
+export function dxReset(num){[XS.undo,XS.redo,XS.calc,XS.sel,XS.sh].forEach(m=>{delete m[num];});Object.keys(XS.det).forEach(k=>{if(k.startsWith(num+'|'))delete XS.det[k];});Object.keys(XS.scroll).forEach(k=>{if(k.startsWith(num+'|'))delete XS.scroll[k];});if(XS.free&&XS.free.num===num)XS.free=null;delete BOOK[num];REP.reset(num);SV.reset(num);RC.reset(num);}
 /* quantités changées dans la grille (contrôles avant export) */
 export function qtyModsOf(a){const M=modelOf(a);if(!M)return 0;const D=a.dpgf||{};const S=dpSheet(M,D);const qc=qtyColOf(D);if(!qc)return 0;let n=0;(D.lignes||[]).forEach(l=>{if(l.section)return;const cell=S.cells.get(cellKey(l.row,qc));if(cell&&cell.ed&&!cell.ed.auto)n++;});return n;}
 /* 15/10 (lot R) : ce que dpgfrep.js emprunte au DPGF (aucun import circulaire) */
 REP.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,linkOfRow,dpSheet,puColOf,qtyColOf,totColOf,calcTarget,calcState,calcResHTML,calcSum,parseQ,fmtIn,compName,dxWrite,refreshSide,rerender,popLive,scrollToCell,LK_COLS,say});
 /* 16/10 (lot C2) : ce que dpgfclair.js emprunte au DPGF */
-CL.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,dpSheet,puColOf,calcTarget,calcState,calcSum,parseQ,fmtIn,compName,dxWrite,refreshSide,rerender,popLive,scrollToCell,qOfCell,nextCol,LK_COLS,say});
+CL.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,dpSheet,puColOf,calcTarget,calcState,calcSum,parseQ,fmtIn,compName,dxWrite,refreshSide,rerender,popLive,scrollToCell,qOfCell,nextCol,LK_COLS,say,RC});
 /* 16/10 après-midi (lot C3) : ce que dpgfsuivi.js emprunte au DPGF */
-SV.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,dpSheet,puColOf,qtyColOf,calcTarget,qOfCell,nextCol,compName,dxWrite,refreshSide,rerender,popLive,LK_COLS,say,REP,CL});
+SV.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,dpSheet,puColOf,qtyColOf,calcTarget,qOfCell,nextCol,compName,dxWrite,refreshSide,rerender,popLive,LK_COLS,say,REP,CL,RC});
+/* 16/10 nuit (lot DK) : ce que dpgfrecap.js emprunte au DPGF */
+RC.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,dpSheet,puColOf,qtyColOf,calcTarget,qOfCell,nextCol,compName,dxWrite,refreshSide,rerender,popLive,scrollToCell,LK_COLS,say,REP,CL,SV});

@@ -130,7 +130,8 @@ function splitQ(q,ws){const U=1000;const tot=Math.round(q*U);const raw=ws.map(w=
 const lineDn=(cfg,l)=>cfg.dnOf[l.a]!==undefined&&cfg.dnOf[l.a]!==''&&cfg.dnOf[l.a]!==null?+cfg.dnOf[l.a]:l.dnR;
 export function planOf(a,M,CP,cfg){const LS=linesOf(a,M);const rest=restFn(a,CP,cfg.id);const tgt=LS.filter(l=>cfg.sel[l.a]&&l.isMl&&l.q>0);const tgS=new Set(tgt);
   const add=new Map();const put=(l,k,q,cat)=>{if(!(q>0))return;if(!add.has(l.a))add.set(l.a,[]);add.get(l.a).push({k,q,cat});};
-  const spread=(c,q,ls,cat)=>{const W=ls.reduce((s,l)=>s+l.q,0);if(!ls.length||!(W>0))return false;const qs=splitQ(q,ls.map(l=>l.q/W));ls.forEach((l,i)=>put(l,c.k,qs[i],cat));return true;};
+  const hasPart=(l,k)=>!!l.L&&(l.L.comps||[]).some(x=>x.via==='part'&&(+x.q||0)>0&&(CP.by.get(x.k)||{}).k===k); /* 16/10 nuit (lot DK) : une ligne qui a reçu sa part d'un poste (« ⇶ Donner sa part ») ne le reçoit pas une 2e fois par une répartition */
+  const spread=(c,q,ls,cat)=>{ls=ls.filter(l=>!hasPart(l,c.k));const W=ls.reduce((s,l)=>s+l.q,0);if(!ls.length||!(W>0))return false;const qs=splitQ(q,ls.map(l=>l.q/W));ls.forEach((l,i)=>put(l,c.k,qs[i],cat));return true;};
   const takes=[];CP.list.forEach(c=>{if(!cfg.ks[c.k])return;const r=rest(c.k);if(!(r>1e-9))return;let q=r,lim=false;const v=cfg.qs[c.k];if(v!==undefined&&v!==null&&v!==''&&isFinite(+v)){if(+v>r+1e-6)lim=true;q=Math.max(0,Math.min(r,+v));}if(q>1e-9)takes.push({c,q,lim,r});});
   const comL=cfg.com.mode==='ligne'?LS.find(l=>l.a===cfg.com.ligne)||null:null;const un=[];
   takes.forEach(T=>{const c=T.c,q=T.q;

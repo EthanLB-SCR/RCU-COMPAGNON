@@ -3,7 +3,8 @@
 // documents HTML imprimables (→ PDF par « Imprimer »), plan des soudures numérotées à l'échelle (planches), plan interactif hors ligne,
 // dossier zip (fflate) avec les photos classées par n° de soudure, les feuilles QSE, les modifications du tracé et le dossier administratif.
 import {Zip,ZipPassThrough,ZipDeflate,strToU8} from 'fflate';
-import {BRAND,LOGO_PNG,DOC_CSS,docHTML,docHead,docFoot,PRINT_BTN} from './charte.js'; // charte SCR des documents (09/10 soir)
+import {BRAND,LOGO_PNG,DOC_CSS,docHTML,docHead,docFoot,PRINT_BTN} from './charte.js';
+import {mutuLineIn,mutuLineIdIn,mutuItemIn,mutuDoeSuffix,mutuMarcheChip} from './mutu.js'; // 16/10 soir (lot MU) : chantier partagé → l'export (DOE, carnet, plan) suit la puce d'affaire // charte SCR des documents (09/10 soir)
 let A=null; // API fournie par app.js (state, NET, géométrie, TS, QSE…)
 export function initDoe(api){A=api;}
 const r2=v=>Math.round((+v||0)*100)/100;
@@ -29,10 +30,10 @@ function trimPoly(pts,t0,t1){const L=polyLen(pts);if(t0+t1>=L-0.01)return [];con
 
 /* ---------- 1. données normalisées du chantier (tout ce que les documents utilisent) ---------- */
 export function doeData(){const NET=A.net();if(!NET||NET.id==='__vide')return null;const S=A.state;
-  const sheets=Object.values(S.sheets).map(sh=>({id:sh.id,name:sh.name||'',ppm:sh.ppm||1,type:sh.type||'',drawing:sh.drawing||null,lines:(sh.lines||[]).slice()}));
+  const sheets=Object.values(S.sheets).map(sh=>({id:sh.id,name:sh.name||'',ppm:sh.ppm||1,type:sh.type||'',drawing:sh.drawing||null,lines:(sh.lines||[]).filter(mutuLineIdIn)}));
   const lines=[],welds=[],people={};let nPhotos=0;
   const addP=(name,k,at)=>{if(!name)return;const p=people[name]=people[name]||{name,n:{1:0,2:0,3:0,4:0},first:null,last:null};p.n[k]=(p.n[k]||0)+1;const t=at?String(at):null;if(t){if(!p.first||t<p.first)p.first=t;if(!p.last||t>p.last)p.last=t;}};
-  Object.values(S.lines).forEach(l=>{if(!l||!l.cond)return;const sh=S.sheets[l.sheetId];const ppm=(sh&&sh.ppm)||1;const M=v=>r2(v/ppm);
+  Object.values(S.lines).forEach(l=>{if(!l||!l.cond||!mutuLineIn(l))return;const sh=S.sheets[l.sheetId];const ppm=(sh&&sh.ppm)||1;const M=v=>r2(v/ppm);
     let pts=(l.pts||[]).map(p=>[M(p.x),M(p.y)]);if(pts.length<2&&l.els&&l.els.length){pts=[];l.els.forEach(e=>(e.axis&&e.axis[0]||[]).forEach(q=>{const P=[M(q.x),M(q.y)];const last=pts[pts.length-1];if(!last||Math.hypot(last[0]-P[0],last[1]-P[1])>0.05)pts.push(P);}));} // import DXF : l'axe est recomposé depuis les éléments
     const antMode=(l.parent&&A.antennaMode)?{A:A.antennaMode(l.id,'A'),R:A.antennaMode(l.id,'R')}:null;
     const L={id:l.id,name:l.name||l.id,dn:l.dnNum||(l.els&&l.els[0]&&l.els[0].dn)||'',sheet:l.sheetId,parent:l.parent||null,pts,len:0,conds:{},nW:0,nDoc:0,single:l.single||null,axisHalf:l.axisHalf||null,antMode};
@@ -56,11 +57,11 @@ export function doeData(){const NET=A.net();if(!NET||NET.id==='__vide')return nu
     lines.push(L);});
   lines.sort((a,b)=>a.name.localeCompare(b.name,'fr',{numeric:true}));
   const ppmOf=lineId=>{const l=S.lines[lineId];const sh=l&&S.sheets[l.sheetId];return (sh&&sh.ppm)||1;};
-  let ts=[];try{const T=A.ts.of();if(T)ts=T.items.filter(it=>it.etat!=='marche').map(it=>{let q=null;try{q=A.ts.pos(it);}catch(e){}const ppm=ppmOf(it.line);return {id:it.id,kind:it.kind,line:it.line,weldId:it.weldId||null,etat:it.etat,etatLabel:A.ts.et[it.etat]||it.etat,col:A.ts.col[it.etat]||'#888',short:A.ts.short(it),label:it.label||'',desig:it.desig||'',devis:it.ts||'',qty:A.ts.qtyTxt(it.qty||{}),pos:q?[r2(q.x/ppm),r2(q.y/ppm)]:null,at:it.at||null,by:it.by||'',photos:(it.photos||[]).filter(p=>typeof p==='string')};});}catch(e){console.warn(e);}
+  let ts=[];try{const T=A.ts.of();if(T)ts=T.items.filter(it=>it.etat!=='marche'&&mutuItemIn(it)).map(it=>{let q=null;try{q=A.ts.pos(it);}catch(e){}const ppm=ppmOf(it.line);return {id:it.id,kind:it.kind,line:it.line,weldId:it.weldId||null,etat:it.etat,etatLabel:A.ts.et[it.etat]||it.etat,col:A.ts.col[it.etat]||'#888',short:A.ts.short(it),label:it.label||'',desig:it.desig||'',devis:it.ts||'',qty:A.ts.qtyTxt(it.qty||{}),pos:q?[r2(q.x/ppm),r2(q.y/ppm)]:null,at:it.at||null,by:it.by||'',photos:(it.photos||[]).filter(p=>typeof p==='string')};});}catch(e){console.warn(e);}
   const qse=((NET.qse&&NET.qse.docs)||[]).filter(d=>!d.deleted).map(d=>({id:d.id,type:d.type,title:d.title||'',at:d.at,by:d.by||'',sigs:(d.sigs||[]).length,url:d.url||null,data:d.data||null,hasFile:!!(d.url||d.data)}));
   const admin=((NET.admin&&NET.admin.docs)||[]).map(d=>({id:d.id,cat:d.cat,catLabel:(A.adminCats().find(c=>c[0]===d.cat)||[])[1]||d.cat,name:d.name,size:d.size||0,url:d.url||null,data:d.data||null,by:d.by||'',at:d.at}));
-  const marche=NET.marche?{at:NET.marche.at,source:NET.marche.source||'',by:NET.marche.by||''}:null;
-  return {site:{id:NET.id,name:NET.name||NET.id,supplier:NET.supplier||'',serie:NET.serie||'',client:NET.client||'',source:NET.source||''},at:new Date().toISOString(),by:A.userName(),sheets,lines,welds,people:Object.values(people).sort((a,b)=>a.name.localeCompare(b.name,'fr')),ts,qse,admin,marche,nPhotos,
+  const MQ=mutuMarcheChip(NET);const marche=MQ?{at:MQ.at,source:MQ.source||'',by:MQ.by||''}:null; /* lot MU : le marché de l'affaire de la puce */
+  return {site:{id:NET.id,name:(NET.name||NET.id)+mutuDoeSuffix(),supplier:NET.supplier||'',serie:NET.serie||'',client:NET.client||'',source:NET.source||''},at:new Date().toISOString(),by:A.userName(),sheets,lines,welds,people:Object.values(people).sort((a,b)=>a.name.localeCompare(b.name,'fr')),ts,qse,admin,marche,nPhotos,
     nDoc:welds.filter(w=>w.doc).length,nExtru:welds.filter(w=>w.extru).length};}
 const weldsOf=(D,o)=>D.welds.filter(w=>o&&o.all?true:w.doc);
 const sortW=(a,b)=>a.lineName.localeCompare(b.lineName,'fr',{numeric:true})||a.pk-b.pk||a.cond.localeCompare(b.cond);

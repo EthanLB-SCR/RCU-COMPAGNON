@@ -5,7 +5,8 @@ const KLABEL={pipe:'barre',bend:'coude',tee:'té',valve:'vanne',reducer:'réduct
 import {reduceDrawing} from '../src/dxfimport.js';
 import {marcheSnapshot} from '../src/marche.js';
 import {fuseDxfPlans,legacyImageOfPlan,tfNorm,planMeta} from '../src/plans.js'; // 14/10 (multi-plans) ; planMeta : 14/10 soir (T2), PDF / échelle 1/N
-import {normEnd} from './extremites.js'; // 14/10 soir (lot T1) : extrémités (contrat C1)
+import {normEnd} from './extremites.js';
+import {affInherit} from '../src/mutufus.js'; // 16/10 soir (lot MU) : chantier mutualisé — chaque ligne garde son affaire (l.aff) // 14/10 soir (lot T1) : extrémités (contrat C1)
 const r3=v=>+(+v||0).toFixed(3);
 /* 14/10 soir (lot T1) — contrats C1 à C5 :
    · startType / endType : valeurs du catalogue des extrémités (l'ancien 'bypass' sort en 'bypass_regard') ; ends = {start:{type,dn}|null (antenne : le té), end:{type,dn}}, dn = DN au bout APRÈS les réductions ;
@@ -17,15 +18,17 @@ function lineExtras(l,etude){const o={};const st=l.parent?null:normEnd(l.startTy
   o.startType=st;o.endType=et;o.ends={start:st?{type:st,dn:l.dn}:null,end:{type:et,dn:dnAtEnd(l)}};
   if(etude||l.tranche!=null){const op=l.tranche==='option';o.tranche=op?'option':'ferme';if(op)o.option=Math.max(1,parseInt(l.option,10)||1);}
   if(etude||l.v0!=null||l.vm!=null){const v0=Math.max(1,parseInt(l.v0,10)||1);o.v0=v0;o.vm=Math.max(1,parseInt(l.vm,10)||v0);}
+  if(Array.isArray(l.sv)&&Array.isArray(l.pts)&&l.sv.length===l.pts.length-1)o.sv=l.sv.map(v=>Math.max(1,parseInt(v,10)||1)); // 16/10 soir (lot TB, K3) : version de chaque tronçon de l'axe (tronçon i = axis[i] → axis[i+1])
+  if(l.aff)o.aff=String(l.aff); // 16/10 soir (lot MU) : ligne d'une affaire rattachée au chantier (sans aff = affaire d'origine)
   return o;}
 // zones de chiffrage (C4) : [{id, nom, lines}] — seulement les lignes enregistrées, une ligne dans une seule zone (la première qui la cite)
 function zonesOut(zones,outLines){if(!Array.isArray(zones)||!zones.length)return undefined;const ids=new Set(outLines.map(L=>L.id));const seen=new Set();
-  return zones.filter(z=>z&&z.id).map(z=>({id:String(z.id),nom:String(z.nom||z.id),lines:(z.lines||[]).filter(id=>ids.has(id)&&!seen.has(id)&&seen.add(id))}));}
+  return zones.filter(z=>z&&z.id).map(z=>({id:String(z.id),nom:String(z.nom||z.id),lines:(z.lines||[]).filter(id=>ids.has(id)&&!seen.has(id)&&seen.add(id)),...(z.ch?{ch:String(z.ch)}:{})}));} // 16/10 (lot TA, K4) : ch = id de la zone du chiffrage reliée
 // 14/10 (édition du tracé) : prof = profondeur de pose par défaut du tracé (m) → site.traceur.profondeur ; par ligne : l.prof (surcharge) → ligne.prof (valeur en vigueur)
 //   — variable des règles de dilatation à venir (aucun calcul pour l'instant). Nature d'un té vertical : l'appli lit `vert` comme la NATURE (up = purge, down = vidange :
 //   comptages, étiquettes, DH) → on lui passe vert = nature et pvDir = sens réel de la branche (vidange « haute » = té droit vers le haut : vert 'down', pvDir 'up').
 const pvNature=p=>p.pvKind||(p.vert==='down'?'vidange':'purge');
-export function siteFromTraceur({id,name,supplier,serie,lines,built,rules,bg,prev,barDefault,prof,ctx,cv,zones}){
+export function siteFromTraceur({id,name,supplier,serie,lines,built,rules,bg,prev,barDefault,prof,ctx,cv,zones,ghosts,vref}){
   const etude=ctx==='etude'; // 14/10 soir (lot T1) : tracé d'une affaire en chiffrage (contexte aff: du traceur)
   // numéros de soudure : on reprend ceux de la version précédente quand une soudure est retrouvée (même ligne, même conduite, PK à ± 0,35 m), sinon un numéro neuf
   const used=new Set();let next=1;const prevW=(prev&&prev.welds)||[];prevW.forEach(w=>{const n=+String(w.weldId||'').replace(/\D/g,'');if(n>=next)next=n+1;});
@@ -40,6 +43,7 @@ export function siteFromTraceur({id,name,supplier,serie,lines,built,rules,bg,pre
       cond[c]={els,welds,length:r3(cd.length),notes:cd.notes.map(n=>({kind:n.kind,txt:n.txt,m:r3(n.m||0)}))};});
     const profL=l.prof!=null&&isFinite(+l.prof)?+l.prof:(prof!=null&&isFinite(+prof)?+prof:undefined); // 14/10 : profondeur en vigueur sur la ligne (surcharge, sinon défaut du tracé)
     outLines.push({id:l.id,name:l.name,parent:l.parent?l.parent.line:null,parentM:l.parent?r3(l.parent.m):null,dn:l.dn,bar:l.bar||barDefault,inv:!!l.inv,traceur:true,cond,axis:l.pts.map(q=>[r3(q[0]),r3(q[1])]),e:r3(B.e),endType:l.pause?'libre':(l.endType||'kit'),startType:l.parent?null:(l.startType||'sousstation'),hm:l.hm||undefined,pause:l.pause?true:undefined,prof:profL,...lineExtras(l,etude)});}); // 14/10 : ligne en pause = pas de kit de bout (le marqueur reste pour la reprendre dans le traceur)
+  affInherit(outLines); // 16/10 soir (lot MU) : une antenne tracée après coup sur une ligne d'une affaire rattachée en hérite
   prevW.forEach(w=>{if(!used.has(w.weldId)&&w.status&&w.status!=='a_souder')lost.push(w);});
   // emprise des lignes ; le fond DXF embarqué dans le chantier est réduit à ce qui entoure le réseau (± 150 m, 200 000 points) — le traceur garde le fond entier localement
   let lx0=1e9,ly0=1e9,lx1=-1e9,ly1=-1e9;outLines.forEach(L=>L.axis.forEach(p=>{lx0=Math.min(lx0,p[0]);ly0=Math.min(ly0,p[1]);lx1=Math.max(lx1,p[0]);ly1=Math.max(ly1,p[1]);}));
@@ -61,6 +65,7 @@ export function siteFromTraceur({id,name,supplier,serie,lines,built,rules,bg,pre
     lines:outLines,warnings:[],report:{source:'traceur',lines:outLines.length,welds:nW,length:r3(totL),lost:lost.map(w=>w.weldId)},
     traceur:{v:1,lines:JSON.parse(JSON.stringify(lines)),rules,bgName,bgOpacity,bgOrigin,bgLayers,profondeur:prof!=null&&isFinite(+prof)?+prof:undefined,savedAt:new Date().toISOString()},created:new Date().toISOString()}; // 14/10 : profondeur — variable des règles de dilatation à venir
   Object.assign(site.traceur,{ctx:etude?'etude':'chantier',cv:Math.max(1,parseInt(cv,10)||1),zones:zonesOut(zones,outLines)}); // 14/10 soir (lot T1) : contexte (C5), version du chiffrage (C3), zones de chiffrage (C4)
+  if(etude){if(Array.isArray(ghosts)&&ghosts.length)site.traceur.ghosts=ghosts;if(vref&&Array.isArray(vref.lines))site.traceur.vref=vref;} // 16/10 soir (lot TB, K3) : lignes supprimées (fantômes, grisées dans le traceur) et tracé au début de la version en cours — JAMAIS dans site.lines (ni pièces, ni soudures, ni quantités) ; morceaux supprimés d'une ligne : traceur.lines[].del
   if(bg&&bg.geo&&bg.geo.crs&&bg.geo.aff)site.geo=bg.geo;else if(prev&&prev.geo)site.geo=prev.geo; // 14/10 soir (T2) : le géoréférencement du traceur (vue aérienne) FAIT FOI ; sans lui, le calage à la main fait dans l'appli est conservé d'une version du tracé à l'autre (même repère de plan)
   if(prev&&prev.hydro)site.hydro=prev.hydro; // préparation hydraulique (coupes, points d'eau, skid) : conservée aussi
   if(prev&&prev.dhData)site.dhData=prev.dhData;

@@ -56,13 +56,13 @@ function qtyLines(L,ids){const by={};const g=dn=>by[dn]||(by[dn]={dn,soud:0,mlTr
   const T=k=>rows.reduce((s,r)=>s+(r[k]||0),0);
   return {rows,tot:{barres:T('barres'),mlTube:T('mlTube'),mlTr:r1(T('mlTr')),soud:T('soud'),coudes:T('coudes'),tes:T('tes'),piq:T('piq'),red:T('red'),vannes:T('vannes'),kits:T('kits'),purges:T('purges'),vidanges:T('vidanges')},ext};}
 export function traceQtyOf(o){o=o||{};const src=o.lines||[];if(!src.length)return null;const M={};(o.meta||[]).forEach(m=>{if(m&&m.id!==undefined&&!M[m.id])M[m.id]=m;});
-  const L=src.filter(Boolean).map(l=>norm(l,!!o.sess,M[l.id]));const ids=new Set(L.map(x=>x.id));
+  const L=src.filter(l=>l&&!l.ghost).map(l=>norm(l,!!o.sess,M[l.id]));const ids=new Set(L.map(x=>x.id)); /* 16/10 soir (lot TB, K3) : ce qui a été supprimé entre deux versions n'est jamais compté — tronçons (traceur.lines[].del) et lignes fantômes (traceur.ghosts, ghost:true) ne sont pas dans site.lines ; une ligne « ghost » passée par erreur est écartée ici */
   const all=qtyLines(L,ids);const out={rows:all.rows,tot:all.tot,ext:all.ext};
   /* C2 : par tranche (seulement s'il y a des options) */
   if(L.some(x=>x.tr!=='ferme')){out.byTranche={};[...new Set(L.map(x=>x.tr))].sort(trSort).forEach(k=>{const q=qtyLines(L.filter(x=>x.tr===k),ids);out.byTranche[k]={rows:q.rows,tot:q.tot,ext:q.ext};});}
   /* C4 : par zone dessinée dans le traceur (une ligne dans une seule zone : la première qui la cite) + « hors zone » s'il reste des lignes */
   const Z=(Array.isArray(o.zones)?o.zones:[]).filter(z=>z&&Array.isArray(z.lines));
-  if(Z.length){const seen=new Set();out.byZone=Z.map((z,i)=>{const ls=L.filter(x=>z.lines.includes(x.id)&&!seen.has(x.id));ls.forEach(x=>seen.add(x.id));const q=qtyLines(ls,ids);return {id:String(z.id||('z'+(i+1))),nom:String(z.nom||('Zone '+(i+1))),rows:q.rows,tot:q.tot,ext:q.ext,lines:ls.map(x=>x.id)};});
+  if(Z.length){const seen=new Set();out.byZone=Z.map((z,i)=>{const ls=L.filter(x=>z.lines.includes(x.id)&&!seen.has(x.id));ls.forEach(x=>seen.add(x.id));const q=qtyLines(ls,ids);return {id:String(z.id||('z'+(i+1))),nom:String(z.nom||('Zone '+(i+1))),ch:z.ch?String(z.ch):undefined,rows:q.rows,tot:q.tot,ext:q.ext,lines:ls.map(x=>x.id)};});
     const rest=L.filter(x=>!seen.has(x.id));if(rest.length){const q=qtyLines(rest,ids);out.byZone.push({id:'_hors',nom:'Hors zone',hors:true,rows:q.rows,tot:q.tot,ext:q.ext,lines:rest.map(x=>x.id)});}}
   return out;}
 /* ── outils communs (Quantités, chiffrage) ── */

@@ -18,8 +18,9 @@ import {buildDocx} from './memoire3_docx.js';
 import {selInit,selAct,selPCk,selPTag,selBCk,selRows,selSCk,selSCount,selVarTag,m1Intro,m1Models,m1Tools,m1ParaX,m1BlocX,m1BlocAdd,m1SecAdd} from './memoire_sel.js'; // 14/10 soir (lot M1) : cochage / décochage simplifié
 import {trousInit,m2Bind,m2X,m2Sig,m2Para,m2Res,m2Show,m2Post,m2EqLabs,m2Tile,m2Nav,m2HoleModal,m2AllModal} from './memoire_trous.js'; // 14/10 soir (lot M2) : moins de trous rouges
 import {buildPdf,pdfInfo,pdfExportBtns} from './memoire3_pdf.js'; // 14/10 soir (lot M3) : export PDF direct (pdfmake servi à côté de l'appli)
+import {mxInit,memGate} from './memoire_export.js'; // 16/10 soir (lot AM) : export avec des trous → fenêtre « ⚠ Il reste N trous… », paragraphes à trous retirés
 let A=null,H={};
-export function memLibInit(api,helpers){A=api;H=helpers||{};mem3Init(api);wire();}
+export function memLibInit(api,helpers){A=api;H=helpers||{};mem3Init(api);mxInit(api);wire();}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const qa=s=>String(s??'').replace(/"/g,'&quot;'); // texte déjà nettoyé (sans < >) → attribut
 const nb=x=>(+x||0).toLocaleString('fr-FR');
@@ -175,17 +176,26 @@ const cssUrl=s=>String(s||'').replace(/["\\\n\r]/g,'');
 /* ═════════ MODÈLE DU DOCUMENT (un seul calcul pour l'aperçu, le PDF, le Word et l'estimation des pages) ═════════
    secs[] = sections qui ont au moins un paragraphe coché (n1), blocs (n2), items {pid, kind:'html'|'image'|'equipe', titre, num (n1.n2.n3), html, img, eq} ;
    num = numéros pour la table de gauche (les mêmes que le mémoire) */
-function docModel(a,base,mode,ro,ctx){const L=memLib();if(!L)return null;const T=styleOf(L);const K=memK(a,base,ctx);const st=rowsOf(a,L,K);const ix=libIx(L);const F=st.F;const V=K.V;
-  let n1=0,holes=0;const secs=[];const N={sec:{},bloc:{},para:{}};
-  ix.secs.forEach((s,si)=>{let n2=0;const bl=[];s.blocs.forEach(b=>{const ps=(b.paragraphes||[]).filter(p=>st.R[p.id].on);if(!ps.length)return;n2++;let n3=0;
+/* 16/10 soir (lot AM) : opt.sansTrous → les paragraphes cochés qui ont encore un trou rouge (texte, organigramme, légende d'image) sont laissés de côté — sans toucher
+   aux cases du mémoire ; un bloc qui n'a plus rien est absent, une section aussi, numéros et sommaire recalculés ; opt.retires = nombre de paragraphes retirés */
+const parHoles=(R,F,V)=>(R.holes||0)+(R.kind==='image'&&R.p.legende?fillPara(memSanitize(String(R.p.legende)),R.p.id+'#leg',F,V,'doc',true).holes:0); /* facultatifs vides : jamais comptés */
+function docModel(a,base,mode,ro,ctx,opt){const L=memLib();if(!L)return null;const T=styleOf(L);const K=memK(a,base,ctx);const st=rowsOf(a,L,K);const ix=libIx(L);const F=st.F;const V=K.V;
+  let n1=0,holes=0,ret=0;const drop=!!(opt&&opt.sansTrous);const secs=[];const N={sec:{},bloc:{},para:{}};
+  ix.secs.forEach((s,si)=>{let n2=0;const bl=[];s.blocs.forEach(b=>{const ps=(b.paragraphes||[]).filter(p=>st.R[p.id].on&&!(drop&&parHoles(st.R[p.id],F,V)>0&&++ret));if(!ps.length)return;n2++;let n3=0;
       const items=ps.map(p=>{const R=st.R[p.id];const it={pid:p.id,kind:R.kind,titre:String(p.titre||''),num:p.titre?`${n1+1}.${n2}.${++n3}`:''};if(it.num)N.para[p.id]=it.num;
         if(R.kind==='equipe'){it.eq=equipeModel(p,K.I);holes+=it.eq.holes;}else{const r=fillPara(R.src,p.id,F,V,mode,ro);it.html=r.html;holes+=r.holes;}
         if(R.kind==='image'){it.imgId=p.img;it.img=imgOf(L,p.img);it.legende=fillPara(memSanitize(String(p.legende||'')),p.id+'#leg',F,V,mode,true).html;it.largeur=num(p.largeur,100,5,100);it.cote=p.cote==='gauche'||p.cote==='droite'?p.cote:'';}
         it.list=R.kind==='html'&&/^<ul>[\s\S]*<\/ul>$/.test(R.src);return it;});
       items.forEach((it,j)=>{it.end=it.list&&!(items[j+1]&&items[j+1].list);});N.bloc[b.id]=`${n1+1}.${n2}`;bl.push({b,n2,items});});
     if(!bl.length)return;n1++;N.sec[si]=n1;secs.push({s,si,n1,name:s.name,blocs:bl,nob:T.noBreak.includes(norm(s.name)),hse:T.body.hse&&/\bHSE\b/i.test(s.name)});});
-  return {a,L,T,K,V,st,secs,num:N,holes,mode};}
+  if(drop)opt.retires=ret;return {a,L,T,K,V,st,secs,num:N,holes,mode,retires:ret};}
 export function memDocModel(a,base,ctx){return docModel(a,base||baseOf(a),'doc',true,ctx);}
+/* 16/10 soir (lot AM) : les paragraphes cochés qui ont encore des trous rouges, dans l'ordre du document : {pid, num (n° du bloc), bloc, titre, sec, kind, holes, txt} */
+export function memLibHoleParas(a,base,ctx){const M=docModel(a,base||baseOf(a),'doc',true,ctx);if(!M)return [];const out=[];const pt=h=>plain(String(h||'').replace(/<\/?(?:span|b|strong|i|em|u|sup|sub)\b[^>]*>/g,'')); /* balises de mise en forme ôtées sans espace */
+  M.secs.forEach(S=>S.blocs.forEach(B=>B.items.forEach(it=>{const R=M.st.R[it.pid];const h=parHoles(R,M.st.F,M.V);if(!h)return;
+    const tx=it.kind==='equipe'?'Organigramme « moyens humains » : '+[...new Set(it.eq.poles.flatMap(po=>po.rows.filter(r=>r.missing).map(r=>r.label)))].join(', ')+' à choisir':it.kind==='image'?[pt(it.legende),pt(it.html)].filter(Boolean).join(' · ')||'Image':pt(it.html);
+    out.push({pid:it.pid,num:S.n1+'.'+B.n2,bloc:String(B.b.titre||''),titre:it.titre,sec:S.name,kind:it.kind,holes:h,txt:tx});})));return out;}
+const retTxt=o=>o&&o.sansTrous&&o.retires?' · '+o.retires+' paragraphe'+(o.retires>1?'s':'')+' à trous retiré'+(o.retires>1?'s':''):''; /* message de fin */
 export function memPages(a,base,ctx){const M=docModel(a,base||baseOf(a),'doc',true,ctx);return M?estimatePages(M,M.T):{word:0,pdf:0};}
 
 /* ═════════ document exporté : impression / PDF (mise en page A4) et ancien Word .doc HTML ═════════ */
@@ -240,10 +250,11 @@ export async function memPaginate(w,T){const d=w.document;try{await Promise.all(
   d.querySelectorAll('#toc .pn').forEach(s=>{const t=d.getElementById(s.dataset.for);if(t&&pageOf.has(t))s.textContent=String(pageOf.get(t));});const toc=d.getElementById('toc');if(toc)toc.classList.remove('nopn');
   d.documentElement.dataset.paged=String(page);return page;}
 export function memLibDocHTML(a,base,opt){opt=opt||{};const word=!!opt.word;const L=memLib();if(!L)return '';const T=styleOf(L);
-  if(!word){const M=docModel(a,base,'doc',true,opt.ctx||null);return printHTML(M);} /* 14/10 après-midi : impression / PDF mise en page */
+  if(!word){const M=docModel(a,base,'doc',true,opt.ctx||null,opt.sansTrous?opt:null);return printHTML(M);} /* 14/10 après-midi : impression / PDF mise en page ; 16/10 soir (lot AM) : sans les paragraphes à trous */
   /* ancien Word .doc (HTML lu par Word) — gardé tel quel, en format secondaire ; images remplacées par leur légende */
+  const DR=opt.sansTrous?new Set(memLibHoleParas(a,base,opt.ctx||null).map(x=>x.pid)):null;if(DR)opt.retires=DR.size; /* 16/10 soir (lot AM) : mêmes paragraphes retirés que le PDF et le .docx */
   const K=memK(a,base,opt.ctx||null);const V=K.V;const lib=libOf(a);const F=lib.fill||{};const ix=libIx(L);let n1=0,left=0;const toc=[];const body=[];
-  ix.secs.forEach(s=>{let n2=0;const bl=[];s.blocs.forEach(b=>{const ps=(b.paragraphes||[]).filter(p=>isSel(lib,p,K));if(!ps.length)return;n2++;let n3=0;
+  ix.secs.forEach(s=>{let n2=0;const bl=[];s.blocs.forEach(b=>{const ps=(b.paragraphes||[]).filter(p=>isSel(lib,p,K)&&!(DR&&DR.has(p.id)));if(!ps.length)return;n2++;let n3=0;
       const html=ps.map(p=>{const kind=kindOf(p);let body2;if(kind==='equipe'){const E=equipeModel(p,K.I);left+=E.holes;body2=E.poles.map(po=>`<p><b><i>${esc(po.titre)}</i></b></p><table><tr><th>Fonction</th><th>Nom</th><th>Missions</th></tr>${po.rows.map(r=>`<tr><td>${esc(r.label)}</td><td>${r.persons.map(x=>esc(x.name)+(x.tel?' – '+esc(x.tel):'')+(x.email?' – '+esc(x.email):'')).join('<br>')||(r.missing?`<span class="ac">[À COMPLÉTER : ${esc(ROLE_LAB[r.k]||r.label)}]</span>`:'')}</td><td>${r.missions.map(esc).join('<br>')}</td></tr>`).join('')}</table>`).join('');}
         else{const r=fillPara(prepRich(memSanitize(srcOf(L,lib,p.id))),p.id,F,V,'doc');left+=r.holes;body2=r.html;if(kind==='image')body2=`<p style="text-align:center"><i>[Image : ${esc(plain(String(p.legende||''))||p.img)}]</i></p>`+(p.cote?body2:'');}
         return (p.titre?`<h3>${n1+1}.${n2}.${++n3} ${esc(p.titre)}</h3>`:'')+body2;}).join('').replace(/<\/ul>\s*<ul>/g,'');
@@ -259,32 +270,32 @@ export function memLibDocHTML(a,base,opt){opt=opt||{};const word=!!opt.word;cons
 const fname=(a,ext)=>'Memoire_technique_'+String(a.num).replace(/[^A-Za-z0-9-]/g,'_')+'.'+ext;
 function download(blob,name){const u=URL.createObjectURL(blob);const l=document.createElement('a');l.href=u;l.download=name;document.body.appendChild(l);l.click();setTimeout(()=>{URL.revokeObjectURL(u);l.remove();},2000);}
 /* ancien format (.doc HTML) : gardé en lien secondaire */
-export function memLibWordDoc(a,base,ctx){const html=memLibDocHTML(a,base,{word:true,ctx});download(new Blob(['\ufeff'+html],{type:'application/msword'}),fname(a,'doc'));const c=memLibCount(a,base);say('⬇ Mémoire technique (.doc, ancien format)'+(c.holes?' — '+c.holes+' trou'+(c.holes>1?'s':'')+' encore en rouge':''));}
+export function memLibWordDoc(a,base,ctx,o){const op=Object.assign({word:true,ctx},o&&o.sansTrous?{sansTrous:true}:{});const html=memLibDocHTML(a,base,op);if(o)o.retires=op.retires||0;download(new Blob(['\ufeff'+html],{type:'application/msword'}),fname(a,'doc'));const c=memLibCount(a,base);say('⬇ Mémoire technique (.doc, ancien format)'+(c.holes&&!op.sansTrous?' — '+c.holes+' trou'+(c.holes>1?'s':'')+' encore en rouge':'')+retTxt(o));}
 /* 14/10 après-midi : vrai Word (.docx) — page de garde, sommaire (champ mis à jour par Word), en-têtes / pieds de page « page n / N », titres et tableaux au
    gabarit du pack, images et organigramme */
-export async function memLibDocx(a,base,ctx){const M=docModel(a,base,'doc',true,ctx);if(!M)return null;const ids=new Set();const T=M.T;[T.img.couverture,T.img.logo,T.img.logoPetit].concat(T.img.badges).forEach(x=>{if(x)ids.add(x);});
+export async function memLibDocx(a,base,ctx,o){const M=docModel(a,base,'doc',true,ctx,o);if(!M)return null; /* 16/10 soir (lot AM) : o.sansTrous */const ids=new Set();const T=M.T;[T.img.couverture,T.img.logo,T.img.logoPetit].concat(T.img.badges).forEach(x=>{if(x)ids.add(x);});
   M.secs.forEach(S=>S.blocs.forEach(B=>B.items.forEach(it=>{if(it.kind==='image'&&it.imgId)ids.add(it.imgId);if(it.kind==='equipe')it.eq.poles.forEach(po=>po.rows.forEach(r=>{if(r.ico)ids.add(r.ico);}));})));
   const imgs={};await Promise.all([...ids].map(async id=>{const im=imgOf(M.L,id);if(!im)return;const bytes=await imgBytes(M.L,id);if(bytes)imgs[id]={bytes,w:im.w,h:im.h,png:im.png||(bytes[0]===0x89&&bytes[1]===0x50)};}));
   return buildDocx(M,imgs);}
-export async function memLibWord(a,base,ctx){try{const u8=await memLibDocx(a,base,ctx);if(!u8)return;download(new Blob([u8],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}),fname(a,'docx'));
-  const c=memLibCount(a,base);say('⬇ Mémoire technique (Word .docx) au gabarit SCR'+(c.holes?' — '+c.holes+' trou'+(c.holes>1?'s':'')+' encore en rouge':'')+' · à l’ouverture, Word propose de mettre à jour le sommaire : accepte');}
+export async function memLibWord(a,base,ctx,o){try{const u8=await memLibDocx(a,base,ctx,o);if(!u8)return;download(new Blob([u8],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}),fname(a,'docx'));
+  const c=memLibCount(a,base);say('⬇ Mémoire technique (Word .docx) au gabarit SCR'+(c.holes&&!(o&&o.sansTrous)?' — '+c.holes+' trou'+(c.holes>1?'s':'')+' encore en rouge':'')+retTxt(o)+' · à l’ouverture, Word propose de mettre à jour le sommaire : accepte');}
   catch(e){console.warn(e);say('Export Word impossible : '+(e&&e.message||e));}}
-export function memLibPrint(a,base,ctx){const w=window.open('','_blank');if(!w){say('Autorise les fenêtres pour imprimer');return;}const L=memLib();const T=styleOf(L);w.document.write(memLibDocHTML(a,base,{word:false,ctx}));w.document.close();
-  setTimeout(async()=>{let n=0;try{n=await memPaginate(w,T);}catch(e){console.warn(e);}if(n)say('PDF : '+n+' pages — choisis « Enregistrer au format PDF » dans la fenêtre d’impression');try{w.focus();w.print();}catch(e){}},250);}
+export function memLibPrint(a,base,ctx,o){const w=window.open('','_blank');if(!w){say('Autorise les fenêtres pour imprimer');return;}const L=memLib();const T=styleOf(L);const op={word:false,ctx,sansTrous:!!(o&&o.sansTrous)};w.document.write(memLibDocHTML(a,base,op));w.document.close();if(o)o.retires=op.retires||0;
+  setTimeout(async()=>{let n=0;try{n=await memPaginate(w,T);}catch(e){console.warn(e);}if(n)say('PDF : '+n+' pages'+retTxt(o)+' — choisis « Enregistrer au format PDF » dans la fenêtre d’impression');try{w.focus();w.print();}catch(e){}},250);}
 /* 14/10 soir (lot M3) : PDF DIRECT (memoire3_pdf.js) — même modèle (contrat K5) et même collecte d'images que le Word ; Uint8Array, ou null sans bibliothèque.
    Le modèle est calculé AVANT le premier await : la consultation d'une version (affWithVirtual, dossier de remise) s'applique. */
-export async function memLibPdf(a,base,ctx){const M=docModel(a,base,'doc',true,ctx);if(!M)return null;const ids=new Set();const T=M.T;[T.img.couverture,T.img.logo,T.img.logoPetit].concat(T.img.badges).forEach(x=>{if(x)ids.add(x);});
+export async function memLibPdf(a,base,ctx,o){const M=docModel(a,base,'doc',true,ctx,o);if(!M)return null; /* 16/10 soir (lot AM) : o.sansTrous (dossier de remise compris) */const ids=new Set();const T=M.T;[T.img.couverture,T.img.logo,T.img.logoPetit].concat(T.img.badges).forEach(x=>{if(x)ids.add(x);});
   M.secs.forEach(S=>S.blocs.forEach(B=>B.items.forEach(it=>{if(it.kind==='image'&&it.imgId)ids.add(it.imgId);if(it.kind==='equipe')it.eq.poles.forEach(po=>po.rows.forEach(r=>{if(r.ico)ids.add(r.ico);}));})));
   const imgs={};await Promise.all([...ids].map(async id=>{const im=imgOf(M.L,id);if(!im)return;const bytes=await imgBytes(M.L,id);if(bytes)imgs[id]={bytes,w:im.w,h:im.h,png:im.png||(bytes[0]===0x89&&bytes[1]===0x50)};}));
   return buildPdf(M,imgs);}
 /* « ⬇ PDF » : un clic → Memoire_technique_<num>.pdf ; impossible (hors connexion sans moteur chargé, fichiers absents…) → message + l'ancienne fenêtre d'impression */
 let PDFBUSY=false;
-export async function memLibPdfDownload(a,base,ctx){if(PDFBUSY){say('PDF déjà en préparation…');return false;}PDFBUSY=true;say('PDF en préparation…');let u8=null,why='';
-  try{u8=await memLibPdf(a,base,ctx);}catch(e){console.warn(e);why=String((e&&e.message)||e||'erreur');}finally{PDFBUSY=false;}
-  if(u8&&u8.length){download(new Blob([u8],{type:'application/pdf'}),fname(a,'pdf'));const n=pdfInfo.pages,c=memLibCount(a,base);const k=pdfInfo.skipped;say('⬇ Mémoire PDF : '+n+' page'+(n>1?'s':'')+(c.holes?' — '+c.holes+' trou'+(c.holes>1?'s':'')+' encore en rouge':'')+(k?' · '+k+' image'+(k>1?'s':'')+' illisible'+(k>1?'s':'')+' laissée'+(k>1?'s':'')+' de côté':''));return true;}
-  if(!why)return false;pdfInfo.err=why;const tx='PDF direct impossible ('+why+') : la fenêtre d’impression s’ouvre à la place — choisis « Enregistrer au format PDF ».';memLibPrint(a,base,ctx);
+export async function memLibPdfDownload(a,base,ctx,o){if(PDFBUSY){say('PDF déjà en préparation…');return false;}PDFBUSY=true;say('PDF en préparation…');let u8=null,why='';
+  try{u8=await memLibPdf(a,base,ctx,o);}catch(e){console.warn(e);why=String((e&&e.message)||e||'erreur');}finally{PDFBUSY=false;}
+  if(u8&&u8.length){download(new Blob([u8],{type:'application/pdf'}),fname(a,'pdf'));const n=pdfInfo.pages,c=memLibCount(a,base);const k=pdfInfo.skipped;say('⬇ Mémoire PDF : '+n+' page'+(n>1?'s':'')+(c.holes&&!(o&&o.sansTrous)?' — '+c.holes+' trou'+(c.holes>1?'s':'')+' encore en rouge':'')+retTxt(o)+(k?' · '+k+' image'+(k>1?'s':'')+' illisible'+(k>1?'s':'')+' laissée'+(k>1?'s':'')+' de côté':''));return true;}
+  if(!why)return false;pdfInfo.err=why;const tx='PDF direct impossible ('+why+') : la fenêtre d’impression s’ouvre à la place — choisis « Enregistrer au format PDF ».';memLibPrint(a,base,ctx,o);
   try{A.openModal(`<h3 style="margin-top:0">PDF direct impossible</h3><div class="hint" id="m3-pdf-err" style="margin:0 0 8px">${esc(tx)}</div><div class="actions"><button class="btn primary block" id="m3-pdf-print">🖨 Rouvrir la fenêtre d’impression</button><button class="btn block" data-close>Fermer</button></div>`);
-    const b=document.getElementById('m3-pdf-print');if(b)b.onclick=()=>{A.closeModal();memLibPrint(a,base,ctx);};}catch(e){}
+    const b=document.getElementById('m3-pdf-print');if(b)b.onclick=()=>{A.closeModal();memLibPrint(a,base,ctx,o);};}catch(e){}
   setTimeout(()=>say(tx),1200);return false;}
 
 /* ═════════ écran : mode bibliothèque ═════════ */
@@ -369,6 +380,8 @@ function previewHTML(M,canEdit,ro){const T=M.T,V=M.V,a=M.a;const toc=[];const pa
 /* barre des trous, toujours visible en haut du mémoire (comme une recherche : précédent / suivant, n / N) */
 function navHTML(holes,st){return m2Nav(holes,st||(RC&&RC.r));} /* 14/10 soir (lot M2, memoire_trous.js) : « n infos à compléter (m trous) », 📝 Tout compléter */
 function navPos(){const el=document.getElementById('memoire-navpos');if(!el)return;const hs=[...document.querySelectorAll('#memoire-scroll .memoire-h')];el.textContent=(NEXT>=0&&NEXT<hs.length?NEXT+1:'–')+' / '+hs.length;}
+/* 16/10 soir (lot AM) : « Compléter d'abord » — au 1er trou rouge de l'aperçu (false : l'aperçu du mémoire n'est pas à l'écran) */
+export function memLibFirstHole(){if(typeof document==='undefined')return false;const hs=[...document.querySelectorAll('#memoire-scroll .memoire-h')];if(!hs.length)return false;NEXT=hs.length-1;holeGo(1);return true;}
 function holeGo(dir){const hs=[...document.querySelectorAll('#memoire-scroll .memoire-h')];if(!hs.length){say('Aucun trou rouge');return;}
   if(NEXT<0||NEXT>=hs.length){const sc=document.getElementById('memoire-scroll');const top=sc&&sc.scrollHeight>sc.clientHeight+4?sc.getBoundingClientRect().top+60:60;const i=hs.findIndex(h=>h.getBoundingClientRect().top>top);NEXT=dir>0?(i<0?0:i):(i<=0?hs.length-1:i-1);}else NEXT=(NEXT+dir+hs.length)%hs.length;
   const h=hs[NEXT];const sc=document.getElementById('memoire-scroll');if(sc&&sc.scrollHeight>sc.clientHeight+4){const sr=sc.getBoundingClientRect(),hr=h.getBoundingClientRect();sc.scrollTop+=hr.top-sr.top-sc.clientHeight/2;SCR['memoire-scroll']=sc.scrollTop;}else h.scrollIntoView({block:'center'});
@@ -414,7 +427,7 @@ export function memLibAct(k,arg,arg2,arg3,a,ctx){if(!/^mlb/.test(k))return false
     case 'mlbprev':holeGo(-1);return true;
     case 'mlbsel':selectPara(arg,true);return true;
     case 'mlbinter':{if(!canEdit){say('Lecture seule');return true;}interModal(a,L,ctx);return true;}
-    case 'mlbdoc':{try{memLibWordDoc(a,baseOf(a),ctx);}catch(e){console.warn(e);}return true;}
+    case 'mlbdoc':{const b=baseOf(a);memGate(a,b,ctx,'doc',o=>{try{memLibWordDoc(a,b,ctx,o);}catch(e){console.warn(e);}},H.wrap?H.wrap(a):null);return true;} /* 16/10 soir (lot AM) : trous → fenêtre, paragraphes à trous retirés */
     case 'mlbfull':{AS().mlbFull=!AS().mlbFull;render();return true;}
   }
   return true;}

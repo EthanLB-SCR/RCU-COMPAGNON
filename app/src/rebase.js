@@ -32,6 +32,8 @@ export function rebaseSite(net0,dx,dy){const net=JSON.parse(JSON.stringify(net0|
   // traceur : sommets des lignes ; origine du DXF (local = (X − x0, y1 − Y)) → x0 + dx, y1 − dy
   const ORI=o=>{if(o&&typeof o.x0==='number'&&typeof o.y1==='number'){o.x0=R3(o.x0+dx);o.y1=R3(o.y1-dy);}};
   if(net.traceur&&typeof net.traceur==='object'){(net.traceur.lines||[]).forEach(l=>{if(l&&l.pts)l.pts=PL(l.pts);});ORI(net.traceur.bgOrigin);}
+  if(net.traceur&&typeof net.traceur==='object'){const DL=l=>{if(l&&Array.isArray(l.del))l.del.forEach(d=>{if(d&&d.pts)d.pts=PL(d.pts);});}; /* 16/10 soir (lot TB) : versions — morceaux supprimés (l.del), lignes supprimées (ghosts) et tracé de référence (vref) suivent */
+    (net.traceur.lines||[]).forEach(DL);(net.traceur.ghosts||[]).forEach(g=>{if(g&&g.pts)g.pts=PL(g.pts);DL(g);});if(net.traceur.vref&&Array.isArray(net.traceur.vref.lines))net.traceur.vref.lines.forEach(l=>{if(l&&l.pts)l.pts=PL(l.pts);DL(l);});}
   ORI(net.origin);
   // fond : traits, hachures, textes ; image de fond ; emprises
   (net.drawing||[]).forEach(d=>{if(!d||typeof d!=='object')return;if(d.pts)d.pts=PL(d.pts);if(d.loops)d.loops=PLL(d.loops);if(d.text!==undefined)XY(d);});
