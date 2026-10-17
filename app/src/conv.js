@@ -5,6 +5,7 @@
 //   undo:{what:'etape'|'suppl',n,weldId,line,cond,status:'pending'|'done'|'refused',decidedBy,decidedAt,note,used,left,limit}, credit:{to,n}}],seq} — saveNet('conv').
 // Garde-fou des annulations (Ethan 08/10) : une demande d'annulation (kind 'undo') attend la validation d'un chef ; un chef peut aussi redonner des crédits (kind 'credit').
 import {POSTE_FAM,FAMILLES,posteLabel} from './acces.js';
+import {mvRecIn,mvStamp} from './mutu2.js'; // 17/10 (lot MV) : chantier partagé — conversation commune d'office, séparée par affaire si on le règle
 let A=null;
 export function initConv(api){A=api;}
 // personnes à qui confier une tâche : connecté = les VRAIS comptes (profils + invitations, groupés par famille) ; hors connexion = personnages de démo
@@ -68,7 +69,7 @@ export function renderConv(){const el=document.getElementById('convview');if(!el
   if(!C){el.innerHTML='<h2 class="vt">Conversation</h2><div class="card muted">Ouvre un chantier.</div>';return;}
   const f=filtersOf();const r=S.convRange||null;const hasRange=!!(r&&(r.from||r.to));
   if(S.convSeenMark===undefined)S.convSeenMark=getSeen(); // repère des non-lus au moment où on ouvre l'onglet (sert à l'alerte « masqués par tes filtres »)
-  const all=live(C);const unreadBefore=all.filter(m=>m.by!==me()&&(m.at||'')>S.convSeenMark);const hiddenUnread=unreadBefore.filter(m=>!convVisible(m));setSeen(new Date().toISOString()); // vu = lu
+  const all=live(C).filter(m=>mvRecIn('conv',m,[m.line]));const unreadBefore=all.filter(m=>m.by!==me()&&(m.at||'')>S.convSeenMark);const hiddenUnread=unreadBefore.filter(m=>!convVisible(m));setSeen(new Date().toISOString()); // vu = lu
   const msgs=all.filter(convVisible);const nMsg=all.filter(m=>m.kind==='msg'||m.kind==='note').length,nUndo=all.filter(m=>m.kind==='undo'||m.kind==='credit').length;
   const fmtD=d=>d?d.slice(8,10)+'/'+d.slice(5,7):'…';
   const nOpen=all.filter(m=>m.kind==='task'&&m.task&&!m.task.done).length,nMine=openTasksForMe().length;const pend=pendingUndos();const canVal=A.undo&&A.undo.canValidate();
@@ -134,7 +135,7 @@ async function post(text){const C=convOf();if(!C)return;const d=draft();text=(te
   if(!A.can('conv.post')){A.toast('Pas le droit d\'écrire');return;}if(d.task&&!A.can('conv.task')){A.toast('Pas le droit de créer une tâche');return;}
   const id=newId(C);const photos=[];for(const p of d.photos){let u=null;try{u=await A.uploadPhoto('conv:'+id,p);}catch(e){}photos.push(u||p);}
   const at0=new Date().toISOString();const m={id,at:at0,upd:at0,by:me(),text,photos,pos:d.pos,line:d.line,pk:d.pk,near:d.pos&&Array.isArray(d.near)?d.near.slice(0,6):null,cat:CAT[d.cat]?d.cat:'divers',kind:d.task?'task':(d.pos?'note':'msg')};if(d.task)m.task={to:d.to||TOUS,done:false};
-  C.msgs.push(m);save();A.state.convDraft=null;renderConv();convBadge();A.renderPlan();A.toast(m.kind==='task'?'Tâche créée pour '+(m.task.to===TOUS?'tout le monde':m.task.to):m.pos?'Note posée sur le plan':'Envoyé');}
+  C.msgs.push(mvStamp('conv',m,[m.line]));save();A.state.convDraft=null;renderConv();convBadge();A.renderPlan();A.toast(m.kind==='task'?'Tâche créée pour '+(m.task.to===TOUS?'tout le monde':m.task.to):m.pos?'Note posée sur le plan':'Envoyé');}
 function doneModal(id){const C=convOf();const m=C&&C.msgs.find(x=>x.id===id);if(!m||!m.task)return;const esc=A.esc;
   A.openModal(`<h3 style="margin-top:0">Déclarer fait</h3><div style="font-size:13px;margin-bottom:6px">${esc(m.text||'')}</div><div class="hint">Une photo du travail fait, c'est la preuve pour tout le monde (et pour le DOE).</div>
    <div class="thumbs" id="cvdThumbs" style="margin:6px 0"></div><label class="btn">📷 Photo<input type="file" accept="image/*" capture="environment" id="cvdPhoto" style="display:none" multiple></label>

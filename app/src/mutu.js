@@ -13,6 +13,8 @@ import {regGet,regAll} from './reg.js';
 import {mergeSites,unmergeSite,activityOn,tfFromGeo,commonName,affLabels,isMutu,origOf,affOfLine,lineIdsOf,MU_COLORS} from './mutufus.js';
 import {marcheSnapshot} from './marche.js';
 import {mergeServerParts} from './sync.js';
+import {partageClean} from './mutufus.js';
+import {initMv,mvOperator,mvSel,mvResetSel,mvLineIdIn,mvRecIn,mvTag,mvFoldHTML,mvFoldRead,mvWireRows,mvOpenPartage,mvTestApi} from './mutu2.js'; // 17/10 (lot MV) : commun / séparé par dossier, sélecteur d'affaire, vue des opérateurs (mutu2.js)
 let A=null;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nb=(x,d)=>(+x||0).toLocaleString('fr-FR',{maximumFractionDigits:d||0,minimumFractionDigits:d||0});
@@ -46,7 +48,7 @@ function css(){try{if(document.getElementById('css-lot-mu'))return;const s=docum
 .mu-fact{margin:0 0 8px}
 @media (max-width:420px){.mu-modal .actions .btn{flex:1 1 100%}}`;document.head.appendChild(s);}catch(e){}}
 /* ═════════ 0 · branchement ═════════ */
-export function initMutu(api){A=api;css();setTimeout(calPoll,300);}
+export function initMutu(api){A=api;css();setTimeout(calPoll,300);initMv(api,{labelsOf:n=>labelsOf(n),affOfId:(n,id)=>affOfId(n,id),chipIdx:n=>chipIdx(n),chipAff:n=>chipAff(n)});} /* lot MV : mutu2.js reçoit l'appli et les aides du chantier partagé */
 const metaOf=id=>((A&&A.state.serverMetas)||[]).find(x=>x.id===id)||null;
 const siteOf=id=>(A&&A.SITES[id])||null;
 const nameOf=id=>{const n=siteOf(id),m=metaOf(id);return (n&&n.name)||(m&&m.name)||id;};
@@ -68,37 +70,41 @@ const chip={site:'',i:-1};
 function chipIdx(net){if(!isMutu(net))return -1;if(chip.site!==net.id){chip.site=net.id;const v=lsGet(CHIP+net.id);chip.i=Number.isInteger(v)&&v>=0&&v<net.affaires.length?v:-1;}if(chip.i>=net.affaires.length)chip.i=-1;return chip.i;}
 const curNet=()=>{try{return A&&A.net?A.net():null;}catch(e){return null;}};
 /* affaire filtrée par la puce : null = « Toutes » */
-function chipAff(net){const i=chipIdx(net);return i<0?null:String(net.affaires[i]||'');}
-export function mutuLineIdIn(id){const net=curNet();if(!isMutu(net))return true;const c=chipAff(net);return c===null||affOfId(net,id)===c;}
+function chipAff(net){if(mvOperator())return null; /* lot MV : les opérateurs n'ont pas de puce (rien de filtré pour eux) */const i=chipIdx(net);return i<0?null:String(net.affaires[i]||'');}
+/* lot MV (17/10) : l'EXPORT (DOE, carnet, plan) est toujours séparé — l'affaire choisie (sélecteur en tête de l'onglet, d'office celle de la puce, sinon l'origine) :
+   « un DOE par marché », plus jamais « Toutes = tout » ; la puce ne filtre plus que le plan */
+export function mutuLineIdIn(id){return mvLineIdIn('export',id);}
 export function mutuLineIn(l){return !l||mutuLineIdIn(l.id);}
-export function mutuPass(j){return !j||j.line==null||mutuLineIdIn(j.line);}
-/* élément d'export (TS, soudure) : sa ligne passe la puce */
-export function mutuItemIn(it){if(!it)return true;const net=curNet();if(!isMutu(net))return true;const c=chipAff(net);if(c===null)return true;const a=it.aff?String(it.aff):(it.line!=null?affOfId(net,it.line):origOf(net));return a===c;}
-export function mutuDoeSuffix(){const net=curNet();if(!isMutu(net))return '';const i=chipIdx(net);return i<0?'':' · affaire '+labelsOf(net)[i];}
-/* marché pour l'export : celui de l'affaire de la puce */
-export function mutuMarcheChip(net){if(!net)return null;if(!isMutu(net))return net.marche||null;const c=chipAff(net);if(c===null||c===origOf(net))return net.marche||null;return (net.marchesAff&&net.marchesAff[c])||null;}
-/* MARCHÉ / TS (onglet Modifs, écarts sur le plan) : l'affaire de la puce, l'ORIGINE quand « Toutes » — jamais d'écart d'une affaire sur l'autre */
-function scopeOf(net){const c=chipAff(net);return c!==null?c:origOf(net);}
+export function mutuPass(j){return true;} /* lot MV : la liste suit son dossier (commun / séparé) ; sur le plan, mutuAfterPlan estompe les soudures des autres affaires de la puce */
+/* élément d'export (TS) : son affaire (aff, sinon celle de sa ligne) = l'affaire choisie */
+export function mutuItemIn(it){if(!it)return true;return mvRecIn('export',it,[it.line]);}
+export function mutuDoeSuffix(){return mvTag('export');}
+/* document du dossier dans l'export : les pièces communes (PPSPS, DICT, plan de prévention…) toujours ; un PV / une pièce d'épreuve seulement avec SON affaire (sans affaire : l'origine) */
+export function mutuDocIn(d){if(!d)return false;if(!d.hydro&&!d.aff)return true;return mvRecIn('export',d.aff?d:{aff:d.hydro&&d.hydro.aff},[]);}
+/* marché pour l'export : celui de l'affaire choisie */
+export function mutuMarcheChip(net){if(!net)return null;if(!isMutu(net))return net.marche||null;const c=mvSel(net);if(c===origOf(net))return net.marche||null;return (net.marchesAff&&net.marchesAff[c])||null;}
+/* MARCHÉ / TS (onglet Modifs, écarts sur le plan) : l'affaire choisie dans Modifs (lot MV : sélecteur explicite, d'office la puce, sinon l'origine) — jamais d'écart d'une affaire sur l'autre */
+function scopeOf(net){return mvSel(net);}
 export function mutuScoped(){const net=curNet();return isMutu(net)&&scopeOf(net)!==origOf(net);}
 export function mutuTsLine(l){const net=curNet();if(!isMutu(net)||!l)return true;return affOfId(net,l.id)===scopeOf(net);}
 export function mutuMarcheOf(net){if(!net)return null;if(!isMutu(net))return net.marche||null;const s=scopeOf(net);if(s===origOf(net))return net.marche||null;return (net.marchesAff&&net.marchesAff[s])||null;}
 export function mutuTsIn(it){const net=curNet();if(!isMutu(net)||!it)return true;const a=it.aff?String(it.aff):(it.line!=null?affOfId(net,it.line):origOf(net));return a===scopeOf(net);}
-function setChip(i){const net=curNet();if(!net)return;chip.site=net.id;chip.i=+i;lsSet(CHIP+net.id,chip.i>=0?chip.i:null);lg('puce',{site:net.id,i:chip.i});A.renderAll();}
+function setChip(i){const net=curNet();if(!net)return;chip.site=net.id;chip.i=+i;lsSet(CHIP+net.id,chip.i>=0?chip.i:null);mvResetSel(net);lg('puce',{site:net.id,i:chip.i});A.renderAll();}
 /* barre de puces dans l'en-tête du chantier (appelée à la fin de renderSiteHead) + bandeau de l'onglet Modifs */
-export function mutuHead(){try{const h=document.getElementById('siteHead');if(!h)return;let bar=document.getElementById('muChips');const net=curNet();const on=A.state.screen==='site'&&isMutu(net);
+export function mutuHead(){try{const h=document.getElementById('siteHead');if(!h)return;let bar=document.getElementById('muChips');const net=curNet();const on=A.state.screen==='site'&&isMutu(net)&&!mvOperator(); /* lot MV : pas de puces d'affaire pour les opérateurs */
   if(!on){if(bar)bar.remove();tsBanner(null);return;}
   if(!bar){bar=document.createElement('div');bar.id='muChips';bar.className='mu-chips';bar.setAttribute('role','group');bar.setAttribute('aria-label','Filtrer par affaire');h.insertBefore(bar,document.getElementById('facets')||null);
     bar.addEventListener('click',e=>{const b=e.target.closest('[data-muchip]');if(b)setChip(b.dataset.muchip);});
     requestAnimationFrame(()=>{try{if(A.fit)A.fit();}catch(e){}});} /* l'en-tête vient de grandir : le plan est recadré (sinon le bas du réseau passe sous l'écran) */
   const i0=chipIdx(net);const labs=labelsOf(net);
   const html=`<span class="mu-lab" title="chantier partagé par plusieurs affaires : un seul plan, un seul accueil">🔗 affaires</span><button type="button" data-muchip="-1" class="${i0<0?'on':''}" aria-pressed="${i0<0}">Toutes</button>`+net.affaires.map((n,i)=>`<button type="button" data-muchip="${i}" class="${i0===i?'on':''}" aria-pressed="${i0===i}" title="${esc(n?'affaire '+n:'affaire d\'origine')}${i===0?' (origine du chantier)':''}"><i class="mu-dot" style="background:${MU_COLORS[i%MU_COLORS.length]}"></i>${esc(labs[i])}</button>`).join('');
-  if(bar.innerHTML!==html)bar.innerHTML=html;tsBanner(A.state.tab==='ts'?net:null);}catch(e){console.warn(e);}}
-function tsBanner(net){const v=document.getElementById('tsview');if(!v)return;let b=document.getElementById('muTsBanner');if(!net){if(b)b.remove();return;}
+  if(bar.innerHTML!==html)bar.innerHTML=html;tsBanner(null);}catch(e){console.warn(e);}} /* lot MV : le bandeau de Modifs devient le sélecteur d'affaire en tête de l'onglet (mutu2.js) */
+function tsBanner(net){const v=document.getElementById('tsview');if(!v)return;let b=v.querySelector('#muTsBanner.warnbox');if(!net){if(b)b.remove();return;}
   const labs=labelsOf(net);const s=scopeOf(net);const i=net.affaires.indexOf(s);const M=mutuMarcheOf(net);const others=net.affaires.map((n,k)=>k).filter(k=>k!==i).map(k=>'« '+labs[k]+' »');
   const html=`🔗 Chantier partagé : modifications et marché de l'affaire <b>${esc(labs[i]||s)}</b>${s?' ('+esc(s)+')':''} seulement${M&&M.at?' — marché figé le '+dFR(M.at):''}. Puce ${esc(others.join(' / '))} en haut pour ${others.length>1?'les autres':'l\'autre'}.`;
   if(!b){b=document.createElement('div');b.id='muTsBanner';b.className='warnbox';v.insertBefore(b,v.firstChild);}if(b.innerHTML!==html)b.innerHTML=html;if(v.firstChild!==b)v.insertBefore(b,v.firstChild);}
 /* après le dessin du plan : liseré discret par affaire rattachée, lignes des autres affaires estompées (puce), légende */
-export function mutuAfterPlan(){try{const g=document.getElementById('net');if(!g)return;const old=g.querySelector('g.mu-halo');if(old)old.remove();const net=curNet();if(!isMutu(net)||A.state.screen!=='site')return;
+export function mutuAfterPlan(){try{const g=document.getElementById('net');if(!g)return;const old=g.querySelector('g.mu-halo');if(old)old.remove();const net=curNet();if(!isMutu(net)||A.state.screen!=='site'||mvOperator())return; /* lot MV : opérateurs — ni liseré, ni couleurs d'affaire dans la légende */
   const c=chipAff(net);const k=(A.state.view&&A.state.view.k)||1;const o=origOf(net);let h='';
   Object.values(A.state.lines||{}).forEach(l=>{if(!l||!l.cond)return;const a=affOfId(net,l.id);if(a===o||(c!==null&&a!==c))return;let pts=Array.isArray(l.pts)&&l.pts.length>1?l.pts:[];if(!pts.length)(l.els||[]).forEach(e=>{((e.axis&&e.axis[0])||[]).forEach(p=>pts.push(p));});
     pts=pts.map(p=>Array.isArray(p)?p:[p.x,p.y]).filter(p=>isFinite(p[0])&&isFinite(p[1]));if(pts.length<2)return;h+=`<path d="M${pts.map(p=>(+p[0]).toFixed(2)+' '+(+p[1]).toFixed(2)).join('L')}" stroke="${colOf(net,a)}" stroke-width="${(18/k).toFixed(4)}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;});
@@ -175,16 +181,16 @@ async function mutuCalReturn(c){const a=affOf(c.aff);if(!a)return;let ctx=null;t
   confirmModal(c.aff,{eId:c.etude,cId:c.site,T:c.T,k:c.k,how:'calée dans le traceur',gain:!!c.gain},Ef,Cf,ctx);}
 function confirmModal(num,R,Ef,Cf,ctx){const a=affOf(num);if(!a)return;let info=null;const orig=origNum(Cf,num);try{info=mergeSites(Cf,Ef,R.T,{aff:num,orig,by:'',nom:(Cf.mutu&&Cf.mutu.nom)||commonName(Cf.name)}).info;}catch(e){A.toast('Rattachement impossible : '+e.message);return;}
   const nom0=(Cf.mutu&&Cf.mutu.nom)||commonName(Cf.name);const sameCat=(Ef.supplier||'')===(Cf.supplier||'')&&String(Ef.serie||'')===String(Cf.serie||'');const pl=(Ef.supplier||Cf.supplier)?'':'';
-  const li=[];li.push(`chaque ligne garde son affaire — ${esc(num)} pour ces lignes, ${esc(orig||'l\'origine')} pour celles du chantier : quantités, avancement, situations, DOE, marché et TS séparés`);li.push('les gars : un seul chantier, même plan, même accueil (PPSPS, DICT, plan de prévention…), une puce pour filtrer par affaire');
+  const li=[];li.push(`chaque ligne garde son affaire — ${esc(num)} pour ces lignes, ${esc(orig||'l\'origine')} pour celles du chantier : quantités, avancement, situations, DOE, marché et TS séparés`);li.push('les gars : un seul chantier au nom commun, même plan, même accueil (PPSPS, DICT, plan de prévention…) — ils voient tout le réseau et pointent ; dossiers communs ou séparés par affaire : réglage ci-dessous');
   info.prolong.forEach(p=>li.push(`↪ « ${esc(p.name)} » prolonge « ${esc(p.withName)} » : ${p.at==='start'?'départ':'fin'} « sur attente existante »${p.d>0.05?' (écart '+nb(p.d,2)+' m)':''}`));
   if(info.plans)li.push(`${info.plans} plan(s) de fond de l'étude ajouté(s) au chantier`);if(info.zones)li.push(`${info.zones} zone(s) de chiffrage de l'étude reprises`);
   info.warnings.forEach(w=>li.push(`<span class="w">⚠ ${esc(w)}</span>`));if(!sameCat)li.push(`<span class="w">⚠ catalogue de l'étude (${esc((Ef.supplier||'?')+' s'+(Ef.serie||'?'))}) ≠ celui du chantier (${esc((Cf.supplier||'?')+' s'+(Cf.serie||'?'))}) : le traceur recalculera les lignes rattachées avec celui du chantier à la prochaine modification</span>`);
   A.openModal(`<div class="mu-modal" id="muConf"><h3>🔗 Rattacher l'étude au chantier</h3><div class="eq-s">${info.lines>1?'Les <b>'+info.lines+' lignes</b>':'La <b>ligne</b>'} (${info.welds} soudures) de l'étude « ${esc(Ef.name||R.eId)} » ${info.lines>1?'rejoignent':'rejoint'} le chantier « <b>${esc(Cf.name||R.cId)}</b> » — position ${esc(R.how||'calée dans le traceur')}${R.k&&Math.abs(R.k-1)>0.0005?' (échelle ×'+nb(R.k,4)+' ramenée à 1 : l\'étude garde ses longueurs)':''}.</div>
     <ul class="mu-sum">${li.map(x=>'<li>'+x+'</li>').join('')}</ul>
-    <label class="f" for="muNom">Nom affiché aux gars</label><input class="f" id="muNom" value="${esc(nom0)}" maxlength="80" autocomplete="off">
+    ${mvFoldHTML(Cf)}<label class="f" for="muNom">Nom affiché aux gars</label><input class="f" id="muNom" value="${esc(nom0)}" maxlength="80" autocomplete="off">
     <div class="actions"><button class="btn" type="button" data-close>Annuler</button><button class="btn" type="button" id="muCal" title="vérifier ou corriger la position de l'étude dans le traceur">🎯 Ajuster dans le traceur</button><button class="btn primary" type="button" id="muGo">${R.gain?'🏆 Gagnée + rattacher':'🔗 Rattacher'}</button></div></div>`);
-  const c=document.getElementById('muCal');if(c)c.onclick=()=>goCalage(num,R,R.T);
-  const g=document.getElementById('muGo');if(g)g.onclick=async()=>{if(!canWrite(ctx))return;const nom=((document.getElementById('muNom')||{}).value||'').trim()||nom0;g.disabled=true;g.textContent='⏳ Rattachement…';const r=await commitAttach(num,R,nom);A.closeModal();if(r.ok)afterCommit(num,r);else A.toast('Rattachement non fait : '+r.why);};}
+  const c=document.getElementById('muCal');if(c)c.onclick=()=>goCalage(num,R,R.T);mvWireRows(document.getElementById('mvFold')); /* lot MV : pli « Commun / séparé par dossier » */
+  const g=document.getElementById('muGo');if(g)g.onclick=async()=>{if(!canWrite(ctx))return;const nom=((document.getElementById('muNom')||{}).value||'').trim()||nom0;const part=mvFoldRead();g.disabled=true;g.textContent='⏳ Rattachement…';const r=await commitAttach(num,Object.assign({},R,{partage:part}),nom);A.closeModal();if(r.ok)afterCommit(num,r);else A.toast('Rattachement non fait : '+r.why);};}
 let busy=false;
 async function commitAttach(num,R,nom){if(busy)return {ok:false,why:'un rattachement est déjà en cours'};busy=true;try{const a=affOf(num);if(!a)return {ok:false,why:'affaire introuvable'};if(!online())return {ok:false,why:'pas de connexion'};
   const Cf=await fullSite(R.cId,true);if(Cf&&Cf.late)return {ok:false,why:'serveur trop lent — réessaie dans un instant'};if(!Cf||!Cf.lines)return {ok:false,why:'chantier introuvable'};if(isMutu(Cf)&&Cf.affaires.includes(num))return {ok:false,why:'cette affaire est déjà rattachée à ce chantier'};
@@ -192,6 +198,7 @@ async function commitAttach(num,R,nom){if(busy)return {ok:false,why:'un rattache
   const eRows=await srvRows(R.eId);const eAct=activityOn({lines:Ef.lines,extraWelds:Ef.extraWelds},'',{rows:eRows,joints:sessJoints(R.eId)});if(eAct.n)return {ok:false,why:'le tracé de l\'étude a déjà de l\'activité ('+eAct.items.join(', ')+') : « Détacher / fusionner » viendra plus tard'};
   const rows=await srvRows(R.cId);const by=(A.userName&&A.userName())||'';const at=now();
   const {site,info}=mergeSites(Cf,Ef,R.T,{aff:num,orig:origNum(Cf,num),by,at,nom,k:R.k,how:R.how,weldMax:Math.max(maxWeld(rows),maxWeld(sessJoints(R.cId)))});
+  if(R.partage&&typeof R.partage==='object'){const pc=partageClean(R.partage);site.mutu=Object.assign({},site.mutu);if(pc)site.mutu.partage=pc;else delete site.mutu.partage;} /* lot MV : réglage commun / séparé choisi dans la confirmation (seulement ce qui s'écarte du défaut) */
   const w=await writeSite(site);if(!w.ok)return {ok:false,why:w.why};
   const e=Object.assign({},etudeMark(R.eId)||{},{aff:num,verse:{site:R.cId,aff:num,at,by}});try{await A.saveSiteFicheX(R.eId,{etude:e},true);}catch(err){console.warn(err);}
   const a2=affOf(num)||a;const sites=(a2.sites||[]).filter(x=>x!==R.eId);if(!sites.includes(R.cId))sites.push(R.cId);const p={sites,mutu:{site:R.cId,etude:R.eId,etudeNom:Ef.name||'',at,by,lignes:info.lines}};
@@ -240,7 +247,8 @@ export function mutuRowHTML(a,s,canEdit,ctx){try{if(!A||!a||!s)return null;const
   const av=avOf(id,a.num);const avT=av?(av.wait?' · <span class="mu-wait">avancement : chargement…</span>':` · <span class="mu-av" title="soudures faites (soudées, contrôlées ou manchonnées) sur les lignes de cette affaire">avancement ${av.done}/${av.tot} (${av.pct} %)</span>`):'';
   const mine=i===0?'origine du chantier':'lignes rattachées le '+dFR(((n.mutu&&n.mutu.hist)||[]).filter(h=>h&&h.aff===a.num&&!h.undoneAt).map(h=>h.at).pop());
   const undo=canEdit&&i>0?`<button class="btn sm" data-act="af" data-v="muundo|${esc(id)}" style="color:#9b2c22" title="tant qu'aucune soudure / aucun pointage n'est enregistré sur les lignes de cette affaire">↩ Annuler le rattachement</button>`:'';
-  return `<div class="ac-row lz-row mu-row" data-lzsite="${esc(id)}" data-mu="1" style="min-height:52px;margin-bottom:6px"><span class="ic" style="background:#efe8fb">🔗</span><span class="tx"><b>${esc(n.name||id)}</b><small><span class="mu-tag">chantier partagé</span>avec ${others} · ${esc(mine)} · ${qty}${avT}</small></span><span class="eq-acts"><button class="btn sm" data-act="opensite" data-v="${esc(id)}" title="Ouvrir le chantier (écran Tracé)">Ouvrir</button>${undo}</span></div>`;}catch(e){console.warn(e);return null;}}
+  const part=`<button class="btn sm" data-act="af" data-v="mupart|${esc(id)}" title="Commun ou séparé par affaire, dossier par dossier (Modifs et DOE : toujours séparés)">⚙ Commun / séparé par dossier</button>`; /* lot MV */
+  return `<div class="ac-row lz-row mu-row" data-lzsite="${esc(id)}" data-mu="1" style="min-height:52px;margin-bottom:6px"><span class="ic" style="background:#efe8fb">🔗</span><span class="tx"><b>${esc(n.name||id)}</b><small><span class="mu-tag">chantier partagé</span>avec ${others} · ${esc(mine)} · ${qty}${avT}</small></span><span class="eq-acts"><button class="btn sm" data-act="opensite" data-v="${esc(id)}" title="Ouvrir le chantier (écran Tracé)">Ouvrir</button>${part}${undo}</span></div>`;}catch(e){console.warn(e);return null;}}
 /* affaires.js (onglet sites) : étude versée, « ➕ Ajouter au chantier en cours » (affaire gagnée), retour d'un calage */
 export function mutuTabHTML(a,canEdit,ctx,consult){try{if(!A||!a)return '';let h='';const M=a.mutu;
   if(M&&M.site){h+=`<div class="ac-row lz-row mu-row" data-mu="etude" style="min-height:52px;margin-bottom:6px"><span class="ic" style="background:#e8f0fb">📐</span><span class="tx"><b>${esc(M.etudeNom||nameOf(M.etude))}</b><small><span class="lz-tag et">étude versée</span>dans le chantier « ${esc(nameOf(M.site))} » le ${dFR(M.at)}${M.by?' par '+esc(M.by):''} — lecture seule : ses ${M.lignes||''} ligne${M.lignes>1?'s':''} vivent maintenant dans le chantier (plan, soudures, quantités de cette affaire)</small></span></div>`;}
@@ -253,7 +261,8 @@ export function mutuFactHTML(a){try{if(!A||!a)return '';const L=(a.sites||[]).ma
 export function mutuAct(k,arg,arg2,a,ctx){if(!/^mu/.test(k))return false;if(!a)return true;
   if(k==='muadd'){if(!canWrite(ctx))return true;choiceModal(a,ctx,{gain:false});return true;}
   if(k==='muundo'){undoFlow(a.num,arg,ctx).catch(e=>console.warn(e));return true;}
+  if(k==='mupart'){let st=null;try{st=A.affState&&A.affState();}catch(e){}mvOpenPartage(arg,{consult:!!(st&&st.vview)});return true;} /* lot MV : ⚙ Commun / séparé par dossier (version consultée : lecture seule) */
   return false;}
 /* ═════════ 8 · TESTS ═════════ */
 export function mutuTestApi(){return {log:()=>LOG.slice(),cands:num=>{const a=affOf(num);return a?candidates(a):[];},etudes:num=>{const a=affOf(num);return a?etudesOf(a):[];},chip:()=>({site:chip.site,i:chip.i}),setChip:i=>setChip(i),
-  verse:id=>mutuVerse(id),av:(id,num)=>avOf(id,num),scope:()=>{const n=curNet();return isMutu(n)?scopeOf(n):null;},attach:(num,eId,cId,o)=>startAttach(num,eId,cId,o||{}),commit:(num,R,nom)=>commitAttach(num,R,nom),undo:(num,cId)=>commitUndo(num,cId,null)};}
+  verse:id=>mutuVerse(id),av:(id,num)=>avOf(id,num),scope:()=>{const n=curNet();return isMutu(n)?scopeOf(n):null;},attach:(num,eId,cId,o)=>startAttach(num,eId,cId,o||{}),commit:(num,R,nom)=>commitAttach(num,R,nom),undo:(num,cId)=>commitUndo(num,cId,null),mv:mvTestApi()};}

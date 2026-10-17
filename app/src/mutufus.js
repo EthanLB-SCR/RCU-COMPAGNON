@@ -68,6 +68,7 @@ export function mergeSites(C,E,T,o){o=o||{};const aff=String(o.aff||'');if(!aff)
   /* 2 · nouveaux n° de soudure (après tout n° connu : plan, soudures ajoutées sur place, soudures perdues, serveur) */
   let wmax=+o.weldMax||0;(S.lines||[]).forEach(L=>['A','R'].forEach(c=>{const cd=L&&L.cond&&L.cond[c];((cd&&(cd.welds||cd.joints))||[]).forEach(w=>{wmax=Math.max(wmax,wnum(w.weldId));});}));
   (Array.isArray(S.extraWelds)?S.extraWelds:[]).forEach(x=>{wmax=Math.max(wmax,wnum(x&&x.weldId));});((S.report&&S.report.lost)||[]).forEach(id=>{wmax=Math.max(wmax,wnum(id));});
+  wmax=Math.max(wmax,implicitWelds(S)); /* lot MV : chantier IMPORTÉ (calepinage DXF, axe) — l'appli numérote ses soudures S-0001… à l'ouverture : les n° neufs passent au-delà */
   const wmap={};E.lines.forEach(L=>['A','R'].forEach(c=>{const cd=L&&L.cond&&L.cond[c];((cd&&cd.welds)||[]).forEach(w=>{if(w.weldId&&!wmap[w.weldId])wmap[w.weldId]='S-'+String(++wmax).padStart(4,'0');});}));
   /* 3 · plans de fond de l'étude : calés par T (composée avec leur propre calage), ajoutés au chantier ; les DXF rejoignent le dessin fusionné (marqués p:<index>) */
   const planMap={};const addedPlans=[];const eP=plansWithDrawing(E);
@@ -162,3 +163,61 @@ export function affInherit(lines){const by={};(lines||[]).forEach(l=>{if(l&&l.id
   while(chg&&guard++<50){chg=false;(lines||[]).forEach(l=>{if(!l||l.aff||l.parent==null)return;const p=by[String(typeof l.parent==='object'?l.parent.line:l.parent)];if(p&&p.aff){l.aff=p.aff;chg=true;}});}return lines;}
 /* tracé marché VU par le traceur d'un chantier mutualisé : celui de l'origine + ceux des affaires rattachées (chaque ligne comparée à SON marché) ; sinon le marché tel quel */
 export function marcheView(M,MA){if(!MA||typeof MA!=='object'||!Object.keys(MA).length||!M||!Array.isArray(M.lines))return M;const L=M.lines.concat(...Object.values(MA).map(x=>(x&&Array.isArray(x.lines))?x.lines:[]));return Object.assign({},M,{lines:L,tot:sumCounts(L.map(x=>x.c))});}
+/* ═════════ LOT MV (17/10) — fonctions pures (testées dans Node) ═════════ */
+/* soudures que l'appli numérote ELLE-MÊME à l'ouverture (lignes importées d'un DXF ou lues par l'axe : pas de soudures enregistrées dans le plan, le moteur pose S-0001…
+   dans l'ordre des lignes) — majorant : un n° neuf donné au rattachement ne doit jamais retomber sur l'une d'elles (sinon pointer une soudure 2026 touchait une 2025) */
+export function implicitWelds(S){let n=0;(S&&S.lines||[]).forEach(L=>{if(!L||(L.traceur&&L.cond&&typeof L.cond==='object'))return;const nc=(typeof L.cond==='string'&&L.cond)?1:2;
+  if(Array.isArray(L.els)&&L.els.length){n+=(L.els.length+2)*nc;return;}
+  const ax=axisOf(L);let len=0;for(let i=1;i<ax.length;i++)len+=Math.hypot(ax[i][0]-ax[i-1][0],ax[i][1]-ax[i-1][1]);if(ax.length>1)n+=(Math.ceil(len/6)+ax.length+4+2*((L.specials||[]).length))*nc;});return n;}
+/* COMMUN OU SÉPARÉ, DOSSIER PAR DOSSIER. Ethan (17/10) : « pour tout dossier il faut pouvoir choisir si on lie ou pas […] ce qui peut toucher au contractuel ne doit pas être
+   mélangé ; ce qui est outil d'aide pour les équipes et le conduc peut l'être […] ce sera un DOE par marché quand même ». Donnée optionnelle : site.mutu.partage =
+   {<onglet>: 'commun' | 'separe'} — absente (ou valeur inconnue) = le défaut ci-dessous. [onglet, libellé, défaut, réglable, pourquoi]. Toujours communs : le plan (Ethan), et
+   ce qui est UN par site ou sans données propres (bureau, QSE, dossier d'accueil, stock physique, catalogue) ; toujours séparés : Modifs et DOE (le contrat) ; réglables : le reste. */
+export const MV_PARTS=[
+  ['plan','Plan d\'ensemble et pointage','commun',false,'une fois les affaires réunies, le plan les montre ensemble : les gars voient leur ville, tout le réseau, et pointent'],
+  ['bureau','Bureau','commun',false,'l\'outil du conducteur et du chef sur place : il n\'a pas de données à lui, chaque dossier qu\'il ouvre suit son propre réglage'],
+  ['conv','Conversation','commun',true,'une seule équipe sur place : les messages et les notes servent à tout le monde (séparée : chaque affaire son fil ; les notes restent sur le plan)'],
+  ['qse','QSE','commun',false,'mêmes personnes sur le même site : un seul accueil, mêmes émargements et quarts d\'heure sécurité'],
+  ['admin','Dossier (accueil : PPSPS, DICT, plan de prévention…)','commun',false,'un seul accueil, un seul PPSPS et une seule DICT pour un même site (les PV d\'épreuve y gardent leur affaire)'],
+  ['stock','Stock','commun',false,'le stock physique, c\'est le même tas de tubes sur place ; commandes, BL et réceptions de chaque marché : dossier Fourniture'],
+  ['catalogue','Catalogue','commun',false,'les pièces du fournisseur : une référence, pas un dossier d\'affaire'],
+  ['ts','Modifs (marché, TS, écarts)','separe',false,'c\'est le contrat de chaque affaire : un TS ne passe jamais d\'une affaire à l\'autre'],
+  ['fourniture','Fourniture (commandes, BL, réceptions)','separe',true,'chaque marché a sa commande et ses livraisons'],
+  ['phasage','Phasage','separe',true,'les phases et le planning comparés au marché de chaque affaire'],
+  ['hydro','Hydraulique (épreuves)','separe',true,'un procès-verbal d\'épreuve par marché'],
+  ['bouclage','DH (contrôles)','separe',true,'les contrôles DH vont dans le dossier de chaque marché'],
+  ['liste','Liste des soudures','separe',true,'les soudures comptent pour l\'avancement et les situations de leur affaire'],
+  ['recap','Récap (quantités)','separe',true,'les quantités servent aux situations : jamais deux affaires dans un même total'],
+  ['export','Export / DOE','separe',false,'un DOE par marché : contractuellement, ce n\'est pas le même dossier']];
+const MVP=Object.fromEntries(MV_PARTS.map(p=>[p[0],p]));
+/* 'commun' | 'separe' pour un onglet d'un chantier (un onglet non listé : commun) */
+export function partOf(site,tab){const p=MVP[tab];if(!p)return 'commun';if(!p[3])return p[2];const v=site&&site.mutu&&site.mutu.partage&&site.mutu.partage[tab];return v==='commun'||v==='separe'?v:p[2];}
+/* réglage à enregistrer : seulement ce qui s'écarte du défaut (rien → null : la donnée reste absente) */
+export function partageClean(map){const o={};MV_PARTS.forEach(([k,,d,r])=>{if(!r)return;const v=map&&map[k];if((v==='commun'||v==='separe')&&v!==d)o[k]=v;});return Object.keys(o).length?o:null;}
+/* affaire d'un enregistrement d'onglet (TS, commande, phase, épreuve, mesure DH…) : son aff ; sans aff, celle de SES lignes quand elles sont toutes de la même affaire ;
+   sinon l'origine. lineAff(id) = affaire d'une ligne ('' ou l'origine pour une ligne d'origine), orig = n° de l'origine */
+export function recAff(rec,lineIds,lineAff,orig){if(rec&&rec.aff!=null&&rec.aff!=='')return String(rec.aff);const ids=[...new Set((lineIds||[]).filter(x=>x!=null&&x!=='').map(String))];if(!ids.length)return String(orig||'');
+  const set=new Set(ids.map(id=>{const a=lineAff(id);return a==null||a===''?String(orig||''):String(a);}));return set.size===1?[...set][0]:String(orig||'');}
+/* V1 · l'ÉTUDE POSÉE POUR LE CALAGE, AVEC SON DÉTAIL. Ethan (17/10) : « l'affaire nouvellement gagnée que j'ai voulu lier apparaît en noir complet sans détail ». Le
+   traceur posait l'étude comme un plan de fond fait de ses seuls AXES, dessinés par le rendu des fonds : calques « réseau » en #3f3d39 (noir) dès que « Fond en
+   couleurs » est décoché, un trait violet foncé de 4 px sinon (noir sur la vue aérienne) — ni conduites, ni soudures, ni pièces. Ici : ce que l'étude a de construit,
+   comme le chantier à côté — conduites aller (rouge) / retour (bleu) pièce par pièce, soudures marquées et numérotées, nom et DN de chaque ligne — sur un halo violet
+   clair (« c'est l'étude à caler ») ; toujours en éléments de dessin de fond (drawingSVG) pour garder les outils de calage d'un plan. Repère de l'étude. */
+const r2=v=>+(+v).toFixed(3);
+function bufferPoly(ax,hw){if(!ax||ax.length<2)return null;const L=[],R=[];const n=ax.length;for(let i=0;i<n;i++){const p=ax[i];let tx=0,ty=0;if(i>0){tx+=p[0]-ax[i-1][0];ty+=p[1]-ax[i-1][1];}if(i<n-1){tx+=ax[i+1][0]-p[0];ty+=ax[i+1][1]-p[1];}
+  const l=Math.hypot(tx,ty)||1;const nx=-ty/l,ny=tx/l;L.push([r2(p[0]+nx*hw),r2(p[1]+ny*hw)]);R.push([r2(p[0]-nx*hw),r2(p[1]-ny*hw)]);}return L.concat(R.reverse());}
+export function etudePreview(E){const halo=[],white=[],col=[],ticks=[],txt=[];const lines=((E&&E.lines)||[]).filter(l=>l&&!l.ghost);
+  lines.forEach(L=>{const ax=axisOf(L).filter(p=>isFinite(p[0])&&isFinite(p[1]));if(ax.length<2)return;const hw=Math.max(1.25,(+L.e||0.5)/2+0.75);
+    const poly=bufferPoly(ax,hw);if(poly)halo.push({fill:'#cbb8f2',op:.8,loops:[poly],mv:1});let built=false;
+    ['A','R'].forEach(c=>{const cd=L.cond&&typeof L.cond==='object'?L.cond[c]:null;if(!cd||!Array.isArray(cd.els))return;const cc=c==='A'?'#c8382f':'#2a5fb4';
+      cd.els.forEach(e=>{((e&&e.axis)||[]).forEach(pl=>{if(!Array.isArray(pl)||pl.length<2)return;const pts=pl.map(p=>[r2(p[0]),r2(p[1])]);if(!pts.every(p=>isFinite(p[0])&&isFinite(p[1])))return;built=true;white.push({pts,c:'#ffffff',w:150,mv:1});col.push({pts,c:cc,w:70,mv:1});});});
+      (cd.welds||[]).forEach(w=>{if(!w||w.x==null||w.y==null||!isFinite(+w.x)||!isFinite(+w.y))return;const e=cd.els[w.idx]||cd.els[cd.els.length-1];const pl=e&&e.axis&&e.axis[0];let tx=1,ty=0;
+        if(pl&&pl.length>1){const a=pl[pl.length-2],b=pl[pl.length-1];const l=Math.hypot(b[0]-a[0],b[1]-a[1])||1;tx=(b[0]-a[0])/l;ty=(b[1]-a[1])/l;}const nx=-ty,ny=tx,x=+w.x,y=+w.y;
+        ticks.push({pts:[[r2(x-nx*.45),r2(y-ny*.45)],[r2(x+nx*.45),r2(y+ny*.45)]],c:'#1d1b17',w:120,mv:1});
+        if(w.weldId)txt.push({text:String(w.weldId).replace(/^S-0*/,''),x:r2(x+nx*.95*(c==='A'?1:-1)),y:r2(y+ny*.95*(c==='A'?1:-1)),h:.6,c:'#1d1b17',a:'middle',mv:1});});});
+    if(!built)col.push({pts:ax.map(p=>[r2(p[0]),r2(p[1])]),c:'#6a32c9',w:120,mv:1}); /* tracé jamais construit (lignes brutes seules) : son axe, en violet */
+    const m=ax[Math.floor((ax.length-1)/2)],m2=ax[Math.min(ax.length-1,Math.floor((ax.length-1)/2)+1)];const dx=m2[0]-m[0],dy=m2[1]-m[1];const l=Math.hypot(dx,dy)||1;
+    const lab=String(L.name||L.id)+(L.dn?' · DN'+L.dn:'');const h=1.4,wl=lab.length*h*0.78,cx=(m[0]+m2[0])/2+(-dy/l)*(hw+1.4),cy=(m[1]+m2[1])/2+(dx/l)*(hw+1.4);
+    halo.push({fill:'#ffffff',op:.88,loops:[[[r2(cx-wl/2-.3),r2(cy-h*1.25)],[r2(cx+wl/2+.3),r2(cy-h*1.25)],[r2(cx+wl/2+.3),r2(cy+h*.45)],[r2(cx-wl/2-.3),r2(cy+h*.45)]]],mv:1});
+    txt.push({text:lab,x:r2(cx),y:r2(cy),h,c:'#3b2370',a:'middle',mv:1});});
+  return halo.concat(white,col,ticks,txt);}

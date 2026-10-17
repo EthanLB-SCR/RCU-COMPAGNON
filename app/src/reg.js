@@ -10,9 +10,13 @@ let PEND=[];              // [{kind, id, patch, mode}] en attente de réseau
 const LISTENERS=new Set();
 const LOADED=new Set();
 let flushT=null;const WARNED={};
+const MISSING={}; // 17/10 (lot DZ) : registres que le serveur a dits inconnus (« registre inconnu » : le SQL n'est pas passé) — effacé dès qu'une écriture de ce registre passe
+const SENT=new Set(); // 17/10 (lot DZ) : écouteurs « après un envoi » (la file a pu se vider : un bandeau se met à jour, sans redessiner l'écran)
 const REFUSED={}; // 13/10 soir : écritures refusées par le serveur pour une question de DROITS — gardées (le droit peut arriver), listées avec « Abandonner » (pastille ⚠️ de l'appli)
 export function initReg(api){A=api;}
 export function onReg(cb){LISTENERS.add(cb);return ()=>LISTENERS.delete(cb);}
+export function onRegSent(cb){SENT.add(cb);return ()=>SENT.delete(cb);} /* 17/10 (lot DZ) */
+export const regMissing=kind=>!!MISSING[kind]; /* 17/10 (lot DZ) : le serveur a répondu « registre inconnu » pour ce registre */
 function emit(kind,src){LISTENERS.forEach(cb=>{try{cb(kind,src||'local');}catch(e){console.warn(e);}});} /* 14/10 nuit (sync) : 2e argument = origine — 'local' (écriture faite ici) ou 'server' (données reçues : l'appli redessine sans casser une saisie) */
 /* 14/10 nuit (sync) : repère serveur (ms) = plus récent updated_at reçu du serveur → rafraîchissement léger (seulement les lignes modifiées depuis) ; signature d'un registre (ne redessine que si quelque chose a changé) */
 let SRV_MAX=0;const noteAt=at=>{const t=at?Date.parse(at):0;if(t&&t>SRV_MAX&&t<Date.now()+86400000)SRV_MAX=t;};
@@ -27,7 +31,7 @@ function put(kind,id,data,at){(ROWS[kind]=ROWS[kind]||{})[id]={id,data,updated_a
 function merge(old,patch,mode){if(mode==='replace')return patch;const out=Object.assign({},old||{});Object.keys(patch||{}).forEach(k=>{if(patch[k]===null)delete out[k];else out[k]=patch[k];});return out;}
 export function regSet(kind,id,patch,opts){opts=opts||{};const mode=opts.replace?'replace':'merge';const old=ROWS[kind]&&ROWS[kind][id]?ROWS[kind][id].data:null;const data=merge(old,patch,mode);put(kind,id,data);kvSet('trace:reg:'+kind,ROWS[kind]);
   if(!opts.local){ /* une écriture en attente sur la même ligne est remplacée par la fusion des deux (le serveur ne verra que le résultat) */
-    const i=PEND.findIndex(w=>w.kind===kind&&w.id===id);if(i>=0){const w=PEND[i];PEND[i]={kind,id,patch:mode==='replace'?patch:(w.mode==='replace'?merge(w.patch,patch,'merge'):Object.assign({},w.patch,patch)),mode:w.mode==='replace'?'replace':mode};}else PEND.push({kind,id,patch,mode}); /* 14/10 nuit (audit) : deux écritures « fusion » en attente se cumulent EN GARDANT les null (suppression d'une clé) — avant, la suppression se perdait */
+    const i=PEND.findIndex(w=>w.kind===kind&&w.id===id);if(i>=0){const w=PEND[i];PEND[i]={kind,id,patch:mode==='replace'?patch:(w.mode==='replace'?merge(w.patch,patch,'merge'):Object.assign({},w.patch,patch)),mode:w.mode==='replace'?'replace':mode,t:w.t||Date.now()};}else PEND.push({kind,id,patch,mode,t:Date.now()}); /* 17/10 (lot DZ) : t = en attente depuis */ /* 14/10 nuit (audit) : deux écritures « fusion » en attente se cumulent EN GARDANT les null (suppression d'une clé) — avant, la suppression se perdait */
     kvSet('trace:regPending',PEND);clearTimeout(flushT);flushT=setTimeout(()=>regFlush().catch(e=>console.warn(e)),600);}
   if(!opts.quiet)emit(kind,'local'); /* 13/10 : quiet = enregistré (appareil + serveur) sans redessiner — texte du mémoire tapé dans la page */return data;}
 export function regDelete(kind,id,opts){return regSet(kind,id,{deleted:true,deletedAt:new Date().toISOString(),deletedBy:A.userName?A.userName():''},opts);}
@@ -35,12 +39,13 @@ export function regDelete(kind,id,opts){return regSet(kind,id,{deleted:true,dele
 let FLUSHING=null,FLUSH_AGAIN=false;
 export function regFlush(){if(FLUSHING){FLUSH_AGAIN=true;return FLUSHING;}FLUSHING=regFlush_().catch(e=>{console.warn(e);}).finally(()=>{FLUSHING=null;if(FLUSH_AGAIN){FLUSH_AGAIN=false;regFlush();}});return FLUSHING;}
 async function regFlush_(){if(!PEND.length||!A.state.cloudUser||!A.sync.setRegistre)return;const list=PEND.slice();const rest=[];
-  for(let i=0;i<list.length;i++){const w=list[i];let ok=false,stop=false;try{const r=await A.sync.setRegistre(w.kind,w.id,w.patch,w.mode);ok=!!r.ok;if(!ok&&r.missing){if(/registre inconnu/i.test(r.error||'')){if(A.toast&&!WARNED[w.kind]){WARNED[w.kind]=1;A.toast('Serveur : passe le SQL sql/'+({prix:'retours_13-10b.sql',panier:'retours_13-10b.sql',cpth:'retours_13-10d.sql',magcat:'retours_14-10a.sql',magdem:'retours_14-10a.sql',magmvt:'retours_14-10a.sql',vcfg:'retours_14-10a.sql',vrec:'retours_14-10a.sql',entdoc:'retours_14-10b.sql'}[w.kind]||'retours_12-10.sql')+' (registre « '+w.kind+' »)');}} /* 12/10 : un registre que le serveur ne connaît pas encore attend, sans bloquer les autres */else{if(A.toast)A.toast('Serveur : passe le SQL sql/nuit_v1.sql (registre)');stop=true;}}
+  for(let i=0;i<list.length;i++){const w=list[i];let ok=false,stop=false;try{const r=await A.sync.setRegistre(w.kind,w.id,w.patch,w.mode);ok=!!r.ok;if(!ok&&r.missing){if(/registre inconnu/i.test(r.error||'')){MISSING[w.kind]=1;if(A.toast&&!WARNED[w.kind]){WARNED[w.kind]=1;A.toast('Serveur : passe le SQL sql/'+({prix:'retours_13-10b.sql',panier:'retours_13-10b.sql',cpth:'retours_13-10d.sql',magcat:'retours_14-10a.sql',magdem:'retours_14-10a.sql',magmvt:'retours_14-10a.sql',vcfg:'retours_14-10a.sql',vrec:'retours_14-10a.sql',entdoc:'retours_14-10b.sql'}[w.kind]||'retours_12-10.sql')+' (registre « '+w.kind+' »)');}} /* 12/10 : un registre que le serveur ne connaît pas encore attend, sans bloquer les autres */else{if(A.toast)A.toast('Serveur : passe le SQL sql/nuit_v1.sql (registre)');stop=true;}}
       else if(!ok&&/droit|réservé|inactif|permission|policy/i.test(r.error||'')){REFUSED[w.kind+'|'+w.id]={kind:w.kind,id:w.id,error:String(r.error||'').slice(0,160),at:Date.now()};if(A.toast&&!WARNED['x'+w.kind]){WARNED['x'+w.kind]=1;A.toast('Serveur : écriture refusée — '+String(r.error).replace(/^.*?:\s*/,'').slice(0,140)+' (gardée sur cet appareil : ⚠️ en haut pour l\'abandonner)');}} /* 13/10 (e) : base de prix sans le droit côté serveur ; 13/10 soir : abandon possible */
-      if(ok)delete REFUSED[w.kind+'|'+w.id];
+      if(ok){delete REFUSED[w.kind+'|'+w.id];delete MISSING[w.kind];}
       if(ok&&r.row&&r.row.data&&!list.some(x=>x!==w&&x.kind===w.kind&&x.id===w.id)&&!PEND.some(x=>x!==w&&x.kind===w.kind&&x.id===w.id)){ /* 14/10 nuit (audit) : une écriture plus récente attend → on garde la ligne locale */put(w.kind,w.id,r.row.data,r.row.updated_at);noteAt(r.row.updated_at);kvSet('trace:reg:'+w.kind,ROWS[w.kind]);}}catch(e){console.warn(e);}
     if(stop){rest.push(...list.slice(i));break;}if(!ok)rest.push(w);}
-  PEND=rest.concat(PEND.filter(w=>!list.includes(w)));kvSet('trace:regPending',PEND);if(A.onRefused)try{A.onRefused();}catch(e){}}
+  PEND=rest.concat(PEND.filter(w=>!list.includes(w)));kvSet('trace:regPending',PEND);if(A.onRefused)try{A.onRefused();}catch(e){}
+  const ks=[...new Set(list.map(w=>w.kind))];SENT.forEach(cb=>{try{cb(ks);}catch(e){console.warn(e);}});} /* 17/10 (lot DZ) : la file a pu se vider (ou le serveur a dit « registre inconnu ») */
 /* 13/10 soir : refus pour droits — la liste, et « Abandonner » (l'écriture quitte la file d'attente, la ligne reprend la valeur du serveur) */
 export const regRefused=()=>Object.values(REFUSED).filter(x=>PEND.some(w=>w.kind===x.kind&&w.id===x.id));
 export async function regDrop(kind,id){PEND=PEND.filter(w=>!(w.kind===kind&&w.id===id));delete REFUSED[kind+'|'+id];kvSet('trace:regPending',PEND);if(ROWS[kind])delete ROWS[kind][id];try{await regReload(kind);}catch(e){}emit(kind);if(A.onRefused)try{A.onRefused();}catch(e){}}

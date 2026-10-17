@@ -1,0 +1,1184 @@
+{
+ "_": "DPGF pointé avec le build 9ab20e (16/10, avant le lot DZ) — données fictives, voir make_fixture_dpgfzone_avant.mjs",
+ "build": "16/10/2026 · 9ab20e",
+ "chiffrage": {
+  "etudes": [
+   {
+    "id": "Emvc79ubuv7",
+    "nom": "Secteur Alpha (essai)",
+    "chantier": {
+     "d0": "",
+     "d1": "",
+     "type": "Gros",
+     "iso": "Iso 1",
+     "wc": false,
+     "contener": false,
+     "benne": false,
+     "doe": false,
+     "pelle": false,
+     "arPelle": 0,
+     "carnet": false,
+     "arMO": false,
+     "arMOQty": 1,
+     "transfert": false,
+     "eq1": "S+T+P",
+     "eq2": "M",
+     "hTransfert": 0,
+     "nbOper": 0,
+     "camionPlateau": false,
+     "grue": false,
+     "hGrue": 0,
+     "nbDecharg": 0,
+     "bardage": false,
+     "tauxBardage": 5
+    },
+    "eq": {
+     "soud": "S+T+P",
+     "manch": "M",
+     "typeManchon": "Thermo",
+     "twin": false,
+     "reduction": 1,
+     "joursComplets": false,
+     "ctrl": {
+      "depression": false,
+      "filsDH": false,
+      "ressuage": false,
+      "itopo": false,
+      "pression": false
+     },
+     "coussins": false,
+     "qteCoussins": 0,
+     "ventilerCoussins": false
+    },
+    "mlMode": "tranchee",
+    "dn": [
+     {
+      "dn": 100,
+      "soud": 60,
+      "ml": 600
+     },
+     {
+      "dn": 80,
+      "soud": 20,
+      "ml": 300
+     }
+    ],
+    "nuit": {
+     "on": false,
+     "dn": 100,
+     "soud": 0,
+     "rendement": 0.8
+    },
+    "purges": {
+     "dn": 32,
+     "purgeurAuto": false,
+     "paires": 0,
+     "deporte": false
+    },
+    "vidanges": {
+     "dn": 50,
+     "type": "gravite",
+     "paires": 0,
+     "deporte": false
+    },
+    "vpi": [],
+    "sst": [],
+    "extrusion": [],
+    "racc": [],
+    "cnd": {
+     "km": "",
+     "radio": {
+      "on": false,
+      "antPct": 0,
+      "antVac": 0,
+      "fdPct": 0,
+      "fdVac": 0,
+      "raccFilms": 0,
+      "raccVac": 0
+     },
+     "us": {
+      "on": false,
+      "antPct": 0,
+      "antVac": 0,
+      "fdPct": 0,
+      "fdVac": 0,
+      "raccFilms": 0,
+      "raccVac": 0
+     },
+     "ress": {
+      "on": false,
+      "antPct": 0,
+      "antVac": 0,
+      "fdPct": 0,
+      "fdVac": 0,
+      "raccFilms": 0,
+      "raccVac": 0
+     }
+    },
+    "hydro": {
+     "zones": [
+      {
+       "nom": "Épreuve 1",
+       "rows": [],
+       "pr": {
+        "epreuve": true
+       }
+      }
+     ],
+     "trajetH": 1,
+     "epreuveH": 4,
+     "hydrocureur": false,
+     "hHydro": [
+      0
+     ],
+     "panier": "OS",
+     "epreuve": true,
+     "rincage": false,
+     "passivation": false,
+     "eau": false,
+     "conservation": false,
+     "adoucisseur": "15",
+     "devis": {}
+    },
+    "boulet": {
+     "on": false,
+     "rows": []
+    },
+    "aerien": {
+     "planIso": false,
+     "rows": [],
+     "hDepl": 0,
+     "devisPose": 0,
+     "devisFO": 0
+    },
+    "depose": {
+     "rows": []
+    },
+    "foncage": {
+     "rows": []
+    },
+    "panier": {
+     "fo": [],
+     "mo": []
+    },
+    "fopre": {
+     "rows": [],
+     "prixFO": 0,
+     "prixTransport": 0
+    },
+    "autres": {
+     "fournitures": [],
+     "prestations": [],
+     "frais": 0
+    },
+    "paniers": []
+   },
+   {
+    "id": "Emvc79w2o7l",
+    "nom": "Secteur Bêta (essai)",
+    "chantier": {
+     "d0": "",
+     "d1": "",
+     "type": "Gros",
+     "iso": "Iso 1",
+     "wc": false,
+     "contener": false,
+     "benne": false,
+     "doe": false,
+     "pelle": false,
+     "arPelle": 0,
+     "carnet": false,
+     "arMO": false,
+     "arMOQty": 1,
+     "transfert": false,
+     "eq1": "S+T+P",
+     "eq2": "M",
+     "hTransfert": 0,
+     "nbOper": 0,
+     "camionPlateau": false,
+     "grue": false,
+     "hGrue": 0,
+     "nbDecharg": 0,
+     "bardage": false,
+     "tauxBardage": 5
+    },
+    "eq": {
+     "soud": "S+T+P",
+     "manch": "M",
+     "typeManchon": "Thermo",
+     "twin": false,
+     "reduction": 1,
+     "joursComplets": false,
+     "ctrl": {
+      "depression": false,
+      "filsDH": false,
+      "ressuage": false,
+      "itopo": false,
+      "pression": false
+     },
+     "coussins": false,
+     "qteCoussins": 0,
+     "ventilerCoussins": false
+    },
+    "mlMode": "tranchee",
+    "dn": [
+     {
+      "dn": 65,
+      "soud": 100,
+      "ml": 250
+     }
+    ],
+    "nuit": {
+     "on": false,
+     "dn": 100,
+     "soud": 0,
+     "rendement": 0.8
+    },
+    "purges": {
+     "dn": 32,
+     "purgeurAuto": false,
+     "paires": 0,
+     "deporte": false
+    },
+    "vidanges": {
+     "dn": 50,
+     "type": "gravite",
+     "paires": 0,
+     "deporte": false
+    },
+    "vpi": [],
+    "sst": [],
+    "extrusion": [],
+    "racc": [],
+    "cnd": {
+     "km": "",
+     "radio": {
+      "on": false,
+      "antPct": 0,
+      "antVac": 0,
+      "fdPct": 0,
+      "fdVac": 0,
+      "raccFilms": 0,
+      "raccVac": 0
+     },
+     "us": {
+      "on": false,
+      "antPct": 0,
+      "antVac": 0,
+      "fdPct": 0,
+      "fdVac": 0,
+      "raccFilms": 0,
+      "raccVac": 0
+     },
+     "ress": {
+      "on": false,
+      "antPct": 0,
+      "antVac": 0,
+      "fdPct": 0,
+      "fdVac": 0,
+      "raccFilms": 0,
+      "raccVac": 0
+     }
+    },
+    "hydro": {
+     "zones": [
+      {
+       "nom": "Épreuve 1",
+       "rows": [],
+       "pr": {
+        "epreuve": true
+       }
+      }
+     ],
+     "trajetH": 1,
+     "epreuveH": 4,
+     "hydrocureur": false,
+     "hHydro": [
+      0
+     ],
+     "panier": "OS",
+     "epreuve": true,
+     "rincage": false,
+     "passivation": false,
+     "eau": false,
+     "conservation": false,
+     "adoucisseur": "15",
+     "devis": {}
+    },
+    "boulet": {
+     "on": false,
+     "rows": []
+    },
+    "aerien": {
+     "planIso": false,
+     "rows": [],
+     "hDepl": 0,
+     "devisPose": 0,
+     "devisFO": 0
+    },
+    "depose": {
+     "rows": []
+    },
+    "foncage": {
+     "rows": []
+    },
+    "panier": {
+     "fo": [],
+     "mo": []
+    },
+    "fopre": {
+     "rows": [],
+     "prixFO": 0,
+     "prixTransport": 0
+    },
+    "autres": {
+     "fournitures": [],
+     "prestations": [],
+     "frais": 0
+    },
+    "paniers": []
+   },
+   {
+    "id": "Emvc79x51cj",
+    "nom": "Secteur Gamma (essai)",
+    "chantier": {
+     "d0": "",
+     "d1": "",
+     "type": "Gros",
+     "iso": "Iso 1",
+     "wc": false,
+     "contener": false,
+     "benne": false,
+     "doe": false,
+     "pelle": false,
+     "arPelle": 0,
+     "carnet": false,
+     "arMO": false,
+     "arMOQty": 1,
+     "transfert": false,
+     "eq1": "S+T+P",
+     "eq2": "M",
+     "hTransfert": 0,
+     "nbOper": 0,
+     "camionPlateau": false,
+     "grue": false,
+     "hGrue": 0,
+     "nbDecharg": 0,
+     "bardage": false,
+     "tauxBardage": 5
+    },
+    "eq": {
+     "soud": "S+T+P",
+     "manch": "M",
+     "typeManchon": "Thermo",
+     "twin": false,
+     "reduction": 1,
+     "joursComplets": false,
+     "ctrl": {
+      "depression": false,
+      "filsDH": false,
+      "ressuage": false,
+      "itopo": false,
+      "pression": false
+     },
+     "coussins": false,
+     "qteCoussins": 0,
+     "ventilerCoussins": false
+    },
+    "mlMode": "tranchee",
+    "dn": [
+     {
+      "dn": 50,
+      "soud": 20,
+      "ml": 150
+     }
+    ],
+    "nuit": {
+     "on": false,
+     "dn": 100,
+     "soud": 0,
+     "rendement": 0.8
+    },
+    "purges": {
+     "dn": 32,
+     "purgeurAuto": false,
+     "paires": 0,
+     "deporte": false
+    },
+    "vidanges": {
+     "dn": 50,
+     "type": "gravite",
+     "paires": 0,
+     "deporte": false
+    },
+    "vpi": [],
+    "sst": [],
+    "extrusion": [],
+    "racc": [],
+    "cnd": {
+     "km": "",
+     "radio": {
+      "on": false,
+      "antPct": 0,
+      "antVac": 0,
+      "fdPct": 0,
+      "fdVac": 0,
+      "raccFilms": 0,
+      "raccVac": 0
+     },
+     "us": {
+      "on": false,
+      "antPct": 0,
+      "antVac": 0,
+      "fdPct": 0,
+      "fdVac": 0,
+      "raccFilms": 0,
+      "raccVac": 0
+     },
+     "ress": {
+      "on": false,
+      "antPct": 0,
+      "antVac": 0,
+      "fdPct": 0,
+      "fdVac": 0,
+      "raccFilms": 0,
+      "raccVac": 0
+     }
+    },
+    "hydro": {
+     "zones": [
+      {
+       "nom": "Épreuve 1",
+       "rows": [],
+       "pr": {
+        "epreuve": true
+       }
+      }
+     ],
+     "trajetH": 1,
+     "epreuveH": 4,
+     "hydrocureur": false,
+     "hHydro": [
+      0
+     ],
+     "panier": "OS",
+     "epreuve": true,
+     "rincage": false,
+     "passivation": false,
+     "eau": false,
+     "conservation": false,
+     "adoucisseur": "15",
+     "devis": {}
+    },
+    "boulet": {
+     "on": false,
+     "rows": []
+    },
+    "aerien": {
+     "planIso": false,
+     "rows": [],
+     "hDepl": 0,
+     "devisPose": 0,
+     "devisFO": 0
+    },
+    "depose": {
+     "rows": []
+    },
+    "foncage": {
+     "rows": []
+    },
+    "panier": {
+     "fo": [],
+     "mo": []
+    },
+    "fopre": {
+     "rows": [],
+     "prixFO": 0,
+     "prixTransport": 0
+    },
+    "autres": {
+     "fournitures": [],
+     "prestations": [],
+     "frais": 0
+    },
+    "paniers": []
+   }
+  ],
+  "baseRev": "2026-10-17T09:34:31.710Z",
+  "inst": {
+   "on": true,
+   "items": {
+    "wc": {
+     "on": true
+    },
+    "contener": {
+     "on": true
+    },
+    "benne": {
+     "on": false
+    },
+    "pelle": {
+     "on": true,
+     "ar": 2
+    }
+   },
+   "arMO": true,
+   "doe": true,
+   "carnet": false,
+   "nbDecharg": "",
+   "ventil": "mo",
+   "d0": "2026-11-02",
+   "d1": "2026-11-27",
+   "arMOQty": 2
+  }
+ },
+ "chiffrageV": 1,
+ "dpgf": {
+  "lignes": [
+   {
+    "n": "1",
+    "des": "INSTALLATION DE CHANTIER",
+    "section": true,
+    "row": 5
+   },
+   {
+    "n": "1.1",
+    "des": "Installation de chantier, base vie et repli",
+    "u": "ft",
+    "qte": 1,
+    "pu": 1142.86,
+    "row": 6
+   },
+   {
+    "n": "",
+    "des": "Sous-total chapitre 1",
+    "section": true,
+    "row": 7
+   },
+   {
+    "n": "2",
+    "des": "RÉSEAU PRÉ-ISOLÉ",
+    "section": true,
+    "row": 8
+   },
+   {
+    "n": "2.1",
+    "des": "Fourniture et pose tube acier pré-isolé DN 100 — rue des Essais",
+    "u": "ml",
+    "qte": 420,
+    "pu": 33.95,
+    "row": 9
+   },
+   {
+    "n": "2.2",
+    "des": "Fourniture et pose tube acier pré-isolé DN 100 — traversée du parc",
+    "u": "ml",
+    "qte": 180,
+    "pu": 33.95,
+    "row": 10
+   },
+   {
+    "n": "2.3",
+    "des": "Fourniture et pose tube acier pré-isolé DN 80 — avenue Fictive",
+    "u": "ml",
+    "qte": 300,
+    "pu": 30.01,
+    "row": 11
+   },
+   {
+    "n": "2.4",
+    "des": "Fourniture et pose tube acier pré-isolé DN 65 — allée des Tests",
+    "u": "ml",
+    "qte": 250,
+    "pu": 129.47,
+    "row": 12
+   },
+   {
+    "n": "2.5",
+    "des": "Tube pré-isolé DN 50 — antenne bâtiment C",
+    "u": "ml",
+    "qte": 150,
+    "pu": 38.33,
+    "row": 13
+   },
+   {
+    "n": "",
+    "des": "Sous-total chapitre 2",
+    "section": true,
+    "row": 14
+   },
+   {
+    "n": "3",
+    "des": "OUVRAGES À L'UNITÉ",
+    "section": true,
+    "row": 15
+   },
+   {
+    "n": "3.1",
+    "des": "Soudure bout à bout DN 100 en fouille",
+    "u": "u",
+    "qte": 40,
+    "pu": 314.29,
+    "row": 16
+   },
+   {
+    "n": "3.2",
+    "des": "Sous-station DN 80 : paire de vannes d'isolement à souder",
+    "u": "paire",
+    "qte": 2,
+    "pu": 0,
+    "row": 17
+   },
+   {
+    "n": "3.3",
+    "des": "Sous-station DN 50 : paire de vannes d'isolement",
+    "u": "paire",
+    "qte": 1,
+    "pu": 0,
+    "row": 18
+   },
+   {
+    "n": "3.4",
+    "des": "Raccordement sur réseau existant DN 65",
+    "u": "u",
+    "qte": 1,
+    "pu": 0,
+    "row": 19
+   },
+   {
+    "n": "3.5",
+    "des": "Sous-station DN 80 : paire de vannes papillon",
+    "u": "paire",
+    "qte": 1,
+    "pu": 0,
+    "row": 20
+   },
+   {
+    "n": "",
+    "des": "Sous-total chapitre 3",
+    "section": true,
+    "row": 21
+   },
+   {
+    "n": "4",
+    "des": "ESSAIS ET CONTRÔLES",
+    "section": true,
+    "row": 22
+   },
+   {
+    "n": "4.1",
+    "des": "Épreuve hydraulique du réseau",
+    "u": "ft",
+    "qte": 1,
+    "pu": 3568.47,
+    "row": 23
+   },
+   {
+    "n": "4.2",
+    "des": "Contrôle Itopo des manchons DN 100",
+    "u": "u",
+    "qte": 120,
+    "pu": 0,
+    "row": 24
+   },
+   {
+    "n": "",
+    "des": "Sous-total chapitre 4",
+    "section": true,
+    "row": 25
+   },
+   {
+    "n": "5",
+    "des": "DIVERS",
+    "section": true,
+    "row": 26
+   },
+   {
+    "n": "5.1",
+    "des": "Divers et sujétions d'exécution",
+    "u": "ft",
+    "qte": 1,
+    "pu": 1500,
+    "row": 27
+   },
+   {
+    "n": "",
+    "des": "Sous-total chapitre 5",
+    "section": true,
+    "row": 28
+   },
+   {
+    "n": "",
+    "des": "TVA",
+    "section": true,
+    "row": 31
+   }
+  ],
+  "src": "Excel du client",
+  "fichier": "DPGF_lot05_zones.xlsx",
+  "at": "2026-10-17T09:34:40.752Z",
+  "hdrRow": 4,
+  "cols": {
+   "n": 0,
+   "des": 1,
+   "u": 2,
+   "qte": 3,
+   "pu": 4,
+   "tot": 5
+  },
+  "sheet": "xl/worksheets/sheet1.xml",
+  "sheetName": "DPGF",
+  "kept": true,
+  "map": {},
+  "xl": {
+   "ed": {
+    "DPGF": {
+     "E16": {
+      "v": 314.29
+     },
+     "E6": {
+      "v": 1142.86
+     },
+     "E23": {
+      "v": 3568.47
+     },
+     "E27": {
+      "v": 1500
+     },
+     "E9": {
+      "v": 33.95
+     },
+     "E10": {
+      "v": 33.95
+     },
+     "E11": {
+      "v": 30.01
+     },
+     "E12": {
+      "v": 129.47
+     },
+     "E13": {
+      "v": 38.33
+     }
+    }
+   },
+   "ops": [],
+   "rev": 9
+  },
+  "liens": [
+   {
+    "id": "Lmvc7a3673mu",
+    "sh": "DPGF",
+    "a": "E16",
+    "qa": "D16",
+    "q": 40,
+    "qfix": false,
+    "u": "u",
+    "comps": [
+     {
+      "k": "z:Emvc79ubuv7|soudure|dn100",
+      "q": 40
+     }
+    ],
+    "pu": 314.29,
+    "amt": 12571.43,
+    "v": 1,
+    "at": "2026-10-17T09:34:44.623Z",
+    "by": "Ethan L.",
+    "col": 0
+   },
+   {
+    "id": "Lmvc7a4t79uc",
+    "sh": "DPGF",
+    "a": "E6",
+    "qa": "D6",
+    "q": 1,
+    "qfix": false,
+    "u": "ft",
+    "comps": [
+     {
+      "k": "inst|amene",
+      "q": 650
+     }
+    ],
+    "pu": 1142.86,
+    "amt": 1142.86,
+    "v": 1,
+    "at": "2026-10-17T09:34:46.747Z",
+    "by": "Ethan L.",
+    "col": 1
+   },
+   {
+    "id": "Lmvc7a6fw9ax",
+    "sh": "DPGF",
+    "a": "E23",
+    "qa": "D23",
+    "q": 1,
+    "qfix": false,
+    "u": "ft",
+    "comps": [
+     {
+      "k": "z:Emvc79ubuv7|epreuve",
+      "q": 900
+     },
+     {
+      "k": "z:Emvc79w2o7l|epreuve",
+      "q": 250
+     },
+     {
+      "k": "z:Emvc79x51cj|epreuve",
+      "q": 150
+     }
+    ],
+    "pu": 3568.47,
+    "amt": 3568.47,
+    "v": 1,
+    "at": "2026-10-17T09:34:48.860Z",
+    "by": "Ethan L.",
+    "col": 2
+   },
+   {
+    "id": "Lmvc7a8tqdwl2",
+    "sh": "DPGF",
+    "a": "E9",
+    "qa": "D9",
+    "q": 420,
+    "qfix": false,
+    "u": "ml",
+    "comps": [
+     {
+      "k": "z:Emvc79ubuv7|soudure|dn100",
+      "q": 14,
+      "rep": "Rmvc7a8tphux"
+     },
+     {
+      "k": "z:Emvc79ubuv7|manchons|dn100",
+      "q": 42,
+      "rep": "Rmvc7a8tphux"
+     },
+     {
+      "k": "inst|amene",
+      "q": 210,
+      "rep": "Rmvc7a8tphux"
+     },
+     {
+      "k": "inst|conteneur",
+      "q": 420,
+      "rep": "Rmvc7a8tphux"
+     },
+     {
+      "k": "inst|doe",
+      "q": 420,
+      "rep": "Rmvc7a8tphux"
+     }
+    ],
+    "pu": 33.95,
+    "amt": 14258.46,
+    "v": 1,
+    "at": "2026-10-17T09:34:51.950Z",
+    "by": "Ethan L.",
+    "col": 4,
+    "rep": "Rmvc7a8tphux",
+    "prev": {
+     "e": null
+    }
+   },
+   {
+    "id": "Lmvc7a8tqz0ut",
+    "sh": "DPGF",
+    "a": "E10",
+    "qa": "D10",
+    "q": 180,
+    "qfix": false,
+    "u": "ml",
+    "comps": [
+     {
+      "k": "z:Emvc79ubuv7|soudure|dn100",
+      "q": 6,
+      "rep": "Rmvc7a8tphux"
+     },
+     {
+      "k": "z:Emvc79ubuv7|manchons|dn100",
+      "q": 18,
+      "rep": "Rmvc7a8tphux"
+     },
+     {
+      "k": "inst|amene",
+      "q": 90,
+      "rep": "Rmvc7a8tphux"
+     },
+     {
+      "k": "inst|conteneur",
+      "q": 180,
+      "rep": "Rmvc7a8tphux"
+     },
+     {
+      "k": "inst|doe",
+      "q": 180,
+      "rep": "Rmvc7a8tphux"
+     }
+    ],
+    "pu": 33.95,
+    "amt": 6110.77,
+    "v": 1,
+    "at": "2026-10-17T09:34:51.950Z",
+    "by": "Ethan L.",
+    "col": 4,
+    "rep": "Rmvc7a8tphux",
+    "prev": {
+     "e": null
+    }
+   },
+   {
+    "id": "Lmvc7a8tqprsd",
+    "sh": "DPGF",
+    "a": "E11",
+    "qa": "D11",
+    "q": 300,
+    "qfix": false,
+    "u": "ml",
+    "comps": [
+     {
+      "k": "z:Emvc79ubuv7|soudure|dn80",
+      "q": 20,
+      "rep": "Rmvc7a8tphux"
+     },
+     {
+      "k": "z:Emvc79ubuv7|manchons|dn80",
+      "q": 20,
+      "rep": "Rmvc7a8tphux"
+     },
+     {
+      "k": "inst|amene",
+      "q": 150,
+      "rep": "Rmvc7a8tphux"
+     },
+     {
+      "k": "inst|conteneur",
+      "q": 300,
+      "rep": "Rmvc7a8tphux"
+     },
+     {
+      "k": "inst|doe",
+      "q": 300,
+      "rep": "Rmvc7a8tphux"
+     }
+    ],
+    "pu": 30.01,
+    "amt": 9003.45,
+    "v": 1,
+    "at": "2026-10-17T09:34:51.950Z",
+    "by": "Ethan L.",
+    "col": 4,
+    "rep": "Rmvc7a8tphux",
+    "prev": {
+     "e": null
+    }
+   },
+   {
+    "id": "Lmvc7a8tqnxsy",
+    "sh": "DPGF",
+    "a": "E12",
+    "qa": "D12",
+    "q": 250,
+    "qfix": false,
+    "u": "ml",
+    "comps": [
+     {
+      "k": "z:Emvc79w2o7l|soudure|dn65",
+      "q": 100,
+      "rep": "Rmvc7a8tphux"
+     },
+     {
+      "k": "z:Emvc79w2o7l|manchons|dn65",
+      "q": 100,
+      "rep": "Rmvc7a8tphux"
+     },
+     {
+      "k": "inst|amene",
+      "q": 125,
+      "rep": "Rmvc7a8tphux"
+     },
+     {
+      "k": "inst|conteneur",
+      "q": 250,
+      "rep": "Rmvc7a8tphux"
+     },
+     {
+      "k": "inst|doe",
+      "q": 250,
+      "rep": "Rmvc7a8tphux"
+     }
+    ],
+    "pu": 129.47,
+    "amt": 32368.13,
+    "v": 1,
+    "at": "2026-10-17T09:34:51.950Z",
+    "by": "Ethan L.",
+    "col": 4,
+    "rep": "Rmvc7a8tphux",
+    "prev": {
+     "e": null
+    }
+   },
+   {
+    "id": "Lmvc7a8tq5lpr",
+    "sh": "DPGF",
+    "a": "E13",
+    "qa": "D13",
+    "q": 150,
+    "qfix": false,
+    "u": "ml",
+    "comps": [
+     {
+      "k": "z:Emvc79x51cj|soudure|dn50",
+      "q": 20,
+      "rep": "Rmvc7a8tphux"
+     },
+     {
+      "k": "z:Emvc79x51cj|manchons|dn50",
+      "q": 20,
+      "rep": "Rmvc7a8tphux"
+     },
+     {
+      "k": "inst|amene",
+      "q": 75,
+      "rep": "Rmvc7a8tphux"
+     },
+     {
+      "k": "inst|conteneur",
+      "q": 150,
+      "rep": "Rmvc7a8tphux"
+     },
+     {
+      "k": "inst|doe",
+      "q": 150,
+      "rep": "Rmvc7a8tphux"
+     }
+    ],
+    "pu": 38.33,
+    "amt": 5749.45,
+    "v": 1,
+    "at": "2026-10-17T09:34:51.950Z",
+    "by": "Ethan L.",
+    "col": 4,
+    "rep": "Rmvc7a8tphux",
+    "prev": {
+     "e": null
+    }
+   }
+  ],
+  "suivi": {
+   "v": 1,
+   "at": "2026-10-17T09:34:51.953Z",
+   "q": {
+    "z:Emvc79ubuv7|soudure|dn100": 60,
+    "inst|amene": 1300,
+    "z:Emvc79ubuv7|epreuve": 900,
+    "z:Emvc79w2o7l|epreuve": 250,
+    "z:Emvc79x51cj|epreuve": 150,
+    "z:Emvc79ubuv7|manchons|dn100": 60,
+    "inst|conteneur": 1300,
+    "inst|doe": 1300,
+    "z:Emvc79ubuv7|soudure|dn80": 20,
+    "z:Emvc79ubuv7|manchons|dn80": 20,
+    "z:Emvc79w2o7l|soudure|dn65": 100,
+    "z:Emvc79w2o7l|manchons|dn65": 100,
+    "z:Emvc79x51cj|soudure|dn50": 20,
+    "z:Emvc79x51cj|manchons|dn50": 20
+   },
+   "m": {
+    "z:Emvc79ubuv7|soudure|dn100": 18857.14,
+    "inst|amene": 2285.71,
+    "z:Emvc79ubuv7|epreuve": 1261.34,
+    "z:Emvc79w2o7l|epreuve": 1158.66,
+    "z:Emvc79x51cj|epreuve": 1148.47,
+    "z:Emvc79ubuv7|manchons|dn100": 10971.43,
+    "inst|conteneur": 5028.57,
+    "inst|doe": 571.43,
+    "z:Emvc79ubuv7|soudure|dn80": 4835.16,
+    "z:Emvc79ubuv7|manchons|dn80": 2612.24,
+    "z:Emvc79w2o7l|soudure|dn65": 19642.86,
+    "z:Emvc79w2o7l|manchons|dn65": 11428.57,
+    "z:Emvc79x51cj|soudure|dn50": 3142.86,
+    "z:Emvc79x51cj|manchons|dn50": 1828.57
+   }
+  },
+  "reps": [
+   {
+    "id": "Rmvc7a8tphux",
+    "nom": "Reste au ml",
+    "sh": "DPGF",
+    "lignes": [
+     "E9",
+     "E10",
+     "E11",
+     "E12",
+     "E13"
+    ],
+    "ks": [
+     "z:Emvc79ubuv7|soudure|dn100",
+     "z:Emvc79ubuv7|soudure|dn80",
+     "z:Emvc79ubuv7|manchons|dn100",
+     "z:Emvc79ubuv7|manchons|dn80",
+     "z:Emvc79w2o7l|soudure|dn65",
+     "z:Emvc79w2o7l|manchons|dn65",
+     "z:Emvc79x51cj|soudure|dn50",
+     "z:Emvc79x51cj|manchons|dn50",
+     "inst|amene",
+     "inst|conteneur",
+     "inst|doe"
+    ],
+    "mode": "dn",
+    "com": {
+     "mode": "prorata",
+     "ligne": null
+    },
+    "orphan": false,
+    "qs": {},
+    "dnOf": {},
+    "col": 4,
+    "v": 1,
+    "at": "2026-10-17T09:34:51.950Z",
+    "by": "Ethan L."
+   }
+  ]
+ },
+ "disp": {
+  "vsum": "Notre prix 84 773 €pointé 84 773 € (100 %)✓ tout est placé⇶ Mettre le reste au ml",
+  "cells": {
+   "6": "1 142,86 €",
+   "9": "33,95 €",
+   "10": "33,95 €",
+   "11": "30,01 €",
+   "12": "129,47 €",
+   "13": "38,33 €",
+   "16": "314,29 €",
+   "17": "",
+   "18": "",
+   "19": "",
+   "20": "",
+   "23": "3 568,47 €",
+   "24": "",
+   "27": "1 500,00 €"
+  }
+ },
+ "comps": {
+  "vente": 84773.01839170442,
+  "inst": {
+   "mode": "mo",
+   "parts": [
+    0.5,
+    0.43478260869565216,
+    0.06521739130434782
+   ],
+   "total": 6900,
+   "postes": {
+    "amene": 2000,
+    "conteneur": 4400,
+    "doe": 500
+   }
+  },
+  "ml": 1300
+ }
+}

@@ -203,7 +203,7 @@ const s26=SITES[CID].data.lines.filter(l=>l.aff===A26).reduce((s,L)=>s+L.cond.A.
 C.c4=out.q25&&out.q26&&out.q27&&out.qAll&&out.q25.soud===nW25&&out.q26.soud===s26&&out.q25.soud+out.q26.soud+out.q27.soud===out.qAll.soud&&out.q26.agg===s26&&out.q25.agg===nW25
   &&!!out.row25&&/chantier partagé/.test(out.row25)&&/avec 2026/.test(out.row25)&&new RegExp(nW25+' soudures').test(out.row25)&&/avancement 3\/'?/.test(out.row25)
   &&!!out.row26&&new RegExp(s26+' soudures').test(out.row26.t)&&new RegExp('avancement 1/'+s26).test(out.row26.t)&&out.row26.undo&&/étude versée/.test(out.verse||'')&&out.qtab.some(c=>new RegExp(s26+' soudures').test(c))
-  &&/Chantier partagé/.test(out.fact||'')&&out.doe.all===net.length&&out.doe.n26===2&&out.doe.ok26&&/2026/.test(out.doe.name)&&out.doe.w26===s26&&!!out.doe.m;
+  &&/Chantier partagé/.test(out.fact||'')&&out.doe.all===ids25.length /* 17/10 (lot MV, règle changée exprès) : « un DOE par marché » — avec la puce « Toutes », le DOE est celui de l'origine (plus jamais tout mélangé) */&&out.doe.n26===2&&out.doe.ok26&&/2026/.test(out.doe.name)&&out.doe.w26===s26&&!!out.doe.m;
 // ── 5) marché et TS séparés (appli, onglet Modifs, traceur)
 out=await T(([A26,L26])=>{const T=window.TRACE;const r={};const chip=i=>{const b=document.querySelector('#muChips [data-muchip="'+i+'"]');if(b)b.click();};
   chip(-1);r.mAll={id:(T.ts.marche()||{}).aff||'origine',lines:(T.ts.marche()||{lines:[]}).lines.length,changed:T.ts.diff().changed.length,cands:T.ts.candidates().length};

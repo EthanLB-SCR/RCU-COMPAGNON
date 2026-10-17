@@ -4,7 +4,7 @@
 // dossier zip (fflate) avec les photos classées par n° de soudure, les feuilles QSE, les modifications du tracé et le dossier administratif.
 import {Zip,ZipPassThrough,ZipDeflate,strToU8} from 'fflate';
 import {BRAND,LOGO_PNG,DOC_CSS,docHTML,docHead,docFoot,PRINT_BTN} from './charte.js';
-import {mutuLineIn,mutuLineIdIn,mutuItemIn,mutuDoeSuffix,mutuMarcheChip} from './mutu.js'; // 16/10 soir (lot MU) : chantier partagé → l'export (DOE, carnet, plan) suit la puce d'affaire // charte SCR des documents (09/10 soir)
+import {mutuLineIn,mutuLineIdIn,mutuItemIn,mutuDoeSuffix,mutuMarcheChip,mutuDocIn} from './mutu.js'; // 16/10 soir (lot MU) : chantier partagé → l'export (DOE, carnet, plan) suit la puce d'affaire // charte SCR des documents (09/10 soir)
 let A=null; // API fournie par app.js (state, NET, géométrie, TS, QSE…)
 export function initDoe(api){A=api;}
 const r2=v=>Math.round((+v||0)*100)/100;
@@ -59,7 +59,7 @@ export function doeData(){const NET=A.net();if(!NET||NET.id==='__vide')return nu
   const ppmOf=lineId=>{const l=S.lines[lineId];const sh=l&&S.sheets[l.sheetId];return (sh&&sh.ppm)||1;};
   let ts=[];try{const T=A.ts.of();if(T)ts=T.items.filter(it=>it.etat!=='marche'&&mutuItemIn(it)).map(it=>{let q=null;try{q=A.ts.pos(it);}catch(e){}const ppm=ppmOf(it.line);return {id:it.id,kind:it.kind,line:it.line,weldId:it.weldId||null,etat:it.etat,etatLabel:A.ts.et[it.etat]||it.etat,col:A.ts.col[it.etat]||'#888',short:A.ts.short(it),label:it.label||'',desig:it.desig||'',devis:it.ts||'',qty:A.ts.qtyTxt(it.qty||{}),pos:q?[r2(q.x/ppm),r2(q.y/ppm)]:null,at:it.at||null,by:it.by||'',photos:(it.photos||[]).filter(p=>typeof p==='string')};});}catch(e){console.warn(e);}
   const qse=((NET.qse&&NET.qse.docs)||[]).filter(d=>!d.deleted).map(d=>({id:d.id,type:d.type,title:d.title||'',at:d.at,by:d.by||'',sigs:(d.sigs||[]).length,url:d.url||null,data:d.data||null,hasFile:!!(d.url||d.data)}));
-  const admin=((NET.admin&&NET.admin.docs)||[]).map(d=>({id:d.id,cat:d.cat,catLabel:(A.adminCats().find(c=>c[0]===d.cat)||[])[1]||d.cat,name:d.name,size:d.size||0,url:d.url||null,data:d.data||null,by:d.by||'',at:d.at}));
+  const admin=((NET.admin&&NET.admin.docs)||[]).filter(mutuDocIn).map(d=>({id:d.id,cat:d.cat,catLabel:(A.adminCats().find(c=>c[0]===d.cat)||[])[1]||d.cat,name:d.name,size:d.size||0,url:d.url||null,data:d.data||null,by:d.by||'',at:d.at}));
   const MQ=mutuMarcheChip(NET);const marche=MQ?{at:MQ.at,source:MQ.source||'',by:MQ.by||''}:null; /* lot MU : le marché de l'affaire de la puce */
   return {site:{id:NET.id,name:(NET.name||NET.id)+mutuDoeSuffix(),supplier:NET.supplier||'',serie:NET.serie||'',client:NET.client||'',source:NET.source||''},at:new Date().toISOString(),by:A.userName(),sheets,lines,welds,people:Object.values(people).sort((a,b)=>a.name.localeCompare(b.name,'fr')),ts,qse,admin,marche,nPhotos,
     nDoc:welds.filter(w=>w.doc).length,nExtru:welds.filter(w=>w.extru).length};}

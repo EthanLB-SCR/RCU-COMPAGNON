@@ -24,7 +24,7 @@
 //      (fichier, validUntil, assureur, police, garanties, mise à jour à chaque remplacement) → le mémoire (entValid, assureurDec…) lit les deux sans changement ;
 //      décochée : les deux redeviennent indépendantes (chacune garde son fichier). Compteurs, « À faire », offre (une ligne), dossier de remise et bordereau :
 //      un seul document (« Attestation d'assurance RC et décennale »).
-import {regAll,regGet,regSet,regPending} from './reg.js';
+import {regAll,regGet,regSet,regPending,regMissing,onRegSent} from './reg.js';
 import {affGet,affSet,affState,calcAffaire,affWithVirtual} from './affaires.js';
 import {docsOf,catOf,docBlob} from './dce.js';
 import {stepState,memoireVars,memoireDocHTML,dpgfCSV} from './commerce.js';
@@ -181,8 +181,18 @@ function insSave(id,patch,both){const o=INS2[id];const d=entGet(id)||{};const od
 /* ouvrir / télécharger un fichier : adresse du stockage, sinon data URL (blob) */
 function openUrlOrData(url,data,name){if(url){window.open(url,'_blank','noopener');return;}if(!data)return;try{const m=/^data:([^;,]*)(;base64)?,(.*)$/.exec(data);const bin=m[2]?atob(m[3]):decodeURIComponent(m[3]);const u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);download(new Blob([u8],{type:m[1]||'application/octet-stream'}),name||'document');}catch(e){console.warn(e);}}
 function download(blob,name){const u=URL.createObjectURL(blob);const l=document.createElement('a');l.href=u;l.download=name;document.body.appendChild(l);l.click();setTimeout(()=>{URL.revokeObjectURL(u);l.remove();},2500);}
+/* 17/10 (lot DZ) — le bandeau des documents pas encore sur le serveur (Ethan l'a vu juste après avoir enregistré sa décennale, le SQL bien passé) : un envoi en cours →
+   « ⏳ … en cours d'envoi » ; le conseil « passe le SQL » seulement si le serveur a répondu « registre inconnu » ; au-delà de 30 s pour une autre raison → vérifier la
+   connexion ; mis à jour EN PLACE après chaque envoi (onRegSent) et au bout des 30 s : rien n'est redessiné pendant une saisie */
+const PEND_WAIT=30000;const T0=Date.now();let PEND_API=null,PEND_T=0,PEND_W=false;
+function pendHTML(api){const P=regPending().filter(w=>w.kind==='entdoc');const srv=api&&api.state&&api.state.cloudUser;if(!P.length||!srv)return '';const n=P.length,s=n>1?'s':'';
+  if(regMissing('entdoc'))return `<div class="warnbox" style="margin:0 0 8px">${n} document${s} pas encore enregistré${s} sur le serveur : passe le SQL <b>sql/retours_14-10b.sql</b> (registre « entdoc »), ${n>1?'ils partiront':'il partira'} tout seul${s}.</div>`;
+  const age=Date.now()-Math.min(...P.map(w=>+w.t||T0));
+  if(age>PEND_WAIT)return `<div class="warnbox" style="margin:0 0 8px">${n} document${s} pas encore enregistré${s} sur le serveur — vérifie la connexion ; s'${n>1?'ils restent':'il reste'}, envoie une capture de la console.</div>`;
+  clearTimeout(PEND_T);PEND_T=setTimeout(pendPatch,PEND_WAIT-age+300);return `<div class="dob-pend" role="status" style="margin:0 0 8px;padding:8px 10px;border-radius:8px;background:#eef4fb;border:1px solid #c7d7ea;color:#1f3864;font-size:13px">⏳ ${n} document${s} en cours d'envoi au serveur…</div>`;}
+function pendPatch(){const el=typeof document!=='undefined'&&document.getElementById('dob-pend');if(el)el.innerHTML=pendHTML(PEND_API);}
 function entView(me,ctx){lotDCss();lotECss();amCss();const ed=canEnt(me,ctx);const L=entSorted();const S=entStats();const kpi=(v,l,k)=>`<div class="eq-kpi ${k||''}"><b>${v}</b><small>${esc(l)}</small></div>`;
-  const pend=regPending().filter(w=>w.kind==='entdoc').length;const srv=ctx.api&&ctx.api.state&&ctx.api.state.cloudUser;
+  PEND_API=ctx.api||A;if(!PEND_W){PEND_W=true;onRegSent(ks=>{if(ks.includes('entdoc'))pendPatch();});} /* 17/10 (lot DZ) */
   /* 16/10 soir (lot AM) : la suiveuse d'une paire RC + décennale — « même document que l'attestation RC », pas de compteur à elle ; ✎ pour remplacer (les deux) ou séparer */
   const folRow=d=>{const s=entSrcOf(d);const t=d.meta||{};
     return `<div class="dob-erow am-fol" data-ent="${esc(d.id)}" data-cpt="same" data-same="${esc(s.id)}"><div class="dob-eh"><span class="dob-ic">${t.ic||'📄'}</span><span class="tx"><b>${esc(entName(d))}</b><small>${esc(d.file||'fichier')} · même fichier, même date de validité, mêmes garanties${d.validUntil?' (jusqu\'au '+esc(dFR(d.validUntil))+')':''}</small></span><span class="dob-st info am-same">${esc('même document que l\'attestation '+INS_LAB[s.id])}</span></div>
@@ -197,7 +207,7 @@ function entView(me,ctx){lotDCss();lotECss();amCss();const ed=canEnt(me,ctx);con
   return `<h2 class="vt">Documents administratifs de l'entreprise <span class="hint">· déposés une fois, joints aux offres</span></h2>
     <div class="eq-kpis">${kpi(S.ok,'valides',S.ok?'ok':'')}${kpi(S.soon,'à renouveler (≤ 30 j)',S.soon?'warn':'ok')}${kpi(S.exp,'expirés',S.exp?'bad':'ok')}${kpi(S.miss,'à déposer',S.miss?'warn':'ok')}</div>
     ${head}
-    ${pend&&srv?`<div class="warnbox" style="margin:0 0 8px">${pend} document${pend>1?'s':''} pas encore enregistré${pend>1?'s':''} sur le serveur : passe le SQL <b>sql/retours_14-10b.sql</b> (registre « entdoc »), ils partiront tout seuls.</div>`:''}
+    <div id="dob-pend">${pendHTML(PEND_API)}</div>
     ${ed?'':'<div class="hint" style="margin:0 0 8px">Consultation : le dépôt est réservé à l\'administrateur et au bureau.</div>'}
     ${L.map(row).join('')}
     ${ed?`<div class="eq-acts" style="margin-top:8px"><button class="btn" data-act="x" data-v="${ID}|newrib|" title="Un autre compte bancaire (chaque RIB a sa case « dans la remise » dans les offres)">＋ Autre RIB</button><button class="btn" data-act="x" data-v="${ID}|new|">＋ Autre document (CIBTP, liste des salariés étrangers…)</button></div>`:''}

@@ -17,6 +17,7 @@ import * as REP from './dpgfrep.js'; // 15/10 (lot R) : calculateur qui s'ouvre 
 import * as CL from './dpgfclair.js'; // 16/10 (lot C2) : écran plus clair, « Mettre et ligne suivante », autocontrôle par type, même panier de cases, autre écran sans grand cadre
 import * as SV from './dpgfsuivi.js'; // 16/10 après-midi (lot C3) : clés stables, liste des changements du chiffrage à traiter, écran plus léger (bouton flottant, groupes repliables, ventilation compacte)
 import * as RC from './dpgfrecap.js'; // 16/10 nuit (lot DK) : « ⇶ Donner sa part » des postes répartis, imputer sur les lignes cochées, « 🔎 Récap » en lecture seule
+import * as ZN from './dpgfzone.js'; // 17/10 (lot DZ) : installations communes ventilées par zone, « ⇶ sa part » d'un poste tout pointé, quantité d'une ligne insérée
 let H=null;export function initDpgfXl(h){H=h;}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nb=(x,d)=>{x=+x||0;return x.toLocaleString('fr-FR',{maximumFractionDigits:d===undefined?0:d,minimumFractionDigits:d===undefined?0:d});};
@@ -172,7 +173,7 @@ export function compsOf(a){const b=baseOf();const c0=CPC[a.num];const al=SV.alOf
   if(C.inst)postes.forEach(P=>{const L=C.inst.postes[P.k];if(!L||Math.abs(L.achat)<0.005)return;const ml=C.ml||0;add(-1,'Installations',P,L,[{key:'',lab:'',u:ml?'ml':'%',qty:ml||100,w:1}]);});
   out.forEach(c=>{c.puV=c.qty?c.amtV/c.qty:0;c.puA=c.qty?c.amtA/c.qty:0;});
   const R={C,list:out,by:new Map(out.map(c=>[c.k,c])),zones,inst:!!C.inst,coef,postes,grp,v:a.chiffrageV||1};SV.stable(R,a); /* 16/10 (lot C3) : c.k = clé stable (zone par son id, lignes par leur contenu), c.ok = l'ancienne ; CP.by lit les deux */
-  CPC[a.num]={ch:a.chiffrage,b,cl:a.client,v:a.chiffrageV,al,R};return REP.withMl(R);} /* 15/10 (lot R) : c.ml, c.dn des composantes par DN */
+  CPC[a.num]={ch:a.chiffrage,b,cl:a.client,v:a.chiffrageV,al,R};return ZN.virt(REP.withMl(R));} /* 17/10 (lot DZ) : les parts de zone des installations communes (CP.zv, clés virtuelles dans CP.by) */ /* 15/10 (lot R) : c.ml, c.dn des composantes par DN */
 const compName=c=>c.pl+(c.lab?' · '+c.lab:'');
 /* ═════════ 8 · LIENS DE POINTAGE (ligne du DPGF ↔ composantes) ═════════ */
 const qOfCell=(M,sh,ad)=>{if(!M||!ad)return null;const S=M.S(sh);const p=parseAddr(ad);if(!S||!p)return null;return numOf(val(M,S,p.r,p.c));};
@@ -358,9 +359,9 @@ const tgtKey=t=>t?t.sh+'!'+t.a:'';
 /* état du calculateur pour la cible : composantes cochées et quantités prises (repris du lien s'il existe) */
 function calcState(a,t,M){let C=XS.calc[a.num];if(C&&C.key===tgtKey(t))return C;const lk=t?linkAt(a,t.sh,t.a):null;const qc=t&&t.qa?qOfCell(M,t.sh,t.qa):null;
   C=XS.calc[a.num]={key:tgtKey(t),chk:{},q:lk?String(qc!==null&&qc>0?qc:lk.q):(qc!==null?String(qc):''),wq:false,open:{}};const CP=lk?compsOf(a):null; /* 16/10 (lot C3) : cases sous la clé stable */
-  if(lk)(lk.comps||[]).forEach(x0=>{if(x0.rep)return;const x=Object.assign({},x0,{k:SV.ck(CP,x0.k)});if(x.sub){CL.subIn(C,x);return;} /* 16/10 (lot C2) : un type d'autocontrôle pris seul */C.chk[x.k]=C.chk[x.k]!==undefined?String(+C.chk[x.k]+(+x.q||0)):String(x.q);});return C;}
+  if(lk)(lk.comps||[]).forEach(x0=>{if(x0.rep)return;if(ZN.load(CP,C,x0))return; /* 17/10 (lot DZ) : une prise d'installation avec zs → la case de sa zone */const x=Object.assign({},x0,{k:SV.ck(CP,x0.k)});if(x.sub){CL.subIn(C,x);return;} /* 16/10 (lot C2) : un type d'autocontrôle pris seul */C.chk[x.k]=C.chk[x.k]!==undefined?String(+C.chk[x.k]+(+x.q||0)):String(x.q);});return C;}
 const parseQ=(txt,c)=>{const s=String(txt||'').trim().replace(/[\s  ]/g,'').replace(',','.');if(!s)return 0;if(/%$/.test(s)){const p=parseFloat(s);return isFinite(p)?c.qty*p/100:0;}const x=parseFloat(s);return isFinite(x)?x:0;};
-function calcSum(a,CP,C){let amt=0;Object.keys(C.chk).forEach(k=>{const c=CP.by.get(k);if(!c)return;amt+=parseQ(C.chk[k],c)*c.puV;});return amt+REP.partsAmt(a,CP,C.key)+CL.subAmt(a,CP,C);}
+function calcSum(a,CP,C){let amt=0;Object.keys(C.chk).forEach(k=>{const c=CP.by.get(k);if(!c)return;amt+=parseQ(C.chk[k],c)*c.puV;});return amt+REP.partsAmt(a,CP,C.key)+CL.subAmt(a,CP,C)+ZN.ppAmt(a,CP,C);} /* 17/10 (lot DZ) : + les parts « ⇶ sa part » cochées */
 const dnOfTxt=t=>{const m=String(t||'').match(/\bDN\s?(\d{2,3})\b/i);return m?+m[1]:null;};
 export function calcHTML(a,M,canEdit){const CP=compsOf(a);const t=calcTarget(a,M);
   {const h=CL.calcHTML(a,M,canEdit,CP,t);if(h!==null)return h;} /* 16/10 (lot C2) : en-tête collé en haut, liste à plat, tout pointé barré, autocontrôle par type, même panier de cases */
@@ -568,6 +569,7 @@ export function dpgfXlAct(k,arg,arg2,a,ctx){if(!/^dx/.test(k))return false;XS.ct
   if(CL.act(k,arg,arg2,a,canEdit,M))return true; /* 16/10 (lot C2) : « ↦ Mettre » (aussi par type d'autocontrôle), « Mettre et ligne suivante », ◀ ▶, « Comme la ligne », sélections gardées */
   if(/^dxc3/.test(k))return SV.act(k,arg,arg2,a,canEdit,M); /* 16/10 après-midi (lot C3) : liste des changements à traiter, groupes repliables, bouton flottant */
   if(/^dxdk/.test(k))return RC.act(k,arg,arg2,a,canEdit,M); /* 16/10 nuit (lot DK) : donner sa part, lignes cochées, récap */
+  if(/^dxdz/.test(k))return ZN.act(k,arg,arg2,a,canEdit,M); /* 17/10 (lot DZ) : reventiler, prendre les installations de toutes les zones, parts d'une sélection */
   switch(k){
     case 'dxsheet':{if(!M)return true;const S=M.sheets[+arg];if(S){XS.sh[a.num]=S.name;}rerender();return true;}
     case 'dxzoom':{if(!M)return true;const S=curSheet(a,M);const z=zoomOf(a,S);let i=0;ZOOMS.forEach((x,j)=>{if(Math.abs(x-z)<Math.abs(ZOOMS[i]-z))i=j;});i=Math.max(0,Math.min(ZOOMS.length-1,i+(+arg||0)));XS.zoom[a.num+'|'+S.name]=ZOOMS[i];rerender();return true;}
@@ -580,7 +582,7 @@ export function dpgfXlAct(k,arg,arg2,a,ctx){if(!/^dx/.test(k))return false;XS.ct
     case 'dxpu':{XS.det[a.num+'|pu']=true;rerender();setTimeout(()=>{const el=document.getElementById('dx-pud');if(el){el.open=true;el.scrollIntoView({block:'start',behavior:'smooth'});}},80);return true;} /* 14/10 : le détail des prix unitaires se lit DANS l'appli */
     case 'dxpumode':puSt(a.num).mode=arg==='lignes'?'lignes':'comps';refreshPu(a);return true;
     case 'dxpuz':puSt(a.num).z=arg||'all';refreshPu(a);return true;
-    case 'dxundo':case 'dxredo':if(!canEdit)return true;if(dxUndo(a,k==='dxredo'))rerender();return true;
+    case 'dxundo':case 'dxredo':{if(!canEdit)return true;const T0=M?calcTarget(a,M):null;const l0=T0?JSON.stringify(linkAt(a,T0.sh,T0.a)):null;if(dxUndo(a,k==='dxredo')){const a2=affOf(a.num);if(T0&&a2&&JSON.stringify(linkAt(a2,T0.sh,T0.a))!==l0)XS.calc[a.num]=null; /* 17/10 (lot DZ) : le lien de la ligne du calculateur a changé (↶ d'un « Mettre ») : ses cases repartent du lien rétabli */rerender();}return true;}
     case 'dxins':{if(!canEdit||!M)return true;const s=XS.sel[a.num];if(!s)return true;const b=selBox(s);const n=Math.min(20,b.r2-b.r1+1);const above=arg==='up';
       if(dxInsertRows(a,s.sh,above?b.r1:b.r2,n,above)){const nr=above?b.r1:b.r2+1;XS.sel[a.num]={sh:s.sh,r:nr,c:s.c,r2:nr+n-1,c2:s.c};say(n+' ligne'+(n>1?'s':'')+' insérée'+(n>1?'s':'')+' '+(above?'au-dessus':'sous la ligne '+b.r2)+' (formats et formules recopiés) — « ⬇ DPGF pour le dossier » la garde');}rerender();return true;}
     case 'dxdel':{if(!canEdit||!M)return true;const s=XS.sel[a.num];if(!s)return true;const b=selBox(s);const n=b.r2-b.r1+1;if(!confirm('Supprimer '+(n>1?'les lignes '+b.r1+' à '+b.r2:'la ligne '+b.r1)+' du DPGF ? (Ctrl+Z pour revenir)'))return true;
@@ -596,7 +598,7 @@ export function dpgfXlAct(k,arg,arg2,a,ctx){if(!/^dx/.test(k))return false;XS.ct
     case 'dxrelink':{if(!canEdit)return true;const n=dxApplyLinks(a,arg==='*'?null:[arg]);say(n?n+' prix lié'+(n>1?'s':'')+' mis à jour':'Rien à mettre à jour');rerender();return true;}
     case 'dxsugg':{const CP=compsOf(a);const T=M&&calcTarget(a,M);if(!CP||!T)return true;const C=calcState(a,T,M);const P=pointage(a,CP,M,(linkAt(a,T.sh,T.a)||{}).id);CP.list.filter(c=>c.lab==='DN '+arg&&['soudure','manchons','autoctrl'].includes(c.p)).forEach(c=>{if(C.chk[c.k]===undefined)C.chk[c.k]=fmtIn(Math.max(0,c.qty-(P.byComp.get(c.k)||0)));});refreshSide(a);return true;}
     case 'dxcclr':{const T=M&&calcTarget(a,M);if(T){const C=calcState(a,T,M);C.chk={};}refreshSide(a);return true;}
-    case 'dxvpick':{const CP=compsOf(a);const T=M&&calcTarget(a,M);if(!CP||!T){say('Touche d\'abord une ligne du DPGF : les composantes de cette case iront dans son prix');return true;}const C=calcState(a,T,M);const P=pointage(a,CP,M,(linkAt(a,T.sh,T.a)||{}).id);const zk=arg,pk=arg2;
+    case 'dxvpick':{const CP=compsOf(a);const T=M&&calcTarget(a,M);if(!CP||!T){say('Touche d\'abord une ligne du DPGF : les composantes de cette case iront dans son prix');return true;}const C=calcState(a,T,M);const P=pointage(a,CP,M,(linkAt(a,T.sh,T.a)||{}).id);const zk=arg,pk=arg2;if(zk==='inst'&&ZN.vpick(a,M,CP,T,C,pk)){refreshSide(a);return true;} /* 17/10 (lot DZ) : la part de la zone de la ligne */
       const L=CP.list.filter(c=>(c.z<0?'inst':'z'+c.z)===zk&&c.p===pk);const allOn=L.every(c=>C.chk[c.k]!==undefined);L.forEach(c=>{if(allOn)delete C.chk[c.k];else if(C.chk[c.k]===undefined)C.chk[c.k]=fmtIn(Math.max(0,c.qty-(P.byComp.get(c.k)||0)));});XS.czone[zk]=true;refreshSide(a);return true;}
     case 'dxgo':{if(!M)return true;const S=M.S(arg);const p=parseAddr(arg2);if(!S||!p)return true;XS.sh[a.num]=S.name;XS.sel[a.num]={sh:S.name,r:p.r,c:p.c,r2:p.r,c2:p.c};const L=layOf(M,S,zoomOf(a,S));const ri=L.rIdx.get(p.r);if(ri!==undefined)XS.scroll[a.num+'|'+S.name]={top:Math.max(0,L.VR[ri].y-L.FH-80),left:(XS.scroll[a.num+'|'+S.name]||{}).left||0};rerender();return true;}
     case 'dxrevert':{if(!canEdit)return true;dxRevert(a,arg,arg2);rerender();return true;}
@@ -757,14 +759,16 @@ export function refreshPopup(){if(!popLive())return;const a=affOf(XS.pop.num);co
     <div class="dx-fb"><input class="dx-nm" id="dx-nm" value="${addrOf(s.r,s.c)}"><span class="dx-fxl">fx</span><input class="dx-fi" id="dx-fi" value="${esc(editText(cur&&cur.f?cur:{v:val(M,S,s.r,s.c)}))}" ${XS.canEdit?'':'readonly'}><span class="dx-fbx" id="dx-fbx"${cellInfo(a,M,S,s)?'':' hidden'}>${cellInfo(a,M,S,s)}</span></div>
     <div class="dx-grid"><div class="dx-vp" id="dx-vp" tabindex="0"><div class="dx-cnt" id="dx-cnt">${T.html}</div></div>${tabsHTML(a,M,S)}</div></div>`;
   doc.title=(a.num||'')+' — DPGF';dxMount(a.num,doc);if(had||doc.hasFocus()){const vp=doc.getElementById('dx-vp');if(vp&&XS.focus)try{vp.focus({preventScroll:true});}catch(e){}}}
-export function dxReset(num){[XS.undo,XS.redo,XS.calc,XS.sel,XS.sh].forEach(m=>{delete m[num];});Object.keys(XS.det).forEach(k=>{if(k.startsWith(num+'|'))delete XS.det[k];});Object.keys(XS.scroll).forEach(k=>{if(k.startsWith(num+'|'))delete XS.scroll[k];});if(XS.free&&XS.free.num===num)XS.free=null;delete BOOK[num];REP.reset(num);SV.reset(num);RC.reset(num);}
+export function dxReset(num){[XS.undo,XS.redo,XS.calc,XS.sel,XS.sh].forEach(m=>{delete m[num];});Object.keys(XS.det).forEach(k=>{if(k.startsWith(num+'|'))delete XS.det[k];});Object.keys(XS.scroll).forEach(k=>{if(k.startsWith(num+'|'))delete XS.scroll[k];});if(XS.free&&XS.free.num===num)XS.free=null;delete BOOK[num];REP.reset(num);SV.reset(num);RC.reset(num);ZN.reset(num);}
 /* quantités changées dans la grille (contrôles avant export) */
 export function qtyModsOf(a){const M=modelOf(a);if(!M)return 0;const D=a.dpgf||{};const S=dpSheet(M,D);const qc=qtyColOf(D);if(!qc)return 0;let n=0;(D.lignes||[]).forEach(l=>{if(l.section)return;const cell=S.cells.get(cellKey(l.row,qc));if(cell&&cell.ed&&!cell.ed.auto)n++;});return n;}
 /* 15/10 (lot R) : ce que dpgfrep.js emprunte au DPGF (aucun import circulaire) */
-REP.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,linkOfRow,dpSheet,puColOf,qtyColOf,totColOf,calcTarget,calcState,calcResHTML,calcSum,parseQ,fmtIn,compName,dxWrite,refreshSide,rerender,popLive,scrollToCell,LK_COLS,say});
+REP.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,linkOfRow,dpSheet,puColOf,qtyColOf,totColOf,calcTarget,calcState,calcResHTML,calcSum,parseQ,fmtIn,compName,dxWrite,refreshSide,rerender,popLive,scrollToCell,LK_COLS,say,ZN});
 /* 16/10 (lot C2) : ce que dpgfclair.js emprunte au DPGF */
-CL.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,dpSheet,puColOf,calcTarget,calcState,calcSum,parseQ,fmtIn,compName,dxWrite,refreshSide,rerender,popLive,scrollToCell,qOfCell,nextCol,LK_COLS,say,RC});
+CL.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,dpSheet,puColOf,calcTarget,calcState,calcSum,parseQ,fmtIn,compName,dxWrite,refreshSide,rerender,popLive,scrollToCell,qOfCell,nextCol,LK_COLS,say,RC,ZN});
 /* 16/10 après-midi (lot C3) : ce que dpgfsuivi.js emprunte au DPGF */
-SV.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,dpSheet,puColOf,qtyColOf,calcTarget,qOfCell,nextCol,compName,dxWrite,refreshSide,rerender,popLive,LK_COLS,say,REP,CL,RC});
+SV.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,dpSheet,puColOf,qtyColOf,calcTarget,qOfCell,nextCol,compName,dxWrite,refreshSide,rerender,popLive,LK_COLS,say,REP,CL,RC,ZN});
 /* 16/10 nuit (lot DK) : ce que dpgfrecap.js emprunte au DPGF */
-RC.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,dpSheet,puColOf,qtyColOf,calcTarget,qOfCell,nextCol,compName,dxWrite,refreshSide,rerender,popLive,scrollToCell,LK_COLS,say,REP,CL,SV});
+RC.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,dpSheet,puColOf,qtyColOf,calcTarget,qOfCell,nextCol,compName,dxWrite,refreshSide,rerender,popLive,scrollToCell,LK_COLS,say,REP,CL,SV,ZN});
+/* 17/10 (lot DZ) : ce que dpgfzone.js emprunte au DPGF */
+ZN.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,dpSheet,puColOf,qtyColOf,calcTarget,calcState,calcSum,calcResHTML,parseQ,fmtIn,qOfCell,compName,dxWrite,refreshSide,rerender,popLive,LK_COLS,say,REP,CL,SV,RC});

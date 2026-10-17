@@ -8,7 +8,7 @@ import {kv} from '../src/kv.js';
 import {sync} from '../src/sync.js';
 import {tfNorm,tfApply,tfCompose,tfBBox,drawingBox} from '../src/plans.js';
 import {decimateDrawing} from '../src/dxfimport.js';
-import {rigid,tfFromGeo,linesBox,marcheView} from '../src/mutufus.js';
+import {rigid,tfFromGeo,linesBox,marcheView,etudePreview} from '../src/mutufus.js';
 import {axisOf} from '../src/marche.js';
 const Q=new URLSearchParams(location.search);const P={site:Q.get('site')||'',etude:Q.get('mutu')||'',aff:Q.get('maff')||''}; /* capté AVANT le nettoyage de l'adresse (main.js) */
 const TMP='mutu_tmp',REQ='trace:mutu:req',CAL='trace:mutu:cal';
@@ -40,7 +40,7 @@ async function start(){if(started)return;started=true;E=await getSite(P.etude);C
   if(!T0&&C){const g=tfFromGeo(E,C);if(g&&g.ok){T0=g.T;how='placée par le géoréférencement des deux tracés : vérifie, ajuste si besoin, puis valide';}}
   if(!T0){const cl=(X.state.lines||[]).length?linesBox(X.state.lines):null;const w=lb[2]-lb[0],h=lb[3]-lb[1];const tx=cl?cl[2]+30+w/2:center[0],ty=cl?(cl[1]+cl[3])/2:center[1];T0={tx:tx-center[0],ty:ty-center[1],rot:0,k:1};how='posée à côté du chantier : 📍 1 point (un point de l\'étude puis le même sur le chantier), ✥ glisser ou ⟲ 2 points';}
   const dr=[];if(Array.isArray(E.drawing)&&E.drawing.length){let d=E.drawing;try{const r=decimateDrawing(d,{cap:40000});if(r&&r.drawing)d=r.drawing;}catch(e){}d.forEach(x=>{if(!x||x.fill)return;const o=Object.assign({},x,{c:'#cdbfe6',net:false});delete o.w;delete o.p;dr.push(o);});}
-  lines.forEach(l=>{const ax=axisOf(l);if(ax.length<2)return;dr.push({pts:ax.map(p=>[+p[0],+p[1]]),c:'#6a32c9',w:160,net:true});const m=ax[Math.floor((ax.length-1)/2)];dr.push({text:String(l.name||l.id),x:+m[0],y:+m[1],h:2.4,c:'#4b2a86',net:true});});
+  etudePreview({lines}).forEach(d=>dr.push(d)); /* lot MV (V1) : l'étude AVEC son détail (conduites aller / retour, soudures, nom · DN) sur un halo violet — avant : ses axes seuls, noirs dès que « Fond en couleurs » était décoché */
   const b=X.bgObj();b.plans=(b.plans||[]).filter(p=>p.id!==TMP);b.plans.push({id:TMP,mutuTmp:true,kind:'dxf',name:'Étude '+P.aff+' (à caler)',show:true,opacity:1,geo:'manual',transform:tfNorm(T0),drawing:dr,bbox:drawingBox(dr),origin:null,netLayers:[],images:[],report:null,_lastKey:null});
   b.active=TMP;b.show=true;document.body.classList.add('mu-cal');X.renderBg();X.bgToolsSync();ui();frame();
   eV=[];lines.forEach(l=>axisOf(l).forEach(p=>eV.push([+p[0],+p[1]])));
@@ -56,7 +56,7 @@ function ui(){const p=plan();if(!p)return;const t=tfNorm(p.transform);const r=ri
   const st=`rotation ${fm(r.rot,2)}° · centre de l'étude en (${fm(q[0],1)} ; ${fm(q[1],1)}) m${Math.abs(t.k-1)>0.0005?` · échelle ×${fm(t.k,4)} ignorée : l'étude garde ses longueurs`:''}`;
   const btn=(k,l,on,cls)=>`<button type="button" data-mc="${k}" class="${on?'on':''} ${cls||''}">${l}</button>`;
   const st1=one?(one.a?'② touche maintenant le MÊME endroit sur le chantier':'① touche un point de l\'étude (violet), près d\'un sommet'):'';
-  show(`🔗 Rattacher l'étude « <b>${esc(E.name||P.etude)}</b> » (affaire <b>${esc(P.aff)}</b>, en violet) au chantier « <b>${esc((X.state.siteRef||{}).name||P.site)}</b> » — ${esc(how)}.`,st1?`<b>📍 ${esc(st1)}</b>`:st,
+  show(`🔗 Rattacher l'étude « <b>${esc(E.name||P.etude)}</b> » (affaire <b>${esc(P.aff)}</b>, sur fond violet) au chantier « <b>${esc((X.state.siteRef||{}).name||P.site)}</b> » — ${esc(how)}.`,st1?`<b>📍 ${esc(st1)}</b>`:st,
     btn('one','📍 1 point',!!one)+btn('move','✥ Glisser l\'étude',m==='moveBg'&&!one)+btn('cal2','⟲ 2 points',m==='cal2')+btn('rl','↺ 1°')+btn('rr','↻ 1°')+btn('ok','✓ Valider le calage',false,'go')+btn('back','✕ Annuler',false,'ko'));}
 /* cadrage : le chantier et l'étude, sans que la barre de calage les cache */
 function frame(){try{const p=plan();const cl=linesBox(X.state.lines||[]);const eb=p?tfBBox(tfNorm(p.transform),linesBox(E.lines.length?E.lines:((E.traceur&&E.traceur.lines)||[]))):null;const B=cl&&eb?[Math.min(cl[0],eb[0]),Math.min(cl[1],eb[1]),Math.max(cl[2],eb[2]),Math.max(cl[3],eb[3])]:(cl||eb);if(!B||!X.fitBox){if(X.fitPlans)X.fitPlans();return;}

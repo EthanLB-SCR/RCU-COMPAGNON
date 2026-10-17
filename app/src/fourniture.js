@@ -16,12 +16,13 @@ import {matchKey,stockLabel,stockKey,parseBL,dnOfOd,isPU,zoneAgg} from './stock.
 // (13/10 soir : le collage passe par l'écran d'import commun, importq.js)
 import {parseTrame,trameRows,trameTSV,trameXlsx,copyText,dlBytes} from './trame.js'; // 13/10 soir : trame type d'import (commande / BL)
 import {iqState,iqSourceHTML,iqPanelHTML,iqWire,iqCounted} from './importq.js'; // 13/10 soir : écran d'import commun (étude, commande, BL)
+import {mvFzIn,mvLineIn,mvStamp,mvTag,mvFzAff,mvStockView} from './mutu2.js'; // 17/10 (lot MV) : chantier partagé — fourniture séparée par affaire (commandes, BL, réceptions, besoin, tracé initial)
 let A=null;
 export function initFourniture(api){A=api;}
 
 /* ---------- données ---------- */
 export const FZ_CFG={delai:2,len:13.6,larg:2.4,haut:2.5,cu:24000};
-const live=a=>(Array.isArray(a)?a:[]).filter(x=>x&&!x.deleted);
+const live=a=>(Array.isArray(a)?a:[]).filter(x=>x&&!x.deleted&&mvFzIn(x)); /* lot MV : fourniture séparée → les enregistrements de l'affaire choisie */
 const nid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
 const nowIso=()=>new Date().toISOString();
 const who=()=>(A.userName&&A.userName())||'';
@@ -33,6 +34,9 @@ const q=n=>Number(n||0).toLocaleString('fr-FR',{maximumFractionDigits:1});
 export function fournOf(){const N=A&&A.net();if(!N||N.id==='__vide')return null;if(!N.fourniture||typeof N.fourniture!=='object')N.fourniture={v:1,cmds:[],extra:[],zones:[],dec:[],cfg:{}};const F=N.fourniture;
   ['cmds','extra','zones','dec'].forEach(k=>{if(!Array.isArray(F[k]))F[k]=[];});F.cfg=Object.assign({},FZ_CFG,F.cfg&&typeof F.cfg==='object'?F.cfg:{});return F;}
 function save(){A.saveNet('fourniture');}
+/* lot MV : tracé initial de l'affaire choisie (fourniture séparée d'un chantier partagé) — l'origine garde F.init, une affaire rattachée F.initAff[n°] */
+const initGet=F=>{const k=mvFzAff();return k?((F.initAff&&F.initAff[k])||null):F.init;};
+const initSet=(F,v)=>{const k=mvFzAff();if(k)F.initAff=Object.assign({},F.initAff||{},{[k]:v});else F.init=v;};
 export const fzCanEdit=()=>!!(A&&(A.can('stock.edit')||A.can('phasage.edit')));
 const esc=s=>A.esc(s);
 const ZCOL=['#eb6834','#2f6fb3','#3aa655','#8e44ad','#c0392b','#d4a017','#16a085','#7f8c8d'];
@@ -67,7 +71,7 @@ function pieceOfEl(l,e){if(!e)return null;const dn=+e.dn||+l.dn||0;const k=e.kin
 const sleeveOf=(l,e)=>{const dn=+((e&&e.dn)||l.dn)||0;return {kind:'sleeve',dn,gaine:(e&&e.casing)||A.gaineMM(dn)||undefined};};
 /* besoin du tracé ACTUEL + ce qui est déjà posé ; inc = {el,j} pour se limiter à une zone */
 export function fournNeeds(inc){const need={},lab={},posed={};const add=(m,o)=>{const k=fKey(o);m[k]=(m[k]||0)+1;if(!lab[k])lab[k]=fLabel(o);};
-  Object.values((A.lines&&A.lines())||{}).forEach(l=>{['A','R'].forEach(c=>{const cd=l&&l.cond&&l.cond[c];if(!cd||!Array.isArray(cd.els))return;
+  Object.values((A.lines&&A.lines())||{}).filter(l=>mvLineIn('fourniture',l)).forEach(l=>{['A','R'].forEach(c=>{const cd=l&&l.cond&&l.cond[c];if(!cd||!Array.isArray(cd.els))return;
     cd.els.forEach((e,i)=>{const o=pieceOfEl(l,e);if(!o)return;if(inc&&!inc.el(l,c,i,e))return;if(inc&&inc.mark)inc.mark(l.id+'|'+c+'|'+i);add(need,o);});
     const seen=new Set();(cd.joints||[]).forEach(j=>{const e=cd.els[j.idx];if(!e)return;if(inc&&!inc.j(l,c,j,e))return;
       const done=!(j.status==='a_souder'||j.status==='a_reprendre');if(done){const o=pieceOfEl(l,e);if(o)add(posed,o);}
@@ -110,10 +114,10 @@ const truckTxt=t=>{const by={};t.lines.forEach(x=>{const o=keyObj(x.k);const g=o
 
 /* ---------- le calcul : comparatif par référence, zones (dans l'ordre des dates) et camions ---------- */
 export function fzCompute(){const F=fournOf();if(!F)return null;PTC=new Map();try{
-  const cur=fournNeeds();const init=F.init&&F.init.need?F.init.need:cur.need;const lab=Object.assign({},(F.init&&F.init.lab)||{},cur.lab);
+  const cur=fournNeeds();const FI=initGet(F);const init=FI&&FI.need?FI.need:cur.need;const lab=Object.assign({},(FI&&FI.lab)||{},cur.lab);
   const extra={};live(F.extra).forEach(x=>{const k=x.key||fKey(x);extra[k]=(extra[k]||0)+(+x.qty||0);if(!lab[k])lab[k]=x.label||fLabel(x);});
   const cmd={};live(F.cmds).forEach(c=>(c.lines||[]).forEach(x=>{if(!(+x.qty>0))return;const k=x.key||fKey(x);cmd[k]=(cmd[k]||0)+(+x.qty);if(!lab[k])lab[k]=x.label||fLabel(x);}));
-  const s=A.stockOf&&A.stockOf();const liv={},att={},stk={};
+  const s=mvStockView(A.stockOf&&A.stockOf());const liv={},att={},stk={}; /* lot MV : livré / attendu / sur chantier de l'affaire choisie */
   if(s){s.lots.forEach(l=>{const k=fKeyLot(l);if(l.pend)att[k]=(att[k]||0)+(+l.qty||0);else liv[k]=(liv[k]||0)+(+l.qty||0);if(!lab[k])lab[k]=l.label||k;});
     [...s.zones.map(z=>z.id),null].forEach(zid=>zoneAgg(s,zid).forEach(a=>{if(!a.kind)return;const k=fKeyLot(a);stk[k]=(stk[k]||0)+Math.max(0,a.reste||0);}));}
   const keys=new Set([...Object.keys(init),...Object.keys(cur.need),...Object.keys(extra),...Object.keys(cmd),...Object.keys(liv),...Object.keys(att)]);
@@ -156,9 +160,9 @@ export function fzCompute(){const F=fournOf();if(!F)return null;PTC=new Map();tr
   return {F,rows,tot,zones,trucks,hors,cfg:F.cfg,lab};}finally{PTC=null;}}
 
 /* ---------- tracé initial figé (1re ouverture) : le marché s'il porte le détail par pièce, sinon le tracé du jour ---------- */
-function ensureInit(F){if(F.init&&F.init.need)return;const L=Object.keys((A.lines&&A.lines())||{});if(!L.length)return;const M=A.marche&&A.marche();
-  if(M&&M.need&&typeof M.need==='object')F.init={need:Object.assign({},M.need),lab:Object.assign({},M.needLab||{}),src:'marche',at:M.at||nowIso(),by:M.by||who()};
-  else{const r=fournNeeds();F.init={need:r.need,lab:r.lab,src:'trace',at:nowIso(),by:who()};}
+function ensureInit(F){if(initGet(F)&&initGet(F).need)return;const L=Object.keys((A.lines&&A.lines())||{});if(!L.length)return;const M=A.marche&&A.marche();
+  if(M&&M.need&&typeof M.need==='object')initSet(F,{need:Object.assign({},M.need),lab:Object.assign({},M.needLab||{}),src:'marche',at:M.at||nowIso(),by:M.by||who()});
+  else{const r=fournNeeds();initSet(F,{need:r.need,lab:r.lab,src:'trace',at:nowIso(),by:who()});}
   if(fzCanEdit())save();}
 
 /* ---------- écarts au-delà de la commande : qualification (comme les TS) + brouillon de commande complémentaire (13/10 soir) ---------- */
@@ -184,9 +188,9 @@ function openComplOrder(){const R=fzCompute();const it=complItems(R);if(!it.leng
     <div class="row" style="display:flex;gap:6px;flex-wrap:wrap"><div style="flex:1;min-width:150px"><label class="f">Nom</label><input class="f" id="fcc-name" value="Commande complémentaire ${n}"></div><div style="flex:0 0 130px"><label class="f">N° de commande</label><input class="f" id="fcc-ref" placeholder="option"></div><div style="flex:0 0 150px"><label class="f">Date</label><input class="f" type="date" id="fcc-date" value="${today()}"></div></div>
     <div style="overflow:auto;max-height:34vh;margin-top:6px"><table class="rc"><tr><th>Référence</th><th>Qté</th></tr>${it.map(x=>`<tr><td>${esc(x.label)}</td><td class="num"><b>${q(x.qty)}</b></td></tr>`).join('')}</table></div>
     <div class="actions" style="margin-top:8px"><button class="btn primary block" id="fcc-ok">Enregistrer la commande complémentaire</button><button class="btn block" id="fcc-x">⬇ Excel pour le fournisseur (trame)</button><button class="btn block" data-close>Annuler</button></div>`);
-  document.getElementById('fcc-x').onclick=()=>trameOut('xlsx',it,['Commande complémentaire — '+((N&&N.name)||'chantier'),'Établie par '+who()+' le '+dFR(today())],'Commande complementaire - '+slugFile(N&&N.name)+'.xlsx');
+  document.getElementById('fcc-x').onclick=()=>trameOut('xlsx',it,['Commande complémentaire — '+((N&&N.name)||'chantier')+mvTag('fourniture'),'Établie par '+who()+' le '+dFR(today())],'Commande complementaire - '+slugFile(N&&N.name)+(mvTag('fourniture')?'-'+slugFile(mvTag('fourniture')):'')+'.xlsx');
   document.getElementById('fcc-ok').onclick=()=>{const F2=fournOf();const at=nowIso();const g=i=>document.getElementById(i);
-    F2.cmds.push({id:nid('FC'),name:(g('fcc-name').value||'').trim()||'Commande complémentaire '+n,ref:(g('fcc-ref').value||'').trim(),date:g('fcc-date').value||today(),compl:true,lines:it.map(x=>({key:x.key,kind:x.kind,dn:x.dn,dn2:x.dn2,angle:x.angle,len:x.len,gaine:x.gaine,qty:x.qty,label:x.label,raw:'commande complémentaire'})),at,by:who(),upd:at});
+    F2.cmds.push(mvStamp('fourniture',{id:nid('FC'),name:(g('fcc-name').value||'').trim()||'Commande complémentaire '+n,ref:(g('fcc-ref').value||'').trim(),date:g('fcc-date').value||today(),compl:true,lines:it.map(x=>({key:x.key,kind:x.kind,dn:x.dn,dn2:x.dn2,angle:x.angle,len:x.len,gaine:x.gaine,qty:x.qty,label:x.label,raw:'commande complémentaire'})),at,by:who(),upd:at},[]));
     save();A.closeModal();(A.state.fournUI||(A.state.fournUI={})).cmd=true;renderFourniture();A.toast('✓ Commande complémentaire enregistrée : '+it.length+' ligne'+(it.length>1?'s':''));};}
 /* ---------- BL d'une zone (entourée ou phase reprise) au format trame : pour le fournisseur, et importable dans Stock ---------- */
 function zoneItems(Z,mode){return Z.lines.map(x=>{const qty=mode==='besoin'?x.rem:x.aLivrer;if(!(qty>0))return null;return Object.assign(pieceObj(x.k,x.label),{key:x.k,qty,label:x.label,des:x.label});}).filter(Boolean);}
@@ -204,13 +208,13 @@ function openZoneBL(id){const R=fzCompute();const Z=R&&R.zones.find(x=>x.z.id===
     M.querySelectorAll('[data-fzblm]').forEach(b=>b.onclick=()=>{st.bl=g('fzbl-n').value||st.bl;st.mode=b.dataset.fzblm;rd();});
     g('fzbl-n').onchange=()=>{st.bl=(g('fzbl-n').value||'').trim()||st.bl;};
     if(g('fzbl-copy'))g('fzbl-copy').onclick=()=>{st.bl=g('fzbl-n').value||st.bl;trameOut('copy',it);};
-    if(g('fzbl-xlsx'))g('fzbl-xlsx').onclick=()=>{st.bl=g('fzbl-n').value||st.bl;trameOut('xlsx',it,meta(),st.bl+' - '+slugFile(N&&N.name)+'.xlsx');};
+    if(g('fzbl-xlsx'))g('fzbl-xlsx').onclick=()=>{st.bl=g('fzbl-n').value||st.bl;trameOut('xlsx',it,meta(),st.bl+' - '+slugFile(N&&N.name)+(mvTag('fourniture')?'-'+slugFile(mvTag('fourniture')):'')+'.xlsx');};
     if(g('fzbl-stock'))g('fzbl-stock').onclick=()=>{st.bl=g('fzbl-n').value||st.bl;A.closeModal();A.state.tab='stock';A.renderAll();A.openStockLiv({src:'trame',lines:it.map(stockLineOf),name:'Camion '+Z.z.name,bl:st.bl,date:Z.livd||today(),prev:true,fz:Z.z.id,info:'Pré-rempli depuis la zone « '+esc(Z.z.name)+' » (Fourniture, format trame) — vérifie les quantités et choisis la zone de déchargement.'});};};
   rd();}
 /* ---------- rendu de l'onglet ---------- */
 const stat=(v,l,cls)=>`<div class="ac-stat${cls?' '+cls:''}"><b>${v}</b><small>${l}</small></div>`;
 const num=v=>{const x=parseFloat(String(v??'').replace(/\s/g,'').replace(',','.'));return isFinite(x)?x:null;};
-function miniPlan(R,opt){opt=opt||{};const L=Object.values((A.lines&&A.lines())||{});let bb=null;const grow=(x,y)=>{if(!isFinite(x)||!isFinite(y))return;if(!bb)bb=[x,y,x,y];else{bb[0]=Math.min(bb[0],x);bb[1]=Math.min(bb[1],y);bb[2]=Math.max(bb[2],x);bb[3]=Math.max(bb[3],y);}};
+function miniPlan(R,opt){opt=opt||{};const L=Object.values((A.lines&&A.lines())||{}).filter(l=>mvLineIn('fourniture',l));let bb=null;const grow=(x,y)=>{if(!isFinite(x)||!isFinite(y))return;if(!bb)bb=[x,y,x,y];else{bb[0]=Math.min(bb[0],x);bb[1]=Math.min(bb[1],y);bb[2]=Math.max(bb[2],x);bb[3]=Math.max(bb[3],y);}};
   L.forEach(l=>(l.pts||[]).forEach(p=>grow(p.x,p.y)));R.zones.forEach(Z=>(Z.z.poly||[]).forEach(p=>grow(p[0],p[1])));if(!bb)return '<div class="hint">Aucun réseau sur ce chantier.</div>';
   const pad=Math.max(8,(bb[2]-bb[0])*0.04);const vb=[bb[0]-pad,bb[1]-pad,(bb[2]-bb[0])+2*pad,(bb[3]-bb[1])+2*pad];const sw=Math.max(vb[2],vb[3])/260;
   const net=L.map(l=>(l.pts||[]).length>1?`<polyline points="${l.pts.map(p=>p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ')}"/>`:'').join('');
@@ -223,7 +227,7 @@ export function renderFourniture(){const el=document.getElementById('fourniture'
   if(!N||N.id==='__vide'){el.innerHTML='<h2 class="vt">Fourniture</h2><div class="card muted">Aucun chantier.</div>';return;}
   const F=fournOf();ensureInit(F);const R=fzCompute();const ed=fzCanEdit();const UI=A.state.fournUI||(A.state.fournUI={});const open=(k,d)=>((UI[k]===undefined?d:UI[k])?'open':'');const T=R.tot;
   const cmds=live(F.cmds);const fil=UI.fil||'all';
-  const initTxt=F.init?`Tracé initial : ${F.init.src==='marche'?'tracé marché':'tracé'} du ${dFR(String(F.init.at||'').slice(0,10))}`:'Tracé initial : pas encore figé';
+  const FI0=initGet(F);const initTxt=FI0?`Tracé initial : ${FI0.src==='marche'?'tracé marché':'tracé'} du ${dFR(String(FI0.at||'').slice(0,10))}`:'Tracé initial : pas encore figé';
   const FIL=[['all','Tout'],['ecart','Écarts'],['acmd','À commander'],['reste','Reste à livrer']];
   const rows=R.rows.filter(r=>fil==='all'||(fil==='ecart'&&(r.mod||r.plus||r.aCmd||r.surplus))||(fil==='acmd'&&r.aCmd>0)||(fil==='reste'&&r.resteLiv>0));
   const cell=(v,c)=>`<td class="num"${c?` style="${c}"`:''}>${v?q(v):'<span class="dim">—</span>'}</td>`;
@@ -276,23 +280,23 @@ export function renderFourniture(){const el=document.getElementById('fourniture'
 function fzAct(k,v,R){const F=fournOf();if(!F)return;const UI=A.state.fournUI||(A.state.fournUI={});
   if(k==='fil'){UI.fil=v||'all';renderFourniture();return;}
   if(k==='zone'){openZone(v);return;}
-  if(k==='csv'){if(v==='cmp'){const rows=[['Référence','Initial','Modifs','En plus','Besoin','Commandé','Livré','Attendu','Reste à livrer','À commander','Surplus','Posé','À qualifier','Commande compl. à passer','Inclus (sans commande)']];R.rows.forEach(r=>rows.push([r.label,r.ini,r.mod,r.plus,r.besoin,r.cde,r.liv,r.att,r.resteLiv,r.aCmd,r.surplus,r.pose,r.aQual,r.compl,r.inclus]));A.dlCSV((A.net().name||'chantier')+' - fourniture comparatif.csv',rows);}
-    else if(v==='trucks'){const rows=[['Livraison','Zone','Camion','Statut','Contenu','Remplissage %','Poids t','Dont à commander']];R.trucks.forEach(x=>{if(x.kind==='ann')rows.push([x.date||'',x.Z.z.name,x.v.label,x.status,(x.v.prevu||[]).map(y=>y.qty+' × '+y.label).join(' + '),'','','']);else rows.push([x.date||'',x.Z.z.name,'Camion '+x.t.n,'à annoncer',x.t.lines.map(y=>y.qty+' × '+y.label).join(' + '),x.t.petit?'':Math.round(x.t.fill*100),x.t.petit?'':(x.t.kg/1000).toFixed(1).replace('.',','),x.t.lines.filter(y=>y.aCmd).map(y=>y.aCmd+' × '+y.label).join(' + ')]);});A.dlCSV((A.net().name||'chantier')+' - camions.csv',rows);}
-    else if(v.startsWith('z:')){const Z=R.zones.find(x=>x.z.id===v.slice(2));if(!Z)return;const rows=[['Référence','Besoin zone','Déjà posé','Reste à poser','Sur chantier','Annoncé','À faire livrer (commande)','À commander']];Z.lines.forEach(x=>rows.push([x.label,x.need,x.posed,x.rem,x.stock,x.annZ+x.ann,x.order,x.aCmd]));A.dlCSV((A.net().name||'chantier')+' - '+Z.z.name+' - à livrer.csv',rows);}
+  if(k==='csv'){if(v==='cmp'){const rows=[['Référence','Initial','Modifs','En plus','Besoin','Commandé','Livré','Attendu','Reste à livrer','À commander','Surplus','Posé','À qualifier','Commande compl. à passer','Inclus (sans commande)']];R.rows.forEach(r=>rows.push([r.label,r.ini,r.mod,r.plus,r.besoin,r.cde,r.liv,r.att,r.resteLiv,r.aCmd,r.surplus,r.pose,r.aQual,r.compl,r.inclus]));A.dlCSV((A.net().name||'chantier')+mvTag('fourniture')+' - fourniture comparatif.csv',rows);}
+    else if(v==='trucks'){const rows=[['Livraison','Zone','Camion','Statut','Contenu','Remplissage %','Poids t','Dont à commander']];R.trucks.forEach(x=>{if(x.kind==='ann')rows.push([x.date||'',x.Z.z.name,x.v.label,x.status,(x.v.prevu||[]).map(y=>y.qty+' × '+y.label).join(' + '),'','','']);else rows.push([x.date||'',x.Z.z.name,'Camion '+x.t.n,'à annoncer',x.t.lines.map(y=>y.qty+' × '+y.label).join(' + '),x.t.petit?'':Math.round(x.t.fill*100),x.t.petit?'':(x.t.kg/1000).toFixed(1).replace('.',','),x.t.lines.filter(y=>y.aCmd).map(y=>y.aCmd+' × '+y.label).join(' + ')]);});A.dlCSV((A.net().name||'chantier')+mvTag('fourniture')+' - camions.csv',rows);}
+    else if(v.startsWith('z:')){const Z=R.zones.find(x=>x.z.id===v.slice(2));if(!Z)return;const rows=[['Référence','Besoin zone','Déjà posé','Reste à poser','Sur chantier','Annoncé','À faire livrer (commande)','À commander']];Z.lines.forEach(x=>rows.push([x.label,x.need,x.posed,x.rem,x.stock,x.annZ+x.ann,x.order,x.aCmd]));A.dlCSV((A.net().name||'chantier')+mvTag('fourniture')+' - '+Z.z.name+' - à livrer.csv',rows);}
     return;}
-  if(k==='compltr'){const N=A.net();trameOut(v==='xlsx'?'xlsx':'copy',complItems(R),['Commande complémentaire — '+((N&&N.name)||'chantier'),'Établie par '+who()+' le '+dFR(today())],'Commande complementaire - '+slugFile(N&&N.name)+'.xlsx');return;}
+  if(k==='compltr'){const N=A.net();trameOut(v==='xlsx'?'xlsx':'copy',complItems(R),['Commande complémentaire — '+((N&&N.name)||'chantier')+mvTag('fourniture'),'Établie par '+who()+' le '+dFR(today())],'Commande complementaire - '+slugFile(N&&N.name)+(mvTag('fourniture')?'-'+slugFile(mvTag('fourniture')):'')+'.xlsx');return;}
   if(!fzCanEdit()){A.toast('Réservé au chef / bureau');return;}
   if(k==='dec'){const i=v.indexOf('|');const etat=v.slice(0,i),key=v.slice(i+1);const r=R.rows.find(x=>x.k===key);if(!r||!(r.aQual>0)||!['compl','inclus'].includes(etat))return;
     const inp=[...document.querySelectorAll('#fourniture [data-fzq]')].find(x=>x.dataset.fzq===key);const qq=Math.max(1,Math.min(r.aQual,Math.round(+(inp&&inp.value)||r.aQual)));const at=nowIso();
-    F.dec.push({id:nid('FD'),key,etat,qty:qq,label:r.label,by:who(),at,upd:at});save();renderFourniture();A.toast(etat==='compl'?'📦 '+qq+' × '+r.label+' → brouillon de commande complémentaire':'✓ '+qq+' × '+r.label+' inclus (pas de commande attendue)');return;}
+    F.dec.push(mvStamp('fourniture',{id:nid('FD'),key,etat,qty:qq,label:r.label,by:who(),at,upd:at},[]));save();renderFourniture();A.toast(etat==='compl'?'📦 '+qq+' × '+r.label+' → brouillon de commande complémentaire':'✓ '+qq+' × '+r.label+' inclus (pas de commande attendue)');return;}
   if(k==='decx'){const d=F.dec.find(x=>x.id===v);if(!d)return;if(!confirm('Retirer la qualification « '+(d.etat==='compl'?'commande complémentaire':'inclus')+' » de '+d.qty+' × '+(d.label||'')+' ?'+(d.etat==='compl'?'\nUne commande complémentaire déjà passée reste dans les commandes.':'')))return;d.deleted=true;d.upd=nowIso();save();renderFourniture();return;}
   if(k==='complgo'){openComplOrder();return;}
   if(k==='cmd'){openCmd(v||null);return;}
   if(k==='xadd'){openExtra();return;}
   if(k==='xdel'){const x=F.extra.find(y=>y.id===v);if(!x||!confirm('Retirer « '+(x.label||'')+' » des pièces en plus ?'))return;x.deleted=true;x.upd=nowIso();save();renderFourniture();return;}
   if(k==='lasso'){fzStartPose();return;}
-  if(k==='phases'){const P=A.phasageOf&&A.phasageOf();const phs=P?P.phases.filter(p=>!p.deleted&&p.level==='exe'&&(p.tr||[]).length):[];if(!phs.length){A.toast('Aucune phase d\'exécution au phasage');return;}let n=0;phs.forEach(ph=>{if(live(F.zones).some(z=>z.ph===ph.id))return;F.zones.push({id:nid('FZ'),name:ph.name||ph.id,ph:ph.id,at:nowIso(),by:who(),upd:nowIso()});n++;});if(n){save();}renderFourniture();A.toast(n?'✓ '+n+' phase'+(n>1?'s':'')+' reprise'+(n>1?'s':'')+' en zones de livraison':'Les phases sont déjà reprises');return;}
-  if(k==='refige'){if(!confirm('Re-figer le tracé initial sur le tracé ACTUEL ?\nLes modifs repartent de zéro (l\'ancien initial est gardé dans l\'historique).'))return;const r=fournNeeds();const prev=F.init?(F.init.prev||[]).concat([{at:F.init.at,by:F.init.by,src:F.init.src}]).slice(-5):[];F.init={need:r.need,lab:r.lab,src:'trace',at:nowIso(),by:who(),prev};save();renderFourniture();A.toast('Tracé initial re-figé');return;}
+  if(k==='phases'){const P=A.phasageOf&&A.phasageOf();const phs=P?P.phases.filter(p=>!p.deleted&&p.level==='exe'&&(p.tr||[]).length):[];if(!phs.length){A.toast('Aucune phase d\'exécution au phasage');return;}let n=0;phs.forEach(ph=>{if(live(F.zones).some(z=>z.ph===ph.id))return;F.zones.push(mvStamp('fourniture',{id:nid('FZ'),name:ph.name||ph.id,ph:ph.id,at:nowIso(),by:who(),upd:nowIso()},(ph.tr||[]).map(t=>t&&t.line)));n++;});if(n){save();}renderFourniture();A.toast(n?'✓ '+n+' phase'+(n>1?'s':'')+' reprise'+(n>1?'s':'')+' en zones de livraison':'Les phases sont déjà reprises');return;}
+  if(k==='refige'){if(!confirm('Re-figer le tracé initial sur le tracé ACTUEL ?\nLes modifs repartent de zéro (l\'ancien initial est gardé dans l\'historique).'))return;const r=fournNeeds();const I0=initGet(F);const prev=I0?(I0.prev||[]).concat([{at:I0.at,by:I0.by,src:I0.src}]).slice(-5):[];initSet(F,{need:r.need,lab:r.lab,src:'trace',at:nowIso(),by:who(),prev});save();renderFourniture();A.toast('Tracé initial re-figé');return;}
   if(k==='ann'){const [zid,n]=String(v).split('#');const Z=R.zones.find(x=>x.z.id===zid);const t=Z&&Z.trucks.find(x=>String(x.n)===n);if(!t)return;openAnnounce(Z,[t]);return;}}
 
 /* ---------- zone : la liste à prévoir, les camions, la date ---------- */
@@ -321,7 +325,7 @@ function openAnnounce(Z,T){const s=A.stockOf();if(!s){A.toast('Aucun chantier');
     ${T.some(t=>t.lines.some(y=>y.aCmd))?'<div class="warnbox">Une partie n\'est pas sur la commande (« à commander ») : commande-la avant d\'annoncer la livraison.</div>':''}
     <div class="actions" style="margin-top:8px"><button class="btn primary block" id="fz-anok">Annoncer</button><button class="btn block" data-close>Annuler</button></div>`);
   document.getElementById('fz-anok').onclick=()=>{const zone=document.getElementById('fz-anz').value||null;const at=nowIso();let n=0;
-    T.forEach(t=>{const liv={id:'L'+Date.now().toString(36)+Math.random().toString(36).slice(2,4),label:'Camion '+Z.z.name+' n° '+t.n,bl:'',at,date:t.date||today(),dateHist:[],by:who(),status:'prevu',prevu:t.lines.map(x=>({label:x.label,qty:x.qty})),fz:Z.z.id,fzn:t.n,src:'fourniture'};s.livs.push(liv);
+    T.forEach(t=>{const liv={id:'L'+Date.now().toString(36)+Math.random().toString(36).slice(2,4),label:'Camion '+Z.z.name+' n° '+t.n,bl:'',at,date:t.date||today(),dateHist:[],by:who(),status:'prevu',prevu:t.lines.map(x=>({label:x.label,qty:x.qty})),fz:Z.z.id,fzn:t.n,src:'fourniture'};s.livs.push(mvStamp('fourniture',liv,[]));
       t.lines.forEach((x,i)=>{const o=keyObj(x.k);if(o.kind==='pipe')o.len=12;if((o.kind==='sleeve'||o.kind==='pu')&&o.dn&&!o.gaine){const gm=A.gaineMM&&A.gaineMM(o.dn);if(gm)o.gaine=gm;}if(o.kind==='acc')o.label=x.label;const label=o.kind==='acc'?x.label:stockLabel(Object.assign({},o));s.lots.push({id:liv.id+':'+i,liv:liv.id,zone,pend:true,key:stockKey(o),label,kind:o.kind,dn:o.dn,dn2:o.dn2,gaine:o.gaine,len:o.len,angle:o.angle,qty:x.qty});});n++;});
     A.saveStock();A.closeModal();renderFourniture();A.toast('✓ '+n+' camion'+(n>1?'s':'')+' annoncé'+(n>1?'s':'')+' dans Stock (attendu'+(n>1?'s':'')+')');};}
 
@@ -384,7 +388,7 @@ function openCmd(id){const F=fournOf();const src=id?F.cmds.find(c=>c.id===id):nu
     document.getElementById('fc-ok').onclick=()=>{keep();const lines=iqCounted(st).map(x=>{fix(x);const o={key:x.key,kind:x.kind,dn:x.dn,dn2:x.dn2,angle:x.angle,len:x.len,gaine:x.gaine,qty:+x.qty,label:x.label,raw:x.raw||x.des||'',ml:x.ml};if(x.ref)o.ref=x.ref;return o;});
       if(!lines.length){A.toast('Aucune ligne');return;}const F2=fournOf();const at=nowIso();
       if(src){const c=F2.cmds.find(x=>x.id===src.id);if(c)Object.assign(c,{name:st.name,ref:st.ref,date:st.date,file:st.fichier,lines,upd:at});}
-      else F2.cmds.push({id:nid('FC'),name:st.name||'Commande',ref:st.ref,date:st.date,file:st.fichier,lines,at,by:who(),upd:at});
+      else F2.cmds.push(mvStamp('fourniture',{id:nid('FC'),name:st.name||'Commande',ref:st.ref,date:st.date,file:st.fichier,lines,at,by:who(),upd:at},[]));
       save();A.closeModal();(A.state.fournUI||(A.state.fournUI={})).cmd=true;renderFourniture();A.toast('✓ Commande enregistrée : '+lines.length+' ligne'+(lines.length>1?'s':''));};
     const dl=document.getElementById('fc-del');if(dl)dl.onclick=()=>{if(!confirm('Supprimer la commande « '+src.name+' » ?'))return;const F2=fournOf();const c=F2.cmds.find(x=>x.id===src.id);if(c){c.deleted=true;c.upd=nowIso();}save();A.closeModal();renderFourniture();};};
   rd();}
@@ -393,7 +397,7 @@ function openExtra(){A.openModal(`<h3 style="margin-top:0">Pièces en plus</h3><
    <label class="f">Motif</label><select class="f" id="fx-why">${['Casse / pièce abîmée','Chutes et coupes','Réserve chantier','Modif terrain (pas encore au tracé)','Autre'].map(x=>`<option>${x}</option>`).join('')}</select><input class="f" id="fx-note" placeholder="Précision (option)" style="margin-top:6px">
    <div class="actions" style="margin-top:8px"><button class="btn primary block" id="fx-ok">Ajouter</button><button class="btn block" data-close>Annuler</button></div>`);
   document.getElementById('fx-ok').onclick=()=>{const k=document.getElementById('fx-k').value;const x={kind:k,dn:k==='acc'?undefined:+document.getElementById('fx-dn').value,qty:Math.max(1,+document.getElementById('fx-q').value||1)};const v2=+document.getElementById('fx-x').value||0;if(k==='bend'||k==='steelbend')x.angle=v2&&v2<=90?v2:90;if((k==='tee'||k==='reducer')&&DNSET.has(v2))x.dn2=v2;
-    const note=(document.getElementById('fx-note').value||'').trim();if(k==='acc')x.label=note||'Accessoire';x.label=k==='acc'?x.label:fLabel(x);x.key=fKey(x);const F=fournOf();const at=nowIso();F.extra.push(Object.assign({id:nid('FX'),why:document.getElementById('fx-why').value+(note&&k!=='acc'?' — '+note:''),at,by:who(),upd:at},x));save();A.closeModal();(A.state.fournUI||(A.state.fournUI={})).extra=true;renderFourniture();A.toast('Ajouté au besoin');};}
+    const note=(document.getElementById('fx-note').value||'').trim();if(k==='acc')x.label=note||'Accessoire';x.label=k==='acc'?x.label:fLabel(x);x.key=fKey(x);const F=fournOf();const at=nowIso();F.extra.push(mvStamp('fourniture',Object.assign({id:nid('FX'),why:document.getElementById('fx-why').value+(note&&k!=='acc'?' — '+note:''),at,by:who(),upd:at},x),[]));save();A.closeModal();(A.state.fournUI||(A.state.fournUI={})).extra=true;renderFourniture();A.toast('Ajouté au besoin');};}
 
 /* ---------- entourer une zone sur le plan (13/10 soir, Ethan : « simplifie : pouvoir ajouter ou supprimer un point et glisser un point déjà posé ») ----------
    · toucher le plan = un point (à la suite pendant le tracé ; sur le côté le plus proche quand on reprend le contour d'une zone existante)
@@ -445,7 +449,7 @@ export function fzClose(){const p=A.state.fzPose;if(!p||p.pts.length<3)return;co
     <div class="actions" style="margin-top:8px"><button class="btn primary block" id="fzn-ok">Créer la zone</button><button class="btn block" id="fzn-back">↩ Reprendre le contour</button><button class="btn block" id="fzn-x">Annuler</button></div>`);
   document.getElementById('fzn-x').onclick=()=>{A.closeModal();};
   document.getElementById('fzn-back').onclick=()=>{A.closeModal();A.endOtherPoses&&A.endOtherPoses();A.state.fzPose=keep;A.state.tab='plan';A.renderAll();updateFzBar();};
-  document.getElementById('fzn-ok').onclick=()=>{const F2=fournOf();const at=nowIso();const z={id:nid('FZ'),name:(document.getElementById('fzn-name').value||'').trim()||'Zone '+n,poly,date:document.getElementById('fzn-date').value||null,at,by:who(),upd:at};F2.zones.push(z);save();A.closeModal();A.state.tab='fourniture';const UI=A.state.fournUI||(A.state.fournUI={});UI.zones=true;A.renderAll();openZone(z.id);};}
+  document.getElementById('fzn-ok').onclick=()=>{const F2=fournOf();const at=nowIso();const z={id:nid('FZ'),name:(document.getElementById('fzn-name').value||'').trim()||'Zone '+n,poly,date:document.getElementById('fzn-date').value||null,at,by:who(),upd:at};F2.zones.push(mvStamp('fourniture',z,[]));save();A.closeModal();A.state.tab='fourniture';const UI=A.state.fournUI||(A.state.fournUI={});UI.zones=true;A.renderAll();openZone(z.id);};}
 /* calque du plan : zones entourées (pointillés) + la zone en cours de tracé */
 export function renderFzOverlay(g){if(!g||!A)return;const k=A.state.view.k||1;const N=A.net();let out='';const show=!A.state.show||A.state.show.fourn!==false;
   const F=N&&N.id!=='__vide'&&N.fourniture?fournOf():null;
