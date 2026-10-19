@@ -43,9 +43,9 @@ export function reset(num){delete ST.rc[num];delete ST.part[num];delete ST.multi
 /* DN d'une composante : soudures, manchons, autocontrôle (c.dn) ; vannes, SST, raccordements, extrusion (clé « …|d80… ») ; 0 = poste commun (installations, épreuve…) */
 const cdn=c=>{if(!c)return 0;if(c.dn)return +c.dn;const m=/\|d(\d+)(?:\.|$)/.exec(c.k||'');return m?+m[1]:0;};
 const zNom=(CP,z)=>z<0?'Installations':((CP.zones[z]||{}).nom||'Zone '+(z+1));
-function G0(a,M,CP){const D=a.dpgf||{};const S=M?X.dpSheet(M,D):null;const sh=S?S.name:(D.sheetName||'');const pcol=X.puColOf(D);const liens=D.liens||[];
+function G0(a,M,CP){const D=a.dpgf||{};const S=M?X.dpSheet(M,D):null;const sh=S?S.name:(D.sheetName||'');const pcol=X.CO&&M?X.CO.puCol(a,M):X.puColOf(D);const liens=D.liens||[]; /* 19/10 (lot DY) : la lecture effective des colonnes */
   const byA=new Map();liens.forEach(L=>{if(up(L.sh)===up(sh)&&!byA.has(L.a))byA.set(L.a,L);});
-  const lines=(D.lignes||[]).filter(l=>!l.section&&l.row).map(l=>{const ad=addrOf(l.row,pcol);return {row:l.row,n:String(l.n||''),des:String(l.des||''),u:String(l.u||''),q:+l.qte||0,pu:+l.pu||0,isMl:X.REP.isMlU(l.u),a:ad,L:byA.get(ad)||null};});
+  const lines=(X.CO&&M?X.CO.lines(a,M):(D.lignes||[]).filter(l=>!l.section&&l.row)).map(l=>{const ad=l.a||addrOf(l.row,pcol);return {row:l.row,n:String(l.n||''),des:String(l.des||''),u:String(l.u||''),q:+l.qte||0,pu:+l.pu||0,isMl:X.REP.isMlU(l.u),a:ad,L:byA.get(ad)||l.L||null};}); /* (lot DY) DPGF mal lu à l'import : les lignes déduites, et le lien de leur rangée */
   const lineOf=new Map();lines.forEach(l=>{if(l.L)lineOf.set(l.L.id,l);});const hold=new Map();
   liens.forEach(L=>(L.comps||[]).forEach(x=>{const c=CP.by.get(x.k);const q=+x.q||0;if(!c||!(q>0))return;let m=hold.get(c.k);if(!m)hold.set(c.k,m=new Map());m.set(L.id,(m.get(L.id)||0)+q);}));
   if(X.ZN)X.ZN.holdV(a,M,CP,hold); /* 17/10 (lot DZ) : les installations communes par zone (part de chaque zone, ligne par ligne) */
@@ -100,17 +100,17 @@ function planPart(a,M,CP,row,st){const G=G0(a,M,CP);const l=G.lines.find(x=>x.ro
   return {G,l,L,Z,dns,key,rows,donors,use,tot,A_L,nGiv:giv.size};}
 const cfgOf=P=>P?{row:P.l.row,rows:P.use.map(r=>({k:r.k,q:r3(r.q),ids:r.ds.map(x=>x.id)}))}:null;
 /* la ligne du DPGF (rangée row) : son lien, à modifier ; sans lien → un lien neuf (comme « Sur une ligne » du lot C3) */
-function lineLink(a,CP,M,row,R){const D=a.dpgf||{};const S=M&&X.dpSheet(M,D);const l=(D.lignes||[]).find(x=>!x.section&&x.row===row);if(!l||!S){R.msg.push('ligne du DPGF introuvable');return null;}
-  const pa=addrOf(row,X.puColOf(D));const L0=R.W.find(x=>up(x.sh)===up(S.name)&&x.a===pa);if(L0)return R.ed(L0.id);
-  const qc=X.qtyColOf(D);const qa=qc?addrOf(row,qc):null;const qv=qa?X.qOfCell(M,S.name,qa):null;const q=qv!==null&&qv>0?qv:(+l.qte||0);if(!(q>0)){R.msg.push('la ligne '+(l.n||pa)+' n\'a pas de quantité');return null;}
+function lineLink(a,CP,M,row,R){const D=a.dpgf||{};const S=M&&X.dpSheet(M,D);const l=X.CO&&S?X.CO.lineAt(a,M,S,row):(D.lignes||[]).find(x=>!x.section&&x.row===row); /* (lot DY) */if(!l||!S){R.msg.push('ligne du DPGF introuvable');return null;}
+  const pa=addrOf(row,X.CO?X.CO.puCol(a,M):X.puColOf(D));const L0=R.W.find(x=>up(x.sh)===up(S.name)&&x.a===pa)||(X.CO?R.W.find(x=>up(x.sh)===up(S.name)&&(parseAddr(x.a||'')||{}).r===row):null);if(L0)return R.ed(L0.id); /* (lot DY) le lien de la rangée, même hors de la colonne PU */
+  const qc=X.CO?X.CO.qtyCol(a,M):X.qtyColOf(D);const qa=qc?addrOf(row,qc):null;const qv=qa?X.qOfCell(M,S.name,qa):null;const q=qv!==null&&qv>0?qv:(+l.qte||0);if(!(q>0)){R.msg.push('la ligne '+(l.n||pa)+' n\'a pas de quantité');return null;}
   const L={id:'L'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),sh:S.name,a:pa,qa,q,qfix:false,u:l.u||'',comps:[],pu:0,amt:0,v:CP.v,at:R.now,by:R.by,col:X.nextCol({liens:R.W}),_c:1};R.W.push(L);R.ix.set(L.id,R.W.length-1);return L;}
 /* appelé par run() (dpgfsuivi.js) : give = donner sa part ; multi = « en plus » sur les lignes cochées ; rebal = la balance sur les lignes cochées. R = {W, ix, ed, D, now, by, msg} */
 export function runAct(a,CP,M,it,act,arg,R){if(act!=='give'&&act!=='multi'&&act!=='rebal')return false;
-  if(act==='give'){const cfg=arg&&arg.cfg?arg.cfg:cfgOf(planPart(a,M,CP,it.row,null));if(!cfg||!cfg.rows.length){R.msg.push('aucune part à donner');return true;}const Lr=lineLink(a,CP,M,cfg.row,R);if(!Lr)return true;
+  if(act==='give'){const cfg=arg&&arg.cfg?arg.cfg:cfgOf(planPart(a,M,CP,it.row,null));if(!cfg||!cfg.rows.length){R.msg.push('aucune part à donner');return true;}const Lr=(cfg.id&&R.ed(cfg.id))||lineLink(a,CP,M,cfg.row,R);if(!Lr)return true; /* (lot DY) cfg.id : le lien de la ligne calculée */
     const pid='P'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);let n=0;
     cfg.rows.forEach(p=>{const k=p.k;const Z=X.ZN?X.ZN.gv(CP,k,a,M):null;const S_=Z||X.SV; /* 17/10 (lot DZ) : la part d'une zone se prend sur ce que les lignes portent DANS cette zone, et se reçoit avec zs */const ds=(p.ids||[]).map(id=>R.ed(id)).filter(L=>L&&L!==Lr).map(L=>({L,T:S_.tOf(CP,L,k)})).filter(d=>d.T>1e-9);const Qd=ds.reduce((s,d)=>s+d.T,0);const q=Math.min(+p.q||0,Qd);if(!(q>1e-9))return;
       const loss=X.SV.splitQ(q,ds.map(d=>d.T/Qd));let g=0;ds.forEach((d,i)=>{S_.scaleLine(CP,d.L,k,d.T,Math.max(0,d.T-loss[i]));g+=d.T-S_.tOf(CP,d.L,k);}); /* reçu = ce que les donneuses ont vraiment perdu : le total ne bouge pas */
-      if(g>1e-9){Lr.comps.push(Z?Z.comp(r6(g),pid,R.now):{k,q:r6(g),via:'part',pid,at:R.now});n++;}});
+      if(g>1e-9){Lr.comps.push(Z?Object.assign(Z.comp(r6(g),pid,R.now),p.zs?{zs:p.zs}:{}):{k,q:r6(g),via:'part',pid,at:R.now});n++;}}); /* (lot DY) p.zs : reprise sur une zone qui en porte trop, reçue dans la zone de la ligne */
     if(!n)R.msg.push('aucune part à donner : plus aucune ligne ne porte ces postes');return true;}
   const T=(arg&&arg.lines)||{};const k=it.k;let n=0;
   if(act==='multi')Object.keys(T).forEach(v=>{const q=r3(+T[v]||0);if(!(q>0))return;const L=/^L:/.test(v)?R.ed(v.slice(2)):lineLink(a,CP,M,+v.slice(2),R);if(!L)return;

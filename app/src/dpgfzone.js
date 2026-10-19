@@ -50,10 +50,10 @@ export function virt(R){if(!R||R._zv)return R;R._zv=1;R.zv=null;const C=R.C;cons
 /* ═════════ 2 · QUI PORTE QUOI, PAR ZONE ═════════ */
 /* les lignes du DPGF des liens (rangée, n°, désignation, unité, quantité, au ml ?) */
 const LIC=new WeakMap();
-function lineIdx(a,M){const D=a.dpgf||{};const liens=D.liens||[];const lg=D.lignes||[];const o=LIC.get(liens);if(o&&o.lg===lg)return o.m;
+function lineIdx(a,M){const D=a.dpgf||{};const liens=D.liens||[];const lg=D.lignes||[];const o=LIC.get(liens);if(o&&o.lg===lg&&o.M===M&&o.u===D.uOf&&o.c===D.cols)return o.m;
   const S=M?X.dpSheet(M,D):null;const sh=up(S?S.name:(D.sheetName||''));const pcol=X.puColOf(D);const byA=new Map();lg.forEach(l=>{if(!l.section&&l.row)byA.set(addrOf(l.row,pcol),l);});
-  const m=new Map();liens.forEach(L=>{if(sh&&up(L.sh)!==sh)return;const l=byA.get(L.a);if(!l)return;m.set(L.id,{row:l.row,n:String(l.n||''),des:String(l.des||''),u:String(l.u||''),q:+l.qte||0,isMl:X.REP.isMlU(l.u)});});
-  if(liens.length)LIC.set(liens,{lg,m});return m;}
+  const m=new Map();liens.forEach(L=>{if(sh&&up(L.sh)!==sh)return;const l=X.CO&&M?X.CO.lineOf(a,M,L):byA.get(L.a); /* 19/10 (lot DY) : la ligne d'un lien par sa rangée, lue même sur un DPGF mal lu à l'import */if(!l)return;m.set(L.id,{row:l.row,n:String(l.n||''),des:String(l.des||''),u:String(l.u||''),q:+l.qte||0,isMl:X.REP.isMlU(l.u)});});
+  if(liens.length)LIC.set(liens,{lg,m,M,u:D.uOf,c:D.cols});return m;}
 /* zones d'une ligne : ses postes par DN, sinon ses autres postes de zone, au prorata de leurs montants ; sinon les zones du DN de sa désignation (au prorata de leurs
    ml de ce DN) ; une seule zone : elle ; sinon null (rien ne dit sa zone) */
 function zwOf(CP,L,des){const n=CP.zones.length;if(!n)return null;const a=new Array(n).fill(0),b=new Array(n).fill(0);let A=0,B=0;const ha=new Set(),hb=new Set();
@@ -151,6 +151,7 @@ function vcRow(a,M,CP,C,T,v,ro,lk){const k=v.k;const on_=C.chk[k]!==undefined;co
   const sp_=stOf(a,M,CP).find(p=>p.c.k===v.bk);const zOver=!!sp_&&sp_.z[v.z].gapN>=GAP; /* la zone portée au-delà de sa part (pas un linéaire du projet qui baisse) */const rv=ro?'':' : « ↻ Reventiler » en haut du calculateur';
   const det=`part de la zone ${pc(v.sh)}${ml?' · '+nb(v.puV,2)+' € / ml de la zone ('+fq(v.qty)+' ml)':''} · pointé ${eur(pt)}${!done&&!on_?' · <b class="c2-rs">reste '+eur(free*v.puV)+'</b>'+(short*v.puV>=GAP?' · <b class="c3-bad">il manque '+eur(FI.zs*v.puV)+' à la zone</b> : d\'autres zones en portent trop':''):''}${free<-tl&&!(done&&zOver)?' · <b class="c3-bad">⚠ pointé au-delà de '+eur(-free*v.puV)+'</b>':''}`;
   const by=done?holders(a,M,CP,v,lk?lk.id:null).map(h=>labOfL(lineIdx(a,M),h.L)):[];
+  if(X.CO&&X.CO.prOn(a,M,CP,C,T,v))return X.CO.prRow(a,M,CP,C,T,v,ro,{FI,done,short,det,by:by.map(esc),lk,ZI:_zi,head:short*v.puV>=GAP?`<b class="c3-bad">il manque ${eur(short*v.puV)} à la zone</b>, portés par d'autres zones${rv}`:zOver&&free<-tl?`<b class="c3-bad">⚠ la zone porte ${eur(-free*v.puV)} de plus que sa part</b>${rv}`:'✓ tout pointé dans la zone'}); /* 19/10 (lot DY) : ligne au ml → « prendre au prorata de mes ml » (reste, puis reprise ; jamais grisée) */
   let h=`<div class="dx-cr c2-r dz-r${on_?' on':''}${on_&&left<-tl?' over':''}${on_&&Math.abs(left)<=tl?' full':''}${done?' c2-done':''}" data-k="${esc(k)}"><input type="checkbox" data-dz="ck" data-k="${esc(k)}"${on_?' checked':''}${ro||done?' disabled':''} aria-label="${esc('Installations de '+v.zn+' : '+v.b.pl)}"><span class="c2-nm">🏗 ${esc(v.b.pl)}<small>${det}</small></span><span class="m">${eur(v.amtV)}</span>`
     +(on_?`<div class="dx-cq">prendre <input inputmode="decimal" data-dx="cq" data-k="${esc(k)}" value="${esc(C.chk[k])}"${ro?' disabled':''} aria-label="${esc('Part prise : '+v.b.pl)}"> ${ml?'ml de la zone':'% de la part'} = <b data-amt="${esc(k)}">${eur(q*v.puV,2)}</b> <span class="dx-rst">${left<-tl?'⚠ dépasse de '+eur(-left*v.puV):Math.abs(left)<=tl?'✓ tout pointé dans la zone':'reste '+eur(left*v.puV)}</span></div>`:'')
     +(done?`<div class="c2-dn">${short*v.puV>=GAP?`<b class="c3-bad">il manque ${eur(short*v.puV)} à la zone</b>, portés par d'autres zones${rv}`:zOver&&free<-tl?`<b class="c3-bad">⚠ la zone porte ${eur(-free*v.puV)} de plus que sa part</b>${rv}`:'✓ tout pointé dans la zone'}${by.length?' · ligne'+(by.length>1?'s':'')+' '+esc(lst(by)):''}</div>`:'')+'</div>';
@@ -182,21 +183,26 @@ export function rows(a,M,CP,C,AV,g,R,hit,ro,rowOf){if(!on(CP)||!M)return;const T
 /* la case « Installations » de la ventilation (dpgfxl.js dxvpick) : la part de la zone de la ligne */
 export function vpick(a,M,CP,T,C,pk){if(!on(CP))return false;const c=CP.zv.G.find(x=>x.p===pk);if(!c)return false;const zi=curZone(a,M,CP,T,C,null);
   if(zi<0){X.say('Installations : la zone de la ligne n\'est pas connue — coche d\'abord ses soudures, ou coche la part dans le groupe de la zone');return true;}
-  const v=CP.zv.vcs.get(c.k)[zi];if(C.chk[v.k]!==undefined)delete C.chk[v.k];else{const f=freeOf(a,M,CP,C,T,v,X.linkAt(a,T.sh,T.a));C.chk[v.k]=X.fmtIn(X.REP.defTake(v,T,X.parseQ(C.q,{qty:0}),Math.max(0,f)));}return true;}
+  const v=CP.zv.vcs.get(c.k)[zi];if(C.chk[v.k]!==undefined)delete C.chk[v.k];else{const f=freeOf(a,M,CP,C,T,v,X.linkAt(a,T.sh,T.a));C.chk[v.k]=X.fmtIn(X.CO&&X.CO.prOn(a,M,CP,C,T,v)?X.CO.prDef(T,C):X.REP.defTake(v,T,X.parseQ(C.q,{qty:0}),Math.max(0,f)));}return true;}
 /* la chip d'une sélection gardée : ses composantes tout pointées qui ont une part à prendre (« ⇶ leurs parts ») */
-export function selPx(a,M,CP,T,C,st){if(!T||!T.line||!st||!(st.exK||[]).length)return 0;return st.exK.filter(k=>{const kk=String(k).split('#')[0];if(C.pp&&C.pp[kk]!==undefined)return false;return canPart(partPlan(a,M,CP,C,T,kk));}).length;}
+export function selPx(a,M,CP,T,C,st){if(!T||!T.line||!st||!(st.exK||[]).length)return 0;return st.exK.filter(k=>{const kk=String(k).split('#')[0];if(C.pp&&C.pp[kk]!==undefined)return false;if(X.CO&&X.CO.prOn(a,M,CP,C,T,CP.by.get(kk)))return true; /* (lot DY) au prorata des ml */return canPart(partPlan(a,M,CP,C,T,kk));}).length;}
 export const selPxBtn=(S,px)=>px?`<button type="button" class="btn sm dz-selp" data-act="af" data-v="dxdzselp|${esc(S.id)}" title="Ces postes sont déjà tout pointés sur d'autres lignes : coche « ⇶ sa part » de chacun (reprise sur les lignes qui les portent, au « Mettre »)">⇶ leurs parts · ${px}</button>`:'';
 /* « ↦ Mettre » avec des parts cochées : la ligne (ses cases), puis ses parts reprises sur les donneuses — un seul dxWrite, un seul ↶ */
-export function putParts(a,M,CP,T,C,L,old,vals){if(!hasPP(C))return 0;if(!T.line){X.say('« ⇶ sa part » : seulement sur une ligne du DPGF');return -1;}const rows=[];const bad=[];
-  Object.keys(C.pp).forEach(k=>{const P=partPlan(a,M,CP,C,T,k);const v=numIn(C.pp[k]);if(!P||!(P.Qd>1e-9))return;if(v===null||v<0||v>P.Qd+1e-6){bad.push(X.compName(P.c));return;}if(v>1e-9)rows.push({k,q:r3(v),ids:P.ds.map(d=>d.id)});});
+export function putParts(a,M,CP,T,C,L,old,vals){const Y=X.CO&&on(CP)&&T.line?X.CO.prSplit(a,M,CP,T,C,L,_zi):null; /* 19/10 (lot DY) : « prendre au prorata de mes ml » : le reste sur la ligne, la reprise en parts données */
+  if(Y&&Y.chg&&!Y.rows.length&&!hasPP(C)){ZS.msg=X.CO.prPut(a,CP,T,L,old,vals,Y);return 1;} /* plus rien à reprendre : la part ramenée à ce qui reste */
+  if(!hasPP(C)&&!(Y&&Y.rows.length))return 0;if(!T.line){X.say('« ⇶ sa part » : seulement sur une ligne du DPGF');return -1;}const rows=[];const bad=[];if(Y)Y.rows.forEach(r=>rows.push(r));
+  Object.keys(C.pp||{}).forEach(k=>{const P=partPlan(a,M,CP,C,T,k);const v=numIn(C.pp[k]);if(!P||!(P.Qd>1e-9))return;if(v===null||v<0||v>P.Qd+1e-6){bad.push(X.compName(P.c));return;}if(v>1e-9)rows.push({k,q:r3(v),ids:P.ds.map(d=>d.id)});});
   if(bad.length){X.say('Une part dépasse ce que portent les autres lignes : '+bad.slice(0,3).join(', '));return -1;}if(!rows.length)return 0;
   const D=a.dpgf||{};const L2=Object.assign({},L,{qfix:true});const liens=old?(D.liens||[]).map(x=>x.id===old.id?L2:x):(D.liens||[]).concat([L2]);const a2=Object.assign({},a,{dpgf:Object.assign({},D,{liens})});
-  const R=X.SV.run(a2,CP,M,[{it:{k:'part:R'+T.r,kind:'part',row:T.r,lines:[]},act:'give',arg:{cfg:{row:T.r,rows}}}]);if(R.msg.length){X.say('Rien d\'écrit : '+R.msg.join(' ; '));return -1;}
+  const R=X.SV.run(a2,CP,M,[{it:{k:'part:R'+T.r,kind:'part',row:T.r,lines:[]},act:'give',arg:{cfg:{row:T.r,rows,id:L.id}}}]);if(R.msg.length){X.say('Rien d\'écrit : '+R.msg.join(' ; '));return -1;} /* (lot DY) id : le lien de la ligne, même hors de la colonne PU */
   const W=R.W.map(x=>x.id===L.id?Object.assign({},x,{qfix:L.qfix}):x);const V=vals.slice(1).concat(R.vals); /* le PU de la ligne : celui de run() (parts comprises) ; la quantité écrite dans la grille si demandé */
   X.dxWrite(a,V,{liens:()=>W});const m=X.SV.moved(R.chg);X.SV.flash(m.filter(x=>x.neu!==null).map(x=>x.id));const Ln=W.find(x=>x.id===L.id);const giv=new Set();rows.forEach(r=>r.ids.forEach(id=>giv.add(id)));
   const amt=rows.reduce((s,r)=>s+r.q*CP.by.get(r.k).puV,0);
+  if(Y&&Y.rows.length&&Y.e.rest>=0.5){ZS.msg=X.CO.prMsg(old,Ln,T,Y,m.length,giv.size);return 1;} /* (lot DY) une part payée en partie par le reste */
   ZS.msg=(old?'Prix mis à jour':'Prix lié')+' : '+nb(Ln?Ln.pu:0,2)+' € dans '+T.a+' — avec sa part de '+rows.length+' poste'+(rows.length>1?'s':'')+' tout pointé'+(rows.length>1?'s':'')+' ('+eur(amt)+'), reprise au prorata sur '+giv.size+' ligne'+(giv.size>1?'s':'')+' · '+m.length+' PU réécrit'+(m.length>1?'s':'')+', surligné'+(m.length>1?'s':'')+' dans la grille · ↶ pour revenir';return 1;}
 export const lastMsg=()=>ZS.msg;
+/* 19/10 (lot DY) : ce que dpgfcols.js emprunte aux zones (la case « prendre au prorata de mes ml ») */
+const _zi={freeIn,holders,stOf,lineIdx};
 /* ═════════ 4 · LE LOT DK (dpgfrecap.js) : « Donner sa part » sensible aux zones ═════════ */
 /* G0 : la part de zone de chaque installation, ligne par ligne (unités de la zone), sous la clé virtuelle ; l'installation globale n'y est plus */
 export function holdV(a,M,CP,hold){if(!on(CP))return;const d=zd(a,M,CP);if(!d)return;CP.zv.G.forEach(c=>{hold.delete(c.k);const o=d.P.get(c.k);if(!o)return;const vs=CP.zv.vcs.get(c.k);
@@ -226,21 +232,32 @@ export function items(a,CP,M,ok){if(!on(CP)||!M)return [];const d=zd(a,M,CP);if(
   return [Object.assign({},base,{k:'vzgap:inst',kind:'vzgap',nm:'Installations : ventilation par zone à refaire',sig,short:'Installations : ventilation par zone à refaire'})];}
 const unplTxt=rv=>rv.unpl.length?' <b class="c3-bad">'+rv.unpl.map(u=>esc(u.nom)+' : aucune ligne au ml n\'en porte — '+eur(u.e)+' resteront à placer').join(' · ')+'</b>.':'';
 export function phrase(it){const Z=it.rv;const how=' ↻ Reventiler : chaque zone reçoit sa part, sur ses lignes au ml (leurs proportions gardées) ; les lignes au forfait ne bougent pas.';
-  if(it.kind==='vz')return `La ventilation des installations a changé au chiffrage : ${it.ch.map(x=>'<b>'+esc(x.nom)+'</b> : '+eur(x.from)+' → '+eur(x.to)).join(' · ')} — le DPGF porte encore l'ancienne répartition.${how}${unplTxt(Z)}`;
-  return `Le DPGF porte les installations autrement que la ventilation du chiffrage : ${it.zt.filter(x=>Math.abs(x.gap)>=GAP).map(x=>'<b>'+esc(x.z.nom)+'</b> : '+eur(x.P)+' portés pour '+eur(x.S)+' ventilés').join(' · ')}.${how}${unplTxt(Z)}`;}
+  if(it.kind==='vz')return `La ventilation des installations a changé au chiffrage : ${it.ch.map(x=>'<b>'+esc(x.nom)+'</b> : '+eur(x.from)+' → '+eur(x.to)).join(' · ')} — le DPGF porte encore l'ancienne répartition.${how}${mvTxt(Z)}${unplTxt(Z)}`; /* (lot DY) qui rend quoi */
+  return `Le DPGF porte les installations autrement que la ventilation du chiffrage : ${it.zt.filter(x=>Math.abs(x.gap)>=GAP).map(x=>'<b>'+esc(x.z.nom)+'</b> : '+eur(x.P)+' portés pour '+eur(x.S)+' ventilés').join(' · ')}.${how}${mvTxt(Z)}${unplTxt(Z)}`;}
 export const actsHTML=(B,okB)=>B('revent','↻ Reventiler les installations par zone','primary','Chaque zone reçoit sa part ventilée, sur ses lignes au ml (proportions gardées) ; total inchangé ; un seul ↶')+okB;
 /* « ↻ Reventiler » : le calcul (par poste et par zone) */
-function revPlan(a,M,CP){const Z=CP.zv;const d=zd(a,M,CP);const n=CP.zones.length;const out={posts:[],unpl:[],chg:false};const un=new Map();
+function revPlan(a,M,CP){const Z=CP.zv;const d=zd(a,M,CP);const n=CP.zones.length;const out={posts:[],unpl:[],chg:false,mv:new Float64Array(n),zn:CP.zones.map(z=>z.nom),NL:X.CO?zLines(a,CP,d):null};const un=new Map(); /* (lot DY) mv : ce que chaque zone rend (−) ou reçoit (+), en € ; NL : les lignes au ml de chaque zone */
   Z.G.forEach(c=>{const o=d.P.get(c.k);if(!o)return;const S=Z.sh.map(s=>s*c.qty);const T=S.map((s,i)=>Math.max(0,s-o.fix[i]));const Zm=[];for(let i=0;i<n;i++)if(o.mov[i]>1e-9)Zm.push(i);
-    const TS=Zm.reduce((s,i)=>s+T[i],0);const P=Zm.reduce((s,i)=>s+o.mov[i],0);const rho=TS>1e-12?Math.min(1,P/TS):0;const fac=new Float64Array(n);Zm.forEach(i=>{fac[i]=T[i]*rho/o.mov[i];if(Math.abs(T[i]*rho-o.mov[i])*c.puV>=0.005)out.chg=true;});
-    for(let i=0;i<n;i++)if(!(o.mov[i]>1e-9)&&T[i]*c.puV>=TOL){const u=un.get(i)||{i,nom:CP.zones[i].nom,e:0};u.e+=T[i]*c.puV;un.set(i,u);}
-    out.posts.push({c,o,fac,Zm});});
+    const Zn=out.NL?out.NL.map((ls,i)=>i).filter(i=>!(o.mov[i]>1e-9)&&T[i]*c.puV>=TOL&&out.NL[i].length):[]; /* (lot DY) une zone dont aucune ligne ne porte encore l'installation : sa part sur ses lignes au ml */
+    const Za=Zm.concat(Zn);const TS=Za.reduce((s,i)=>s+T[i],0);const P=Zm.reduce((s,i)=>s+o.mov[i],0);const rho=TS>1e-12?Math.min(1,P/TS):0;const tg=X.CO?X.CO.revTg(Za,T,o.mov,P,TS,n):null; /* (lot DY) ce qui reste à placer reste dans les zones qui en manquent */
+    const fac=new Float64Array(n);Zm.forEach(i=>{const g=tg?tg[i]:T[i]*rho;fac[i]=g/o.mov[i];if(Math.abs(g-o.mov[i])*c.puV>=0.005)out.chg=true;});Zn.forEach(i=>{if(tg[i]*c.puV>=0.005)out.chg=true;});Za.forEach(i=>{out.mv[i]+=((tg?tg[i]:T[i]*rho)-o.mov[i])*c.puV;});
+    for(let i=0;i<n;i++)if(!(o.mov[i]>1e-9)&&!Zn.includes(i)&&T[i]*c.puV>=TOL){const u=un.get(i)||{i,nom:CP.zones[i].nom,e:0};u.e+=T[i]*c.puV;un.set(i,u);}
+    out.posts.push({c,o,fac,Zm,Zn,tg});});
   out.unpl=[...un.values()];return out;}
 /* run() du lot C3 : act 'revent' — les liens réécrits dans R.W (un seul dxWrite derrière) */
 export function runAct(a,CP,M,it,act,arg,R){if(act!=='revent')return false;if(!on(CP)){R.msg.push('pas d\'installations ventilées par zone');return true;}const Z=CP.zv;const d=zd(a,M,CP);const rv=revPlan(a,M,CP);let n=0;
   rv.posts.forEach(p=>{p.o.by.forEach((arr,id)=>{const l=d.LI.get(id);if(!l||!l.isMl||!(l.q>0))return; /* au forfait : ne bouge pas */const L=R.ed(id);if(!L)return;
     L.comps=L.comps.flatMap(x=>{if(x.sub||X.SV.kOf(CP,x)!==p.c.k||!((+x.q||0)>0))return [x];const w=wPiece(Z,CP,L,x,l,null);const out=[];w.forEach((wi,i)=>{if(!(wi>0))return;const q=r6((+x.q||0)*wi*p.fac[i]);if(q>1e-9)out.push(Object.assign({},x,{q,zs:Z.tok[i]}));});n++;return out;});});});
+  rv.posts.forEach(p=>(p.Zn||[]).forEach(i=>{const ls=(rv.NL||[])[i]||[];const W=ls.reduce((s,x)=>s+x.w,0);const g=p.tg?p.tg[i]:0;if(!(W>0)||!(g>1e-9))return;ls.forEach(x=>{const q=r6(g*x.w/W);const L=q>1e-9?R.ed(x.id):null;if(!L)return;L.comps.push({k:p.c.k,q,zs:Z.tok[i]});n++;});})); /* (lot DY) une zone sans ligne qui porte : sa part sur ses lignes au ml, au prorata de leurs ml */
   if(!n)R.msg.push('aucune ligne au ml ne porte les installations');return true;}
+/* (lot DY) les lignes au ml de chaque zone (leurs ml × la part de la zone dans la ligne) */
+function zLines(a,CP,d){const NL=CP.zones.map(()=>[]);((a.dpgf||{}).liens||[]).forEach(L=>{const l=d.LI.get(L.id);if(!l||!l.isMl||!(l.q>0))return;const w=zwOf(CP,L,l.des);if(!w)return;w.forEach((x,i)=>{if(x>0.001)NL[i].push({id:L.id,w:l.q*x,lab:l.n||L.a});});});return NL;}
+/* (lot DY) le texte de « ↻ Reventiler » : qui rend quoi à qui ; le total ne change pas */
+const zArt=nom=>/^zone\b/i.test(nom)?'la '+esc(nom):'« '+esc(nom)+' »';const zArtA=nom=>/^zone\b/i.test(nom)?'à la '+esc(nom):'à « '+esc(nom)+' »';
+function mvTxt(rv){if(!rv||!rv.mv)return '';const g=[],r=[];rv.mv.forEach((e,i)=>{if(e<=-0.5)g.push({i,e:-e});else if(e>=0.5)r.push({i,e});});if(!g.length&&!r.length)return '';const nm=i=>rv.zn[i]||'zone';
+  const net=rv.mv.reduce((s,x)=>s+x,0);const head=Math.abs(net)<1?' <b>Le total du DPGF ne change pas</b> : ':' <b>Le total des installations '+(net<0?'baisse':'monte')+' de '+eur(Math.abs(net))+'</b> : ';
+  const t=g.length===1&&r.length===1?`${zArt(nm(g[0].i))} rend ${eur(g[0].e)} ${zArtA(nm(r[0].i))}`:g.map(x=>`${zArt(nm(x.i))} rend ${eur(x.e)}`).concat(r.map(x=>`${zArt(nm(x.i))} reçoit ${eur(x.e)}`)).join(', ');
+  const zn=[...new Set(rv.posts.flatMap(p=>p.Zn||[]))];const nw=zn.length?' ; '+zn.map(i=>`${zArt(nm(i))} reçoit sa part sur ses lignes au ml (${esc(((rv.NL||[])[i]||[]).map(x=>x.lab).slice(0,5).join(', '))})`).join(' ; '):'';return head+t+nw+'.';}
 /* onWrite (à chaque écriture du DPGF) : la référence de la ventilation (suivi.vz) et « ✓ Rien à faire » (suivi.ok['vzgap:inst']) */
 export function onWrite(a,a2,CP,M2,S,S0,ok,sv){if(!on(CP)||!M2)return;try{sv=sv||{};let M1=null;try{M1=X.modelOf(a);}catch(e){M1=null;}
     const pend=S.vz&&M1&&hasInst(a,M1,CP)&&vzDiff(CP,S.vz); /* référence en attente seulement si des installations étaient déjà pointées AVANT cette écriture */if(!S.vz||!pend||sv['vz:inst'])S.vz=vzNow(CP);
@@ -290,7 +307,7 @@ export function act(k,arg,arg2,a,canEdit,M){const num=a.num;
       X.say(n?'🏗 '+n+' part'+(n>1?'s':'')+' d\'installations cochée'+(n>1?'s':'')+' (le reste de chaque zone) : '+eur(e)+' — « ↦ Mettre » pour l\'écrire':'Plus rien à prendre : chaque zone est tout pointée');X.refreshSide(a);return true;}
     case 'dxdzselp':{if(!canEdit||a._vview||!M)return true;const o=cur();if(!o)return true;const {CP,T,C}=o;const S=((a.dpgf||{}).sels||[]).find(x=>x.id===arg);if(!S)return true;
       const ks=mapKeys(a,M,CP,T,C,X.SV.ckeys(CP,S.ks||[]),null).map(k=>String(k).split('#')[0]);let n=0;C.pp=C.pp||{};
-      ks.forEach(k=>{if(C.chk[k]!==undefined||C.pp[k]!==undefined)return;const P=partPlan(a,M,CP,C,T,k);if(!canPart(P))return;C.pp[k]=fin(P.def);n++;});
+      ks.forEach(k=>{if(C.chk[k]!==undefined||C.pp[k]!==undefined)return;if(X.CO&&X.CO.prOn(a,M,CP,C,T,CP.by.get(k))){C.chk[k]=X.fmtIn(X.CO.prDef(T,C));n++;return;} /* (lot DY) part d'une zone, ligne au ml : au prorata de ses ml */const P=partPlan(a,M,CP,C,T,k);if(!canPart(P))return;C.pp[k]=fin(P.def);n++;});
       X.say('« '+S.nom+' » : '+(n?n+' part'+(n>1?'s':'')+' cochée'+(n>1?'s':'')+' (⇶ sa part, reprise au « Mettre » sur les lignes qui les portent)':'aucune part à prendre'));X.refreshSide(a);return true;}}
   return false;}
 /* ═════════ 9 · SAISIES (cases de zone, parts), Qté tapée ═════════ */
@@ -298,7 +315,7 @@ let WIRED=false;
 function liveRes(o){const {a,CP,T,C}=o;const q=X.parseQ(C.q,{qty:0});const amt=X.calcSum(a,CP,C);const res=document.getElementById('dx-cres');if(res)res.innerHTML=X.calcResHTML(a,T,C,amt,q,q>0?amt/q:0,X.linkAt(a,T.sh,T.a),!X.XS.canEdit);}
 function wire(){if(WIRED||!docOK())return;WIRED=true;
   document.addEventListener('change',e=>{const t=e.target;if(!t||!t.dataset||!t.dataset.dz||!t.closest||!t.closest('#dx-calc'))return;const o=cur();if(!o)return;const {a,M,CP,T,C}=o;const k=t.dataset.k;const d=t.dataset.dz;
-    if(d==='ck'){const v=CP.by.get(k);if(!v||!v.v)return;if(t.checked){if(C.chk[k]===undefined){const f=freeOf(a,M,CP,C,T,v,X.linkAt(a,T.sh,T.a));C.chk[k]=X.fmtIn(X.REP.defTake(v,T,X.parseQ(C.q,{qty:0}),Math.max(0,f)));}}else{delete C.chk[k];if(C.zx)delete C.zx[k];}X.refreshSide(a);return;}
+    if(d==='ck'){const v=CP.by.get(k);if(!v||!v.v)return;if(t.checked){if(C.chk[k]===undefined){const f=freeOf(a,M,CP,C,T,v,X.linkAt(a,T.sh,T.a));C.chk[k]=X.fmtIn(X.CO&&X.CO.prOn(a,M,CP,C,T,v)?X.CO.prDef(T,C):X.REP.defTake(v,T,X.parseQ(C.q,{qty:0}),Math.max(0,f)));}} /* (lot DY) ligne au ml : ses ml (le manque est repris) */else{delete C.chk[k];if(C.zx)delete C.zx[k];}X.refreshSide(a);return;}
     if(d==='pp'){C.pp=C.pp||{};if(t.checked){const P=partPlan(a,M,CP,C,T,k);C.pp[k]=fin(P?P.def:0);}else delete C.pp[k];X.refreshSide(a);return;}
     if(d==='pq'){X.refreshSide(a);return;}});
   document.addEventListener('input',e=>{const t=e.target;if(!t||!t.dataset||!t.closest||!t.closest('#dx-calc'))return;

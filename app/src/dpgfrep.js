@@ -49,8 +49,8 @@ export function defTake(c,T,q,rest){const ml=mlDef(T,q);if(ml>0&&perMl(c))return
 /* ═════════ 2 · LES LIGNES DU DPGF (unité, DN lu, lien, PU saisi) ═════════ */
 export const isMlU=u=>/^(ml|m|mlineaires?|metres?lineaires?)$/.test(String(u||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[\s.]/g,''));
 const dnOf=t=>{const m=String(t||'').match(/\bDN\s?(\d{2,3})\b/i);return m?+m[1]:null;};
-function linesOf(a,M){const D=a.dpgf||{};const S=X.dpSheet(M,D);const pc=X.puColOf(D),qc=X.qtyColOf(D);const ed=(((D.xl||{}).ed||{})[S.name])||{};const byA=new Map();(D.liens||[]).forEach(x=>{if(up(x.sh)===up(S.name)&&!byA.has(x.a))byA.set(x.a,x);});
-  return (D.lignes||[]).filter(l=>!l.section&&l.row).map(l=>{const ad=addrOf(l.row,pc);const L=byA.get(ad)||null;
+function linesOf(a,M){const D=a.dpgf||{};const S=X.dpSheet(M,D);const pc=X.CO?X.CO.puCol(a,M):X.puColOf(D),qc=X.CO?X.CO.qtyCol(a,M):X.qtyColOf(D); /* 19/10 (lot DY) : la lecture effective des colonnes */const ed=(((D.xl||{}).ed||{})[S.name])||{};const byA=new Map();(D.liens||[]).forEach(x=>{if(up(x.sh)===up(S.name)&&!byA.has(x.a))byA.set(x.a,x);});
+  return (X.CO?X.CO.lines(a,M):(D.lignes||[]).filter(l=>!l.section&&l.row)).map(l=>{const ad=l.a||addrOf(l.row,pc);const L=byA.get(ad)||l.L||null; /* (lot DY) DPGF mal lu à l'import : les lignes déduites, et le lien de leur rangée */
     return {row:l.row,a:ad,qa:qc?addrOf(l.row,qc):null,n:l.n||'',des:l.des||'',u:l.u||'',q:+l.qte||0,pu:+l.pu||0,isMl:isMlU(l.u),dnR:dnOf(l.des),L,ed:ed[ad]||null,sh:S.name};});}
 /* reste de chaque composante (quantité − pointé par les liens), en laissant de côté les parts d'une répartition (celle qu'on refait) */
 function restFn(a,CP,skip){const by=new Map();((a.dpgf||{}).liens||[]).forEach(L=>(L.comps||[]).forEach(x=>{if(skip&&x.rep===skip)return;const c=CP.by.get(x.k);const k=c?c.k:x.k; /* 16/10 (lot C3) : sous la clé stable */by.set(k,(by.get(k)||0)+(+x.q||0));}));
@@ -103,6 +103,7 @@ export function lkTag(a,L){const ids=[...new Set((L.comps||[]).filter(x=>x.rep).
   return ids.map(id=>{const R=reps.find(r=>r.id===id);return `<span class="rp-tag" title="Ce que « ${esc(R?R.nom:'répartition')} » a mis au ml sur cette ligne">⇶ ${esc(R?R.nom:'répartition')}</span>`;}).join('');}
 /* ═════════ 4 · LA PASTILLE « 🧮 Calculer » ET L'OUVERTURE AU CLIC ═════════ */
 const autoCell=(a,M,s)=>{const D=a.dpgf||{};const S=M.S(s.sh);if(!S)return false;if(X.linkOfRow(a,S.name,s.r))return true;if(S!==X.dpSheet(M,D))return false;
+  if(X.CO&&X.CO.isAuto(a,M)){if(!X.CO.lineAt(a,M,S,s.r))return false;const tc=X.CO.totCol(a,M);return s.c===X.CO.puCol(a,M)||(tc&&s.c===tc);} /* 19/10 (lot DY) : DPGF mal lu à l'import */
   const line=(D.lignes||[]).find(l=>!l.section&&l.row===s.r);if(!line)return false;const tc=X.totColOf(D);return s.c===X.puColOf(D)||(tc&&s.c===tc);};
 function calcShown(num){if(X.popLive())return true;const G=docOK()&&geo();return !!(G&&(G.fl||G.beside));}
 /* la pastille : seulement après un clic (jamais en se déplaçant au clavier), sur une ligne du DPGF dont le calculateur n'est pas à l'écran ; posée dans le contenu de la

@@ -160,10 +160,12 @@ const c14=JSON.stringify(lk(a,'E14').comps);await click('dxrpsimple|');await wai
 out.r2={lignes:R2&&R2.lignes.join(','),c14:JSON.stringify(lk(a,'E14').comps)===c14,tot:Object.entries(sumKeys(a)).every(([k,v])=>Math.abs(v-(tot1[k]||0))<0.002),vsum:await vsum()};
 for(let i=0;i<3;i++){await click('dxundo|');await wait(400);}a=await A();out.back=JSON.stringify(a.dpgf)===S1;
 const am0=qOn(a,'E14','z0|amene');await chif(async()=>{await click('chei|0');await chg('#eq-app [data-afx="e§dn.1.ml"]','330');});await click('dxc3list|');await wait(600);I=await its();out.bal=(I.find(x=>U(x.k)==='z0|amene')||{}).t||'';
-await click('dxc3all|');await wait(800);a=await A();out.am=[am0,qOn(a,'E14','z0|amene'),Pof(a,'z0|amene')];out.bandB=await band();
+/* 19/10 (lot DY) : des ml en plus au chiffrage, lignes du DPGF inchangées → « Laisser à placer » d'office (et « Tout traiter » aussi) ; ici on veut la balance : son bouton, élément par élément */
+for(const x of I){const v=x.b.find(v=>/\|bal$/.test(v));if(!v)continue;if(!await page.$('#c3-dlg')){await click('dxc3list|');await wait(500);}await click(v);await wait(600);}if(await page.$('#c3-dlg')&&(await its()).length){await click('dxc3all|');await wait(800);}
+a=await A();out.am=[am0,qOn(a,'E14','z0|amene'),Pof(a,'z0|amene')];out.bandB=await band();
 out.reput=reput;console.log('c9) après coup :',JSON.stringify(out));
 C.c9=out.reput.same&&out.reput.pu===out.redo.pu14&&out.redo.part&&out.redo.tot&&/\(100 %\)/.test(out.redo.vsum)&&!/reste à reprendre|pris en trop/.test(out.redo.tag)&&out.undo.part&&out.undo.reps===0&&/reste à placer/.test(out.undo.vsum)
-  &&out.r2.lignes==='E9,E10,E11,E12,E13,E14'&&out.r2.c14&&out.r2.tot&&/\(100 %\)/.test(out.r2.vsum)&&out.back&&/^900 → 930 ml, .*réparti sur 6 lignes \(2\.1, 2\.2, 2\.3, 2\.4, 2\.5, 2\.6\)/.test(out.bal)
+  &&out.r2.lignes==='E9,E10,E11,E12,E13,E14'&&out.r2.c14&&out.r2.tot&&/\(100 %\)/.test(out.r2.vsum)&&out.back&&/^900 → 930 ml au chiffrage, montant inchangé : .* tes 6 lignes \(2\.1, 2\.2, 2\.3, 2\.4, 2\.5, 2\.6\) gardent leurs ml/.test(out.bal) /* (lot DY) la phrase des ml en plus */
   &&Math.abs(out.am[1]-out.am[0]*930/900)<=0.002&&Math.abs(out.am[2]-930)<1e-6&&out.bandB==='';
 // ── c10) « en plus » sur les lignes que je coche : DN 125, 120 → 130 soudures (10 à imputer, pointées sur 2.6) → 2.6, 2.1 et 3.1 (soudures en fouille, sans lien : elle en reçoit un) ;
 //    pré-rempli au ml, la somme est contrôlée (9 / 10 → bouton grisé), aperçu des PU, recherche dans les autres lignes ; un seul ↶

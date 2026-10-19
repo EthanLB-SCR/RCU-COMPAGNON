@@ -18,6 +18,7 @@ import * as CL from './dpgfclair.js'; // 16/10 (lot C2) : écran plus clair, « 
 import * as SV from './dpgfsuivi.js'; // 16/10 après-midi (lot C3) : clés stables, liste des changements du chiffrage à traiter, écran plus léger (bouton flottant, groupes repliables, ventilation compacte)
 import * as RC from './dpgfrecap.js'; // 16/10 nuit (lot DK) : « ⇶ Donner sa part » des postes répartis, imputer sur les lignes cochées, « 🔎 Récap » en lecture seule
 import * as ZN from './dpgfzone.js'; // 17/10 (lot DZ) : installations communes ventilées par zone, « ⇶ sa part » d'un poste tout pointé, quantité d'une ligne insérée
+import * as CO from './dpgfcols.js'; // 19/10 (lot DY) : lire n'importe quel DPGF client (colonnes, unité, quantité, n°), ml en plus à placer, part d'installation au prorata des ml
 let H=null;export function initDpgfXl(h){H=h;}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nb=(x,d)=>{x=+x||0;return x.toLocaleString('fr-FR',{maximumFractionDigits:d===undefined?0:d,minimumFractionDigits:d===undefined?0:d});};
@@ -39,6 +40,8 @@ export function bookOf(a){if(!isXlDpgf(a))return {st:'none'};const D=a.dpgf;let 
   B=BOOK[a.num]={st:'loading',at:D.at};B.p=(async()=>{const f=await fileOf(a);if(!f){B.st='nofile';return;}const book=await readBook(f);prepBook(book);B.book=book;B.name=f.name||D.fichier;B.st='ok';})()
     .catch(e=>{console.warn(e);B.st='err';B.err=e.message||String(e);}).finally(()=>{if(XS.num===a.num&&document.getElementById('dx-card')&&XS.ctx&&XS.ctx.render)XS.ctx.render();});return B;}
 export async function bookReady(a){const B=bookOf(a);if(B.p)await B.p;return BOOK[a.num];}
+/* 19/10 (lot DY) : le modèle d'un classeur tout juste lu (import : la lecture des colonnes voit les quantités en formules) */
+export function bookModel(book){prepBook(book);return buildModel(book,{});}
 /* formules partagées : le texte des dépendantes = celui du maître décalé ; feuille : bornes */
 function prepBook(book){book.sheets.forEach((S,i)=>{S.i=i;S.cells.forEach(cell=>{if(cell.ft==='shared'&&!cell.f&&cell.si!==null&&S.sf[cell.si]){const m=S.sf[cell.si];cell.f=shiftFormula(m.f,cell.r-m.r,cell.c-m.c);}});});
   const st=book.styles;book.fmt=i=>{const x=st.xfs[i];if(!x)return 'General';const id=x.nf;return st.numFmts[id]!==undefined?st.numFmts[id]:(BUILTIN_FMT[id]||'General');};}
@@ -88,6 +91,7 @@ function shiftDpgf(D,op,isDp){const T=up(op.sh);const n=op.op==='ins'?op.n:-op.n
   const xl=D.xl=Object.assign({ed:{},ops:[]},D.xl||{});const ed=Object.assign({},xl.ed||{});Object.keys(ed).forEach(sn=>{const isT=up(sn)===T;const m={};Object.keys(ed[sn]).forEach(ad=>{let e=ed[sn][ad];const na=isT?mv(ad):ad;if(na===null)return;if(e&&e.f!==undefined){const f2=shiftRowsFormula(e.f,sn,op.sh,at,n,{grow:!!op.grow});if(f2!==e.f)e=Object.assign({},e,{f:f2});}m[na]=e;});ed[sn]=m;});xl.ed=ed;
   D.liens=(D.liens||[]).map(L=>{if(up(L.sh)!==T)return L;const a2=mv(L.a);if(a2===null)return null;return Object.assign({},L,{a:a2,qa:L.qa?mv(L.qa):L.qa});}).filter(Boolean);
   if(D.reps)D.reps=REP.shiftReps(D.reps,T,mv); /* 15/10 (lot R) : les répartitions suivent leurs lignes */
+  if(D.uOf){const u=CO.shiftU(D.uOf,T,mv,isDp);if(u)D.uOf=u;else delete D.uOf;} /* 19/10 (lot DY) : les unités choisies aussi */
   if(isDp&&D.hdrRow){const h=shiftR(D.hdrRow);if(h)D.hdrRow=h;}
   return shiftR;}
 /* ═════════ 5 · LES LIGNES DU BORDEREAU, RELUES DANS LA GRILLE ═════════ */
@@ -97,7 +101,7 @@ const qtyColOf=D=>{const C=D.cols||{};return C.qte>=0?C.qte+1:0;};const totColOf
 const numOf=v=>{if(typeof v==='number')return v;if(v===null||v===undefined||isErr(v)||typeof v==='boolean')return null;const s=String(v).replace(/[\s  ]/g,'').replace(',','.');const x=parseFloat(s);return isFinite(x)?x:null;};
 const strOf=v=>v===null||v===undefined||isErr(v)?'':String(v);
 export function deriveLines(M,D){const S=dpSheet(M,D);const C=D.cols||{};const hr=D.hdrRow||0;const L=[];const puC=puColOf(D);
-  for(let r=hr+1;r<=S.maxR;r++){const g=c=>c>0?val(M,S,r,c):null;const des=strOf(g((C.des??-1)+1)).trim();if(!des)continue;const n=C.n>=0?strOf(g(C.n+1)).trim():'';const u=C.u>=0?strOf(g(C.u+1)).trim():'';const q=C.qte>=0?numOf(g(C.qte+1)):null;const pu=numOf(g(puC));
+  for(let r=hr+1;r<=S.maxR;r++){const g=c=>c>0?val(M,S,r,c):null;const des=strOf(g((C.des??-1)+1)).trim();if(!des)continue;const n=C.n>=0?strOf(g(C.n+1)).trim():'';const u=(C.u>=0?strOf(g(C.u+1)).trim():'')||CO.uSet(D,S,r); /* 19/10 (lot DY) : l'unité choisie au calculateur */const q=C.qte>=0?numOf(g(C.qte+1)):null;const pu=numOf(g(puC));
     if(/^total/i.test(des))continue;if(!u&&q===null){L.push({n,des,section:true,row:r});continue;}L.push({n,des,u,qte:q||0,pu:pu||0,row:r});}
   return L;}
 /* les anciennes cartes (atelier : D.map indexé par n° de ligne) suivent les lignes */
@@ -117,9 +121,9 @@ function syncFromGrid(a,D,rowMap){const B=BOOK[a.num];if(!B||B.st!=='ok')return;
     if(anyPu&&isEmpty(hv)&&!cur[ha]){edSet(D,S.name,ha,{v:'PU HT (SCR)',auto:1});changed=true;}else if(!anyPu&&cur[ha]&&cur[ha].auto){edSet(D,S.name,ha,null);changed=true;}}
   const M=changed?buildModel(B.book,D.xl):M0;const oldL=D.lignes||[];const L=deriveLines(M,D);D.map=remapMap(D,oldL,L,rowMap);D.lignes=L;}
 /* ═════════ 6 · SAISIES (et annuler / rétablir) ═════════ */
-const snapOf=D=>JSON.stringify({xl:D.xl||null,lignes:D.lignes||[],map:D.map||{},liens:D.liens||[],hdrRow:D.hdrRow,reps:D.reps||null,suivi:D.suivi||null}); /* 16/10 (lot C3) : + le suivi des changements (un traitement s'annule d'un seul ↶) */
+const snapOf=D=>JSON.stringify({xl:D.xl||null,lignes:D.lignes||[],map:D.map||{},liens:D.liens||[],hdrRow:D.hdrRow,reps:D.reps||null,suivi:D.suivi||null,cols:D.cols||null,uOf:D.uOf||null}); /* 16/10 (lot C3) : + le suivi des changements (un traitement s'annule d'un seul ↶) ; 19/10 (lot DY) : + les colonnes, les unités choisies */
 function pushUndo(a){const D=a.dpgf||{};const U=XS.undo[a.num]=XS.undo[a.num]||[];U.push(snapOf(D));if(U.length>40)U.shift();XS.redo[a.num]=[];}
-function restore(a,snap){const o=JSON.parse(snap);const D=Object.assign({},a.dpgf||{},{xl:o.xl||undefined,lignes:o.lignes,map:o.map,liens:o.liens,hdrRow:o.hdrRow});if(!o.xl)delete D.xl;if(o.reps&&o.reps.length)D.reps=o.reps;else delete D.reps;if(o.suivi!==undefined){if(o.suivi)D.suivi=o.suivi;else delete D.suivi;}H.affSet(a.num,{dpgf:D});}
+function restore(a,snap){const o=JSON.parse(snap);const D=Object.assign({},a.dpgf||{},{xl:o.xl||undefined,lignes:o.lignes,map:o.map,liens:o.liens,hdrRow:o.hdrRow});if(!o.xl)delete D.xl;if(o.reps&&o.reps.length)D.reps=o.reps;else delete D.reps;if(o.suivi!==undefined){if(o.suivi)D.suivi=o.suivi;else delete D.suivi;}if(o.cols)D.cols=o.cols;if(o.uOf!==undefined){if(o.uOf)D.uOf=o.uOf;else delete D.uOf;}H.affSet(a.num,{dpgf:D});}
 export function dxUndo(a,redo){const from=redo?XS.redo:XS.undo,to=redo?XS.undo:XS.redo;const L=from[a.num]||[];if(!L.length){say(redo?'Rien à rétablir':'Rien à annuler');return false;}const snap=L.pop();(to[a.num]=to[a.num]||[]).push(snapOf(a.dpgf||{}));restore(a,snap);return true;}
 const sameV=(x,y)=>{if(x===undefined)x=null;if(y===undefined)y=null;if(typeof x==='number'&&typeof y==='number')return Math.abs(x-y)<=1e-9*Math.max(1,Math.abs(x));if(isErr(x)&&isErr(y))return x.e===y.e;return x===y;};
 function edSet(D,sh,ad,e){const xl=D.xl=Object.assign({ed:{},ops:[]},D.xl||{});xl.ed=Object.assign({},xl.ed||{});const m=Object.assign({},xl.ed[sh]||{});if(e===null||e===undefined)delete m[ad];else m[ad]=e;xl.ed[sh]=m;if(!Object.keys(m).length)delete xl.ed[sh];xl.rev=(xl.rev||0)+1;}
@@ -352,6 +356,7 @@ export function tableHTML(a,M,S,z,scrollTop,vh){const L=layOf(M,S,z);const o=ren
 /* ═════════ 10 · LE CALCULATEUR (« je coche ce que le prix comprend ») ═════════ */
 const fmtQ=x=>nb(x,Math.abs(x-Math.round(x))>1e-9?2:0);
 function calcTarget(a,M){const s=XS.sel[a.num];if(!s||!M)return null;const D=a.dpgf||{};const S=M.S(s.sh);if(!S)return null;
+  {const tg=CO.target(a,M,S,s);if(tg!==undefined)return tg;} /* 19/10 (lot DY) : DPGF mal lu à l'import → la ligne déduite de sa rangée (le chemin d'avant pour un DPGF lu juste) */
   if(S===dpSheet(M,D)){const line=(D.lignes||[]).find(l=>!l.section&&l.row===s.r);if(line){const qc=qtyColOf(D);return {sh:S.name,r:s.r,a:addrOf(s.r,puColOf(D)),qa:qc?addrOf(s.r,qc):null,line,u:line.u||''};}}
   const lk=linkAt(a,S.name,addrOf(s.r,s.c));if(lk)return {sh:S.name,r:s.r,a:lk.a,qa:lk.qa||null,line:null,u:lk.u||''};
   if(XS.free&&XS.free.num===a.num&&up(XS.free.sh)===up(S.name)&&XS.free.a===addrOf(s.r,s.c))return {sh:S.name,r:s.r,a:XS.free.a,qa:null,line:null,u:''};return null;}
@@ -446,7 +451,7 @@ export function dpgfXlHTML(a,canEdit,ctx){ensureCss(document);wireSide();XS.ctx=
     <button class="btn sm${side?' on':''}" data-act="af" data-v="dxlay|side" title="Le DPGF à gauche, notre prix à droite (grand écran)">◫ Côte à côte</button><button class="btn sm${side?'':' on'}" data-act="af" data-v="dxlay|stack" title="Notre prix sous le DPGF (écran simple)">⬒ Empilé</button><button class="btn sm${pop?' on':''}" data-act="af" data-v="dxpop|" title="Le DPGF dans une fenêtre à glisser sur le 2e écran">⧉ Autre écran</button><button class="btn sm" data-act="af" data-v="dxfull|" title="${XS.full?'Quitter le plein écran (Échap)':'Plein écran'}">${XS.full?'✕ Quitter':'⤢ Plein écran'}</button></div>`;
   const fb=`<div class="dx-fb"><input class="dx-nm" id="dx-nm" value="${addrOf(s.r,s.c)}" aria-label="Cellule" title="Aller à une cellule (ex. E12)"><span class="dx-fxl">fx</span><input class="dx-fi" id="dx-fi" value="${esc(editText(cur&&cur.f?cur:{v:val(M,S,s.r,s.c)}))}" ${ro?'readonly':''} aria-label="Contenu de la cellule"><span class="dx-fbx" id="dx-fbx"${cellInfo(a,M,S,s)?'':' hidden'}>${cellInfo(a,M,S,s)}</span></div>`;
   queueMicrotask(()=>{try{dxMount(a.num);}catch(e){console.warn(e);}});
-  {const h=CL.cardHTML(a,M,canEdit,{z,side,pop,grid,fb,sideHTML:()=>sideHTML(a,M,canEdit),top:SV.topHTML(a,M,canEdit),end:SV.endHTML(a,M,canEdit)+RC.endHTML(a,M,canEdit) /* (lot DK) : récap, fenêtre « Donner sa part » */});if(h!==null)return h;} /* 16/10 (lot C2) : barre courte (« ⋯ »), autre écran = une barre fine, calculateur et ventilation sur toute la largeur — (lot C3) : top = bandeau « le chiffrage a changé », end = bouton flottant « 🧮 Calculer » et la liste à traiter */
+  {const h=CL.cardHTML(a,M,canEdit,{z,side,pop,grid,fb,sideHTML:()=>sideHTML(a,M,canEdit),top:SV.topHTML(a,M,canEdit)+CO.bandHTML(a,M,canEdit) /* (lot DY) : colonnes relues */,end:SV.endHTML(a,M,canEdit)+RC.endHTML(a,M,canEdit)+CO.endHTML(a,M,canEdit) /* (lot DK) : récap, fenêtre « Donner sa part » ; (lot DY) : « Colonnes du DPGF » */});if(h!==null)return h;} /* 16/10 (lot C2) : barre courte (« ⋯ »), autre écran = une barre fine, calculateur et ventilation sur toute la largeur — (lot C3) : top = bandeau « le chiffrage a changé », end = bouton flottant « 🧮 Calculer » et la liste à traiter */
   return `<div class="card dx-card${XS.full?' full':''}" id="dx-card">${head}${bar}${pop?'':fb}<div class="dx-split${side?' side':''}${REP.splitCls(a)}">${grid}<div class="dx-side" id="dx-side">${sideHTML(a,M,canEdit)}</div></div>
     <div class="hint" style="margin-top:6px">Clique une cellule et tape (formules en français : <i>=SOMME(F7:F9)</i>, <i>=ARRONDI(D10*E10;2)</i>) ; Entrée valide, Échap annule, Ctrl+Z annule. Le coin bleu = cellule modifiée ; « ⬇ DPGF pour le dossier » rend le fichier du client avec ces seules cellules changées.</div>${REP.toolHTML(a,M,canEdit)}</div>`;}
 function tabsHTML(a,M,S){return `<div class="dx-tabs">${M.sheets.map((x,i)=>x.hidden?'':`<button class="${x===S?'on':''}" data-act="af" data-v="dxsheet|${i}">${esc(x.name)}</button>`).join('')}<span class="dx-st" id="dx-st">${statusHTML(a,M,S)}</span></div>`;}
@@ -570,6 +575,7 @@ export function dpgfXlAct(k,arg,arg2,a,ctx){if(!/^dx/.test(k))return false;XS.ct
   if(/^dxc3/.test(k))return SV.act(k,arg,arg2,a,canEdit,M); /* 16/10 après-midi (lot C3) : liste des changements à traiter, groupes repliables, bouton flottant */
   if(/^dxdk/.test(k))return RC.act(k,arg,arg2,a,canEdit,M); /* 16/10 nuit (lot DK) : donner sa part, lignes cochées, récap */
   if(/^dxdz/.test(k))return ZN.act(k,arg,arg2,a,canEdit,M); /* 17/10 (lot DZ) : reventiler, prendre les installations de toutes les zones, parts d'une sélection */
+  if(/^dxco/.test(k))return CO.act(k,arg,arg2,a,canEdit,M); /* 19/10 (lot DY) : colonnes du DPGF, unité en un clic, laisser à placer les installations */
   switch(k){
     case 'dxsheet':{if(!M)return true;const S=M.sheets[+arg];if(S){XS.sh[a.num]=S.name;}rerender();return true;}
     case 'dxzoom':{if(!M)return true;const S=curSheet(a,M);const z=zoomOf(a,S);let i=0;ZOOMS.forEach((x,j)=>{if(Math.abs(x-z)<Math.abs(ZOOMS[i]-z))i=j;});i=Math.max(0,Math.min(ZOOMS.length-1,i+(+arg||0)));XS.zoom[a.num+'|'+S.name]=ZOOMS[i];rerender();return true;}
@@ -680,7 +686,7 @@ export function detailSheets(a){const CP=compsOf(a);if(!CP)return null;const C=C
   p2('A'+rr,'Total','tot');for(let i=0;i<cols.length*2+2;i++){const cl=colName(2+i);p2(cl+rr,null,'tote','SUM('+cl+rr0+':'+cl+(rr-1)+')');}
   const s2={name:'Postes × zones',cells:c2,merges:m2,widths:[30].concat(Array(cols.length*2+2).fill(14)),heights:{1:24,3:30}};
   /* lignes du DPGF pointées */const M=modelOf(a);const D=a.dpgf||{};const c3={};const p3=(ad,v,s,f)=>{c3[ad]=f?{f,s}:{v,s};};p3('A1','Lignes du DPGF reliées à notre chiffrage','title');let r3=3;['Cellule','N°','Désignation','Quantité','PU','Montant','Composantes (quantité prise × PU de vente)'].forEach((h,i)=>p3(colName(i+1)+r3,h,'hdr'));r3++;
-  (D.liens||[]).forEach(L=>{const X=linkNow(L,CP,M);const p=parseAddr(L.a);const ln=p?(D.lignes||[]).find(l=>!l.section&&l.row===p.r):null;p3('A'+r3,(L.sh&&M&&M.sheets.length>1?L.sh+'!':'')+L.a,'txt');p3('B'+r3,ln?ln.n:'','txt');p3('C'+r3,ln?ln.des:'','wrap');p3('D'+r3,X.q,'num');p3('E'+r3,X.pur,'eur');p3('F'+r3,null,'eur','D'+r3+'*E'+r3);
+  (D.liens||[]).forEach(L=>{const X=linkNow(L,CP,M);const p=parseAddr(L.a);const ln=M?CO.lineOf(a,M,L):p?(D.lignes||[]).find(l=>!l.section&&l.row===p.r):null; /* (lot DY) */p3('A'+r3,(L.sh&&M&&M.sheets.length>1?L.sh+'!':'')+L.a,'txt');p3('B'+r3,ln?ln.n:'','txt');p3('C'+r3,ln?ln.des:'','wrap');p3('D'+r3,X.q,'num');p3('E'+r3,X.pur,'eur');p3('F'+r3,null,'eur','D'+r3+'*E'+r3);
     p3('G'+r3,(L.comps||[]).map(x=>{const c=CP.by.get(x.k);return c?(c.zn+' › '+compName(c)+(x.sub?CL.cmpSubTxt(CP,x,c):' : '+fmtQ(x.q)+' '+c.u+' × '+nb(c.puV,2)+' €')):'(composante disparue)';}).join(' ; '),'wrap');r3++;});
   if(!(D.liens||[]).length)p3('A'+r3,'Aucune ligne reliée pour l\'instant (calculateur du DPGF).','note');
   const s3={name:'DPGF · lignes reliées',cells:c3,merges:['A1:G1'],widths:[12,8,46,11,12,13,80],heights:{1:24}};
@@ -703,7 +709,7 @@ export function puDetailHTML(a,canEdit){ensureCss(document);wireSide();const CP=
   const xlsBtn=CP?`<button class="btn sm" data-act="af" data-v="dxdetail|" style="margin-left:auto" title="Le même détail dans un classeur Excel (3 feuilles), si tu en as besoin hors de l'appli">⬇ Excel</button>`:'';
   const head=`<h4>🔎 Détail des prix unitaires <span class="hint">· prix de vente HT${CP&&CP.v?' · chiffrage v'+CP.v:''}</span>${xlsBtn}</h4>`;
   if(!CP)return `<div class="dx-panel dx-pu" id="dx-pu">${head}<div class="eq-s">Pas encore de chiffrage complet (zones, postes) : le détail s'affichera ici.</div></div>`;
-  let M=null;try{M=modelOf(a);}catch(e){M=null;}const coef=CP.coef;const narrow=typeof window!=='undefined'&&(window.innerWidth||1000)<640; /* téléphone : 4 colonnes, la décomposition en sous-ligne */const spl=(mo,fo,stt,loc)=>[['MO',mo],['Fourn.',fo],['S.-trait.',stt],['Loc. / frais',loc]].filter(x=>Math.abs(x[1])>=0.005).map(x=>x[0]+' '+nb(x[1],2)).join(' · ');const lines=(D.lignes||[]).filter(l=>!l.section);const mode=st.mode||(liens.length?'lignes':'comps');
+  let M=null;try{M=modelOf(a);}catch(e){M=null;}const coef=CP.coef;const narrow=typeof window!=='undefined'&&(window.innerWidth||1000)<640; /* téléphone : 4 colonnes, la décomposition en sous-ligne */const spl=(mo,fo,stt,loc)=>[['MO',mo],['Fourn.',fo],['S.-trait.',stt],['Loc. / frais',loc]].filter(x=>Math.abs(x[1])>=0.005).map(x=>x[0]+' '+nb(x[1],2)).join(' · ');const lines=M?CO.lines(a,M):(D.lignes||[]).filter(l=>!l.section); /* (lot DY) les lignes lues même sur un DPGF mal lu à l'import */const mode=st.mode||(liens.length?'lignes':'comps');
   const tabs=`<div class="dx-pum"><button class="btn sm${mode==='lignes'?' on':''}" data-act="af" data-v="dxpumode|lignes">Par ligne du DPGF · ${lines.length}</button><button class="btn sm${mode==='comps'?' on':''}" data-act="af" data-v="dxpumode|comps">Nos prix unitaires · ${CP.list.length}</button></div>`;
   const groups=CP.zones.map(z=>({k:'z'+z.i,nom:z.nom,ml:z.ml,list:CP.list.filter(c=>c.z===z.i)})).concat(CP.inst?[{k:'inst',nom:'Installations',ml:0,list:CP.list.filter(c=>c.z<0)}]:[]).filter(g=>g.list.length);
   const f=normF(st.f).trim();const fWords=f?f.split(/\s+/):[];const hit=txt=>!fWords.length||fWords.every(w=>normF(txt).includes(w));
@@ -759,16 +765,18 @@ export function refreshPopup(){if(!popLive())return;const a=affOf(XS.pop.num);co
     <div class="dx-fb"><input class="dx-nm" id="dx-nm" value="${addrOf(s.r,s.c)}"><span class="dx-fxl">fx</span><input class="dx-fi" id="dx-fi" value="${esc(editText(cur&&cur.f?cur:{v:val(M,S,s.r,s.c)}))}" ${XS.canEdit?'':'readonly'}><span class="dx-fbx" id="dx-fbx"${cellInfo(a,M,S,s)?'':' hidden'}>${cellInfo(a,M,S,s)}</span></div>
     <div class="dx-grid"><div class="dx-vp" id="dx-vp" tabindex="0"><div class="dx-cnt" id="dx-cnt">${T.html}</div></div>${tabsHTML(a,M,S)}</div></div>`;
   doc.title=(a.num||'')+' — DPGF';dxMount(a.num,doc);if(had||doc.hasFocus()){const vp=doc.getElementById('dx-vp');if(vp&&XS.focus)try{vp.focus({preventScroll:true});}catch(e){}}}
-export function dxReset(num){[XS.undo,XS.redo,XS.calc,XS.sel,XS.sh].forEach(m=>{delete m[num];});Object.keys(XS.det).forEach(k=>{if(k.startsWith(num+'|'))delete XS.det[k];});Object.keys(XS.scroll).forEach(k=>{if(k.startsWith(num+'|'))delete XS.scroll[k];});if(XS.free&&XS.free.num===num)XS.free=null;delete BOOK[num];REP.reset(num);SV.reset(num);RC.reset(num);ZN.reset(num);}
+export function dxReset(num){[XS.undo,XS.redo,XS.calc,XS.sel,XS.sh].forEach(m=>{delete m[num];});Object.keys(XS.det).forEach(k=>{if(k.startsWith(num+'|'))delete XS.det[k];});Object.keys(XS.scroll).forEach(k=>{if(k.startsWith(num+'|'))delete XS.scroll[k];});if(XS.free&&XS.free.num===num)XS.free=null;delete BOOK[num];REP.reset(num);SV.reset(num);RC.reset(num);ZN.reset(num);CO.reset(num);}
 /* quantités changées dans la grille (contrôles avant export) */
 export function qtyModsOf(a){const M=modelOf(a);if(!M)return 0;const D=a.dpgf||{};const S=dpSheet(M,D);const qc=qtyColOf(D);if(!qc)return 0;let n=0;(D.lignes||[]).forEach(l=>{if(l.section)return;const cell=S.cells.get(cellKey(l.row,qc));if(cell&&cell.ed&&!cell.ed.auto)n++;});return n;}
 /* 15/10 (lot R) : ce que dpgfrep.js emprunte au DPGF (aucun import circulaire) */
-REP.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,linkOfRow,dpSheet,puColOf,qtyColOf,totColOf,calcTarget,calcState,calcResHTML,calcSum,parseQ,fmtIn,compName,dxWrite,refreshSide,rerender,popLive,scrollToCell,LK_COLS,say,ZN});
+REP.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,linkOfRow,dpSheet,puColOf,qtyColOf,totColOf,calcTarget,calcState,calcResHTML,calcSum,parseQ,fmtIn,compName,dxWrite,refreshSide,rerender,popLive,scrollToCell,LK_COLS,say,ZN,CO});
 /* 16/10 (lot C2) : ce que dpgfclair.js emprunte au DPGF */
-CL.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,dpSheet,puColOf,calcTarget,calcState,calcSum,parseQ,fmtIn,compName,dxWrite,refreshSide,rerender,popLive,scrollToCell,qOfCell,nextCol,LK_COLS,say,RC,ZN});
+CL.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,dpSheet,puColOf,calcTarget,calcState,calcSum,parseQ,fmtIn,compName,dxWrite,refreshSide,rerender,popLive,scrollToCell,qOfCell,nextCol,LK_COLS,say,RC,ZN,CO});
 /* 16/10 après-midi (lot C3) : ce que dpgfsuivi.js emprunte au DPGF */
-SV.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,dpSheet,puColOf,qtyColOf,calcTarget,qOfCell,nextCol,compName,dxWrite,refreshSide,rerender,popLive,LK_COLS,say,REP,CL,RC,ZN});
+SV.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,dpSheet,puColOf,qtyColOf,calcTarget,qOfCell,nextCol,compName,dxWrite,refreshSide,rerender,popLive,LK_COLS,say,REP,CL,RC,ZN,CO});
 /* 16/10 nuit (lot DK) : ce que dpgfrecap.js emprunte au DPGF */
-RC.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,dpSheet,puColOf,qtyColOf,calcTarget,qOfCell,nextCol,compName,dxWrite,refreshSide,rerender,popLive,scrollToCell,LK_COLS,say,REP,CL,SV,ZN});
+RC.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,dpSheet,puColOf,qtyColOf,calcTarget,qOfCell,nextCol,compName,dxWrite,refreshSide,rerender,popLive,scrollToCell,LK_COLS,say,REP,CL,SV,ZN,CO});
 /* 17/10 (lot DZ) : ce que dpgfzone.js emprunte au DPGF */
-ZN.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,dpSheet,puColOf,qtyColOf,calcTarget,calcState,calcSum,calcResHTML,parseQ,fmtIn,qOfCell,compName,dxWrite,refreshSide,rerender,popLive,LK_COLS,say,REP,CL,SV,RC});
+ZN.init({XS,H:()=>H,affOf,modelOf,compsOf,pointage,linkNow,linkAt,dpSheet,puColOf,qtyColOf,calcTarget,calcState,calcSum,calcResHTML,parseQ,fmtIn,qOfCell,compName,dxWrite,refreshSide,rerender,popLive,LK_COLS,say,REP,CL,SV,RC,CO});
+/* 19/10 (lot DY) : ce que dpgfcols.js emprunte au DPGF */
+CO.init({XS,H:()=>H,affOf,modelOf,compsOf,val,dpSheet,puColOf,qtyColOf,totColOf,deriveLines,linkAt,linkNow,qOfCell,calcTarget,calcState,parseQ,fmtIn,dxWrite,refreshSide,rerender,say,bookModel,REP,CL,SV,RC,ZN});

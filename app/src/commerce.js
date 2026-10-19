@@ -13,6 +13,7 @@ import {initDpgfWb,dpgfWorkbenchHTML,dpgfWbAct,refreshPopup as dwRefresh,dwState
 import {initDpgfXl,dpgfXlHTML,dpgfXlAct,isXlDpgf,lignesToGrid,bookOf,buildDossier,dxState,qtyModsOf,dxReset,staleCount,puDetailBlock} from './dpgfxl.js'; // 14/10 après-midi (lot C) : le DPGF « comme dans Excel » (grille fidèle, formules, calculateur, ventilation, export du fichier du client)
 import {readBook} from './xlsx.js'; // 14/10 après-midi (lot C) : la feuille du DPGF cherchée dans tout le classeur
 import {oldToolsHTML} from './dpgfclair.js'; // 16/10 (lot C2) : bordereau simplifié et atelier rangés dans un pli « Anciens outils » quand la grille Excel est là
+import {importFix} from './dpgfcols.js'; // 19/10 (lot DY) : à l'import, les colonnes déduites quand l'en-tête deviné lit nettement moins de lignes (titre « Détail des prix », U.M., en-tête sur 2 lignes)
 import {memLibInit,memLib,memLibMode,memLibModeBar,memLibHTML,memLibAct,memLibActive,memLibReady,memLibWord,memLibPrint,memLibPdfDownload} from './memoire2.js'; // 14/10 nuit : bibliothèque de blocs du mémoire technique SCR (étape 5 · Mémoire)
 import {docsObligHTML,obligAct,obligHint,obligItems} from './docsoblig.js'; // 14/10 après-midi (lot D) : documents obligatoires (7 · Offre) et dossier de remise
 import {vHistoryHTML} from './versions.js'; // 14/10 après-midi (lot D) : historique des versions (consultables, écrits officiels)
@@ -258,10 +259,11 @@ export function commerceInput(el,ctx){const d=el.dataset;const a=AS().cur?affGet
 /* fichier DPGF déposé (appelé par la délégation « change » de l'espace) */
 export async function dpgfFile(num,file,ctx){const a=affGet(num);if(!a||!ctx.canEdit||!file)return;const say=t=>A&&A.toast&&A.toast(t);let rows=[];const isX=/\.xlsx$/i.test(file.name);
   /* 14/10 après-midi (lot C) : un .xlsx est lu en entier — la feuille du bordereau est la 1re (dans l'ordre des onglets) dont l'en-tête est reconnu */
-  let meta={},L=[],sheetName=null;
-  if(isX){try{const book=await readBook(file);for(const S of book.sheets.filter(x=>!x.hidden).concat(book.sheets.filter(x=>x.hidden))){const R=[];for(let r=1;r<=S.maxR;r++){const row=[];for(let c=1;c<=Math.min(S.maxC,200);c++){const cell=S.cells.get(r*16385+c);const v=cell?cell.v:null;row.push(v===null||v===undefined||(v&&typeof v==='object')?'':v);}row._r=r;R.push(row);}R._sheet=S.path;const m={};const L2=dpgfFromRows(R,m);if(L2.some(l=>!l.section)){L=L2;meta=m;sheetName=S.name;break;}}}catch(e){console.warn(e);}}
+  let meta={},L=[],sheetName=null,bk=null;
+  if(isX){try{const book=await readBook(file);bk=book;for(const S of book.sheets.filter(x=>!x.hidden).concat(book.sheets.filter(x=>x.hidden))){const R=[];for(let r=1;r<=S.maxR;r++){const row=[];for(let c=1;c<=Math.min(S.maxC,200);c++){const cell=S.cells.get(r*16385+c);const v=cell?cell.v:null;row.push(v===null||v===undefined||(v&&typeof v==='object')?'':v);}row._r=r;R.push(row);}R._sheet=S.path;const m={};const L2=dpgfFromRows(R,m);if(L2.some(l=>!l.section)){L=L2;meta=m;sheetName=S.name;break;}}}catch(e){console.warn(e);}}
   if(!L.length){try{if(isX)rows=await xlsxRows(file,{grid:true});else rows=pasteRows(await file.text());}catch(e){console.warn(e);say('Fichier illisible ('+(e.message||e)+') : colle les lignes depuis Excel');return;}
     meta={};L=dpgfFromRows(rows,meta);}
+  if(bk){const F=importFix(bk,L,meta,sheetName);if(F){L=F.L;meta=F.meta;sheetName=F.sheetName;}} /* 19/10 (lot DY) : un DPGF lu juste reste lu pareil */
   if(!L.length){say('Aucune ligne reconnue : il faut une ligne d\'en-tête avec Désignation et Quantité');return;}
   let kept=false;if(isX){try{kept=await A.kv.set('trace:dpgf:'+num,file);}catch(e){kept=false;}} /* le fichier du client est gardé sur l'appareil pour y réécrire les PU (export) */
   const at=new Date().toISOString();dxReset(num); /* 14/10 après-midi (lot C) : nouveau fichier → grille, annuler et calculateur repartent de zéro */affSet(num,{dpgf:{lignes:L,src:isX?'Excel du client':'fichier',fichier:file.name,at,hdrRow:meta.hdrRow,cols:meta.cols,sheet:meta.sheet,sheetName:sheetName||undefined,kept,map:((a.dpgf||{}).map)||{}}});say('DPGF lue : '+L.filter(l=>!l.section).length+' lignes'+(L.some(l=>l.section)?' · '+L.filter(l=>l.section).length+' chapitres':'')+(kept?' · fichier gardé pour l\'export':''));if(ctx.render)ctx.render();

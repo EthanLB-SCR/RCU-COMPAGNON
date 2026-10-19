@@ -91,8 +91,8 @@ const nm=I.names;
 C.c2=/€ ventilés aux jours d'équipe \(soudure \+ manchon\) sur 3 zones/.test(out.head)&&out.chips.length===3&&out.chips.every((c,i)=>c.startsWith(nm[i])&&c.endsWith('|dxc3go|'+encodeURIComponent(I.toks[i])))
   &&/⚠ \+/.test(out.chips[0])&&/il manque /.test(out.chips[1])&&/Le DPGF ne les porte pas comme ventilé au chiffrage/.test(out.gap)&&nm.every(n=>out.gap.includes(n+' : '))&&/↻ Reventiler les installations par zone$/.test(out.gap)
   &&out.instCk===0&&out.headFirst&&out.zb.length===3&&out.zb.every(z=>z.first&&/^🏗 Installations de la zone · ventilées aux jours d'équipe · /.test(z.h)&&z.rows.length===3)
-  &&!!rowB&&rowB.dis&&rowB.done&&/^🏗 Contener - Benne - Pelle/.test(rowB.t)&&rowB.t.includes('part de la zone '+String(Math.round(shB*100)))&&/€ \/ ml de la zone \(250 ml\)/.test(rowB.t)&&!/reste /.test(rowB.t)&&Math.abs(nbv(rowB.m)-part(I,'conteneur',1))<1
-  &&restB>100&&/^il manque [\d ]+ € à la zone, portés par d'autres zones : « ↻ Reventiler » en haut du calculateur$/.test(rowB.dn)&&Math.abs(nbv((/il manque ([\d ]+) €/.exec(rowB.dn)||[])[1])-restB)<1
+  &&!!rowB&&!rowB.dis&&rowB.done&&/^🏗 Contener - Benne - Pelle/.test(rowB.t) /* 19/10 (lot DY) : sur une ligne au ml, la case reste cochable (« prendre au prorata de mes ml », le manque est repris) */&&rowB.t.includes('part de la zone '+String(Math.round(shB*100)))&&/€ \/ ml de la zone \(250 ml\)/.test(rowB.t)&&!/reste /.test(rowB.t)&&Math.abs(nbv(rowB.m)-part(I,'conteneur',1))<1
+  &&restB>100&&/^il manque [\d ]+ € à la zone, portés par d'autres zones : « ↻ Reventiler » en haut du calculateur — coche : ta part au prorata de tes ml, reprise sur les lignes des zones qui en portent trop, au prorata de ce qu'elles portent$/.test(rowB.dn)&&Math.abs(nbv((/il manque ([\d ]+) €/.exec(rowB.dn)||[])[1])-restB)<1
   &&!!rowA&&rowA.done&&/^⚠ la zone porte [\d ]+ € de plus que sa part : « ↻ Reventiler » en haut du calculateur · lignes 2\.1, 2\.2, 2\.3/.test(rowA.dn)&&!/pointé au-delà/.test(rowA.t);
 // ── c3) la liste des changements : « Installations : ventilation par zone à refaire » (zone par zone : portés pour ventilés), aperçu des PU, « ↻ Reventiler »
 //        et « ✓ Rien à faire » ; le récap : par poste (ventilation par zone), « À vérifier » (zones sur- ou sous-pointées)
@@ -158,31 +158,32 @@ out.after=await page.evaluate(()=>{const sp=t=>String(t||'').replace(/[\s  ]+/g,
 await pop.evaluate(()=>document.querySelector('[data-v="dxpopclose|"]').click());await wait(800);a=await A();out.l12b=a.dpgf.lignes.find(l=>l.row===12);
 console.log('c7) ligne insérée :',JSON.stringify(out));
 out.lists={avant:kd(L7),apres:kd(L7b),e7};console.log('c7) liste :',JSON.stringify(out.lists));
-C.c7=['amene','conteneur','doe'].every(p=>out.lists.avant.includes('inst|'+p+':bal'))&&!/inst\|/.test(out.lists.apres)&&/z0\|soudure\|dn80:pro\+/.test(out.lists.apres)&&e7<0.05&&!!out.l12&&out.l12.n==='2.6'&&out.l12.u==='ml'&&!out.l12.qte&&/ligne 12/.test(out.open.h4)&&out.open.q===''&&out.open.qh==='tape la quantité de la ligne (ici ou dans la grille)'&&/quantité \?/.test(out.open.res)&&/« Mettre » est grisé : tape la quantité de la ligne \(ici ou dans la grille\)\./.test(out.open.res)&&out.open.put===true
+C.c7=['amene','conteneur','doe'].every(p=>out.lists.avant.includes('inst|'+p+':keep')) /* 19/10 (lot DY) : ml en plus au chiffrage, lignes du DPGF inchangées → « Laisser à placer » d'office ; la balance reste le 2e bouton (cliqué ici) */&&!/inst\|/.test(out.lists.apres)&&/z0\|soudure\|dn80:pro\+/.test(out.lists.apres)&&e7<0.05&&!!out.l12&&out.l12.n==='2.6'&&out.l12.u==='ml'&&!out.l12.qte&&/ligne 12/.test(out.open.h4)&&out.open.q===''&&out.open.qh==='tape la quantité de la ligne (ici ou dans la grille)'&&/quantité \?/.test(out.open.res)&&/« Mettre » est grisé : tape la quantité de la ligne \(ici ou dans la grille\)\./.test(out.open.res)&&out.open.put===true
   &&/ligne 12/.test(out.after.h4)&&out.after.q==='80'&&!out.after.qh&&/÷ 80 ml/.test(out.after.res)&&out.l12b&&out.l12b.qte===80;
 // ── c8) le calculateur de la 2.6 : soudures et manchons DN 80 (les 10 en plus) ; la sélection gardée « Installations » (tout pointé dans Secteur Alpha) propose
-//        « ⇶ leurs parts » ; chaque part ≈ part de la zone × 80 ÷ (900 + 80) ; téléphone 390 px ; « ↦ Mettre » : la ligne + ses parts (via « part », zs Secteur Alpha),
+//        « ⇶ leurs parts » ; 19/10 (lot DY) : sur une ligne au ml, la part d'une installation de la zone se prend « au prorata de mes ml » = € / ml de la zone × 80,
+//        reprise sur les lignes au ml de la zone (avant : « ⇶ sa part », part de la zone × 80 ÷ (900 + 80)) ; téléphone 390 px ; « ↦ Mettre » : la ligne + ses parts (via « part », zs Secteur Alpha),
 //        reprises sur 2.1, 2.2, 2.3 seulement (2.4, 2.5 et la 1.1 ne bougent pas) ; total des installations inchangé ; un seul ↶
 await page.evaluate(n=>{const T=window.TRACE.affaires;const a=T.get(n);T.set(n,{dpgf:Object.assign({},a.dpgf,{sels:[{id:'Szone',nom:'Installations',ks:['inst|amene','inst|conteneur','inst|doe'],at:'2026-10-17T08:00:00.000Z',by:'Ethan (test)'}]})});},NUM);
 await openCalc(12);const kS=K('z0|soudure|dn80'),kM=K('z0|manchons|dn80');
 for(const k of [kS,kM]){await chg(`#dx-calc input[data-dx="ck"][data-k="${k}"]`,true);await page.fill(`#dx-calc [data-dx="cq"][data-k="${k}"]`,'10');await page.dispatchEvent(`#dx-calc [data-dx="cq"][data-k="${k}"]`,'change');await wait(300);}
 out={chip:sp(await page.$eval('#dx-calc .c2-chip',e=>e.textContent).catch(()=>'')),selp:sp(await page.$eval('#dx-calc [data-v="dxdzselp|Szone"]',e=>e.textContent).catch(()=>'')),
-  barred:await page.evaluate(t=>{const z=document.querySelector(`#dx-calc .c3-g[data-g="${t}"] .dz-zb`);return z?[...z.querySelectorAll('.dz-r')].map(r=>({k:r.dataset.k,done:r.classList.contains('c2-done'),pp:!!(r.nextElementSibling&&r.nextElementSibling.classList.contains('dz-pp'))})):[];},I.toks[0])};
+  barred:await page.evaluate(t=>{const z=document.querySelector(`#dx-calc .c3-g[data-g="${t}"] .dz-zb`);return z?[...z.querySelectorAll('.dz-r')].map(r=>({k:r.dataset.k,done:r.classList.contains('c2-done'),pp:!!r.querySelector('.dy-pr')})):[];},I.toks[0])}; /* (lot DY) la case « prendre au prorata de mes ml » dans la ligne barrée */
 await page.evaluate(()=>{const b=document.querySelector('#dx-calc [data-v="dxdzselp|Szone"]');if(b)b.scrollIntoView({block:'center'});});await wait(300);await shot('pc_1366_calculateur_sa_part_avant.png'); /* la sélection « Installations · 0 / 3 » et « ⇶ leurs parts » */
 await click('dxdzselp|Szone');await wait(500);
-out.pp=await page.evaluate(()=>[...document.querySelectorAll('#dx-calc .dz-pp')].map(x=>({k:x.dataset.k,on:x.classList.contains('on'),t:String(x.textContent||'').replace(/[\s  ]+/g,' ').trim(),v:(x.querySelector('[data-dz="pq"]')||{}).value})));
+out.pp=await page.evaluate(t=>[...document.querySelectorAll(`#dx-calc .c3-g[data-g="${t}"] .dy-zr`)].map(x=>({k:x.dataset.k,on:x.classList.contains('on'),t:String((x.querySelector('.dy-prd')||{}).textContent||'').replace(/[\s  ]+/g,' ').trim(),v:(x.querySelector('[data-dx="cq"]')||{}).value})),I.toks[0]); /* (lot DY) */
 out.res=sp(await page.$eval('#dx-cres',e=>e.textContent).catch(()=>'')).replace(/↦.*$/,'').trim();
 await popShots(async()=>{await click('dxc3go|'+encodeURIComponent(I.toks[0]));await wait(1400);await shot('pc_1366_calculateur_sa_part.png');});await openCalc(12);
 /* téléphone 390 px : le calculateur (récapitulatif, sous-blocs, « ⇶ sa part ») */
 await page.setViewportSize({width:390,height:844});await page.evaluate(()=>{document.getElementById('app').classList.remove('wide');});await wait(600);
-out.tel={sw:await page.evaluate(()=>document.documentElement.scrollWidth),small:await small('#dx-calc .dz-head button, #dx-calc .dz-zb button, #dx-calc .dz-pp input:not([type=checkbox])',34),lab:await small('#dx-calc .dz-ppl',34),over:await overflow('#dx-calc')};
+out.tel={sw:await page.evaluate(()=>document.documentElement.scrollWidth),small:await small('#dx-calc .dz-head button, #dx-calc .dz-zb button, #dx-calc .dz-pp input:not([type=checkbox]), #dx-calc .dy-zr input:not([type=checkbox])',34),lab:await small('#dx-calc .dz-ppl',34),over:await overflow('#dx-calc')};
 await openCalc(12);await click('dxc3go|inst');await wait(1400);await shot('tel_390_calculateur_installations_par_zone.png'); /* rouvert au format téléphone */
-await page.evaluate(t=>{const z=document.querySelector(`#dx-calc .c3-g[data-g="${t}"] .dz-pp`);if(z)z.scrollIntoView({block:'center'});},I.toks[0]);await wait(200);await shot('tel_390_calculateur_sa_part.png');
+await page.evaluate(t=>{const z=document.querySelector(`#dx-calc .c3-g[data-g="${t}"] .dy-zr.on`);if(z)z.scrollIntoView({block:'center'});},I.toks[0]);await wait(200);await shot('tel_390_calculateur_sa_part.png');
 await page.setViewportSize({width:1366,height:768});await page.evaluate(()=>{document.getElementById('app').classList.add('wide');});await wait(600);
 a=await A();const D8=jd(a);const tot8=instTot(a,I);const P8=porte(a,I);const keep8=['E6','E13','E14'].map(ad=>JSON.stringify((lk(a,ad)||{}).comps||null));const ml0=['E9','E10','E11'].map(ad=>instOf(lk(a,ad)));
 await openCalc(12);await click('dxput|');await wait(900);a=await A();const L12=lk(a,'E12');const P8b=porte(a,I);
 const a8=JSON.parse(D8);const held=p=>['E9','E10','E11'].reduce((s,ad)=>s+((a8.find(L=>L.a===ad)||{comps:[]}).comps.filter(x=>x.k==='inst|'+p&&x.zs===I.toks[0]).reduce((t,x)=>t+(+x.q)*I.posts[p].puV,0)),0);
-const exp=p=>held(p)*80/(900+80);
+const exp=p=>part(I,p,0)/I.zml[0]*80; /* (lot DY) € / ml de la zone × 80 (avant : held(p)*80/(900+80) — la 1.1, au forfait, porte une partie de l'amené : la part au prorata des ml de la zone est plus grande) */
 out.put={comps:L12?L12.comps.map(x=>U(x.k)+'='+r2(+x.q)+(x.via?'·'+x.via:'')+(x.zs?'·'+(x.zs===I.toks[0]?'A':x.zs):'')).join(' '):null,pu:L12&&L12.pu,cell:await cellPu(12),
   parts:L12?Object.fromEntries(L12.comps.filter(x=>x.via==='part').map(x=>{const p=x.k.split('|')[1];return [p,r2((+x.q)*I.posts[p].puV)];})):{},exp:Object.fromEntries(Object.keys(I.posts).map(p=>[p,r2(exp(p))])),
   tot:[r2(tot8),r2(instTot(a,I))],alpha:Object.keys(I.posts).every(p=>Math.abs(P8b[p][0]-P8[p][0])<0.02),keep:['E6','E13','E14'].every((ad,i)=>JSON.stringify((lk(a,ad)||{}).comps||null)===keep8[i]),
@@ -190,7 +191,7 @@ out.put={comps:L12?L12.comps.map(x=>U(x.k)+'='+r2(+x.q)+(x.via?'·'+x.via:'')+(x
 await click('dxundo|');await wait(500);a=await A();out.undo=jd(a)===D8;await click('dxredo|');await wait(500);a=await A();out.redo=!!lk(a,'E12');
 console.log('c8) sa part :',JSON.stringify(out));
 C.c8=/^Installations · 0 \/ 3 · déjà tout pointé ailleurs/.test(out.chip)&&out.selp==='⇶ leurs parts · 3'&&out.barred.length===3&&out.barred.every(x=>x.done&&x.pp)
-  &&out.pp.length>=3&&out.pp.filter(x=>x.on).length===3&&out.pp.filter(x=>x.on).every(x=>/^⇶ sa part ≈ [\d ]+ € reprise sur 3 lignes de la zone, au prorata de leurs ml/.test(x.t)&&/ml de la zone = /.test(x.t))
+  &&out.pp.length===3&&out.pp.every(x=>x.on&&x.v==='80'&&/^[\d ]+ € = [\d ]+ € repris sur 3 lignes de la zone \(2\.1 −[\d ]+ €, 2\.2 −[\d ]+ €, 2\.3 −[\d ]+ €\)$/.test(x.t)) /* (lot DY) */
   &&!out.tel.small.length&&!out.tel.lab.length&&!out.tel.over.length&&out.tel.sw<=390
   &&!!out.put.comps&&Object.keys(I.posts).every(p=>Math.abs((out.put.parts[p]||0)-out.put.exp[p])<0.05)&&/soudure\|dn80=10 z0\|manchons\|dn80=10/.test(out.put.comps)&&(out.put.comps.match(/·part·A/g)||[]).length===3
   &&Math.abs(out.put.tot[0]-out.put.tot[1])<0.02&&out.put.alpha&&out.put.keep&&out.put.donors.every(Boolean)&&Math.abs(out.put.cell-out.put.pu)<0.006&&/avec sa part de 3 postes tout pointés/.test(out.put.toast)&&/reprise au prorata sur 3 lignes/.test(out.put.toast)

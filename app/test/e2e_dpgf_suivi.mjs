@@ -183,7 +183,7 @@ await click('dxc3list|');await wait(600);I=await its();out.iml=I.find(x=>U(x.k)=
 const am2=await comp(NUM,'z0|amene');
 console.log('s6) installation répartie :',JSON.stringify(out),JSON.stringify({am,am2}));
 C.s6=out.iam&&/^montant [\d ]+ € → [\d ]+ € — réparti sur 3 lignes \(2\.1, 2\.2, 2\.3\)$/.test(out.iam.t)&&out.iam.b[0]==='bal'&&out.iam.bt[0]==='↻ Refaire la balance sur les 3 lignes'
-  &&qa.join()==='420,180,300'&&out.iml&&/^900 → 960 ml, montant [\d ]+ €( → [\d ]+ €| \(inchangé\)) — réparti sur 3 lignes/.test(out.iml.t)&&Math.abs(out.qa2[0]-448)<0.0011&&Math.abs(out.qa2[1]-192)<0.0011&&Math.abs(out.qa2[2]-320)<0.0011&&Math.abs(out.P2-960)<1e-6;
+  &&qa.join()==='420,180,300'&&out.iml&&/^900 → 960 ml au chiffrage, montant (inchangé|[\d ]+ € → [\d ]+ €) : l'installation se répartit sur plus de ml ; tes 3 lignes \(2\.1, 2\.2, 2\.3\) gardent leurs ml/.test(out.iml.t)&&out.iml.b[0]==='keep' /* 19/10 (lot DY) : ml en plus au chiffrage, lignes inchangées → « Laisser à placer » d'office ; la suite clique la balance (2e bouton) */&&Math.abs(out.qa2[0]-448)<0.0011&&Math.abs(out.qa2[1]-192)<0.0011&&Math.abs(out.qa2[2]-320)<0.0011&&Math.abs(out.P2-960)<1e-6;
 if((await its()).length){await click('dxc3all|');await wait(600);}
 await click('dxc3close|').catch(()=>{});
 // ── s7) PRIX SEUL (cadence DN 100 retouchée : même nombre de soudures, autre prix) : « prix : a → b € / soudure — 3 lignes » ; ↻ Appliquer ces 3 lignes
