@@ -120,7 +120,7 @@ console.log('2) soudeur — nouvelle demande :',JSON.stringify({...out,list:out.
 C.c2=!out.parc&&out.ov0&&/Nouvelle demande/.test(out.list)&&/ta liste/.test(out.first[0]||'')&&/Liste fictive soudure/.test(out.first[0]||'')&&/pour tous/.test(out.first[1]||'')&&out.open.includes('Disque A (fictif)')&&!out.open.includes('Truelle (fictive)')
   &&out.sz.on&&/^M×2$/.test(out.sz.txt)&&out.sz.h>=48&&out.stepH[0]>=48&&out.stepH[1]>=48&&out.scrollKept&&out.res.includes('Baguette fictive B')&&/3\s*articles/.test(out.bar||'')&&out.ov1&&!out.prix1
   &&out.recap.join('|')==='Disque A (fictif)|Moufles (fictives) — M|Baguette fictive B'&&out.ov2&&!out.prix2&&/Demande envoyée/.test(out.toast)&&/Envoyée/.test(out.after)
-  &&out.reg&&out.reg.st==='envoyee'&&out.reg.l.join()==='T-01:3:Disque A (fictif),T-04:2:Moufles (fictives) — M,T-02:1:Baguette fictive B'&&out.reg.imp.type==='chantier'&&out.reg.imp.id==='SRV_B'&&out.reg.imp.label==='Chantier fictif Bravo'&&out.reg.b===ddemain&&out.reg.note==='Test fictif : merci'&&out.reg.by==='Bruno TESTSOUDEUR'&&out.reg.id0===SOUD.email;
+  &&out.reg&&out.reg.st==='envoyee'&&out.reg.l.join()==='T-01:3:Disque A (fictif),T-04:2:Moufles (fictives) — M,T-02:1:Baguette fictive B'&&out.reg.imp.type==='chantier'&&out.reg.imp.id==='SRV_B'&&out.reg.imp.label==='Chantier fictif Bravo'&&out.reg.b===undefined&&out.reg.note==='Test fictif : merci'&&out.reg.by==='Bruno TESTSOUDEUR'&&out.reg.id0===SOUD.email; /* 19/10 (lot MG) : plus de date de besoin (besoinLe absent) — avant : === demain */
 const ID1=D1&&D1.id;
 
 // ── 3) la référente : « À faire » → la demande ; préparation partielle → Prête → Remise (sorties de stock, reliquat)

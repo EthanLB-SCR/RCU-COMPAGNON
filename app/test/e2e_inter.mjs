@@ -221,7 +221,7 @@ const vx=a=>`#eq-app [data-act=x][data-v="veh|${a}"]`;const title=()=>pg.evaluat
 const fill=async(sel,val)=>{await pg.evaluate(([s,v])=>{const el=document.querySelector(s);if(!el)throw new Error('absent : '+s);el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));},[sel,val]);await W(pg,120);};
 const next=async()=>{await tap(pg,'#veh-next',300);};
 const photo=async k=>{await pg.setInputFiles(`#eq-app input[data-xin="veh|photo~${k}"]`,{name:k+'.png',mimeType:'image/png',buffer:PNG});await pg.waitForFunction(k=>{const i=document.querySelector(`#eq-app input[data-xin="veh|photo~${k}"]`);return !!(i&&i.closest('label.ok'));},k,{timeout:10000});await W(pg,120);};
-await fiche(pg);await tap(pg,vx('recep|'+IMMAT),400);out.titles=[await title()];
+await fiche(pg);await tap(pg,vx('recep|'+IMMAT),400);out.titles=[await title()];await next(); /* 19/10 (VH) : 1re étape « Qui est là ? » — « Le responsable et moi » présélectionné depuis la fiche */
 await fill('#eq-app [data-xin="veh|q"]','Bruno');await tap(pg,`#eq-app [data-act=x][data-v="veh|cond|${COMP.email}"]`);await next();
 await tap(pg,vx('permis|'));await fill('#eq-app [data-xin="veh|permisFin"]','2031-05-01');await next();
 await fill('#veh-km','12050');await tap(pg,'#eq-app .veh-allok');await next();

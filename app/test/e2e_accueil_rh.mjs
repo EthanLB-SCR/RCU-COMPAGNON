@@ -1,10 +1,11 @@
 // ACCUEIL RH (nuit du 13 au 14/10/2026) — documents d'accueil à lire et signer, livrets, passeport de prévention. Supabase SIMULÉ (registre en mémoire), pack FICTIF :
 // 2 documents bloquants (une note en texte avec un choix + « Fait à », un livret PDF à 2 chapitres), 1 charte à J+7, 1 fiche « PDF à joindre ».
-// (1) l'administrateur importe le pack, joint les PDF (rapprochement par nom), réimporte sans doublon ; il n'est pas bloqué (aperçu + « plus tard ») ;
-// (2) un intérimaire fictif, compte créé après la mise en ligne, 1re connexion sur téléphone (390 px) : écran « Bienvenue chez SCR — avant de commencer »,
-//     lecture forcée, choix, champ, signature au doigt ; livret chapitre par chapitre ; puis accès normal, « À faire » avec le délai, Moi → Documents (livrets, signés),
-//     Moi → Passeport (habilitation à renouveler sous 90 j, manquantes pour le poste) ; pas de débordement horizontal ;
-// (3) l'administrateur voit qui a signé (et le choix) ; nouvelle version → nouvelle signature, sans écran bloquant pour quelqu'un déjà là.
+// (1) l'administrateur importe le pack, joint les PDF (rapprochement par nom), réimporte sans doublon ; rien ne le bloque ;
+// (2) un intérimaire fictif, compte créé après la mise en ligne, 1re connexion sur téléphone (390 px) : AUCUN écran bloquant (règle du 19/10, lot QF), carte de bienvenue
+//     non bloquante « 4 documents … sous 7 jours », depuis « À faire » : lecture forcée, choix, champ, signature au doigt ; livret chapitre par chapitre ; « À faire » avec le délai,
+//     Moi → Documents (livrets, signés), Moi → Passeport (habilitation à renouveler sous 90 j, manquantes pour le poste) ; pas de débordement horizontal ;
+// (3) l'administrateur voit qui a signé (et le choix) ; nouvelle version → nouvelle signature, toujours sans écran bloquant.
+// 19/10 (lot QF) : adaptée — l'écran bloquant « avant de commencer » n'existe plus (Ethan : « pas obligatoire à la connexion, sinon dès que je veux montrer je suis bloqué »).
 import { chromium } from 'playwright';
 import { makePdf } from './mkpdf.mjs';
 const BASE=process.env.BASE||'http://localhost:8765';
@@ -61,8 +62,8 @@ const toast=page=>page.evaluate(()=>(document.getElementById('toast')||{}).textC
 const noOverflow=page=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1);
 const scrollEnd=(page,id)=>page.evaluate(id2=>{const b=document.getElementById(id2);b.scrollTop=b.scrollHeight;b.dispatchEvent(new Event('scroll'));},id);
 const flushed=async page=>{await page.waitForFunction(()=>window.TRACE&&window.TRACE.reg.pending().length===0,null,{timeout:20000}).catch(()=>{});};
-const clickGate=async(page,src)=>{const ok=await page.waitForFunction(r=>[...document.querySelectorAll('.acc-gate .ac-row')].some(x=>new RegExp(r).test(x.textContent)),src,{timeout:8000}).then(()=>true).catch(()=>false);
-  if(!ok)console.log('écran de bienvenue absent :',await page.evaluate(()=>document.getElementById('homeBody').textContent.replace(/\s+/g,' ').slice(0,300)));await page.evaluate(r=>[...document.querySelectorAll('.acc-gate .ac-row')].find(x=>new RegExp(r).test(x.textContent)).click(),src);};
+const clickTodo=async(page,src)=>{await page.evaluate(()=>document.getElementById('htHome').click());const ok=await page.waitForFunction(r=>[...document.querySelectorAll('#eq-app .ac-notif')].some(x=>new RegExp(r).test(x.textContent)),src,{timeout:8000}).then(()=>true).catch(()=>false);
+  if(!ok)console.log('notification « À faire » absente :',await page.evaluate(()=>document.getElementById('homeBody').textContent.replace(/\s+/g,' ').slice(0,300)));await page.evaluate(r=>[...document.querySelectorAll('#eq-app .ac-notif')].find(x=>new RegExp(r).test(x.textContent)).click(),src);}; /* 19/10 (QF) : plus d'écran bloquant — le document s'ouvre depuis « À faire » */
 const C={};
 // ── 1) administrateur : Entreprise → Accueil RH → import du pack (fichier JSON) → 4 documents + réglages ; PDF joints par nom ; réimport sans doublon ; pas bloqué
 let {ctx,page}=await mkCtx(ADM,{width:1100,height:900},'2026-10-14T08:00:00Z');
@@ -81,26 +82,24 @@ out.up=Object.keys(UP).length;
 // réimport du même pack : aucun doublon, rien de changé
 await pick(page,'pack',{name:'pack_test.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(pack('v1')))});await page.waitForTimeout(1500);
 out.re=await page.evaluate(()=>{const t=document.getElementById('eq-app').textContent.replace(/\s+/g,' ');return {box:(document.querySelector('#eq-app .okbox')||{}).textContent,same:/0 nouveau, 0 mis à jour, 4 inchangés/.test(t),n:window.TRACE.reg.all('doc').filter(x=>/^acc_(?!_)/.test(x.id)).length,livPdf:!!(window.TRACE.reg.get('doc','acc_livret_test')||{}).url};});
-// l'administrateur n'est pas bloqué ; aperçu de l'écran de bienvenue → « Fermer l'aperçu »
-out.adm=await page.evaluate(async()=>{const r={};document.getElementById('htHome').click();await new Promise(x=>setTimeout(x,300));r.gate0=!!document.querySelector('.acc-gate');return r;});
-await goAccRh();await page.evaluate(()=>[...document.querySelectorAll('#eq-app [data-act=x]')].find(b=>/aperçu/.test(b.textContent)).click());await page.waitForTimeout(400);
-Object.assign(out.adm,await page.evaluate(()=>({gate1:!!document.querySelector('.acc-gate'),h:(document.querySelector('.acc-gate h2')||{}).textContent||'',rows:document.querySelectorAll('.acc-gate .ac-row').length,later:!!document.querySelector('.acc-gate [data-acclater]'),tabsHidden:getComputedStyle(document.getElementById('homeTabs')).display==='none'})));
-await page.evaluate(()=>document.querySelector('.acc-gate [data-acclater]').click());await page.waitForTimeout(300);out.adm.gate2=await page.evaluate(()=>!!document.querySelector('.acc-gate'));
+// rien ne bloque l'administrateur (19/10, lot QF : plus d'écran bloquant, plus d'aperçu ni de réglage « tout le monde ») ; la vue Accueil RH explique la carte de bienvenue
+out.adm=await page.evaluate(async()=>{const r={};document.getElementById('htHome').click();await new Promise(x=>setTimeout(x,300));r.gate0=!!document.querySelector('.acc-gate');r.tabs=getComputedStyle(document.getElementById('homeTabs')).display!=='none';return r;});
+await goAccRh();Object.assign(out.adm,await page.evaluate(()=>{const t=document.getElementById('eq-app').textContent.replace(/\s+/g,' ');return {noPreview:![...document.querySelectorAll('#eq-app [data-act=x]')].some(b=>/aperçu|Tout le monde/.test(b.textContent)),carte:/Carte de bienvenue/.test(t),label:/à signer dès l'arrivée \(sous 7 jours\)/.test(t)&&!/bloquant à l'arrivée/.test(t)};}));
 await flushed(page);out.srv=Object.keys(REG).filter(k=>/^doc\|acc_/.test(k)).sort();
 console.log('1) administrateur : import, PDF, réimport, aperçu :',JSON.stringify(out));
 C.c1=/Accueil RH/.test(out.h2)&&!out.gate&&out.imp.ok&&out.imp.wait&&out.imp.pass&&out.imp.ids.join()==='acc_charte_test,acc_fiche_test,acc_livret_test,acc_note_test'&&out.imp.rows.length===4
   &&out.impNote.req.all===true&&out.impNote.bloq&&out.impNote.choix.length===2&&out.impNote.champs.join()==='fait_a'&&out.impNote.html&&out.impNote.kind==='note'
   &&JSON.stringify(out.impLiv.req)==='{"types":["interim"]}'&&out.impLiv.chap.join()==='1-1,2-3'&&out.impLiv.pending===true&&out.impLiv.kind==='livret'&&out.impLiv.due.interim===0
   &&out.srv.length===5&&out.pdf.ok&&out.pdf.sans&&out.pdf.url&&!out.pdf.pending&&out.pdf.on&&out.up===1&&out.re.same&&out.re.n===4&&out.re.livPdf
-  &&!out.adm.gate0&&out.adm.gate1&&/Bienvenue chez SCR/.test(out.adm.h)&&out.adm.rows===1&&out.adm.later&&out.adm.tabsHidden&&!out.adm.gate2;
+  &&!out.adm.gate0&&out.adm.tabs&&out.adm.noPreview&&out.adm.carte&&out.adm.label;
 await ctx.close();
-// ── 2) intérimaire fictif, 1re connexion, téléphone 390 px : écran bloquant → lecture forcée → choix → champ → signature ; livret par chapitres → accès normal
+// ── 2) intérimaire fictif, 1re connexion, téléphone 390 px : AUCUN écran bloquant, carte de bienvenue ; depuis « À faire » : lecture forcée → choix → champ → signature ; livret par chapitres
 ({ctx,page}=await mkCtx(INT,{width:390,height:844},'2026-10-14T10:00:00Z'));
 await page.waitForTimeout(500);
-out={gate:await page.evaluate(()=>{const g=document.querySelector('.acc-gate');return g?{h:(g.querySelector('h2')||{}).textContent,rows:[...g.querySelectorAll('.ac-row .tx b')].map(b=>b.textContent),prog:/0 \/ 2 signé/.test(g.textContent),tabsHidden:getComputedStyle(document.getElementById('homeTabs')).display==='none',later:!!g.querySelector('[data-v="acc|later"]')}:null;}),ov0:await noOverflow(page)};
-if(!out.gate){console.log('PAS D\'ÉCRAN BLOQUANT',JSON.stringify(out),await page.evaluate(()=>({reg:window.TRACE.reg.all('doc').map(d=>d.id+':'+(d.acc&&d.acc.on)),cur:window.TRACE.acces&&JSON.stringify(window.TRACE.state.profile),txt:document.getElementById('homeBody').textContent.slice(0,200)})));}
+out={gate:await page.evaluate(()=>!!document.querySelector('.acc-gate')),tabs:await page.evaluate(()=>getComputedStyle(document.getElementById('homeTabs')).display!=='none'),welcome:await page.evaluate(()=>{const w=document.querySelector('.acc-welcome');return w?w.textContent.replace(/\s+/g,' ').trim():null;}),ov0:await noOverflow(page)};
+out.todo=await page.evaluate(()=>[...document.querySelectorAll('#eq-app .ac-notif')].map(n=>n.textContent.replace(/\s+/g,' ').trim()).filter(t=>/À lire et signer/.test(t)));
 // document 1 : la note (texte) — « J'ai lu » bloqué tant que pas en bas ; puis choix + « Fait à » + signature obligatoires
-await clickGate(page,'Note d.information');await page.waitForTimeout(500);
+await clickTodo(page,'Note d.information');await page.waitForTimeout(500);
 if(!(await page.evaluate(()=>!!document.getElementById('dr-read'))))console.log('PAS DE LECTURE',JSON.stringify(logs),await page.evaluate(()=>document.getElementById('modal').className+' '+document.getElementById('modal').textContent.slice(0,300)));
 out.n1=await page.evaluate(()=>{const b=document.getElementById('dr-read');const body=document.getElementById('dr-body');return {dis:b.disabled,txt:b.textContent,name:/Bruno ESSAI/.test(body.textContent),poste:/Manchonneur/.test(body.textContent),scroll:body.scrollHeight>body.clientHeight+50};});
 out.ov1=await noOverflow(page);
@@ -113,9 +112,9 @@ await page.evaluate(()=>{const r=document.querySelector('#modal input[name=dr-ch
 await page.fill('#modal input[data-champ="0"]','Testville');await page.evaluate(()=>document.getElementById('dr-ok').click());await page.waitForTimeout(150);out.n1.t3=await toast(page);
 out.ov2=await noOverflow(page);
 await draw(page,'dr-pad');await page.evaluate(()=>document.getElementById('dr-ok').click());await page.waitForTimeout(700);
-out.n1.after=await page.evaluate(()=>{const g=document.querySelector('.acc-gate');return {gate:!!g,prog:g&&/1 \/ 2 signé/.test(g.textContent),modal:document.getElementById('modal').classList.contains('show')};});
+out.n1.after=await page.evaluate(()=>{const w=document.querySelector('.acc-welcome');return {gate:!!document.querySelector('.acc-gate'),welcome:w?w.textContent.replace(/\s+/g,' '):'',modal:document.getElementById('modal').classList.contains('show')};});
 // document 2 : le livret (PDF) — chapitre par chapitre, « J'ai lu ce chapitre » en bas ; tous lus → signature
-await clickGate(page,'Livret');await page.waitForTimeout(500);
+await clickTodo(page,'Livret');await page.waitForTimeout(500);
 out.l={chaps:await page.evaluate(()=>[...document.querySelectorAll('#modal [data-chap]')].map(b=>b.querySelector('.tx b').textContent)),read0:await page.evaluate(()=>({dis:document.getElementById('dr-read').disabled,txt:document.getElementById('dr-read').textContent}))};
 for(const i of [0,1]){await page.evaluate(i2=>document.querySelector('#modal [data-chap="'+i2+'"]').click(),i);await page.waitForFunction(()=>document.querySelectorAll('#dr-body canvas').length>0&&/Fin du chapitre/.test(document.getElementById('dr-body').textContent),null,{timeout:15000}).catch(()=>{});
   const st=await page.evaluate(()=>({canvas:document.querySelectorAll('#dr-body canvas').length,pages:[...document.querySelectorAll('#dr-body .hint')].map(x=>x.textContent).join('|'),dis:document.getElementById('dr-chapok').disabled}));
@@ -130,9 +129,9 @@ await flushed(page);
 const sigN=REG['docsig|acc_note_test|'+INT.email],sigL=REG['docsig|acc_livret_test|'+INT.email];
 out.sig={note:sigN&&{choix:sigN.data.choix,fait:sigN.data.champs&&sigN.data.champs.fait_a,ver:sigN.data.ver,img:!!sigN.data.img,read:!!sigN.data.readAt},liv:sigL&&{chap:sigL.data.chap,img:!!sigL.data.img,ver:sigL.data.ver}};
 console.log('2) intérimaire : écran bloquant, lecture, signature :',JSON.stringify(out));
-C.c2=out.gate&&/Bienvenue chez SCR.*avant de commencer/.test(out.gate.h)&&out.gate.rows.length===2&&out.gate.prog&&out.gate.tabsHidden&&!out.gate.later&&out.ov0
+C.c2=!out.gate&&out.tabs&&!!out.welcome&&/Bienvenue chez SCR, Bruno/.test(out.welcome)&&/4 documents à lire et à signer sous 7 jours — le premier avant le 21\/10/.test(out.welcome)&&out.todo.length===4&&out.todo.every(t=>/à signer avant le 21\/10\/2026 \(dans 7 j\)/.test(t))&&out.ov0
   &&out.n1.dis&&out.n1.name&&out.n1.poste&&out.n1.scroll&&out.n1.mid&&out.n1.end&&out.n1.step2.radios===2&&out.n1.step2.champ&&out.n1.step2.mention&&/Fais ton choix/.test(out.n1.t1)&&/À compléter : Fait à/.test(out.n1.t2)&&/signature/.test(out.n1.t3)&&out.ov1&&out.ov2
-  &&out.n1.after.gate&&out.n1.after.prog&&!out.n1.after.modal
+  &&!out.n1.after.gate&&/3 documents à lire et à signer/.test(out.n1.after.welcome)&&!out.n1.after.modal
   &&out.l.chaps.length===2&&out.l.read0.dis&&/0 \/ 2/.test(out.l.read0.txt)&&out.ch0.canvas===1&&out.ch0.after /* une seule page : elle peut tenir à l'écran (le bouton se débloque alors tout de suite, comme ailleurs) */&&out.ch1.canvas===2&&/page 2 \/ 3\|page 3 \/ 3/.test(out.ch1.pages)&&out.ch1.after&&out.ovc0&&out.ovc1
   &&!out.l.read1.dis&&out.l.read1.ticks==='✓✓'&&out.l.mention&&!out.free.gate&&out.free.tabs&&out.free.notifs.some(t=>/Charte \(test\).*à signer avant le 21\/10\/2026 \(dans 7 j\)/.test(t))&&out.ov3
   &&out.sig.note&&out.sig.note.choix==='J’accepte'&&out.sig.note.fait==='Testville'&&out.sig.note.ver==='v1'&&out.sig.note.img&&out.sig.note.read&&out.sig.liv&&out.sig.liv.chap===2&&out.sig.liv.img;

@@ -11,29 +11,32 @@
 //   « docsig » / « vcharte_<type>_<version>|<e-mail> » = la charte signée (règle serveur existante : la personne elle-même, ou l'encadrement sur sa tablette).
 // Remise incomplète (charte non signée, permis non vu) : en rouge dans la flotte (alerte de la fiche) et « À faire » en haut de l'accueil du conducteur.
 // Brouillon de l'assistant gardé sur l'appareil (hors réseau, téléphone qui se verrouille) jusqu'à l'enregistrement.
+// 19/10 (lot VH) : remise SANS responsable sur place (« Qui est là ? », validation différée), « véhicule lâché » / pris par un collègue, changement de conducteur déclaré
+//   par le responsable, premier état des lieux de chacun, vignette du véhicule → src/reception2.js (R2) ; ici, seulement les appels. Les aides internes sont exportées pour lui.
 import {regAll,regGet,regSet,regLoad,onReg} from './reg.js';
-import {vehGet,vehSet,vehAll,vehDe,flotteHook,flotteApi} from './flotte.js';
+import {vehGet,vehSet,vehAll,vehDe,flotteHook,flotteApi,vehTypeKeys} from './flotte.js';
 import {sigPadHTML,sigPadInit,readGate,docKey} from './docs.js';
 import {docHTML} from './charte.js';
 import {POSTES} from './acces.js';
-const ID='veh';
+import R2 from './reception2.js';
+export const ID='veh';
 let A=null; /* API de l'espace (ctx.api), gardée au premier passage ; repli : API de la flotte (modales, toasts) */
-const api=()=>A||flotteApi();
+export const api=()=>A||flotteApi();
 const cap=ctx=>{if(ctx&&ctx.api)A=ctx.api;};
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+export const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const p2=n=>String(n).padStart(2,'0');
-const todayIso=()=>{const d=new Date();return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());};
-const dFR=x=>{if(!x)return '';const s=String(x);const d=/^\d{4}-\d{2}-\d{2}$/.test(s)?new Date(s+'T12:00:00'):new Date(x);return isNaN(d)?'':d.toLocaleDateString('fr-FR');};
-const dhFR=x=>{if(!x)return '';const d=new Date(x);return isNaN(d)?'':d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});};
-const nb=x=>(+x||0).toLocaleString('fr-FR');
+export const todayIso=()=>{const d=new Date();return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());};
+export const dFR=x=>{if(!x)return '';const s=String(x);const d=/^\d{4}-\d{2}-\d{2}$/.test(s)?new Date(s+'T12:00:00'):new Date(x);return isNaN(d)?'':d.toLocaleDateString('fr-FR');};
+export const dhFR=x=>{if(!x)return '';const d=new Date(x);return isNaN(d)?'':d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});};
+export const nb=x=>(+x||0).toLocaleString('fr-FR');
 const isKo=x=>/^(non|hs|manq|absent|perdu)/i.test(String(x||''));
 const isOk=x=>/^(ok|oui|rendue?|remise?|présent)$/i.test(String(x||''));
-const nomP=p=>p?((((p.prenom||'')+' '+(p.nom||'')).trim())||p.name||p.email||p.id||''):'';
-const toast=t=>{const a=api();if(a&&a.toast)a.toast(t);};
-const uname=()=>{const a=api();try{return (a&&a.userName&&a.userName())||'';}catch(e){return '';}};
-const ukey=()=>{const a=api();try{const c=a&&a.current?a.current():null;return c?docKey(c):'';}catch(e){return '';}};
-const pl=(n,w)=>n+' '+w+(n>1?'s':'');
-const MANQ={permis:'permis non vu',charte:'charte non signée'};
+export const nomP=p=>p?((((p.prenom||'')+' '+(p.nom||'')).trim())||p.name||p.email||p.id||''):'';
+export const toast=t=>{const a=api();if(a&&a.toast)a.toast(t);};
+export const uname=()=>{const a=api();try{return (a&&a.userName&&a.userName())||'';}catch(e){return '';}};
+export const ukey=()=>{const a=api();try{const c=a&&a.current?a.current():null;return c?docKey(c):'';}catch(e){return '';}};
+export const pl=(n,w)=>n+' '+w+(n>1?'s':'');
+export const MANQ={permis:'permis non vu',charte:'charte non signée'};
 /* ── configuration (pack SCR, registre « vcfg ») ── */
 export const vcfg=()=>regGet('vcfg','config');
 const charteDoc=(type,ver)=>'vcharte_'+type+'_'+String(ver||'v1').replace(/[^A-Za-z0-9]/g,'');
@@ -55,7 +58,7 @@ export async function packImport(part,ctx){cap(ctx);if(typeof part==='string')pa
   const titres={};Object.entries(I.modeles||{}).forEach(([k,m])=>{titres[k]=String((m&&m.titre)||k);});
   const types={};Object.entries(R.correspondanceTypesAppli||{}).forEach(([k,x])=>{types[k]={charte:/fonction/.test(String((x&&x.charte)||''))?'fonction':'service',inventaire:(x&&x.inventaire)||null};});
   const ent=part.entretien&&part.entretien.modalitesEntretien&&part.entretien.modalitesEntretien.auQuotidien;
-  const C={schema:1,source:String(R.version||''),at:new Date().toISOString(),by:uname(),
+  const C={schema:1,source:String(R.version||''),at:new Date().toISOString(),by:uname(),premierAt:old.premierAt||old.at||new Date().toISOString(), /* 19/10 (VH) : départ du compteur « premier état des lieux » (J+7, J+14), gardé d'un import à l'autre */
     edl:{releves:(E.releves||[]).filter(Boolean).map(x=>x.type==='choix'?Object.assign(choixOf(x),{type:'choix'}):{id:String(x.id),label:String(x.label||x.id),type:x.type==='nombre'?'nombre':'texte',unite:String(x.unite||''),obl:!!x.obligatoire}),
       controles:(E.controles||[]).filter(Boolean).map(choixOf),docs:(E.documentsABord||[]).filter(Boolean).map(choixOf),
       equipement:((E.equipement&&E.equipement.champs)||[]).filter(Boolean).map(x=>({id:String(x.id),label:String(x.label||x.id),type:x.type==='nombre'?'number':x.type==='date'?'date':'text',unite:String(x.unite||'')})),
@@ -70,24 +73,24 @@ export async function packImport(part,ctx){cap(ctx);if(typeof part==='string')pa
   const nInv=Object.values(listes).reduce((a,L)=>a+L.length,0);
   return 'Véhicules : chartes '+(Object.entries(chartes).map(([k,c])=>k+' '+c.version).join(', ')||'aucune')+' · '+pl(Object.keys(listes).filter(k=>listes[k].length).length,'liste')+' d\'inventaire ('+pl(nInv,'article')+') · '+pl(C.edl.docs.length,'document')+' à bord · '+pl(C.dispositifs.liste.length,'dispositif')+(notes.length?' — '+notes.join(' ; '):'');}
 // type du véhicule (fiche) → charte (service / fonction) et liste d'inventaire (correspondance du pack)
-function profil(v){const C=vcfg()||{};const t=String((v&&v.type)||'').trim().toLowerCase();const hit=Object.entries(C.types||{}).find(([k])=>k.toLowerCase()===t);const p=hit?hit[1]:{};return {charte:p.charte||(/fonction/.test(t)?'fonction':'service'),invKey:p.inventaire||null};}
-function invItems(v){const C=vcfg()||{};const I=C.inventaire||{};const {charte,invKey}=profil(v);const L=(((I.listes||{})[invKey])||[]).slice();const ids=new Set(L.map(x=>x.id));(I.commun||[]).forEach(x=>{if((x.pour==='tous'||(x.pour==='service'&&charte==='service'))&&!ids.has(x.id))L.push(x);});return L;}
+export function profil(v){const C=vcfg()||{};const t=String((v&&v.type)||'').trim().toLowerCase();const hit=vehTypeKeys(v).map(x=>x.toLowerCase()).map(kk=>Object.entries(C.types||{}).find(([k])=>k.toLowerCase()===kk)).find(Boolean); /* 19/10 (QF) : « Tuyauteur » et « Pelleur » retrouvent la correspondance de l'ancien « tuyauteur/Pelleur » */const p=hit?hit[1]:{};return {charte:p.charte||(/fonction/.test(t)?'fonction':'service'),invKey:p.inventaire||null};}
+export function invItems(v){const C=vcfg()||{};const I=C.inventaire||{};const {charte,invKey}=profil(v);const L=(((I.listes||{})[invKey])||[]).slice();const ids=new Set(L.map(x=>x.id));(I.commun||[]).forEach(x=>{if((x.pour==='tous'||(x.pour==='service'&&charte==='service'))&&!ids.has(x.id))L.push(x);});return L;}
 function invTitre(v){const C=vcfg()||{};const {invKey}=profil(v);return (((C.inventaire||{}).titres||{})[invKey])||(invKey?'Inventaire '+invKey:'Équipements communs');}
-function dispoOf(v){const C=vcfg()||{};const {charte}=profil(v);return (((C.dispositifs||{}).liste)||[]).filter(d=>d.pour!=='service'||charte==='service');}
+export function dispoOf(v){const C=vcfg()||{};const {charte}=profil(v);return (((C.dispositifs||{}).liste)||[]).filter(d=>d.pour!=='service'||charte==='service');}
 const dispoLabel=id=>((((vcfg()||{}).dispositifs||{}).liste||[]).find(d=>d.id===id)||{}).label||id;
-const zoneLab=id=>((((vcfg()||{}).edl||{}).zones||[]).find(z=>z.id===id)||{}).label||id||'';
-const charteCur=type=>{const C=vcfg();return (C&&C.chartes&&C.chartes[type])||null;};
+export const zoneLab=id=>((((vcfg()||{}).edl||{}).zones||[]).find(z=>z.id===id)||{}).label||id||'';
+export const charteCur=type=>{const C=vcfg();return (C&&C.chartes&&C.chartes[type])||null;};
 const charteText=(type,ver)=>{const c=charteCur(type);if(c&&(!ver||c.version===ver))return c;const C=vcfg()||{};return (C.archives||{})[charteDoc(type,ver)]||null;};
-function charteSigOf(key,type,ver){if(!key||!type)return null;const c=charteCur(type);const v=ver||(c&&c.version);if(!v)return null;return regGet('docsig',charteDoc(type,v)+'|'+key);}
+export function charteSigOf(key,type,ver){if(!key||!type)return null;const c=charteCur(type);const v=ver||(c&&c.version);if(!v)return null;return regGet('docsig',charteDoc(type,v)+'|'+key);}
 /* ── remises et restitutions (registre « vrec ») ── */
 let IDX=null;onReg(k=>{if(k==='vrec'||k==='docsig'||k==='vcfg')IDX=null;});
 function idx(){if(IDX)return IDX;const by={};regAll('vrec').forEach(r=>{if(!r||!r.vehId)return;(by[r.vehId]=by[r.vehId]||[]).push(r);});Object.values(by).forEach(L=>L.sort((a,b)=>String(b.at||'').localeCompare(String(a.at||''))));IDX={by};return IDX;}
-const recsOf=immat=>idx().by[immat]||[];
-// remise EN COURS : dernière opération = une réception, pour le conducteur actuel du véhicule
-function openRec(v){if(!v||(!v.conducteurKey&&!v.conducteur))return null;const r=recsOf(v.immat)[0];if(!r||r.type!=='reception')return null;if(v.conducteurKey&&r.conducteurKey&&v.conducteurKey!==r.conducteurKey)return null;return r;}
-// ce qui manque à une remise : permis vu et valide ; charte de la version de la remise signée (dans la remise, ou plus tard par le conducteur → docsig)
-function manque(r){if(!r||r.type!=='reception')return [];const m=[];if(!(r.permis&&r.permis.ok))m.push('permis');const c=r.charte||{};if(!c.none&&!c.sig&&!charteSigOf(r.conducteurKey,c.type,c.version))m.push('charte');return m;}
-flotteHook('alertes',v=>{const m=manque(openRec(v));return m.length?[{k:'remise',sev:'bad',t:'Remise incomplète : '+m.map(x=>MANQ[x]).join(', ')}]:[];});
+export const recsOf=immat=>idx().by[immat]||[];
+// remise EN COURS : dernière opération DU CONDUCTEUR ACTUEL = une réception (19/10 VH : les opérations d'un autre conducteur — restitution de mémoire après un changement de conducteur — ne comptent pas)
+export function openRec(v){if(!v||(!v.conducteurKey&&!v.conducteur))return null;const r=recsOf(v.immat).find(x=>!x.remplacePar&&(!v.conducteurKey||!x.conducteurKey||x.conducteurKey===v.conducteurKey));if(!r||r.type!=='reception')return null;return r;}
+// ce qui manque à une remise : permis vu et valide ; charte de la version de la remise signée (dans la remise, ou plus tard par le conducteur → docsig) ; 19/10 VH : premier état des lieux d'un véhicule déjà attitré → pas de permis à revoir
+export function manque(r){if(!r||r.type!=='reception')return [];const m=[];if(!r.premier&&!(r.permis&&r.permis.ok))m.push('permis');const c=r.charte||{};if(!c.none&&!c.sig&&!charteSigOf(r.conducteurKey,c.type,c.version))m.push('charte');return m;}
+flotteHook('alertes',v=>R2.alertes2(v)); /* 19/10 VH : remise incomplète, à valider, refusée ; véhicule laissé ; changement de conducteur ; premier état des lieux */
 /* ── chargement : au démarrage ET après la connexion (le serveur n'est lu qu'une fois connecté) ── */
 let LDK=null;
 function ensureLoad(ctx){const st=ctx&&ctx.api&&ctx.api.state;const u=st&&st.cloudUser;const k=u?String(u.id||u.email||'cloud'):'local';if(LDK===k)return;LDK=k;regLoad(['vcfg','vrec']).catch(()=>{});}
@@ -101,32 +104,39 @@ function mdHTML(t,vars){vars=vars||{};const lines=String(t||'').replace(/\r/g,''
     closeL();para.push(l.trim());}
   flushP();closeL();return h;}
 /* ── l'assistant (brouillon W, gardé sur l'appareil) ── */
-let W=null;const DKEY='trace:veh:draft';let sdT=null;
-function saveDraft(){clearTimeout(sdT);try{if(W&&W.step!=='done')localStorage.setItem(DKEY,JSON.stringify(W));else localStorage.removeItem(DKEY);}catch(e){/* quota (photos) : le brouillon reste en mémoire */}}
-const saveDraftSoon=()=>{clearTimeout(sdT);sdT=setTimeout(saveDraft,400);};
-function loadDraft(){try{const d=JSON.parse(localStorage.getItem(DKEY)||'null');return d&&d.vehId&&d.step!=='done'?d:null;}catch(e){return null;}}
-const draftFor=immat=>{const d=(W&&W.step!=='done')?W:loadDraft();return d&&d.vehId===immat?d:null;};
-const STEPS={reception:['cond','permis','releves','controles','photos','inv','cartes','charte','recap'],restitution:['releves','controles','photos','inv','cartes','recap']};
+export let W=null;export const DKEY='trace:veh:draft';let sdT=null;
+export const setW=w=>{W=w;};
+export function saveDraft(){clearTimeout(sdT);try{if(W&&W.step!=='done')localStorage.setItem(DKEY,JSON.stringify(W));else localStorage.removeItem(DKEY);}catch(e){/* quota (photos) : le brouillon reste en mémoire */}}
+export const saveDraftSoon=()=>{clearTimeout(sdT);sdT=setTimeout(saveDraft,400);};
+export function loadDraft(){try{const d=JSON.parse(localStorage.getItem(DKEY)||'null');return d&&d.vehId&&d.step!=='done'?d:null;}catch(e){return null;}}
+export const draftFor=immat=>{const d=(W&&W.step!=='done')?W:loadDraft();return d&&d.vehId===immat?d:null;};
+const STEPS=w=>R2.stepsFor(w); /* 19/10 VH : les étapes dépendent du mode (qui est là, seul, premier état des lieux, véhicule laissé, de mémoire) — l'ordre d'origine est gardé */
 const STEP_T={cond:'Conducteur',permis:'Permis de conduire',releves:'Kilométrage et niveaux',controles:'Points d\'état et documents',photos:'Photos et impacts',inv:'Inventaire',cartes:'Cartes et dispositifs',charte:'Charte véhicule',recap:'Récapitulatif et signatures'};
 const refRec=()=>W&&W.ref?regGet('vrec',W.ref):null;
 const grpObj=g=>!W?{}:g==='rel'?W.edl.rel:g==='ctl'?W.edl.ctl:g==='doc'?W.edl.doc:{};
 const grpList=g=>{const E=(vcfg()||{}).edl||{};return g==='rel'?(E.releves||[]).filter(x=>x.type==='choix'):g==='ctl'?(E.controles||[]):g==='doc'?(E.docs||[]):[];};
 const scrollTop=()=>setTimeout(()=>{const hb=document.getElementById('homeBody');if(hb)hb.scrollTop=0;const w=document.querySelector('#eq-app .veh-wiz');if(w&&w.scrollIntoView)try{w.scrollIntoView({block:'start'});}catch(e){}},0);
 const back=()=>{const b=document.querySelector('#eq-app .ac-back[data-act="xsub"]');if(b)b.click();};
-function start(type,immat,me,ctx){const v=vehGet(immat);if(!v)return;if(!vcfg()){ctx.toast('Configuration véhicule absente : l\'administrateur importe le pack SCR (partie « vehicule »)');return;}
-  const cur=openRec(v);if(type==='reception'&&cur){ctx.toast('Véhicule remis à '+cur.conducteurNom+' : fais d\'abord la restitution');return;}if(type==='restitution'&&!v.conducteur&&!v.conducteurKey){ctx.toast('Véhicule libre : rien à restituer');return;}
+// 19/10 VH : o = {self (le conducteur pour lui-même, écran dans Moi), premier (premier état des lieux d'un véhicule déjà attitré), lache (« je laisse ce véhicule »), memoire (restitution de mémoire
+//   après un changement de conducteur), swId, redoDe + prefill (reprise d'une remise refusée), cond (conducteur imposé), valPar (validateur proposé), host ('moi' | 'parc')}
+export function start(type,immat,me,ctx,o){o=o||{};const v=vehGet(immat);if(!v)return;if(!vcfg()){ctx.toast('Configuration véhicule absente : l\'administrateur importe le pack SCR (partie « vehicule »)');return;}
+  const cur=openRec(v);if(type==='reception'&&cur&&!(o.redoDe&&cur.refus)){ctx.toast('Véhicule remis à '+cur.conducteurNom+' : fais d\'abord la restitution');return;}if(type==='restitution'&&!v.conducteur&&!v.conducteurKey&&!o.redoDe&&!o.memoire){ctx.toast('Véhicule libre : rien à restituer');return;}
   const d=draftFor(immat);
-  if(d&&d.type===type)W=d;
-  else{const ref=type==='restitution'?openRec(v):null;
-    W={type,vehId:immat,rid:Date.now().toString(36),step:0,startedAt:new Date().toISOString(),cond:null,permis:{ok:false,fin:''},edl:{km:v.km!==undefined&&v.km!==null&&v.km!==''?+v.km:'',rel:{},ctl:{},doc:{},equip:{},photos:{},impacts:[],remarques:''},inv:{miss:{},obs:''},cartes:{},cles:'',consignes:false,charte:{},sigC:null,sigR:null,lieu:'',ref:ref?ref.id:null,q:''};
+  if(d&&d.type===type&&!o.redoDe&&!!d.lache===!!o.lache&&!!d.self===!!o.self)W=d;
+  else{const ref=type==='restitution'?(o.cond&&o.cond.key&&(o.memoire||o.redoDe)?(recsOf(immat).find(r=>r.type==='reception'&&r.conducteurKey===o.cond.key&&!r.remplacePar)||null):openRec(v)):null;
+    W={type,vehId:immat,rid:Date.now().toString(36),step:0,startedAt:new Date().toISOString(),cond:null,permis:{ok:false,fin:''},edl:{km:v.km!==undefined&&v.km!==null&&v.km!==''?+v.km:'',rel:{},ctl:{},doc:{},equip:{},photos:{},impacts:[],remarques:''},inv:{miss:{},obs:''},cartes:{},cles:'',consignes:false,charte:{},sigC:null,sigR:null,lieu:'',ref:ref?ref.id:null,q:'',
+      v2:2,self:!!o.self,host:o.host||(o.self?'moi':'parc'),qui:o.self||o.premier||o.lache||o.memoire?'seul':'avec',quiChoix:o.self||o.premier||o.lache||o.memoire?'seul':'avec',premier:!!o.premier,lache:!!o.lache,memoire:!!o.memoire,swId:o.swId||null,redoDe:o.redoDe||null,valPar:o.valPar||null,ou:null};
     const P=ctx.people||[];const byKey=v.conducteurKey&&P.find(p=>p.id===v.conducteurKey);const byName=!byKey&&v.conducteur&&P.find(p=>nomP(p).toLowerCase()===String(v.conducteur).trim().toLowerCase());const p=byKey||byName;
-    if(type==='restitution'){W.cond={key:v.conducteurKey||(ref&&ref.conducteurKey)||(p&&p.id)||'',nom:(ref&&ref.conducteurNom)||v.conducteur||(p?nomP(p):''),poste:(ref&&ref.conducteurPoste)||(p?(POSTES[p.poste]||''):'')};
+    if(type==='restitution'){W.cond=o.cond||{key:v.conducteurKey||(ref&&ref.conducteurKey)||(p&&p.id)||'',nom:(ref&&ref.conducteurNom)||v.conducteur||(p?nomP(p):''),poste:(ref&&ref.conducteurPoste)||(p?(POSTES[p.poste]||''):'')};
       if(ref&&ref.inventaire&&ref.inventaire.miss)W.inv.miss=Object.assign({},ref.inventaire.miss); /* un manquant de la réception reste manquant (pas une différence) */
       if(ref&&ref.edl&&ref.edl.equip)W.edl.equip=Object.assign({},ref.edl.equip);
-      Object.entries((ref&&ref.cartes)||{}).forEach(([id,c])=>{if(c&&c.statut==='remise')W.cartes[id]={numero:c.numero||'',statut:'rendue'};});}
-    else{if(p)W.cond={key:p.id,nom:nomP(p),poste:POSTES[p.poste]||''};
-      dispoOf(v).forEach(dd=>{const n=String((v.cartes&&v.cartes[dd.id])||'');W.cartes[dd.id]={numero:n,statut:dd.pour==='tous'||n?'remise':'aucune'};});}}
-  saveDraft();ctx.go('x:'+ID+':wiz');scrollTop();}
+      Object.entries((ref&&ref.cartes)||{}).forEach(([id,c])=>{if(c&&c.statut==='remise')W.cartes[id]={numero:c.numero||'',statut:o.lache||o.memoire?'abord':'rendue'};});} /* véhicule laissé, changement de conducteur : les cartes restent à bord */
+    else{if(o.cond)W.cond=o.cond;else if(p)W.cond={key:p.id,nom:nomP(p),poste:POSTES[p.poste]||''};
+      dispoOf(v).forEach(dd=>{const n=String((v.cartes&&v.cartes[dd.id])||'');W.cartes[dd.id]={numero:n,statut:dd.pour==='tous'||n?'remise':'aucune'};});}
+    const r0=o.prefill;if(r0){ /* reprise d'une remise refusée : relevés, photos, inventaire, cartes repris ; on corrige ce qui manque */
+      try{W.edl=Object.assign(W.edl,JSON.parse(JSON.stringify(r0.edl||{})));delete W.edl.kmRestantVidange;W.inv={miss:Object.assign({},(r0.inventaire||{}).miss||{}),obs:(r0.inventaire||{}).obs||''};W.cartes={};Object.entries(r0.cartes||{}).forEach(([id,c])=>{W.cartes[id]={numero:c.numero||'',statut:c.statut||''};});
+        W.cles=r0.cles===null||r0.cles===undefined?'':r0.cles;W.lieu=r0.lieu||'';W.permis={ok:false,fin:(r0.permis&&r0.permis.fin)||''};W.consignes=!!r0.consignesLues;if(r0.lache)W.ou={k:r0.lache.k||'autre',txt:r0.lache.txt||(r0.lache.k?'':r0.lache.ou||''),site:r0.lache.site||''};if(r0.carburant)W.carb=r0.carburant;if(r0.refReception)W.ref=r0.refReception;}catch(e){console.warn(e);}}}
+  saveDraft();R2.openWiz(ctx);scrollTop();}
 /* ── écrans de l'assistant ── */
 const segB=(g,id,choix,val)=>`<div class="veh-seg">${choix.map(c=>`<button type="button" class="${isKo(c)?'ko':isOk(c)?'ok':''}${val===c?' on':''}" data-act="x" data-v="veh|set|${g}~${esc(id)}~${esc(c)}">${esc(c)}</button>`).join('')}</div>`;
 const ptRow=(g,x,o)=>`<div class="veh-pt"><div class="veh-lab">${esc(x.label)}${x.obl?'':' <span class="hint">(facultatif)</span>'}</div>${segB(g,x.id,x.choix,(o||{})[x.id]||'')}</div>`;
@@ -138,7 +148,7 @@ const STEP={
   cond:(v,me,ctx)=>{const q=String(W.q||'').toLowerCase();const P=(ctx.people||[]).filter(p=>p&&p.id&&(p.active!==false||p.invite)).sort((a,b)=>nomP(a).localeCompare(nomP(b)));const pr=profil(v);
     return `${W.cond?`<div class="okbox">Conducteur : <b>${esc(W.cond.nom)}</b>${W.cond.poste?' · '+esc(W.cond.poste):''}</div>`:''}<div class="hint">Charte ${esc(pr.charte==='fonction'?'véhicule de fonction':'véhicule de service')} · ${esc(invTitre(v))}</div>
       <input class="f veh-q" data-xin="veh|q" value="${esc(W.q||'')}" placeholder="🔍 Nom du conducteur…" autocomplete="off"><div class="veh-list" id="veh-list">${pickList(P,q)}</div>`;},
-  permis:()=>`<p class="eq-s">Vérifie le permis de ${esc(W.cond?W.cond.nom:'du conducteur')}. On ne garde pas de photo du permis.</p>
+  permis:()=>W.qui==='seul'?R2.permisSeulHTML():`<p class="eq-s">Vérifie le permis de ${esc(W.cond?W.cond.nom:'du conducteur')}. On ne garde pas de photo du permis.</p>
     <button class="veh-check${W.permis.ok?' on':''}" data-act="x" data-v="veh|permis|"><span class="bx">${W.permis.ok?'✓':''}</span><span><b>Permis B vu et valide</b><small>Date de validité : ligne 4b du permis</small></span></button>
     <label class="f veh-lab">Fin de validité du permis</label><input class="f" type="date" data-xin="veh|permisFin" value="${esc(W.permis.fin||'')}">
     ${W.permis.ok?'':'<div class="warnbox">Sans permis vu et valide, la remise sera <b>incomplète</b> (en rouge chez le responsable flotte, « À faire » chez le conducteur).</div>'}`,
@@ -168,7 +178,7 @@ const STEP={
       ${n?`<button class="btn sm" data-act="x" data-v="veh|invok|" style="margin-top:6px">Tout remettre « présent »</button>`:''}</div>
       <div class="veh-sec"><label class="f veh-lab">Observations sur l'inventaire</label><textarea class="f" data-xin="veh|invObs" rows="2" placeholder="ex. 1 meuleuse sur 2">${esc(W.inv.obs||'')}</textarea></div>`;},
   cartes:v=>{const C=vcfg();const D=dispoOf(v);const isR=W.type==='restitution';const cles=C.dispositifs&&C.dispositifs.cles;
-    if(isR){const L=Object.keys(W.cartes);return `<div class="veh-sec"><h3><span>Cartes et badges remis à la réception</span></h3>${L.length?L.map(id=>{const c=W.cartes[id];return `<div class="veh-pt"><div class="veh-lab">${esc(dispoLabel(id))}${c.numero?' · n° '+esc(c.numero):''}</div>${segB('carte',id,['Rendue','Perdue'],c.statut==='perdue'?'Perdue':c.statut==='rendue'?'Rendue':'')}</div>`;}).join(''):'<div class="eq-s">Aucune carte remise à la réception.</div>'}</div>
+    if(isR){const L=Object.keys(W.cartes);const ab=W.lache||W.memoire;return `<div class="veh-sec"><h3><span>Cartes et badges remis à la réception</span></h3>${ab?'<div class="hint">Le véhicule change de main sans passer par le responsable : les cartes restent à bord, sauf perte.</div>':''}${L.length?L.map(id=>{const c=W.cartes[id];return `<div class="veh-pt"><div class="veh-lab">${esc(dispoLabel(id))}${c.numero?' · n° '+esc(c.numero):''}</div>${segB('carte',id,ab?['À bord','Perdue']:['Rendue','Perdue'],c.statut==='perdue'?'Perdue':c.statut==='rendue'?'Rendue':c.statut==='abord'?'À bord':'')}</div>`;}).join(''):'<div class="eq-s">Aucune carte remise à la réception.</div>'}</div>
       ${cles?`<div class="veh-sec"><label class="f veh-lab">Clés rendues (nombre de jeux)</label><input class="f" type="number" inputmode="numeric" min="0" data-xin="veh|cles" value="${esc(W.cles)}"></div>`:''}`;}
     return `<div class="veh-sec"><h3><span>Cartes carburant et télébadge</span></h3>${D.map(d=>{const c=W.cartes[d.id]||{};return `<div class="veh-pt"><div class="veh-lab">${esc(d.label)}${d.condition?` <span class="hint">(${esc(d.condition)})</span>`:''}</div><input class="f" data-xin="veh|carteNum~${esc(d.id)}" value="${esc(c.numero||'')}" placeholder="N° de support"><div style="margin-top:6px">${segB('carte',d.id,['Remise','Pas de carte'],c.statut==='remise'?'Remise':c.statut==='aucune'?'Pas de carte':'')}</div></div>`;}).join('')||'<div class="eq-s">Aucun dispositif dans le pack.</div>'}</div>
       ${cles?`<div class="veh-sec"><label class="f veh-lab">Clés remises (nombre de jeux)</label><input class="f" type="number" inputmode="numeric" min="0" data-xin="veh|cles" value="${esc(W.cles)}"></div>`:''}
@@ -184,25 +194,26 @@ const STEP={
       ${W.charte.lueA?`<div class="okbox">✓ Lue jusqu'en bas. ${esc(nom)} signe dans le cadre :</div>${sigPadHTML('veh-pad-ch')}<button class="btn sm" data-act="x" data-v="veh|clr|ch">Effacer le trait</button>`
         :`<button class="btn block veh-big" id="veh-cread" data-ok="✓ J'ai lu en entier — je signe" data-act="x" data-v="veh|lu|" disabled style="margin-top:8px">Déroule jusqu'en bas pour signer</button>`}
       <button class="btn veh-later" data-act="x" data-v="veh|later|">Le conducteur signera plus tard (remise incomplète)</button>`;},
-  recap:v=>{const r=draftRec(v);const isR=W.type==='restitution';
-    return `${isR?diffHTML(r.diff,refRec()):sumHTML(r)}
+  recap:(v,me,ctx)=>{const r=draftRec(v);const isR=W.type==='restitution';const seul=R2.seulW(W);
+    return `${W.lache?`<div class="veh-sec"><h3><span>Laissé à</span></h3><div class="okbox">${esc(r.lache&&r.lache.ou||'')}</div></div>`:''}${isR?diffHTML(r.diff,refRec()):sumHTML(r)}
       ${!isR&&r.reserves.length?`<div class="veh-sec"><h3><span>Réserves</span></h3><ul class="veh-sum">${r.reserves.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:''}
-      ${r.manque.length?`<div class="veh-ko">Remise incomplète : ${esc(r.manque.map(x=>MANQ[x]).join(', '))}. Elle reste en rouge chez le responsable flotte et « À faire » chez ${esc(r.conducteurNom)}.</div>`:''}
+      ${r.manque.length&&!seul?`<div class="veh-ko">Remise incomplète : ${esc(r.manque.map(x=>MANQ[x]).join(', '))}. Elle reste en rouge chez le responsable flotte et « À faire » chez ${esc(r.conducteurNom)}.</div>`:''}
       <div class="veh-sec"><label class="f veh-lab">Fait à</label><input class="f" data-xin="veh|lieu" value="${esc(W.lieu||'')}" placeholder="ville"></div>
-      <div class="veh-sec"><h3><span>Signature du conducteur</span><span class="hint">${esc(r.conducteurNom)}</span></h3><div class="hint" style="margin:0 0 4px">${isR?'Je rends le véhicule dans l\'état décrit ci-dessus.':'Je reconnais l\'exactitude de l\'état des lieux, de l\'inventaire et des cartes reçues.'}</div>${sigPadHTML('veh-pad-c')}<button class="btn sm" data-act="x" data-v="veh|clr|c">Effacer</button></div>
-      <div class="veh-sec"><h3><span>Signature du responsable</span><span class="hint">${esc(uname())}</span></h3>${sigPadHTML('veh-pad-r')}<button class="btn sm" data-act="x" data-v="veh|clr|r">Effacer</button></div>`;}};
+      <div class="veh-sec"><h3><span>Signature du conducteur</span><span class="hint">${esc(r.conducteurNom)}</span></h3><div class="hint" style="margin:0 0 4px">${W.lache?'Je laisse le véhicule dans l\'état décrit ci-dessus.':isR?'Je rends le véhicule dans l\'état décrit ci-dessus.':'Je reconnais l\'exactitude de l\'état des lieux, de l\'inventaire et des cartes reçues.'}</div>${sigPadHTML('veh-pad-c')}<button class="btn sm" data-act="x" data-v="veh|clr|c">Effacer</button></div>
+      ${W.memoire?'<div class="hint">Restitution de mémoire : pas de validation à part, le responsable qui a déclaré le changement relit et clôt.</div>':W.lache&&!W.self?`<div class="hint">Noté par ${esc(uname())} (responsable) : rien à valider à part.</div>`:seul?R2.valParHTML(me,ctx):`<div class="veh-sec"><h3><span>Signature du responsable</span><span class="hint">${esc(uname())}</span></h3>${sigPadHTML('veh-pad-r')}<button class="btn sm" data-act="x" data-v="veh|clr|r">Effacer</button></div>`}`;}};
+Object.assign(STEP,R2.STEP2); /* 19/10 VH : « Qui est là ? », « Où est le véhicule ? », « Kilométrage et carburant » (véhicule laissé) */
 function pickList(P,q){const L=P.filter(p=>!q||nomP(p).toLowerCase().includes(q)).slice(0,80);return L.map(p=>`<button class="veh-pick${W&&W.cond&&W.cond.key===p.id?' on':''}" data-act="x" data-v="veh|cond|${esc(p.id)}"><b>${esc(nomP(p))}</b><small>${esc(POSTES[p.poste]||'')}${p.type==='interim'?' · intérim':''}</small></button>`).join('')||'<div class="eq-s">Personne ne correspond.</div>';}
 function kmRestant(v){if(!v||!v.cadenceVidange||v.kmVidange===undefined||v.kmVidange===null||v.kmVidange==='')return null;const km=W&&W.edl.km!==''&&W.edl.km!==null?+W.edl.km:+v.km||0;return (+v.kmVidange)+(+v.cadenceVidange)-km;}
-function sumHTML(r){const all=['rel','ctl','doc'].flatMap(g=>Object.values((r.edl||{})[g]||{}));const ko=all.filter(isKo).length;const nPh=Object.keys(r.edl.photos||{}).length;const nM=Object.keys(r.inventaire.miss||{}).length;const cartes=Object.values(r.cartes||{}).filter(c=>c.statut==='remise');const c=r.charte||{};
+export function sumHTML(r){const all=['rel','ctl','doc'].flatMap(g=>Object.values((r.edl||{})[g]||{}));const ko=all.filter(isKo).length;const nPh=Object.keys(r.edl.photos||{}).length;const nM=Object.keys(r.inventaire.miss||{}).length;const cartes=Object.values(r.cartes||{}).filter(c=>c.statut==='remise');const c=r.charte||{};
   return `<div class="veh-sec"><h3><span>${esc(r.immat)} → ${esc(r.conducteurNom)}</span></h3><ul class="veh-sum">
-    <li>Permis : ${r.permis&&r.permis.ok?'✓ vu et valide'+(r.permis.fin?' (jusqu\'au '+dFR(r.permis.fin)+')':''):'<b class="ko">non vu</b>'}</li>
+    <li>Permis : ${r.permis&&r.permis.ok?'✓ vu et valide'+(r.permis.fin?' (jusqu\'au '+dFR(r.permis.fin)+')':''):r.premier?'pas à revoir (véhicule déjà attitré)':r.permis&&r.permis.aFaireVoir?'<b>à faire voir au responsable</b>'+(r.permis.fin?' (validité : '+dFR(r.permis.fin)+')':''):'<b class="ko">non vu</b>'}</li>
     <li>Kilométrage : <b>${nb(r.edl.km)} km</b></li>
     <li>Niveaux, points d'état, documents : ${all.length-ko} Ok${ko?` · <b class="ko">${ko} non ok</b>`:''}</li>
     <li>Photos : ${nPh} · impacts notés : ${(r.edl.impacts||[]).length}</li>
     <li>Inventaire (${esc(r.inventaire.titre)}) : ${r.inventaire.n} article${r.inventaire.n>1?'s':''}${nM?` · <b class="ko">${nM} manquant${nM>1?'s':''}</b>`:r.inventaire.n?' · conforme':''}</li>
     <li>Cartes remises : ${cartes.length?cartes.map(x=>esc(x.label)+(x.numero?' n° '+esc(x.numero):'')).join(' · '):'aucune'}${r.cles!=null?' · clés : '+esc(r.cles):''}</li>
     <li>Charte : ${c.none?'pas de charte dans le pack':c.sig?'✓ lue et signée ('+esc(c.version)+')':'<b class="ko">à signer plus tard</b>'}</li></ul></div>`;}
-function diffHTML(d,ref){if(!d)return '';const li=(t,x)=>`<li class="ko"><b>${t}</b> · ${esc(x)}</li>`;
+export function diffHTML(d,ref){if(!d)return '';const li=(t,x)=>`<li class="ko"><b>${t}</b> · ${esc(x)}</li>`;
   return `<div class="veh-sec veh-diff"><h3><span>Différences avec la réception${ref?' du '+dFR(ref.at):''}</span></h3>${d.sansRef?'<div class="warnbox" style="margin:0 0 6px">Pas de réception enregistrée dans l\'appli pour ce conducteur : rien à comparer, tout ce qui est noté compte.</div>':''}
     <div class="veh-kms"><b id="veh-kmp">${d.km!==null&&d.km!==undefined?nb(d.km)+' km':'—'}</b><small>parcourus</small></div>
     ${d.n?`<ul class="veh-sum veh-dl">${d.impacts.map(i=>li('Nouvel impact',zoneLab(i.zone)+(i.note?' : '+i.note:''))).join('')}${d.manquants.map(x=>li('Manquant',x)).join('')}${d.nonOk.map(x=>li('Non ok',x)).join('')}${d.cartesPerdues.map(x=>li('Perdue',x)).join('')}</ul>`:'<div class="okbox">✓ Aucune différence avec la réception (hors kilométrage).</div>'}
@@ -219,11 +230,12 @@ function draftRec(v){const C=vcfg()||{};const E=C.edl||{};const isR=W.type==='re
     inventaire:{liste:profil(v).invKey||'',titre:invTitre(v),items:items.map(x=>[x.id,x.d,x.q||'']),miss:Object.fromEntries(miss.map(id=>[id,1])),obs:W.inv.obs||'',n:items.length},
     cartes:Object.fromEntries(Object.entries(W.cartes).map(([id,c])=>[id,{label:dispoLabel(id),numero:c.numero||'',statut:c.statut||''}])),cles:W.cles===''||W.cles===null||W.cles===undefined?null:+W.cles,
     lieu:W.lieu||'',reserves,refReception:W.ref||null};
-  if(!isR){rec.permis={ok:!!W.permis.ok,fin:W.permis.fin||''};rec.consignesLues=!!W.consignes;
+  if(!isR){rec.permis={ok:!!W.permis.ok,fin:W.permis.fin||''};rec.consignesLues=!!W.consignes;if(W.premier)rec.premier=true;if(W.qui==='seul'&&!W.premier)rec.permis={ok:false,fin:W.permis.fin||'',aFaireVoir:true}; /* 19/10 VH : seul → permis « à faire voir » ; premier état des lieux → pas de permis à revoir */
     const {charte:type}=profil(v);const ch=charteCur(type);const deja=ch&&charteSigOf(rec.conducteurKey,type);
     rec.charte=!ch?{type,none:true}:deja?{type,version:ch.version,lueA:deja.readAt||deja.at,sig:deja.img||null,at:deja.at,deja:true}:(W.charte.lueA&&W.charte.sig&&!W.charte.later)?{type,version:ch.version,lueA:W.charte.lueA,sig:W.charte.sig,at:new Date().toISOString()}:{type,version:ch.version,later:true};
     rec.manque=manque(rec);rec.complete=!rec.manque.length;}
   else{rec.diff=diffOf(rec,ref);rec.manque=[];rec.complete=true;}
+  if(W.lache)rec.lache={ou:R2.ouLabel(W),k:(W.ou||{}).k||'',txt:(W.ou||{}).txt||'',site:(W.ou||{}).site||''}; /* véhicule laissé : où (le récapitulatif l'affiche ; onSave y ajoute la date) */
   return rec;}
 function diffOf(rec,ref){const E=((vcfg()||{}).edl)||{};const d={km:null,impacts:rec.edl.impacts.slice(),manquants:[],retrouves:[],nonOk:[],cartesPerdues:[],sansRef:!ref};
   if(ref&&ref.edl&&ref.edl.km!==null&&ref.edl.km!==undefined&&rec.edl.km!==null)d.km=rec.edl.km-ref.edl.km;
@@ -232,7 +244,7 @@ function diffOf(rec,ref){const E=((vcfg()||{}).edl)||{};const d={km:null,impacts
   [['rel',E.releves],['ctl',E.controles],['doc',E.docs]].forEach(([g,L])=>(L||[]).forEach(x=>{const now=(rec.edl[g]||{})[x.id],was=ref&&ref.edl?(ref.edl[g]||{})[x.id]:null;if(isKo(now)&&!isKo(was))d.nonOk.push(x.label+(was?' (était '+was+')':''));}));
   Object.values(rec.cartes).forEach(c=>{if(c.statut==='perdue')d.cartesPerdues.push(c.label+(c.numero?' n° '+c.numero:''));});
   d.n=d.impacts.length+d.manquants.length+d.nonOk.length+d.cartesPerdues.length;return d;}
-function check(k,v){const E=vcfg().edl;
+function check(k,v){const E=vcfg().edl;const c2=R2.check2(k,v);if(c2!==undefined)return c2; /* 19/10 VH : étapes et modes en plus (qui, où, carburant, seul, de mémoire) */
   if(k==='cond'&&!(W.cond&&W.cond.key))return 'Choisis le conducteur dans la liste';
   if(k==='permis'&&W.permis.ok){if(!W.permis.fin)return 'La date de fin de validité du permis';if(W.permis.fin<todayIso())return 'Fin de validité dépassée : le permis n\'est pas valide (décoche « vu et valide »)';}
   if(k==='releves'){const km=W.edl.km;if(km===''||km===null||isNaN(+km)||+km<0)return 'Le kilométrage au compteur';const ref=refRec();if(ref&&ref.edl&&ref.edl.km!==null&&+km<ref.edl.km)return 'Kilométrage inférieur à celui de la réception ('+nb(ref.edl.km)+' km)';const n=grpList('rel').filter(x=>x.obl&&!W.edl.rel[x.id]).length;if(n)return 'Il reste '+n+' niveau'+(n>1?'x':'')+' à cocher (Ok / Non ok)';}
@@ -242,39 +254,41 @@ function check(k,v){const E=vcfg().edl;
   if(k==='charte'){const {charte:type}=profil(v);const ch=charteCur(type);if(ch&&!charteSigOf(W.cond&&W.cond.key,type)&&!W.charte.later){if(!W.charte.lueA)return 'Déroule la charte jusqu\'en bas';if(!W.charte.sig)return 'La signature du conducteur (un trait au doigt dans le cadre)';}}
   if(k==='recap'){if(!W.sigC)return 'La signature du conducteur';if(!W.sigR)return 'La signature du responsable';}
   return null;}
-function wizHTML(me,ctx){ensureCss();if(!W)return `<div class="card"><div class="eq-s">Aucune remise en cours. Ouvre la fiche d'un véhicule → « Remettre à… ».</div></div>`;const v=vehGet(W.vehId);if(!v)return `<div class="card"><div class="eq-s">Véhicule introuvable.</div></div>`;
+export function wizHTML(me,ctx){ensureCss();if(!W)return `<div class="card"><div class="eq-s">Aucune remise en cours. Ouvre la fiche d'un véhicule → « Remettre à… ».</div></div>`;const v=vehGet(W.vehId);if(!v)return `<div class="card"><div class="eq-s">Véhicule introuvable.</div></div>`;
   if(W.step==='done')return doneHTML(v);if(!vcfg())return `<div class="card"><div class="warnbox">Configuration véhicule absente : l'administrateur importe le pack SCR.</div></div>`;
-  const S=STEPS[W.type];if(W.step>=S.length)W.step=S.length-1;const k=S[W.step];const n=W.step+1;let body='';try{body=STEP[k](v,me,ctx);}catch(e){console.warn(e);body=`<div class="warnbox">Écran indisponible (${esc(e.message)}).</div>`;}
+  const S=STEPS(W);if(W.step>=S.length)W.step=S.length-1;const k=S[W.step];const n=W.step+1;let body='';try{body=STEP[k](v,me,ctx);}catch(e){console.warn(e);body=`<div class="warnbox">Écran indisponible (${esc(e.message)}).</div>`;}
   let nxt='Continuer ›';if(k==='inv'){const L=invItems(v);const nm=L.filter(x=>W.inv.miss[x.id]).length;nxt=!L.length?'Continuer ›':nm?'Valider avec '+nm+' écart'+(nm>1?'s':'')+' ›':'✓ Tout est conforme ›';}
-  if(k==='charte'&&W.charte.lueA&&!W.charte.later)nxt='Valider la signature ›';if(k==='recap')nxt=W.type==='reception'?'✓ Enregistrer la remise':'✓ Enregistrer la restitution';
+  if(k==='charte'&&W.charte.lueA&&!W.charte.later)nxt='Valider la signature ›';if(k==='recap')nxt=R2.recapLabel()||(W.type==='reception'?'✓ Enregistrer la remise':'✓ Enregistrer la restitution');
   setTimeout(()=>afterRender(k),0);
-  return `<div class="veh-wiz"><div class="veh-kick">${[W.type==='reception'?'Remise':'Restitution',v.immat,((v.marque||'')+' '+(v.modele||'')).trim(),W.cond&&W.cond.nom].filter(Boolean).map(esc).join(' · ')}</div>
-    <h2 class="vt veh-h">${n}/${S.length} · ${esc(STEP_T[k])}</h2><div class="veh-bar"><i style="width:${Math.round(100*n/S.length)}%"></i></div>${body}
+  return `<div class="veh-wiz"><div class="veh-kick">${[R2.kick()||(W.type==='reception'?'Remise':'Restitution'),v.immat,((v.marque||'')+' '+(v.modele||'')).trim(),W.cond&&W.cond.nom].filter(Boolean).map(esc).join(' · ')}</div>
+    <h2 class="vt veh-h">${n}/${S.length} · ${esc(STEP_T[k]||R2.STEP_T2[k]||k)}</h2><div class="veh-bar"><i style="width:${Math.round(100*n/S.length)}%"></i></div>${body}
     <div class="veh-nav">${W.step>0?`<button class="btn veh-big" data-act="x" data-v="veh|prev|">‹ Retour</button>`:`<button class="btn veh-big" data-act="x" data-v="veh|cancel|">Abandonner</button>`}<button class="btn primary veh-big" id="veh-next" data-act="x" data-v="veh|next|">${esc(nxt)}</button></div></div>`;}
-function doneHTML(v){const r=regGet('vrec',W.savedId);const isR=W.type==='reception';const m=r?manque(r):[];
+function doneHTML(v){const r=regGet('vrec',W.savedId);const isR=W.type==='reception';const m=r?manque(r):[];const h2=R2.doneHTML2(v,r);if(h2)return h2; /* 19/10 VH : seul (à valider), véhicule laissé, de mémoire */
   return `<div class="veh-wiz"><div class="veh-kick">${isR?'Remise':'Restitution'} · ${esc(v.immat)}</div><h2 class="vt veh-h">${isR?'Remise enregistrée':'Restitution enregistrée'}</h2>
     ${m.length?`<div class="veh-ko">Remise incomplète : ${esc(m.map(x=>MANQ[x]).join(', '))}. En rouge dans la flotte, « À faire » chez ${esc(r.conducteurNom)}.</div>`:`<div class="okbox">✓ ${isR?esc(v.immat)+' est remis à <b>'+esc(r?r.conducteurNom:'')+'</b>. Il le retrouve dans Moi → Mon véhicule.':esc(v.immat)+' est rendu : le véhicule est libre.'}</div>`}
     ${r&&!isR&&r.diff?`<div class="hint">${r.diff.km!==null?nb(r.diff.km)+' km parcourus · ':''}${r.diff.n?r.diff.n+' différence'+(r.diff.n>1?'s':'')+' : signalée'+(r.diff.n>1?'s':'')+' au responsable flotte':'aucune différence'}</div>`:''}
-    <div class="veh-nav"><button class="btn veh-big" data-act="x" data-v="veh|print|${esc(W.savedId||'')}">🖨 Document (PDF)</button><button class="btn primary veh-big" data-act="xsub" data-v="">Retour à la fiche</button></div></div>`;}
+    <div class="veh-nav"><button class="btn veh-big" data-act="x" data-v="veh|print|${esc(W.savedId||'')}">🖨 Document (PDF)</button>${W.host==='moi'?`<button class="btn primary veh-big" data-act="x" data-v="veh|home|">Retour à Moi</button>`:`<button class="btn primary veh-big" data-act="xsub" data-v="">Retour à la fiche</button>`}</div></div>`;}
 const PADS={};const PAD_ID={ch:'veh-pad-ch',c:'veh-pad-c',r:'veh-pad-r'};
 function pad(id,slot){const cv=document.getElementById(id);if(!cv||cv.dataset.vehOn)return;cv.dataset.vehOn='1';const p=sigPadInit(id);PADS[id]=p;
   const cur=slot==='ch'?W.charte.sig:slot==='c'?W.sigC:W.sigR;if(cur){const im=new Image();im.onload=()=>{try{cv.getContext('2d').drawImage(im,0,0);}catch(e){}};im.src=cur;}
   const keep=()=>{if(!W||!p.drawn())return;const png=p.png();const at=new Date().toISOString();if(slot==='ch')W.charte.sig=png;else if(slot==='c'){W.sigC=png;W.sigCAt=at;}else{W.sigR=png;W.sigRAt=at;}saveDraftSoon();}; /* le trait est gardé dès qu'on lève le doigt : un re-rendu ne l'efface pas */
   ['pointerup','pointercancel','pointerleave'].forEach(e=>cv.addEventListener(e,keep));}
 function afterRender(k){if(!W)return;if(k==='charte'){const b=document.getElementById('veh-cbody'),btn=document.getElementById('veh-cread');if(b&&btn&&!btn.dataset.vehOn){btn.dataset.vehOn='1';readGate(b,btn,null);}pad('veh-pad-ch','ch');}if(k==='recap'){pad('veh-pad-c','c');pad('veh-pad-r','r');}}
-function next(me,ctx){const v=vehGet(W.vehId);if(!v)return;const S=STEPS[W.type];const k=S[W.step];const err=check(k,v);if(err){ctx.toast(err);return;}
+function next(me,ctx){const v=vehGet(W.vehId);if(!v)return;const S=STEPS(W);const k=S[W.step];const err=check(k,v);if(err){ctx.toast(err);return;}
   if(k==='recap'){save(v,me,ctx);return;}W.step++;saveDraft();ctx.render();scrollTop();}
 function save(v,me,ctx){const r=draftRec(v);const now=new Date().toISOString();
   Object.assign(r,{sigConducteur:W.sigC,sigConducteurAt:W.sigCAt||now,sigResponsable:W.sigR,sigResponsableAt:W.sigRAt||now,responsableNom:uname(),responsableKey:ukey(),at:now,by:uname(),byKey:ukey()});
   const id=v.immat+'|'+(W.type==='reception'?'R':'S')+W.rid;
-  regSet('vrec',id,r);
-  if(W.type==='reception'&&r.charte&&r.charte.sig&&!r.charte.deja){const doc=charteDoc(r.charte.type,r.charte.version);regSet('docsig',doc+'|'+r.conducteurKey,{doc,ver:r.charte.version,key:r.conducteurKey,name:r.conducteurNom,at:now,img:r.charte.sig,readAt:r.charte.lueA,lieu:r.lieu||'',veh:v.immat,rec:id,via:uname()},{local:!String(r.conducteurKey).includes('@')});} /* comme docs.js : un personnage de démo reste sur l'appareil */
   const cartes=Object.assign({},v.cartes||{});Object.entries(r.cartes).forEach(([cid,c])=>{if(c.numero&&c.statut!=='perdue')cartes[cid]=c.numero;if(c.statut==='perdue')delete cartes[cid];}); /* 1 carte = 1 véhicule : les n° restent sur la fiche */
   const patch={cartes,remise:{id,type:r.type,at:now,complete:r.complete,conducteur:r.conducteurNom}};if(r.edl.km!==null)patch.km=r.edl.km;
   if(W.type==='reception'){patch.conducteur=r.conducteurNom;patch.conducteurKey=r.conducteurKey;}
-  else{patch.conducteur=null;patch.conducteurKey=null;const d=r.diff||{};if(d.n)patch.signalements=(v.signalements||[]).concat([{id:'S'+Date.now().toString(36),text:'Restitution de '+r.conducteurNom+' : '+[d.impacts.length?d.impacts.length+' nouvel'+(d.impacts.length>1?'s':'')+' impact'+(d.impacts.length>1?'s':''):'',d.manquants.length?d.manquants.length+' manquant'+(d.manquants.length>1?'s':''):'',d.nonOk.length?d.nonOk.length+' point'+(d.nonOk.length>1?'s':'')+' non ok':'',d.cartesPerdues.length?d.cartesPerdues.length+' carte'+(d.cartesPerdues.length>1?'s':'')+' perdue'+(d.cartesPerdues.length>1?'s':''):''].filter(Boolean).join(', '),at:now,by:uname()}]);} /* non bloquant : signalé au responsable flotte (alerte de la fiche) */
+  else if(!W.memoire){patch.conducteur=null;patch.conducteurKey=null;} /* 19/10 VH : restitution de mémoire (changement de conducteur) — le véhicule est déjà sur le nouveau conducteur */
+  if(W.type!=='reception'){const d=r.diff||{};if(d.n)patch.signalements=(v.signalements||[]).concat([{id:'S'+Date.now().toString(36),text:(W.lache?'Véhicule laissé par ':'Restitution de ')+r.conducteurNom+' : '+[d.impacts.length?d.impacts.length+' nouvel'+(d.impacts.length>1?'s':'')+' impact'+(d.impacts.length>1?'s':''):'',d.manquants.length?d.manquants.length+' manquant'+(d.manquants.length>1?'s':''):'',d.nonOk.length?d.nonOk.length+' point'+(d.nonOk.length>1?'s':'')+' non ok':'',d.cartesPerdues.length?d.cartesPerdues.length+' carte'+(d.cartesPerdues.length>1?'s':'')+' perdue'+(d.cartesPerdues.length>1?'s':''):''].filter(Boolean).join(', '),at:now,by:uname()}]);} /* non bloquant : signalé au responsable flotte (alerte de la fiche) */
+  R2.onSave(r,patch,v,id); /* 19/10 VH : seul → à valider ; véhicule laissé ; vignette ; remise refusée remplacée */
+  regSet('vrec',id,r);
+  if(W.type==='reception'&&r.charte&&r.charte.sig&&!r.charte.deja){const doc=charteDoc(r.charte.type,r.charte.version);regSet('docsig',doc+'|'+r.conducteurKey,{doc,ver:r.charte.version,key:r.conducteurKey,name:r.conducteurNom,at:now,img:r.charte.sig,readAt:r.charte.lueA,lieu:r.lieu||'',veh:v.immat,rec:id,via:ukey()===r.conducteurKey?'':uname()},{local:!String(r.conducteurKey).includes('@')});} /* comme docs.js : un personnage de démo reste sur l'appareil */
   vehSet(v.immat,patch);
-  W.step='done';W.savedId=id;saveDraft();ctx.render();scrollTop();ctx.toast(W.type==='reception'?(r.complete?'Remise enregistrée ✓':'Remise enregistrée — incomplète'):'Restitution enregistrée ✓');}
+  W.step='done';W.savedId=id;saveDraft();ctx.render();scrollTop();ctx.toast(W.lache?'Véhicule laissé ✓':r.aValider?(W.type==='reception'?'Remise':'Restitution')+' enregistrée — à valider par '+r.aValider.nom:W.type==='reception'?(r.complete?'Remise enregistrée ✓':'Remise enregistrée — incomplète'):'Restitution enregistrée ✓');}
 /* ── document imprimable (HTML mis en page → Imprimer / PDF), comme les autres impressions de l'appli (charte.js) ── */
 const DOC_X='table.inv td{padding:3px 8px;font-size:11px}table.sig img{height:60px;display:block}.charte{font-size:11.5px}.charte h2{font-size:13.5px;margin:14px 0 6px}.charte h2::before{display:none}.charte h3{font-size:11.5px;color:#3a3636;text-transform:none;letter-spacing:0}.charte h4{font-size:11px;margin:8px 0 4px}.charte p{margin:5px 0}.charte mark{background:#fff3c4}ul.eng{font-size:11px;color:#766f6f}.veh-blank{color:#999}';
 function recDocHTML(r){const C=vcfg()||{};const E=C.edl||{};const isR=r.type==='reception';const ed=r.edl||{};const m=isR?manque(r):[];
@@ -290,11 +304,13 @@ function recDocHTML(r){const C=vcfg()||{};const E=C.edl||{};const isR=r.type==='
   b+=`<h3>Impacts${isR?'':' notés à la restitution'}</h3>${(ed.impacts||[]).length?`<ul>${ed.impacts.map(i=>`<li>${esc(zoneLab(i.zone))}${i.note?' : '+esc(i.note):''}</li>`).join('')}</ul>`:'<p class="muted">Aucun.</p>'}${ed.remarques?`<p><b>Remarques :</b> ${esc(ed.remarques)}</p>`:''}`;
   if(ph)b+=`<h3>Photos</h3><div class="ph">${ph}</div>`;
   b+=`<h2>Inventaire — ${esc(inv.titre||'')}</h2>${(inv.items||[]).length?`<table class="inv"><tr><th>Désignation</th><th>Qté</th><th>État</th></tr>${inv.items.map(([id,dd,q])=>`<tr><td>${esc(dd)}</td><td>${esc(q||'')}</td><td>${miss[id]?'<b class="ko">manquant</b>':'<span class="ok">présent</span>'}</td></tr>`).join('')}</table>`:'<p class="muted">Pas de liste d\'inventaire pour ce type de véhicule.</p>'}${inv.obs?`<p><b>Observations :</b> ${esc(inv.obs)}</p>`:''}`;
-  const cl=Object.values(r.cartes||{});b+=`<h2>Cartes et dispositifs</h2>${cl.length?`<table><tr><th>Dispositif</th><th>N° de support</th><th>${isR?'Remise':'Retour'}</th></tr>${cl.map(c=>`<tr><td>${esc(c.label)}</td><td>${esc(c.numero||'—')}</td><td>${val({remise:'Remise',aucune:'Pas de carte',rendue:'Rendue',perdue:'Perdue'}[c.statut]||c.statut)}</td></tr>`).join('')}</table>`:'<p class="muted">Aucun.</p>'}${r.cles!==null&&r.cles!==undefined?`<p>Clés : <b>${esc(r.cles)}</b> jeu${r.cles>1?'x':''}</p>`:''}${isR?`<p>${r.consignesLues?'☑':'☐'} J'ai pris connaissance des consignes d'usage de ces dispositifs.</p>${((C.dispositifs&&C.dispositifs.engagements)||[]).length?`<ul class="eng">${C.dispositifs.engagements.map(e=>`<li>${esc(e)}</li>`).join('')}</ul>`:''}`:''}`;
+  if(r.lache)b=`<h2>Véhicule laissé</h2><div class="card notice"><b>${esc(r.lache.ou||'')}</b> — le ${dhFR(r.lache.at||r.at)}${r.carburant?' · carburant : '+esc(r.carburant):''}. Libre, sans conducteur, jusqu'à ce qu'un collègue le prenne.</div>`+b; /* 19/10 VH */
+  const cl=Object.values(r.cartes||{});b+=`<h2>Cartes et dispositifs</h2>${cl.length?`<table><tr><th>Dispositif</th><th>N° de support</th><th>${isR?'Remise':'Retour'}</th></tr>${cl.map(c=>`<tr><td>${esc(c.label)}</td><td>${esc(c.numero||'—')}</td><td>${val({remise:'Remise',aucune:'Pas de carte',rendue:'Rendue',perdue:'Perdue',abord:'À bord'}[c.statut]||c.statut)}</td></tr>`).join('')}</table>`:'<p class="muted">Aucun.</p>'}${r.cles!==null&&r.cles!==undefined?`<p>Clés : <b>${esc(r.cles)}</b> jeu${r.cles>1?'x':''}</p>`:''}${isR?`<p>${r.consignesLues?'☑':'☐'} J'ai pris connaissance des consignes d'usage de ces dispositifs.</p>${((C.dispositifs&&C.dispositifs.engagements)||[]).length?`<ul class="eng">${C.dispositifs.engagements.map(e=>`<li>${esc(e)}</li>`).join('')}</ul>`:''}`:''}`;
   const cs=isR&&r.charte&&!r.charte.none?(r.charte.sig?{img:r.charte.sig,at:r.charte.at,readAt:r.charte.lueA}:charteSigOf(r.conducteurKey,r.charte.type,r.charte.version)):null;
   if(isR)b+=`<h2>Charte d'utilisation du véhicule</h2><p>${r.charte&&r.charte.none?'Pas de charte dans le pack pour ce type de véhicule.':cs?'<b class="ok">Lue et signée</b> — version '+esc(r.charte.version)+(cs.readAt?' · lue jusqu\'en bas le '+dhFR(cs.readAt):'')+' (texte et visa en annexe).':'<b class="ko">Non signée</b> : remise incomplète.'}</p>`;
   if((r.reserves||[]).length)b+=`<h2>Réserves</h2><ul>${r.reserves.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`;
-  b+=`<table class="sig"><tr><th>Le conducteur — ${esc(r.conducteurNom)}</th><th>Le responsable — ${esc(r.responsableNom||r.by||'')}</th></tr><tr><td>${r.sigConducteur?`<img src="${esc(r.sigConducteur)}" alt="">`:''}${dhFR(r.sigConducteurAt||r.at)}</td><td>${r.sigResponsable?`<img src="${esc(r.sigResponsable)}" alt="">`:''}${dhFR(r.sigResponsableAt||r.at)}</td></tr></table>${r.lieu?`<p class="muted">Fait à ${esc(r.lieu)}, le ${dFR(r.at)}.</p>`:''}`;
+  const respTh=r.valide?'Le responsable — '+esc(r.valide.nom||'')+' (validée le '+dhFR(r.valide.at)+')':r.aValider?'À valider par '+esc(r.aValider.nom||''):r.refus?'Refusée par '+esc(r.refus.nom||'')+' le '+dFR(r.refus.at)+' : '+esc(r.refus.motif||''):r.memoire?'Restitution de mémoire (changement de conducteur)':'Le responsable — '+esc(r.responsableNom||r.by||''); /* 19/10 VH : sans responsable sur place */
+  b+=`<table class="sig"><tr><th>Le conducteur — ${esc(r.conducteurNom)}${r.sansResponsable?' (seul)':''}</th><th>${respTh}</th></tr><tr><td>${r.sigConducteur?`<img src="${esc(r.sigConducteur)}" alt="">`:''}${dhFR(r.sigConducteurAt||r.at)}</td><td>${r.sigResponsable?`<img src="${esc(r.sigResponsable)}" alt="">`:''}${r.sigResponsable?dhFR(r.sigResponsableAt||r.at):''}</td></tr></table>${r.lieu?`<p class="muted">Fait à ${esc(r.lieu)}, le ${dFR(r.at)}.</p>`:''}`;
   const tx=cs&&charteText(r.charte.type,r.charte.version);if(tx)b+=`<div class="page"><h2>Annexe — ${esc(tx.titre)} (${esc(r.charte.version)})</h2><div class="charte">${mdHTML(tx.texte,{conducteur:r.conducteurNom,date:dFR(cs.at||r.at),lieu:r.lieu||'',$sig:cs.img?`<img src="${esc(cs.img)}" alt="visa" style="height:46px;vertical-align:middle">`:''})}</div></div>`;
   return docHTML({title:(isR?'Remise ':'Restitution ')+r.immat+' — '+(r.conducteurNom||''),h1:isR?'Remise du véhicule':'Restitution du véhicule',kicker:'Parc véhicules · '+(isR?'réception':'restitution'),sub:esc(r.immat+' · '+(r.vehLabel||''))+' — '+esc(r.conducteurNom||''),
     meta:[['Date',dhFR(r.at)],['Kilométrage',ed.km!==null&&ed.km!==undefined?nb(ed.km)+' km':'—'],['Conducteur',esc(r.conducteurNom||'')],['Responsable',esc(r.responsableNom||r.by||'')]].concat(isR?[['Statut',m.length?'incomplète : '+esc(m.map(x=>MANQ[x]).join(', ')):'complète',m.length?'hot':'']]:[]),body:b,css:DOC_X,footLeft:esc(r.immat)});}
@@ -322,27 +338,28 @@ function permisModal(recId,me,ctx){const a=api();const r=regGet('vrec',recId);if
     const p={ok:true,fin,vuA:new Date().toISOString(),vuPar:uname()};const m=manque(Object.assign({},r,{permis:p}));regSet('vrec',r.id,{permis:p,manque:m,complete:!m.length});const v=vehGet(r.vehId);if(v&&v.remise&&v.remise.id===r.id)vehSet(v.immat,{remise:Object.assign({},v.remise,{complete:!m.length})});
     a.closeModal();toast('Permis enregistré'+(m.length?' — reste : '+m.map(x=>MANQ[x]).join(', '):' — remise complète ✓'));ctx.render();};}
 /* ── fiche véhicule (responsable flotte) : remise en cours, boutons, historique ── */
-flotteHook('fiche',(v,canEdit)=>{ensureCss();const C=vcfg();const L=recsOf(v.immat);const r=openRec(v);const m=manque(r);const dr=canEdit?draftFor(v.immat):null;
-  const st=r?(m.length?`<div class="veh-ko">⚠ Remise du ${dFR(r.at)} à ${esc(r.conducteurNom)} incomplète : ${esc(m.map(x=>MANQ[x]).join(', '))}</div>`:`<div class="okbox">✓ Remis à <b>${esc(r.conducteurNom)}</b> le ${dFR(r.at)} — remise complète.</div>`)
-    :(v.conducteur?`<div class="eq-s">Attribué à <b>${esc(v.conducteur)}</b> — pas de remise enregistrée dans l'appli.</div>`:'<div class="eq-s">Véhicule libre.</div>');
+flotteHook('fiche',(v,canEdit)=>{ensureCss();const C=vcfg();const L=recsOf(v.immat);const r=openRec(v);const m=manque(r);const dr=canEdit?draftFor(v.immat):null;const pend=!!(r&&(r.aValider||r.refus)); /* 19/10 VH : à valider / refusée → état donné par R2 */
+  const st=(R2.ficheStatus(v,r)||'')+(r&&!pend?(m.length?`<div class="veh-ko">⚠ Remise du ${dFR(r.at)} à ${esc(r.conducteurNom)} incomplète : ${esc(m.map(x=>MANQ[x]).join(', '))}</div>`:`<div class="okbox">✓ Remis à <b>${esc(r.conducteurNom)}</b> le ${dFR(r.at)} — remise complète${r.valide?' (validée par '+esc(r.valide.nom||'')+')':''}.</div>`)
+    :r?'':(v.conducteur?`<div class="eq-s">Attribué à <b>${esc(v.conducteur)}</b> — pas de remise enregistrée dans l'appli.</div>`:v.laisse?'':'<div class="eq-s">Véhicule libre.</div>'));
   let bt='';
   if(canEdit){if(!C)bt=`<div class="warnbox" style="width:100%">Configuration véhicule absente : l'administrateur importe le pack SCR (partie « vehicule » : état des lieux, inventaires, chartes).</div>`;
     else if(dr)bt=`<button class="btn primary veh-big" data-act="x" data-v="veh|${dr.type==='reception'?'recep':'resti'}|${esc(v.immat)}">▶ Reprendre la ${dr.type==='reception'?'remise':'restitution'} (étape ${(+dr.step||0)+1})</button><button class="btn" data-act="x" data-v="veh|drop|${esc(v.immat)}">Abandonner</button>`;
-    else if(r)bt=`<button class="btn primary veh-big" data-act="x" data-v="veh|resti|${esc(v.immat)}">↩ Restitution</button>${m.includes('permis')?`<button class="btn" data-act="x" data-v="veh|permisRec|${esc(r.id)}">🪪 Permis vu</button>`:''}${m.includes('charte')?`<button class="btn" data-act="x" data-v="veh|charteRec|${esc(r.id)}">✍ Faire signer la charte</button>`:''}`;
-    else bt=`<button class="btn primary veh-big" data-act="x" data-v="veh|recep|${esc(v.immat)}">🤝 ${v.conducteur?'Régulariser la remise':'Remettre à…'}</button>${v.conducteur?`<button class="btn veh-big" data-act="x" data-v="veh|resti|${esc(v.immat)}">↩ Restitution</button>`:''}`;}
-  const hist=L.map(x=>{const mm=manque(x);return `<div class="eq-row"><span class="eq-grow"><span class="eq-t">${dFR(x.at)} · ${x.type==='reception'?'Remise':'Restitution'} · ${esc(x.conducteurNom||'')}</span><span class="eq-s">${x.type==='reception'?(mm.length?`<span style="color:#9b2c22;font-weight:700">incomplète : ${esc(mm.map(y=>MANQ[y]).join(', '))}</span>`:'complète'):((x.diff&&x.diff.km!==null&&x.diff.km!==undefined?nb(x.diff.km)+' km parcourus':'')+(x.diff&&x.diff.n?' · '+x.diff.n+' différence'+(x.diff.n>1?'s':''):' · aucune différence'))} · par ${esc(x.by||'')}</span></span><button class="btn sm" data-act="x" data-v="veh|print|${esc(x.id)}" title="Document imprimable (PDF)">🖨</button></div>`;}).join('');
-  const cartes=Object.entries(v.cartes||{}).filter(([,n])=>n);
+    else if(r)bt=`<button class="btn primary veh-big" data-act="x" data-v="veh|resti|${esc(v.immat)}">↩ Restitution</button>${m.includes('permis')&&!pend?`<button class="btn" data-act="x" data-v="veh|permisRec|${esc(r.id)}">🪪 Permis vu</button>`:''}${m.includes('charte')&&!pend?`<button class="btn" data-act="x" data-v="veh|charteRec|${esc(r.id)}">✍ Faire signer la charte</button>`:''}`;
+    else bt=`<button class="btn primary veh-big" data-act="x" data-v="veh|recep|${esc(v.immat)}">🤝 ${v.conducteur?'Régulariser la remise':'Remettre à…'}</button>${v.conducteur?`<button class="btn veh-big" data-act="x" data-v="veh|resti|${esc(v.immat)}">↩ Restitution</button>`:''}`;
+    bt=R2.ficheButtons(v,canEdit,r,dr)+bt;} /* 19/10 VH : valider, changement de conducteur, laissé sur place */
+  const hist=L.map(x=>{const mm=manque(x);return {at:x.at,h:`<div class="eq-row"><span class="eq-grow"><span class="eq-t">${dFR(x.at)} · ${esc(R2.histTitle(x)||(x.type==='reception'?'Remise':'Restitution'))} · ${esc(x.conducteurNom||'')}</span><span class="eq-s">${R2.histLine(x)||((x.type==='reception'?(mm.length?`<span style="color:#9b2c22;font-weight:700">incomplète : ${esc(mm.map(y=>MANQ[y]).join(', '))}</span>`:'complète'):((x.diff&&x.diff.km!==null&&x.diff.km!==undefined?nb(x.diff.km)+' km parcourus':'')+(x.diff&&x.diff.n?' · '+x.diff.n+' différence'+(x.diff.n>1?'s':''):' · aucune différence')))+' · par '+esc(x.by||''))}</span></span><button class="btn sm" data-act="x" data-v="veh|print|${esc(x.id)}" title="Document imprimable (PDF)">🖨</button></div>`};}).concat(R2.histSwitch(v)).sort((a,b)=>String(b.at||'').localeCompare(String(a.at||''))).map(x=>x.h).join(''); /* 19/10 VH : chaque étape (laissé, pris, changement de conducteur, validé) en ordre */
+  const cartes=Object.entries(v.cartes||{}).filter(([,n])=>n);const nH=L.length+(v.switchHist||[]).length+(v.switch?1:0);
   return `<div class="card veh-card"><h3>📋 Remise du véhicule <span class="hint">· réception, restitution, documents signés</span></h3>${st}<div class="eq-acts veh-acts" style="margin-top:8px">${bt}</div>
     ${cartes.length?`<div class="hint">Cartes du véhicule : ${cartes.map(([id,n])=>esc(dispoLabel(id))+' n° '+esc(n)).join(' · ')}</div>`:''}
-    ${L.length?`<div class="veh-hh"><b>Historique</b><span>${L.length}</span></div>${hist}`:''}
+    ${nH?`<div class="veh-hh"><b>Historique</b><span>${nH}</span></div>${hist}`:''}
     ${canEdit?`<div style="margin-top:6px;text-align:right"><button class="btn sm" data-act="x" data-v="veh|cfg|">⚙ Pack véhicules</button></div>`:''}</div>`;});
 /* ── Moi → Mon véhicule (conducteur) : sa dernière remise, la charte signée ou à signer ── */
-flotteHook('mine',(v,acc)=>{ensureCss();const key=docKey(acc);const r=openRec(v);const m=manque(r);const {charte:type}=profil(v);const ch=charteCur(type);const sig=charteSigOf(key,type);let h='';
-  if(r)h+=m.length?`<div class="veh-ko">⚠ Remise du ${dFR(r.at)} incomplète : ${esc(m.map(x=>MANQ[x]).join(', '))}${m.includes('permis')?' — montre ton permis au responsable flotte':''}.</div>`:`<div class="okbox">✓ Remis le ${dFR(r.at)}${r.by?' par '+esc(r.by):''} · ${nb(r.edl&&r.edl.km)} km.</div>`;
+flotteHook('mine',(v,acc)=>{ensureCss();const key=docKey(acc);const r=openRec(v);const m=manque(r);const {charte:type}=profil(v);const ch=charteCur(type);const sig=charteSigOf(key,type);let h='';const pend=!!(r&&(r.aValider||r.refus)); /* 19/10 VH : à valider / refusée → R2 */
+  if(r&&!pend)h+=m.length?`<div class="veh-ko">⚠ Remise du ${dFR(r.at)} incomplète : ${esc(m.map(x=>MANQ[x]).join(', '))}${m.includes('permis')?' — montre ton permis au responsable flotte':''}.</div>`:`<div class="okbox">✓ Remis le ${dFR(r.at)}${r.valide?' · validé par '+esc(r.valide.nom||''):r.by&&r.by!==r.conducteurNom?' par '+esc(r.by):''} · ${nb(r.edl&&r.edl.km)} km.</div>`;
   const bts=[];if(r)bts.push(`<button class="btn" data-act="x" data-v="veh|print|${esc(r.id)}">📄 Ma remise (PDF)</button>`);
   if(ch)bts.push(sig?`<button class="btn" data-act="x" data-v="veh|charteVoir|${esc(v.immat)}">📘 Charte signée (${esc(ch.version)}, ${dFR(sig.at)})</button>`:`<button class="btn primary" data-act="x" data-v="veh|charte|${esc(v.immat)}">✍ Lire et signer la charte (${esc(ch.version)})</button>`);
   const ent=((vcfg()||{}).entretien)||[];
-  return h+(bts.length?`<div class="eq-acts" style="margin-top:6px">${bts.join('')}</div>`:'')+(ent.length?`<details class="veh-ent"><summary>Entretien au quotidien</summary><ul class="veh-sum">${ent.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></details>`:'');});
+  return h+R2.mine2(v,acc)+(bts.length?`<div class="eq-acts" style="margin-top:6px">${bts.join('')}</div>`:'')+(ent.length?`<details class="veh-ent"><summary>Entretien au quotidien</summary><ul class="veh-sum">${ent.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></details>`:'');});
 /* ── réglages : le pack importé (résumé), import par l'administrateur ── */
 function cfgHTML(me){ensureCss();const C=vcfg();const I=C&&C.inventaire;
   return `<h2 class="vt">Pack véhicules <span class="hint">· réception et restitution</span></h2><div class="card">
@@ -386,25 +403,28 @@ const CSS=`.veh-wiz{max-width:640px;margin:0 auto}.veh-kick{font-size:12px;color
 .veh-card .veh-acts{flex-wrap:wrap}.veh-hh{display:flex;justify-content:space-between;align-items:baseline;margin:12px 0 2px}.veh-hh span{font-size:12px;color:var(--muted)}
 .veh-tt{width:100%;font-size:12.5px;border-collapse:collapse;margin-top:8px}.veh-tt td,.veh-tt th{padding:4px 6px;border-bottom:1px solid var(--line);text-align:left}
 .veh-ent{margin-top:6px;font-size:13px}.veh-ent summary{cursor:pointer;color:var(--ink2);min-height:32px}`;
-function ensureCss(){if(typeof document==='undefined'||document.getElementById(ID+'-css'))return;const s=document.createElement('style');s.id=ID+'-css';s.textContent=CSS;document.head.appendChild(s);}
+export function ensureCss(){if(typeof document==='undefined'||document.getElementById(ID+'-css'))return;const s=document.createElement('style');s.id=ID+'-css';s.textContent=CSS;document.head.appendChild(s);}
 /* ── le module branché ── */
 export default {id:ID,kinds:['vcfg','vrec'],hub:'parc',
   pack:{key:'vehicule',label:'Véhicules : réception et restitution (état des lieux, inventaires, cartes, chartes)',import:packImport}, /* pack SCR : partie « vehicule » = {reception, entretien, textes} */
   gate(me,ctx){cap(ctx);ensureLoad(ctx);return null;}, /* rien de bloquant : sert à garder l'API et à relire le serveur après la connexion */
-  moiSubs(me,ctx){cap(ctx);ensureLoad(ctx);return [];},
-  xview(k,me,ctx){cap(ctx);ensureLoad(ctx);if(k==='cfg')return cfgHTML(me);if(!(ctx.can('flotte.manage')||me.admin))return `<div class="card"><div class="eq-s">Réservé au responsable flotte (droit « Flotte »).</div></div>`;return wizHTML(me,ctx);},
-  // « À faire » en haut de l'accueil du conducteur : charte à signer (remise incomplète, ou nouvelle version), permis à montrer
+  moiSubs(me,ctx){cap(ctx);ensureLoad(ctx);return R2.moiSubs(me,ctx);}, /* 19/10 VH : « Véhicule laissé » (à prendre) ; l'écran ouvert du conducteur (remise seul, validation…) */
+  view(sub,me,ctx){cap(ctx);return R2.view(sub,me,ctx);},
+  xview(k,me,ctx){cap(ctx);ensureLoad(ctx);if(k==='cfg')return cfgHTML(me);const h=R2.xview(k,me,ctx);if(h!=null)return h; /* 19/10 VH : validation, changement de conducteur */if(!(ctx.can('flotte.manage')||me.admin))return `<div class="card"><div class="eq-s">Réservé au responsable flotte (droit « Flotte »).</div></div>`;return wizHTML(me,ctx);},
+  // « À faire » en haut de l'accueil du conducteur : charte à signer (remise incomplète, ou nouvelle version), permis à montrer ; 19/10 VH (R2) : remise à valider / refusée, véhicule laissé, changement de conducteur, premier état des lieux
   tasks(me,ctx){cap(ctx);ensureLoad(ctx);const L=[];if(!me)return L;const key=me.id;const seen=new Set();
-    vehAll().filter(v=>(v.conducteurKey&&v.conducteurKey===key)||(me._acc&&vehDe(me._acc).some(x=>x.immat===v.immat))).forEach(v=>{const r=openRec(v);const {charte:type}=profil(v);const ch=charteCur(type);
-      if(ch&&!charteSigOf(key,type)&&!seen.has(type)){seen.add(type);const inc=r&&manque(r).includes('charte');L.push({act:true,sev:'bad',t:'À lire et signer : charte du véhicule '+v.immat,s:(inc?'Remise du '+dFR(r.at)+' incomplète':'« '+ch.titre+' » '+ch.version)+' · obligatoire, une fois par version',when:inc?dFR(r.at):'',go:()=>charteModal(v.immat,me,ctx)});}
-      if(r&&!(r.permis&&r.permis.ok))L.push({act:true,sev:'bad',t:'Remise du véhicule '+v.immat+' incomplète : permis à montrer',s:'Montre ton permis de conduire au responsable flotte',when:dFR(r.at),go:()=>ctx.sub('moi')});});
+    vehAll().filter(v=>(v.conducteurKey&&v.conducteurKey===key)||(me._acc&&vehDe(me._acc).some(x=>x.immat===v.immat))).forEach(v=>{const r=openRec(v);const {charte:type}=profil(v);const ch=charteCur(type);const pend=!!(r&&(r.aValider||r.refus));
+      if(ch&&!charteSigOf(key,type)&&!seen.has(type)){seen.add(type);const inc=r&&!pend&&manque(r).includes('charte');L.push({act:true,sev:'bad',t:'À lire et signer : charte du véhicule '+v.immat,s:(inc?'Remise du '+dFR(r.at)+' incomplète':'« '+ch.titre+' » '+ch.version)+' · obligatoire, une fois par version',when:inc?dFR(r.at):'',go:()=>charteModal(v.immat,me,ctx)});}
+      if(r&&!pend&&!r.premier&&!(r.permis&&r.permis.ok))L.push({act:true,sev:'bad',t:'Remise du véhicule '+v.immat+' incomplète : permis à montrer',s:'Montre ton permis de conduire au responsable flotte',when:dFR(r.at),go:()=>ctx.sub('moi')});});
+    try{R2.tasks(me,ctx).forEach(t=>L.push(t));}catch(e){console.warn(e);}
     return L;},
   act(v,el,me,ctx){cap(ctx);const i=String(v).indexOf('|');const a=i<0?String(v):String(v).slice(0,i);const arg=i<0?'':String(v).slice(i+1);
     if(a==='print'){printRec(arg);return;}if(a==='charteVoir'){charteModal(arg,me,ctx);return;}if(a==='cfg'){ctx.go('x:'+ID+':cfg');return;}
     if(ctx.viewing()){ctx.toast('👁 Lecture seule : tu regardes l\'appli comme quelqu\'un d\'autre');return;}
     if(a==='charte'){charteModal(arg,me,ctx);return;}
-    const mgr=ctx.can('flotte.manage')||me.admin;if(!mgr){ctx.toast('Réservé au responsable flotte (droit « Flotte »)');return;}
-    switch(a){
+    if(R2.act(a,arg,el,me,ctx))return; /* 19/10 VH : écrans et modes en plus (droits vérifiés là-bas) */
+    const mgr=ctx.can('flotte.manage')||me.admin;if(!mgr&&!(W&&W.self&&W.cond&&W.cond.key===me.id)){ctx.toast('Réservé au responsable flotte (droit « Flotte »)');return;} /* 19/10 VH : le conducteur avance dans SA remise */
+    if(mgr)switch(a){
       case 'recep':start('reception',arg,me,ctx);return;
       case 'resti':start('restitution',arg,me,ctx);return;
       case 'drop':{if(!confirm('Abandonner la saisie en cours ? Rien ne sera enregistré.'))return;W=null;try{localStorage.removeItem(DKEY);}catch(e){}ctx.render();return;}
@@ -414,12 +434,12 @@ export default {id:ID,kinds:['vcfg','vrec'],hub:'parc',
     switch(a){
       case 'next':next(me,ctx);return;
       case 'prev':if(W.step>0){W.step--;saveDraft();ctx.render();scrollTop();}return;
-      case 'cancel':{if(!confirm('Abandonner cette '+(W.type==='restitution'?'restitution':'remise')+' ? Rien ne sera enregistré.'))return;W=null;try{localStorage.removeItem(DKEY);}catch(e){}back();return;}
+      case 'cancel':{if(!confirm('Abandonner cette '+(W.lache?'déclaration':W.type==='restitution'?'restitution':'remise')+' ? Rien ne sera enregistré.'))return;const moi=W.host==='moi';W=null;try{localStorage.removeItem(DKEY);}catch(e){}if(moi)R2.home(me,ctx);else back();return;}
       case 'cond':{const p=(ctx.people||[]).find(x=>x.id===arg);if(!p)return;W.cond={key:p.id,nom:nomP(p),poste:POSTES[p.poste]||''};W.charte={};W.sigC=W.sigR=null;saveDraft();ctx.render();return;}
       case 'permis':W.permis.ok=!W.permis.ok;saveDraft();ctx.render();return;
       case 'consignes':W.consignes=!W.consignes;saveDraft();ctx.render();return;
       case 'set':{const [g,id,...rest]=arg.split('~');const val=rest.join('~');
-        if(g==='carte'){const c=W.cartes[id]=W.cartes[id]||{numero:''};c.statut={'Remise':'remise','Pas de carte':'aucune','Rendue':'rendue','Perdue':'perdue'}[val]||val;}
+        if(g==='carte'){const c=W.cartes[id]=W.cartes[id]||{numero:''};c.statut={'Remise':'remise','Pas de carte':'aucune','Rendue':'rendue','Perdue':'perdue','À bord':'abord'}[val]||val;}
         else{const o=grpObj(g);if(!W.edl[g])return;o[id]=val;}
         if(el&&el.parentElement)el.parentElement.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===el));updRest();saveDraftSoon();return;}
       case 'allok':{const [g,ids]=arg.split('~');const o=grpObj(g);const L=grpList(g);String(ids||'').split(',').forEach(id=>{const x=L.find(y=>y.id===id);const okc=x&&x.choix.find(isOk);if(okc)o[id]=okc;});saveDraft();ctx.render();return;}
@@ -434,7 +454,8 @@ export default {id:ID,kinds:['vcfg','vrec'],hub:'parc',
   input(champ,el,me,ctx,type){cap(ctx);const i=String(champ).indexOf('~');const f=i<0?champ:champ.slice(0,i);const arg=i<0?'':champ.slice(i+1);
     if(f==='packfile'){if(type!=='change')return;const file=el.files&&el.files[0];el.value='';if(!file)return;if(!me.admin||ctx.viewing()){ctx.toast('Import réservé à l\'administrateur');return;}
       file.text().then(t=>packImport(JSON.parse(t),ctx)).then(s=>{ctx.toast('✓ '+s);ctx.render();}).catch(e=>{console.warn(e);ctx.toast('Import impossible : '+(e&&e.message||e));});return;}
-    if(!W||ctx.viewing())return;const val=el.value;
+    if(ctx.viewing())return;if(R2.input(f,arg,el,me,ctx,type))return; /* 19/10 VH : champs des écrans en plus */
+    if(!W)return;const val=el.value;
     switch(f){
       case 'q':{W.q=val;const host=document.getElementById('veh-list');if(host)host.innerHTML=pickList((ctx.people||[]).filter(p=>p&&p.id&&(p.active!==false||p.invite)).sort((a,b)=>nomP(a).localeCompare(nomP(b))),String(val).toLowerCase());return;}
       case 'km':{W.edl.km=val===''?'':+val;const ref=refRec();const d=document.getElementById('veh-kmd');if(d&&ref&&ref.edl)d.textContent=val===''?'—':nb(+val-ref.edl.km)+' km';break;}
@@ -449,7 +470,7 @@ export default {id:ID,kinds:['vcfg','vrec'],hub:'parc',
       case 'cles':W.cles=val;break;
       case 'lieu':W.lieu=val;break;
       case 'photo':{if(type!=='change')return;const file=el.files&&el.files[0];if(!file)return;const slot=arg;const lab=el.closest('label');if(lab)lab.classList.add('veh-busy');
-        addPhoto(file,slot).then(u=>{if(!W)return;if(!u){ctx.toast('Photo illisible');return;}if(slot==='imp')W.impPhoto=u;else W.edl.photos[slot]=u;saveDraft();ctx.render();});return;}
+        addPhoto(file,slot).then(u=>{if(!W)return;if(!u){ctx.toast('Photo illisible');return;}if(slot==='imp')W.impPhoto=u;else W.edl.photos[slot]=u;saveDraft();ctx.render();R2.photoTaken(file,slot).catch(()=>{});});return;} /* 19/10 VH : la photo « avant » réduite devient la vignette du véhicule */
       default:return;}
     saveDraftSoon();}};
 // photo : compressée ; envoyée au stockage si possible (URL), sinon gardée en petite image dans l'enregistrement (hors connexion)

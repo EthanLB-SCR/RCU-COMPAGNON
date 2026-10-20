@@ -1,7 +1,7 @@
 // RÉCEPTION / RESTITUTION DE VÉHICULE (14/10 nuit) — module « veh » (src/reception.js) branché sur la fiche véhicule de la flotte.
 // Pack FICTIF (inventaire de 5 articles, 2 chartes courtes, personnes et véhicule inventés) ; Supabase SIMULÉ (registre en mémoire, 3 comptes fictifs) ; téléphone 390 px.
 // 1) l'administrateur importe le pack (⚙ Pack véhicules) → registre vcfg/config (chartes v1) ;
-// 2) réception complète au téléphone : conducteur, permis vu, km + niveaux, points d'état (1 « Non ok »), 4 photos, inventaire conforme, cartes, charte déroulée puis
+// 2) réception complète au téléphone : « Qui est là ? » (19/10 VH : le responsable et moi), conducteur, permis vu, km + niveaux, points d'état (1 « Non ok »), 4 photos, inventaire conforme, cartes, charte déroulée puis
 //    signée, récapitulatif signé (conducteur puis responsable) → vrec complète, docsig de la charte, le véhicule passe au conducteur ; document imprimable ;
 // 3) restitution : 1 impact + 1 article manquant → l'écran ne montre QUE les différences (km parcourus, nouvel impact, manquant ; pas le « Non ok » déjà noté) ;
 //    véhicule libre, signalement au responsable flotte ;
@@ -82,6 +82,7 @@ const regRows=kind=>Object.values(REG).filter(r=>r.kind===kind);
 const lastRec=type=>regRows('vrec').filter(r=>r.data.type===type).sort((a,b)=>String(b.data.at).localeCompare(String(a.data.at)))[0];
 // ── parcours de réception (téléphone) ; o.later : charte signée plus tard ; o.deja : charte déjà signée (attendu)
 async function reception(drv,o={}){const R={titles:[]};await fiche();await click(vx('recep|'+IMMAT),400);
+  R.titles.push(await title());R.quiAvec=await page.evaluate(()=>!!document.querySelector('#eq-app [data-v="veh|qui|avec"].on'));await next(); /* 19/10 (VH) : 1re étape « Qui est là ? » — « Le responsable et moi » présélectionné depuis la fiche */
   R.titles.push(await title());await fill('#eq-app [data-xin="veh|q"]',drv.prenom);R.filtre=await page.evaluate(()=>document.querySelectorAll('#eq-app .veh-pick').length);
   await click(`#eq-app [data-act=x][data-v="veh|cond|${drv.email}"]`);await next();
   R.titles.push(await title());if(!o.noPermis){await click(vx('permis|'));await fill('#eq-app [data-xin="veh|permisFin"]','2031-05-01');}else R.permisWarn=await page.evaluate(()=>/sera <b>incomplète|sera incomplète/.test(document.getElementById('eq-app').innerHTML));await next();
@@ -101,6 +102,7 @@ async function reception(drv,o={}){const R={titles:[]};await fiche();await click
   R.titles.push(await title());R.recap=await app();await draw('veh-pad-c');await click('#veh-next');R.sigRBloc=/signature du responsable/i.test(await page.evaluate(()=>(document.getElementById('toast')||{}).textContent||''));await draw('veh-pad-r');await next();await wait(300);
   R.done=await app();await ovf('fin réception');await shot('fin_reception');await flushed();return R;}
 async function restitution(o={}){const R={titles:[]};await fiche();await click(vx('resti|'+IMMAT),400);
+  R.titles.push(await title());await next(); /* 19/10 (VH) : « Qui est là ? » */
   R.titles.push(await title());R.kmRef=await page.evaluate(()=>(document.getElementById('eq-app').textContent.match(/À la réception : ([\d\s  ]+) km/)||[])[1]||'');await fill('#veh-km',String(o.km||12500));R.kmd=await page.evaluate(()=>(document.getElementById('veh-kmd')||{}).textContent||'');await click('#eq-app .veh-allok');await next();
   R.titles.push(await title());await click(`#eq-app .veh-allok[data-v^="veh|allok|ctl"]`);await click(`#eq-app .veh-allok[data-v^="veh|allok|doc"]`);if(o.feuxKo)await click(vx('set|ctl~feux~Non ok'));await next();
   R.titles.push(await title());for(const k of ['avant','arriere','gauche','droit'])await photo(k);
@@ -128,7 +130,7 @@ out={titles:R.titles,filtre:R.filtre,kmRest:R.kmRest,blocNiv:R.stillReleves,phot
   rec:rec&&{complete:rec.data.complete,km:rec.data.edl.km,photos:Object.keys(rec.data.edl.photos).length,ph0:String(rec.data.edl.photos.avant||'').slice(0,15),sigC:/^data:image\/png/.test(rec.data.sigConducteur||''),sigR:/^data:image\/png/.test(rec.data.sigResponsable||''),charte:rec.data.charte&&[rec.data.charte.type,rec.data.charte.version,!!rec.data.charte.sig,!!rec.data.charte.lueA],permis:rec.data.permis,inv:[rec.data.inventaire.n,Object.keys(rec.data.inventaire.miss).length],cartes:Object.values(rec.data.cartes).map(c=>c.numero+':'+c.statut),cles:rec.data.cles,res:rec.data.reserves,cond:rec.data.conducteurKey},
   docsig:sigK&&{ver:sigK.data.ver,img:/^data:image\/png/.test(sigK.data.img||''),via:sigK.data.via},veh:{key:veh.conducteurKey,nom:veh.conducteur,km:veh.km,cartes:veh.cartes,remise:veh.remise&&veh.remise.complete}};
 console.log('2) réception :',JSON.stringify(out));
-C.c2=out.titles.join('|')==='1/9 · Conducteur|2/9 · Permis de conduire|3/9 · Kilométrage et niveaux|4/9 · Points d\'état et documents|5/9 · Photos et impacts|6/9 · Inventaire|7/9 · Cartes et dispositifs|8/9 · Charte véhicule|9/9 · Récapitulatif et signatures'
+C.c2=out.titles.join('|')==='1/10 · Qui est là ?|2/10 · Conducteur|3/10 · Permis de conduire|4/10 · Kilométrage et niveaux|5/10 · Points d\'état et documents|6/10 · Photos et impacts|7/10 · Inventaire|8/10 · Cartes et dispositifs|9/10 · Charte véhicule|10/10 · Récapitulatif et signatures'&&R.quiAvec /* 19/10 (VH) : + « Qui est là ? » en 1re étape */
   &&out.filtre===1&&out.kmRest&&out.blocNiv&&out.photoBloc&&out.inv.n===5&&out.inv.miss===0&&/Tout est conforme/.test(out.inv.btn)&&out.consBloc&&out.gate[0]===true&&out.gate[1]===true&&out.sigBloc&&out.sigRBloc&&out.recap&&out.done
   &&out.rec&&out.rec.complete===true&&out.rec.km===12050&&out.rec.photos===4&&/^data:image\//.test(out.rec.ph0)&&out.rec.sigC&&out.rec.sigR&&out.rec.charte.join()==='service,v1,true,true'&&out.rec.permis.ok&&out.rec.permis.fin==='2031-05-01'&&out.rec.inv.join()==='5,0'&&out.rec.cartes.join()==='TEST-CV-0001:remise,TEST-TB-01:remise'&&out.rec.cles===2&&out.rec.res.includes('Feux : Non ok')&&out.rec.cond===KARIM.email
   &&out.docsig&&out.docsig.ver==='v1'&&out.docsig.img&&/Ethan/.test(out.docsig.via)&&out.veh.key===KARIM.email&&out.veh.nom==='Karim TESTEUR'&&out.veh.km===12050&&out.veh.cartes.carteVehicule==='TEST-CV-0001'&&out.veh.remise===true;
@@ -148,7 +150,7 @@ out={titles:R.titles,kmRef:R.kmRef,kmd:R.kmd,oldImp:R.oldImp,imp:R.imp,invBtn:R.
 {const sid=rec&&rec.id;await click('#eq-app [data-act=xsub]',400);const [p2]=await Promise.all([ctx.waitForEvent('page'),page.locator(`#eq-app .veh-card [data-v="veh|print|${sid}"]`).click()]);await p2.waitForLoadState();await p2.waitForTimeout(300);
   out.doc=await p2.evaluate(()=>{const t=document.body.innerText;return {h1:(document.querySelector('h1')||{}).textContent,diff:/Différences avec la réception/.test(t)&&/450 km parcourus/.test(t)&&/Nouvel impact · Côté gauche : Rayure test porte/.test(t)&&/Manquant · Rallonge fictive 25 m/.test(t),sig:document.querySelectorAll('table.sig img').length,annexe:/Annexe/.test(t)};});await p2.close();}
 console.log('3) restitution :',JSON.stringify(out));
-C.c3=out.titles.join('|')==='1/6 · Kilométrage et niveaux|2/6 · Points d\'état et documents|3/6 · Photos et impacts|4/6 · Inventaire|5/6 · Cartes et dispositifs|6/6 · Récapitulatif et signatures'&&/12\s050/.test(out.kmRef)&&/450 km/.test(out.kmd)&&out.imp===1&&/Valider avec 1 écart/.test(out.invBtn)&&out.cartes.join()==='Rendue,Rendue'
+C.c3=out.titles.join('|')==='1/7 · Qui est là ?|2/7 · Kilométrage et niveaux|3/7 · Points d\'état et documents|4/7 · Photos et impacts|5/7 · Inventaire|6/7 · Cartes et dispositifs|7/7 · Récapitulatif et signatures' /* 19/10 (VH) : + « Qui est là ? » */&&/12\s050/.test(out.kmRef)&&/450 km/.test(out.kmd)&&out.imp===1&&/Valider avec 1 écart/.test(out.invBtn)&&out.cartes.join()==='Rendue,Rendue'
   &&/450 km/.test(out.recap.km)&&out.recap.items.length===2&&out.recap.items.some(x=>/Nouvel impact · Côté gauche : Rayure test porte/.test(x))&&out.recap.items.some(x=>/Manquant · Rallonge fictive 25 m/.test(x))&&!/Feux/.test(out.recap.diff)&&!out.recap.sum&&out.done
   &&out.rec&&out.rec.diff.km===450&&out.rec.diff.n===2&&out.rec.diff.imp===1&&out.rec.diff.man.join()==='Rallonge fictive 25 m'&&out.rec.diff.nonOk.length===0&&out.rec.cartes.join()==='rendue,rendue'&&out.rec.ref===recId
   &&out.veh.key===null&&out.veh.nom===null&&out.veh.km===12500&&out.veh.sig.some(t=>/Restitution de Karim TESTEUR : 1 nouvel impact, 1 manquant/.test(t))

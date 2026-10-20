@@ -1,6 +1,7 @@
 // DOCUMENTS D'ENTREPRISE + ACCUEIL CHANTIER (parcours) + CONTRÔLE CHANTIER (nuit 09→10/10) : hors connexion (personnages de démo, registre sur l'appareil).
-// 1) notifications : règlement intérieur et accueil nouvel arrivant tout en haut ; 2) Mon espace → Documents : lecture déroulée → signature ; 3) questionnaire point par point ;
+// 1) notifications : règlement intérieur tout en haut ; 2) Mon espace → Documents : lecture déroulée → signature ; 3) l'accueil « nouvel arrivant » provisoire n'existe plus (19/10, lot QF) ;
 // 4) parcours d'accueil chantier (PPSPS papier, 10 points, modules de prévention, DICT absente, signature) ; 5) contrôle chantier (trame SCR) ; 6) note de service créée par Ethan → à signer chez Karim.
+// 19/10 (lot QF) : adaptée — le questionnaire « Accueil sécurité nouvel arrivant · v1 (provisoire) » est retiré (Ethan : « on a eu le vrai maintenant ») : il n'apparaît plus nulle part.
 import { chromium } from 'playwright';
 const BASE=process.env.BASE||'http://localhost:8765';
 const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
@@ -18,12 +19,12 @@ const seed=async()=>page.evaluate(()=>{const T=window.TRACE;const src=T.sites[Ob
 console.log('seed',await seed());await page.evaluate(()=>window.TRACE.renderHome());await wait(500);
 // signature au doigt simulée : événements pointer sur le canvas
 const draw=async id=>{await page.evaluate(id2=>{const cv=document.getElementById(id2);const r=cv.getBoundingClientRect();const ev=(t,x,y)=>cv.dispatchEvent(new PointerEvent(t,{bubbles:true,clientX:r.left+x,clientY:r.top+y,pointerId:1,pointerType:'touch'}));ev('pointerdown',20,40);ev('pointermove',80,60);ev('pointermove',140,30);ev('pointerup',140,30);},id);};
-// ── 1) Karim : les documents d'entreprise sont les PREMIÈRES notifications ; sous-onglet Documents avec pastille 2
+// ── 1) Karim : les documents d'entreprise sont les PREMIÈRES notifications (avec leur échéance) ; sous-onglet Documents avec pastille 1 ; plus d'accueil nouvel arrivant
 let out=await page.evaluate(()=>{const q=s=>document.querySelector(s);return {notifs:[...document.querySelectorAll('#eq-app .ac-notif .tx b')].map(b=>b.textContent).slice(0,4),st:(q('#eq-app .ac-h .st')||{}).textContent};});
 await page.evaluate(()=>{document.getElementById('htEspace').click();});await wait(300);
 out.subs=await page.evaluate(()=>[...document.querySelectorAll('#eq-app .eq-subs .chip')].map(c=>c.textContent.trim()));
 console.log('1) notifications documents :',JSON.stringify(out));
-C.c1=/Accueil nouvel arrivant/.test(out.notifs[0]||'')&&/Règlement intérieur/.test(out.notifs[1]||'')&&out.subs.some(x=>/^Documents\s*2$/.test(x));
+C.c1=/Règlement intérieur/.test(out.notifs[0]||'')&&!out.notifs.some(t=>/nouvel arrivant/i.test(t))&&out.subs.some(x=>/^Documents\s*1$/.test(x));
 // ── 2) Mon espace → Documents → règlement intérieur : bouton bloqué tant que le texte n'est pas déroulé ; déroulé → signature → signé
 await page.evaluate(()=>{[...document.querySelectorAll('#eq-app .eq-subs .chip')].find(x=>/Documents/.test(x.textContent)).click();});await wait(300);
 out=await page.evaluate(()=>({rows:[...document.querySelectorAll('#eq-app .ac-row .tx b')].map(b=>b.textContent),todo:document.querySelectorAll('#eq-app .ac-row.todo').length}));
@@ -39,16 +40,11 @@ await page.evaluate(()=>document.getElementById('dr-ok').click());await wait(200
 await draw('dr-pad');await page.evaluate(()=>document.getElementById('dr-ok').click());await wait(500);
 out.signed=await page.evaluate(()=>{const T=window.TRACE;return {rows:[...document.querySelectorAll('#eq-app .ac-row .tx small')].map(b=>b.textContent),todo:document.querySelectorAll('#eq-app .ac-row.todo').length,sig:(T.docs&&T.docs.sig('reglement_interieur','l:karim'))||null};});
 console.log('2) lecture déroulée + signature :',JSON.stringify(out));
-C.c2=out.rows.length===2&&out.todo===2&&out.before.disabled&&/Déroule/.test(out.before.txt)&&out.before.articles===10&&out.before.li>20&&out.mid===true&&!out.after.disabled&&/J'ai lu en entier/.test(out.after.txt)&&out.step2&&out.noDraw&&out.signed.todo===1&&out.signed.rows.some(t=>/Règlement.*signé le/.test(t)||/signé le/.test(t))&&out.signed.sig&&out.signed.sig.name==='Karim B.'&&!!out.signed.sig.img&&!!out.signed.sig.readAt;
-// ── 3) questionnaire d'accueil nouvel arrivant : point par point (10 cases) puis signature ; plus rien à signer, notification disparue
-await page.evaluate(()=>{[...document.querySelectorAll('#eq-app .ac-row')].find(x=>/Accueil sécurité nouvel arrivant/.test(x.textContent)).click();});await wait(400);
-out=await page.evaluate(()=>{const b=document.getElementById('dr-read');const boxes=[...document.querySelectorAll('#modal input[data-q]')];boxes.slice(0,9).forEach(x=>{x.checked=true;x.dispatchEvent(new Event('change'));});return {n:boxes.length,disabled9:b.disabled,txt9:b.textContent};});
-await page.evaluate(()=>{const boxes=[...document.querySelectorAll('#modal input[data-q]')];boxes[9].checked=true;boxes[9].dispatchEvent(new Event('change'));});await wait(100);
-out.ok10=await page.evaluate(()=>!document.getElementById('dr-read').disabled);
-await page.evaluate(()=>document.getElementById('dr-read').click());await wait(150);await draw('dr-pad');await page.evaluate(()=>document.getElementById('dr-ok').click());await wait(500);
-out.after=await page.evaluate(()=>{const T=window.TRACE;const s=T.docs.sig('accueil_entreprise','l:karim');document.getElementById('htHome').click();return {todo:document.querySelectorAll('#eq-app .ac-row.todo').length,answers:s&&s.answers&&s.answers.length,notifs:[...document.querySelectorAll('#eq-app .ac-notif .tx b')].map(b=>b.textContent)};});
-console.log('3) questionnaire :',JSON.stringify(out));
-C.c3=out.n===10&&out.disabled9&&/9 \/ 10/.test(out.txt9)&&out.ok10&&out.after.todo===0&&out.after.answers===10&&!out.after.notifs.some(t=>/Règlement|nouvel arrivant/.test(t));
+C.c2=out.rows.length===1&&out.todo===1&&out.before.disabled&&/Déroule/.test(out.before.txt)&&out.before.articles===10&&out.before.li>20&&out.mid===true&&!out.after.disabled&&/J'ai lu en entier/.test(out.after.txt)&&out.step2&&out.noDraw&&out.signed.todo===0&&out.signed.rows.some(t=>/Règlement.*signé le/.test(t)||/signé le/.test(t))&&out.signed.sig&&out.signed.sig.name==='Karim B.'&&!!out.signed.sig.img&&!!out.signed.sig.readAt;
+// ── 3) 19/10 (lot QF) : l'accueil « nouvel arrivant » provisoire est RETIRÉ — proposé à personne (nouveau ou ancien compte), compté nulle part ; plus rien à signer après le règlement
+out=await page.evaluate(()=>{const T=window.TRACE;const app=document.getElementById('eq-app');const t=app.textContent.replace(/\s+/g,' ');document.getElementById('htHome').click();return {all:T.docs.all().map(d=>d.id),todo:T.docs.todo(T.acces.current()).length,txt:!/nouvel arrivant/i.test(t),docsTodo:document.querySelectorAll('#eq-app .ac-row.todo').length,notifs:[...document.querySelectorAll('#eq-app .ac-notif .tx b')].map(b=>b.textContent),st:(document.querySelector('#eq-app .ac-h .st')||{}).textContent||''};});
+console.log('3) accueil provisoire retiré :',JSON.stringify(out));
+C.c3=!out.all.includes('accueil_entreprise')&&out.all.includes('reglement_interieur')&&out.todo===0&&out.txt&&out.docsTodo===0&&!out.notifs.some(t=>/Règlement|nouvel arrivant/i.test(t));
 // ── 4) accueil chantier : Ethan place Karim sur Caen → notification « Accueil chantier à faire : Caen » → ouvre le chantier sur QSE et lance le parcours
 await page.evaluate(async()=>{const T=window.TRACE;T.state.userId='ethan';T.renderHome();document.getElementById('htExpl').click();await new Promise(r=>setTimeout(r,200));[...document.querySelectorAll('#eq-app .ac-row')].find(x=>/Planning des équipes/.test(x.textContent)).click();await new Promise(r=>setTimeout(r,200));
   const c=[...document.querySelectorAll('#eq-app .eq-pltray .eq-plchip')].find(x=>/Karim/.test(x.textContent));c.querySelector('.eq-plmain').click();document.querySelector('#eq-app .eq-plsite[data-drop=demo_caen] [data-act=plput]').click();});await wait(400);
@@ -101,6 +97,6 @@ out.after=await page.evaluate(()=>({rows:[...document.querySelectorAll('#eq-app 
 out.karim=await page.evaluate(()=>{const T=window.TRACE;T.state.userId='karim';document.getElementById('htHome').click();return [...document.querySelectorAll('#eq-app .ac-notif .tx b')].map(b=>b.textContent);});
 out.julien=await page.evaluate(()=>{const T=window.TRACE;T.state.userId='julien';T.renderHome();return [...document.querySelectorAll('#eq-app .ac-notif .tx b')].map(b=>b.textContent);});
 console.log('6) documents d\'entreprise + note de service :',JSON.stringify(out));
-C.c6=out.rows.length===2&&out.counts.some(t=>/1 \/ \d/.test(t))&&out.btn&&out.after.rows.length===3&&out.after.rows.some(t=>/Note de service n° 12/.test(t))&&out.karim.some(t=>/À lire et signer : Note de service n° 12/.test(t))&&!out.julien.some(t=>/Note de service n° 12/.test(t))&&out.julien.some(t=>/Règlement intérieur/.test(t))&&!out.julien.some(t=>/Accueil chantier/.test(t)); /* Julien n'est pas placé à Caen : l'accueil permanent ne le réclame pas */
+C.c6=out.rows.length===1&&out.counts.some(t=>/1 \/ \d/.test(t))&&out.btn&&out.after.rows.length===2&&out.after.rows.some(t=>/Note de service n° 12/.test(t))&&out.karim.some(t=>/À lire et signer : Note de service n° 12/.test(t))&&!out.julien.some(t=>/Note de service n° 12/.test(t))&&out.julien.some(t=>/Règlement intérieur/.test(t))&&!out.julien.some(t=>/Accueil chantier/.test(t)); /* Julien n'est pas placé à Caen : l'accueil permanent ne le réclame pas */
 const bad=Object.entries(C).filter(([k,v])=>!v).map(([k])=>k);console.log(bad.length?'RESULTAT: ECHEC '+bad.join(','):'RESULTAT: TOUT VERT');console.log(logs.length?logs:'[]');
 await browser.close();

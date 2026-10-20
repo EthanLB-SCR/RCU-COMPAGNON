@@ -1,10 +1,12 @@
 // docs.js — DOCUMENTS D'ENTREPRISE à lire et signer (nuit du 09 au 10/10/2026, Ethan : « je te joins le règlement intérieur, importe-le dans la base de
 // données, à signer obligatoirement par tout le monde ; ce sera pareil pour les notes de service »).
 // · Documents (registre, kind « doc ») : règlement intérieur (texte intégral, src/reglement.js par défaut), notes de service (créées dans Exploitation →
-//   Documents d'entreprise), questionnaire d'accueil « nouvel arrivant » (embauché / intérimaire). Chaque document dit à qui il s'applique (tous, postes, types).
+//   Documents d'entreprise), documents d'accueil du pack (accueil_rh.js). Chaque document dit à qui il s'applique (tous, postes, types).
 // · Signatures (kind « docsig », id = <document>|<clé personne>) : nom, date, trait au doigt, réponses du questionnaire, date de fin de lecture.
 // · Lecture DÉROULÉE : le bouton « J'ai lu » ne s'active qu'une fois le texte déroulé jusqu'en bas (ou s'il tient à l'écran) ; un questionnaire se valide point par point.
 // · Notifications : docsTodo(compte) → « À lire et signer » tout en haut de l'accueil (règle d'Ethan : la documentation obligatoire passe avant tout).
+// · 19/10 (lot QF, Ethan) : plus RIEN de bloquant — chaque document a une ÉCHÉANCE (docDue : J0 = arrivée ou mise en ligne, jamais moins de 7 jours), affichée partout
+//   (À faire, Documents, relances) ; l'accueil « nouvel arrivant » provisoire du 09/10 est RETIRÉ (le vrai accueil = pack RH du 14/10) : ses signatures restent lisibles (RETIRED_DOCS).
 import {regAll,regGet,regSet,regLoad,regLoaded} from './reg.js';
 import {REGLEMENT} from './reglement.js';
 import {ACCUEIL_ENTREPRISE_Q,PREVENTION} from './prevention.js';
@@ -21,17 +23,20 @@ const dFRd=s=>s?String(s).slice(8,10)+'/'+String(s).slice(5,7)+'/'+String(s).sli
 export const EXPLOITATION_POSTES=POSTES_DEF.filter(p=>p[2]==='encadrement'||p[2]==='terrain').map(p=>p[0]);
 export const isPdfDoc=d=>!!(d&&(d.url||d.data));
 export const DEFAULT_DOCS=[
- Object.assign({},REGLEMENT,{req:{all:true},active:true,by:'Direction',builtin:true}),
- {id:'accueil_entreprise',kind:'accueil_entreprise',title:'Accueil sécurité nouvel arrivant',version:'v1 (provisoire)',at:'2026-10-09',qs:ACCUEIL_ENTREPRISE_Q.slice(),req:{all:true},active:true,by:'QHSE',builtin:true,
-  intro:'À remplir une fois, à l’arrivée dans l’entreprise (embauche ou début de mission d’intérim) : tu confirmes point par point que l’accueil, notamment sécurité, t’a bien été fait. Si un point n’a pas été fait, ne le coche pas et dis-le à ton chef de chantier ou aux RH.'}];
+ Object.assign({},REGLEMENT,{req:{all:true},active:true,by:'Direction',builtin:true,on:'2026-10-10'})]; /* 19/10 (QF) : on = mise en ligne DANS L'APPLI (J0 de l'échéance du personnel déjà là) — d.at reste la date du document (Mars 2026) */
+/* 19/10 (lot QF, Ethan : « enlève l'accueil nouvel arrivant qui était provisoire : on a eu le vrai maintenant ») : document RETIRÉ — proposé à personne, compté nulle part ;
+   gardé ici pour que les signatures déjà faites (docsig) restent lisibles dans l'historique d'une personne (Moi → Documents → Signés) */
+export const RETIRED_DOCS=[{id:'accueil_entreprise',kind:'accueil_entreprise',title:'Accueil sécurité nouvel arrivant',version:'v1 (provisoire)',at:'2026-10-09',qs:ACCUEIL_ENTREPRISE_Q.slice(),req:{none:true},active:false,retired:true,by:'QHSE',builtin:true,
+  intro:'Questionnaire provisoire du 09/10/2026, remplacé par l’accueil RH (livrets et documents du pack). Il n’est plus demandé à personne.'}];
+const RETIRED_IDS=new Set(RETIRED_DOCS.map(d=>d.id));
 export function docsLoad(){return regLoad(['doc','docsig']);}
 export const docsReady=()=>regLoaded('doc')&&regLoaded('docsig');
 // tous les documents : lignes serveur / appareil + défauts intégrés quand ils n'ont pas été remplacés
 /* 14/10 nuit (accueil RH) : une ligne du registre COMPLÈTE le document intégré du même id (ex. règlement intérieur + champs de l'accueil : bloquant, mention…) ;
-   les lignes de réglages (cfg) ne sont pas des documents */
-export function docsAll(){const rows=regAll('doc').filter(r=>!r.cfg).map(r=>{const b=DEFAULT_DOCS.find(x=>x.id===r.id);return b?Object.assign({},b,r):r;});const ids=new Set(rows.map(r=>r.id));return DEFAULT_DOCS.filter(d=>!ids.has(d.id)).concat(rows).filter(d=>d&&d.active!==false).sort((a,b)=>String(b.at||'')<String(a.at||'')?-1:1);}
-export function docsArchived(){return regAll('doc').filter(d=>d&&d.active===false&&!d.cfg);}
-export const docById=id=>docsAll().find(d=>d.id===id)||docsArchived().find(d=>d.id===id)||null;
+   les lignes de réglages (cfg) ne sont pas des documents ; 19/10 (QF) : un document retiré ne revient jamais, même si une ligne du registre porte son id */
+export function docsAll(){const rows=regAll('doc').filter(r=>!r.cfg&&!RETIRED_IDS.has(r.id)).map(r=>{const b=DEFAULT_DOCS.find(x=>x.id===r.id);return b?Object.assign({},b,r):r;});const ids=new Set(rows.map(r=>r.id));return DEFAULT_DOCS.filter(d=>!ids.has(d.id)).concat(rows).filter(d=>d&&d.active!==false).sort((a,b)=>String(b.at||'')<String(a.at||'')?-1:1);}
+export function docsArchived(){return regAll('doc').filter(d=>d&&d.active===false&&!d.cfg&&!RETIRED_IDS.has(d.id));}
+export const docById=id=>docsAll().find(d=>d.id===id)||docsArchived().find(d=>d.id===id)||RETIRED_DOCS.find(d=>d.id===id)||null;
 // à qui s'applique un document : tous / postes / types de compte — un visiteur ne signe rien ; 14/10 nuit : un document d'accueil « PDF à joindre » (pending) ne se signe pas encore
 export function docApplies(d,acc){if(!acc||acc.poste==='visiteur'||acc.active===false)return false;if(d.pending||d.cfg)return false;const r=d.req||{all:true};if(r.none)return false; /* communication interne, présentation : rien à signer */if(r.all)return true;if(Array.isArray(r.postes)&&r.postes.includes(acc.poste))return true;if(Array.isArray(r.types)&&r.types.includes(acc.type||'salarie'))return true;return false;}
 export function docsFor(acc){return docsAll().filter(d=>docApplies(d,acc));}
@@ -40,16 +45,24 @@ export const docSig=(docId,key)=>regGet('docsig',docId+'|'+key);
 export const docSigOk=(d,s)=>!!s&&(!d||!d.version||!s.ver||s.ver===d.version);
 export const docSigned=(d,key)=>{const s=docSig(d.id,key);return docSigOk(d,s)?s:null;};
 export function docsTodo(acc){if(!acc)return [];const k=docKey(acc);return docsFor(acc).filter(d=>!docSigned(d,k));}
-/* 14/10 nuit (accueil RH) : ÉCHÉANCE d'un document d'accueil (d.acc.due = {salarie:7, interim:1} jours). J0 = création du compte si le compte a été créé APRÈS la mise
-   en ligne du document (nouvel arrivant) ; sinon (personnel déjà là, ou date inconnue) J0 = mise en ligne, et au moins 7 jours. */
-export function docNewcomer(d,acc){const X=d&&d.acc;if(!X||!acc||!acc.created_at)return false;const c=Date.parse(acc.created_at),on=X.on?Date.parse(X.on):NaN;if(isNaN(c))return false;return isNaN(on)||c>=on;}
+/* 14/10 nuit (accueil RH) : ÉCHÉANCE d'un document (d.acc.due = {salarie:7, interim:1} jours du pack). J0 = création du compte si le compte a été créé APRÈS la mise
+   en ligne du document (nouvel arrivant) ; sinon (personnel déjà là, ou date inconnue) J0 = mise en ligne, et au moins 7 jours.
+   19/10 (lot QF, Ethan : « on va insister sur le à faire dans les 7 jours, pas rendre ça obligatoire à la connexion ») : TOUT document a une échéance (7 jours par défaut :
+   règlement, note de service, flash info, document d'accueil) et jamais moins de 7 jours, même pour un document « bloquant » du pack (il ne bloque plus rien).
+   Mise en ligne = d.acc.on (pack), sinon d.on (document intégré), sinon d.at (note créée dans l'appli). */
+const docOnline=d=>{const X=(d&&d.acc)||{};return X.on||d.on||d.at||null;};
+export const DOC_DUE_MIN=7;
+export function docNewcomer(d,acc){if(!d||!acc||!acc.created_at)return false;const c=Date.parse(acc.created_at),on0=docOnline(d),on=on0?Date.parse(on0):NaN;if(isNaN(c))return false;return isNaN(on)||c>=on;}
 const isoDay=x=>x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');
-export function docDue(d,acc){const X=d&&d.acc;if(!X||!acc)return null;const t=acc.type==='interim'?'interim':'salarie';let n=X.due&&X.due[t]!=null?+X.due[t]:(X.bloquant?0:null);if(n==null||isNaN(n))return null;
-  const nc=docNewcomer(d,acc);const base=nc?Date.parse(acc.created_at):(X.on?Date.parse(X.on):NaN);if(isNaN(base))return null;if(!nc)n=Math.max(n,7);
+export function docDue(d,acc){if(!d||!acc)return null;const X=d.acc||{};const t=acc.type==='interim'?'interim':'salarie';let n=X.due&&X.due[t]!=null?+X.due[t]:DOC_DUE_MIN;if(isNaN(n))n=DOC_DUE_MIN;n=Math.max(n,DOC_DUE_MIN);
+  const nc=docNewcomer(d,acc);const on0=docOnline(d);const base=nc?Date.parse(acc.created_at):(on0?Date.parse(on0):NaN);if(isNaN(base))return null;
   const due=new Date(base);due.setHours(0,0,0,0);due.setDate(due.getDate()+n);const t0=new Date();t0.setHours(0,0,0,0);const left=Math.round((due-t0)/864e5);return {due:isoDay(due),left,late:left<0};}
 export const docDueTxt=x=>!x?'':x.late?'en retard de '+(-x.left)+' j (à signer avant le '+dFRd(x.due)+')':x.left===0?'à signer aujourd\'hui':'à signer avant le '+dFRd(x.due)+' (dans '+x.left+' j)';
-/* notification « À faire » (espace.js) : délai restant, orange ; rouge une fois dépassé — rien ne change pour les autres documents */
-export function docTaskInfo(d,acc){const x=docDue(d,acc);if(!x)return {};return {sev:x.late?'bad':'warn',s:(KINDS[d.kind]||d.kind)+(d.version?' · '+d.version:'')+' · '+docDueTxt(x)};}
+export const docDueShort=x=>!x?'':x.late?'en retard de '+(-x.left)+' j':x.left===0?'aujourd\'hui':'J-'+x.left; /* 19/10 (QF) : forme courte (pastille) */
+/* notification « À faire » (espace.js) : délai restant, orange ; rouge une fois dépassé */
+export function docTaskInfo(d,acc){const x=docDue(d,acc);if(!x)return {};return {sev:x.late?'bad':'warn',due:x,s:(KINDS[d.kind]||d.kind)+(d.version?' · '+d.version:'')+' · '+docDueTxt(x)};}
+/* 19/10 (QF) : qui a des documents EN RETARD (rappel du chef / des RH, lecture seule) → [{acc, name, n, docs}] triés par le plus grand retard */
+export function docsLatePeople(accs){return (accs||[]).filter(Boolean).map(a=>{const k=docKey(a);const L=docsFor(a).filter(d=>!docSigned(d,k)).map(d=>({d,u:docDue(d,a)})).filter(x=>x.u&&x.u.late).sort((x,y)=>x.u.left-y.u.left);return L.length?{acc:a,name:a.name||a.email||'',n:L.length,worst:-L[0].u.left,docs:L.map(x=>x.d)}:null;}).filter(Boolean).sort((a,b)=>b.worst-a.worst||String(a.name).localeCompare(String(b.name)));}
 /* champs à compléter : « [[À COMPLÉTER : nom…]] » du texte importé → nom, poste, date du jour de la personne qui lit */
 const fillPh=(html,acc)=>!html||!acc?html:String(html).replace(/<mark class="acc-ph" data-ph="(nom|poste|date)">[^<]*<\/mark>/g,(m,k)=>'<b>'+esc(k==='nom'?(acc.name||acc.email||''):k==='poste'?((POSTES_DEF.find(p=>p[0]===acc.poste)||[])[1]||acc.poste||''):new Date().toLocaleDateString('fr-FR'))+'</b>');
 export function docSigsOf(docId){return regAll('docsig').filter(s=>s.doc===docId);}
@@ -140,20 +153,22 @@ export function docSign(d,acc,extra){const key=docKey(acc);const old=docSig(d.id
   const resign=!!(old&&!docSigOk(d,old));if(resign)sig.prev=[{ver:old.ver||null,at:old.at||null,choix:old.choix||null}].concat(Array.isArray(old.prev)?old.prev:[]).slice(0,5); /* 14/10 nuit : nouvelle version — l'ancienne signature reste tracée (version, date, choix) */
   regSet('docsig',d.id+'|'+key,sig,{local:!String(key).includes('@'),replace:resign}); /* personnage de démo : appareil seulement */return sig;}
 /* ── Mon espace → Documents : ce qui me concerne, signé / à signer ── */
-export function docsListHTML(acc){const k=docKey(acc);const mine=docsFor(acc);const todo=mine.filter(d=>!docSigned(d,k));
+export function docsListHTML(acc){const k=docKey(acc);const mine=docsFor(acc);const todo=mine.filter(d=>!docSigned(d,k)).map(d=>({d,u:docDue(d,acc)})).sort((a,b)=>((a.u?a.u.left:1e9)-(b.u?b.u.left:1e9))).map(x=>x.d); /* 19/10 (QF) : le plus urgent d'abord */
   const livs=mine.filter(d=>d.kind==='livret'&&d.acc); /* 14/10 nuit (accueil RH) : « Mes livrets », consultables à tout moment, par chapitre */const done=mine.filter(d=>docSigned(d,k)&&!livs.includes(d));
+  const old=RETIRED_DOCS.filter(d=>!mine.includes(d)&&docSig(d.id,k)); /* 19/10 (QF) : documents retirés (accueil provisoire) déjà signés — l'historique reste lisible */
   const icon=d=>d.kind==='accueil_entreprise'?'🦺':d.kind==='flash'?'⚡':d.kind==='note'?'📌':d.kind==='livret'?'📗':'📘';
-  const row=d=>{const s=docSigned(d,k);const was=!s&&docSig(d.id,k);const du=s?null:docDue(d,acc);return `<button class="ac-row ${s?'':'todo'}" data-act="docopen" data-v="${esc(d.id)}"><span class="ic" style="background:${s?'#e6f5ec':'#fdeae7'}">${icon(d)}</span><span class="tx"><b>${esc(d.title)}</b><small>${esc(KINDS[d.kind]||d.kind)}${d.version?' · '+esc(d.version):''}${isPdfDoc(d)?' · PDF':''}${s?' · ✓ signé le '+dFR(s.at)+(s.choix?' · choix : '+esc(s.choix):''):' · <span style="color:#9b2c22;font-weight:700">'+(was?'nouvelle version, ':'')+'à lire et signer</span>'+(du?' · <span style="color:'+(du.late?'#9b2c22':'#7a5a00')+';font-weight:700">'+esc(docDueTxt(du))+'</span>':'')}</small></span><span class="chev">›</span></button>`;};
-  const livRow=d=>{const s=docSigned(d,k);const n=(d.acc.chap||[]).length;return `<button class="ac-row" data-act="docopen" data-v="${esc(d.id)}"><span class="ic" style="background:#e8f0fb">📗</span><span class="tx"><b>${esc(d.title)}</b><small>${n?n+' chapitre'+(n>1?'s':''):'livret'}${d.version?' · '+esc(d.version):''}${s?' · ✓ signé le '+dFR(s.at):' · <span style="color:#9b2c22;font-weight:700">à lire et signer</span>'}</small></span><span class="chev">›</span></button>`;};
-  return `<h2 class="vt">Documents <span class="hint">· ${todo.length?todo.length+' à signer':'tout est signé'}</span></h2>
-    ${todo.length?`<div class="ac-h"><b>À lire et signer</b><span>obligatoire</span></div>${todo.map(row).join('')}`:'<div class="ac-empty">✓ Tu as signé tous les documents qui te concernent.</div>'}
+  const row=d=>{const s=d.retired?docSig(d.id,k):docSigned(d,k);const was=!s&&docSig(d.id,k);const du=s?null:docDue(d,acc);return `<button class="ac-row ${s?'':'todo'}" data-act="docopen" data-v="${esc(d.id)}"><span class="ic" style="background:${s?'#e6f5ec':'#fdeae7'}">${icon(d)}</span><span class="tx"><b>${esc(d.title)}</b><small>${esc(KINDS[d.kind]||d.kind)}${d.version?' · '+esc(d.version):''}${isPdfDoc(d)?' · PDF':''}${s?' · ✓ signé le '+dFR(s.at)+(s.choix?' · choix : '+esc(s.choix):'')+(d.retired?' · <span class="eq-tag">document retiré</span>':''):' · <span style="color:#9b2c22;font-weight:700">'+(was?'nouvelle version, ':'')+'à lire et signer</span>'+(du?' · <span style="color:'+(du.late?'#9b2c22':'#7a5a00')+';font-weight:700">'+esc(docDueTxt(du))+'</span>':'')}</small></span><span class="chev">›</span></button>`;};
+  const livRow=d=>{const s=docSigned(d,k);const n=(d.acc.chap||[]).length;const du=s?null:docDue(d,acc);return `<button class="ac-row" data-act="docopen" data-v="${esc(d.id)}"><span class="ic" style="background:#e8f0fb">📗</span><span class="tx"><b>${esc(d.title)}</b><small>${n?n+' chapitre'+(n>1?'s':''):'livret'}${d.version?' · '+esc(d.version):''}${s?' · ✓ signé le '+dFR(s.at):' · <span style="color:#9b2c22;font-weight:700">à lire et signer</span>'+(du?' · <span style="color:'+(du.late?'#9b2c22':'#7a5a00')+';font-weight:700">'+esc(docDueTxt(du))+'</span>':'')}</small></span><span class="chev">›</span></button>`;};
+  const nLate=todo.filter(d=>{const u=docDue(d,acc);return u&&u.late;}).length;
+  return `<h2 class="vt">Documents <span class="hint">· ${todo.length?todo.length+' à signer'+(nLate?' · '+nLate+' en retard':''):'tout est signé'}</span></h2>
+    ${todo.length?`<div class="ac-h"><b>À lire et signer</b><span>${nLate?'<span style="color:#9b2c22;font-weight:700">'+nLate+' en retard</span>':'sous 7 jours'}</span></div>${todo.map(row).join('')}`:'<div class="ac-empty">✓ Tu as signé tous les documents qui te concernent.</div>'}
     ${livs.length?`<div class="ac-h"><b>Mes livrets</b><span>à relire quand tu veux</span></div>${livs.map(livRow).join('')}`:''}
-    ${done.length?`<div class="ac-h"><b>Signés</b><span>${done.length}</span></div>${done.map(row).join('')}`:''}
-    <div class="hint" style="margin-top:8px">Un document se lit en entier (déroule jusqu'en bas) puis se signe au doigt. Le questionnaire d'accueil se confirme point par point.</div>`;}
+    ${done.length||old.length?`<div class="ac-h"><b>Signés</b><span>${done.length+old.length}</span></div>${done.map(row).join('')}${old.map(row).join('')}`:''}
+    <div class="hint" style="margin-top:8px">Un document se lit en entier (déroule jusqu'en bas) puis se signe au doigt — à faire sous 7 jours, rien ne bloque ton accès à l'appli.</div>`;}
 /* ── Exploitation → Documents d'entreprise (administrateur, QSE) : liste, qui a signé, nouvelle note de service, archivage ── */
 export function docsAdminHTML(people){people=people||[];const all=docsAll().filter(d=>!(d.req&&d.req.none));const arch=docsArchived(); /* 12/10 soir : les infos / la présentation (sans signature) vivent dans Communication interne */
   const row=d=>{const conc=people.filter(p=>docApplies(d,p));const signed=conc.filter(p=>docSigned(d,docKey(p)));const pc=conc.length?Math.round(100*signed.length/conc.length):0;
-    return `<button class="ac-row" data-act="docadm" data-v="${esc(d.id)}"><span class="ic" style="background:#e8f0fb">${d.kind==='accueil_entreprise'?'🦺':d.kind==='flash'?'⚡':d.kind==='note'?'📌':'📘'}</span><span class="tx"><b>${esc(d.title)}</b><small>${esc(KINDS[d.kind]||d.kind)}${d.version?' · '+esc(d.version):''} · ${esc(reqLabel(d))}${d.pending?' · <span class="eq-tag">PDF à joindre</span>':d.acc&&d.acc.bloquant?' · bloquant à l\'arrivée':''} · <b>${signed.length} / ${conc.length}</b> signé${signed.length>1?'s':''} (${pc} %)</small></span>${conc.length-signed.length?`<span class="ac-n">${conc.length-signed.length}</span>`:'<span class="ac-chk ok">✓</span>'}<span class="chev">›</span></button>`;};
+    return `<button class="ac-row" data-act="docadm" data-v="${esc(d.id)}"><span class="ic" style="background:#e8f0fb">${d.kind==='accueil_entreprise'?'🦺':d.kind==='flash'?'⚡':d.kind==='note'?'📌':'📘'}</span><span class="tx"><b>${esc(d.title)}</b><small>${esc(KINDS[d.kind]||d.kind)}${d.version?' · '+esc(d.version):''} · ${esc(reqLabel(d))}${d.pending?' · <span class="eq-tag">PDF à joindre</span>':d.acc&&d.acc.bloquant?' · à signer dès l\'arrivée (sous 7 jours)':''} · <b>${signed.length} / ${conc.length}</b> signé${signed.length>1?'s':''} (${pc} %)</small></span>${conc.length-signed.length?`<span class="ac-n">${conc.length-signed.length}</span>`:'<span class="ac-chk ok">✓</span>'}<span class="chev">›</span></button>`;};
   /* 10/10 (retour Ethan) : RH et direction voient QUI n'a pas signé ses documents obligatoires — par personne, les documents manquants */
   const late=people.map(p=>({p,miss:all.filter(d=>docApplies(d,p)&&!docSigned(d,docKey(p)))})).filter(x=>x.miss.length).map(x=>Object.assign(x,{nl:x.miss.filter(d=>{const u=docDue(d,x.p);return u&&u.late;}).length})).sort((a,b)=>b.nl-a.nl||b.miss.length-a.miss.length||String(a.p.name||'').localeCompare(String(b.p.name||''))); /* 14/10 nuit : les retards (échéance dépassée) d'abord */
   const conc=people.filter(p=>all.some(d=>docApplies(d,p)));
@@ -163,7 +178,7 @@ export function docsAdminHTML(people){people=people||[];const all=docsAll().filt
    :(conc.length?'<div class="okbox" style="margin:0 0 8px">✓ Tout le monde a signé ses documents obligatoires.</div>':'');
   const cur=A&&A.current?A.current():null; /* 14/10 nuit : documents d'accueil (pack, PDF) — sous-vue du module Accueil RH */
   return `<div class="eq-acts" style="margin:0 0 8px"><button class="btn primary" data-act="docnew" data-v="note">➕ Note de service</button><button class="btn primary" data-act="docnew" data-v="flash">⚡ Flash info sécurité</button>${cur&&cur.admin?'<button class="btn" data-act="xgo" data-v="x:acc:admin">📗 Accueil RH : pack, PDF</button>':''}</div>${lateHTML}<div class="ac-h"><b>Documents</b><span>${all.length}</span></div>${all.map(row).join('')}${arch.length?`<div class="ac-h"><b>Archivés</b><span>${arch.length}</span></div>${arch.map(d=>`<button class="ac-row" data-act="docadm" data-v="${esc(d.id)}"><span class="ic">🗄</span><span class="tx"><b>${esc(d.title)}</b><small>archivé le ${dFR(d.archivedAt)}</small></span><span class="chev">›</span></button>`).join('')}`:''}
-    <div class="hint" style="margin-top:8px">Le règlement intérieur (Mars 2026) et l'accueil nouvel arrivant sont intégrés ; une note de service ou un flash info (PDF à dérouler en entier, ou texte) se crée ici et apparaît aussitôt « à lire et signer » chez les personnes concernées.</div>`;}
+    <div class="hint" style="margin-top:8px">Le règlement intérieur (Mars 2026) est intégré ; une note de service ou un flash info (PDF à dérouler en entier, ou texte) se crée ici et apparaît aussitôt « à lire et signer » chez les personnes concernées — à faire sous 7 jours, sans jamais bloquer l'accès à l'appli.</div>`;}
 /* liste imprimable des retardataires (RH / direction) */
 export function docsLateHTML(people){const all=docsAll();const late=people.map(p=>({p,miss:all.filter(d=>docApplies(d,p)&&!docSigned(d,docKey(p)))})).filter(x=>x.miss.length).sort((a,b)=>String(a.p.name||'').localeCompare(String(b.p.name||'')));
   const rows=late.map(x=>`<tr><td><b>${esc(x.p.name||x.p.email)}</b></td><td>${esc((POSTES_DEF.find(q=>q[0]===x.p.poste)||[])[1]||'')}${x.p.type==='interim'?' (intérim)':''}</td><td>${x.miss.map(d=>{const u=docDue(d,x.p);return esc(d.title)+(u?(u.late?' <b>(retard '+(-u.left)+' j)</b>':' (avant le '+dFRd(u.due)+')'):'');}).join('<br>')}</td><td></td></tr>`).join('');

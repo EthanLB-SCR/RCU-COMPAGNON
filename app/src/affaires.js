@@ -15,8 +15,9 @@ import {initVersions,vBarHTML,vBandHTML,vTracesHTML,vAct,vVirtual,vCtx,vConsulti
 import {initDocsOblig} from './docsoblig.js'; // 14/10 après-midi (lot D) : documents obligatoires de l'offre, documents de l'entreprise
 import {lzRowsHTML,lzUnlinkSite,lzLinkSite,lzOpenEtude,lzGate,lzBusy} from './liaison.js'; // 14/10 soir (lot L) : Tracé & chantiers (étude → traceur, ✕ qui tient), tracés liés en cours de chargement
 import {mutuTabHTML,mutuAct,mutuFactHTML} from './mutu.js'; // 16/10 soir (lot MU) : chantier partagé par plusieurs affaires — onglet Tracé & chantiers, Facturation
+import {initDebours,deboursTabHTML,dbOverviewHTML,dbHasData} from './debours.js'; // 19/10 (lot DB) : onglet 💶 Débours (facturé − débours = marge : main-d'œuvre pointée × coût horaire, bons de commande, notes de frais, sous-traitance…) + vue d'ensemble du Reporting
 let A=null;
-export function initAffaires(api){A=api;initCommerce(api);const api2=Object.assign({},api,{cur:()=>AS.cur?affGet(AS.cur):null,affGet:id=>affGet(id),affSet:(id,p)=>affSet(id,p),goTab:t=>{AS.tab=t;}});initChiffrage(api2);initDce(api2);initQsets(api2);initVersions(api2);initDocsOblig(api2);}
+export function initAffaires(api){A=api;initCommerce(api);const api2=Object.assign({},api,{cur:()=>AS.cur?affGet(AS.cur):null,affGet:id=>affGet(id),affSet:(id,p)=>affSet(id,p),goTab:t=>{AS.tab=t;}});initChiffrage(api2);initDce(api2);initQsets(api2);initVersions(api2);initDocsOblig(api2);initDebours(api2);}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nb=(x,d)=>{x=+x||0;return x.toLocaleString('fr-FR',{maximumFractionDigits:d===undefined?0:d,minimumFractionDigits:d===undefined?0:d});};
 const eur=x=>nb(x)+' €';
@@ -77,6 +78,12 @@ export function affOpen(num,tab){AS.view='fiche';AS.cur=num;AS.tab=tab||'fiche';
 export function affSet(id,patch){if(VOVER&&id===VOVER.num){roRefuse();return VOVER.a;}return regSet('affaire',id,patch);}
 export function affSetQuiet(id,patch){if(VOVER&&id===VOVER.num){roRefuse();return VOVER.a;}return regSet('affaire',id,patch,{quiet:true});} /* 13/10 : sans redessiner (frappe dans le mémoire) */
 export function affNew(num,data){return regSet('affaire',num,Object.assign({num,etat:'preconsult',at:new Date().toISOString(),by:A.userName?A.userName():''},data||{}));}
+/* 19/10 (lot QF, Ethan : « enlève les notifs qui touchent aux offres sur les dossiers importés : ce sont de vieux historiques ; garde le principe pour les nouveaux dossiers »).
+   Affaire IMPORTÉE du reporting (SQL du 10/10) : by === 'import' ou source « Reporting … » → aucune alerte ni notification d'offre (À faire, pastilles, tuiles de la fiche).
+   Elle reste visible et modifiable. Elle REDEVIENT SUIVIE (règle simple) dès que quelqu'un a saisi dans l'appli une date de réponse (dateReponseBy, posé par l'onglet Dossier)
+   ET fait une étape de l'offre : une tâche du dossier cochée, une version de chiffrage, une pièce de l'offre cochée ou l'offre remise. */
+export const affSuivieApp=a=>!!(a&&a.dateReponseBy&&(Object.values(a.taches||{}).some(Boolean)||(Array.isArray(a.chiffrages)&&a.chiffrages.length>0)||(+a.chiffrageV||1)>1||Object.values((a.offre||{}).pieces||{}).some(Boolean)||!!(a.offre&&a.offre.remiseAt)));
+export const affEstImportee=a=>!!a&&(a.by==='import'||/^Reporting/i.test(String(a.source||'')))&&!affSuivieApp(a);
 export const SECT_LETTER={O:'ouest',I:'idf',S:'sud',W:'sudouest',E:'est'};
 export const parentNum=num=>{const m=String(num||'').match(/^([A-Z]\d{4}-\d{2})/);return m?m[1]:String(num||'');};
 export const isSub=a=>parentNum(a.num)!==String(a.num);
@@ -112,7 +119,8 @@ export function affFicheHTML(me,canEdit,ctx){const a=regGet('affaire',AS.cur); /
   const st=stepState(a);if(AS.tab==='dce')AS.tab='dossier'; /* 13/10 : les onglets de la fiche = le dossier de A à Z (maquette validée) ; « DCE » vit dans 1 · Dossier */
   const won=['a_debuter','en_cours','termine'].includes(a.etat)||!!(a.fact&&Object.keys(a.fact).length)||!!((a.situations||[]).length); /* 13/10 (Ethan) : « facturation, ce n'est pas au stade du chiffrage » — l'onglet apparaît quand l'affaire est gagnée (ou déjà facturée) */
   if(AS.tab==='fact'&&!won)AS.tab='fiche';
-  const tabs=[['fiche','Fiche']].concat(STEPS.map(([k,l])=>[k,(st[k]?'✓ ':'')+l])).concat(won?[['fact','Facturation']]:[]).concat([['sites','Tracé & chantiers']]);
+  const dbOn=won||dbHasData(a);if(AS.tab==='debours'&&!dbOn)AS.tab='fiche'; /* 19/10 (lot DB) : l'onglet Débours suit la Facturation (affaire gagnée), ou dès qu'un débours existe */
+  const tabs=[['fiche','Fiche']].concat(STEPS.map(([k,l])=>[k,(st[k]?'✓ ':'')+l])).concat(won?[['fact','Facturation']]:[]).concat(dbOn?[['debours','💶 Débours']]:[]).concat([['sites','Tracé & chantiers']]);
   const head=`<div class="card af-head"><div class="af-num">${esc(a.num)} ${tag(a.etat)}${parent?` <span class="hint">· sous-affaire de <button class="lnk" data-act="af" data-v="open|${esc(parent.num)}">${esc(parent.num)}</button></span>`:''}</div><h2 class="vt" style="margin:2px 0 4px">${esc(a.nom||'(sans nom)')}</h2><div class="kv" style="font-size:12.5px"><span>${esc(a.client||'client ?')}</span><span>${esc(a.ville||'')}${a.cp?' ('+esc(a.cp)+')':''}</span><span>${esc(SECTEURS_AFF[a.secteur||SECT_LETTER[String(a.num)[0]]]||'')}</span>${a.charge?`<span>CA : ${esc(a.charge)}</span>`:''}${a.cdtx?`<span>CDTX : ${esc(a.cdtx)}</span>`:''}</div>
       <div class="ac-stats" style="margin-top:8px"><div class="ac-stat"><b>${a.montant?eur(a.montant):'—'}</b><small>montant devis HT</small></div><div class="ac-stat ${t.cumul?'ok':''}"><b>${eur(t.cumul)}</b><small>facturé cumulé</small></div><div class="ac-stat ${t.restant>1&&a.montant?'warn':''}"><b>${a.montant?eur(t.restant):'—'}</b><small>restant à facturer</small></div>${C.total?`<div class="ac-stat${vt?' or':''}"><b>${eur(C.total)}</b><small>${C.v2?'prix de vente HT (chiffrage v'+(vt?va.chiffrageV+' consultée':(a.chiffrageV||1))+')':'chiffrage'+(vt?' v'+va.chiffrageV+' consultée':'')+' (vente + RCFA)'}</small></div>`:''}</div></div>
     <div class="eq-filtres">${tabs.map(([k,l])=>`<button class="chip${AS.tab===k?' active':''}" data-act="af" data-v="tab|${k}">${l}</button>`).join('')}</div>`;
@@ -144,6 +152,7 @@ export function affFicheHTML(me,canEdit,ctx){const a=regGet('affaire',AS.cur); /
   else if(AS.tab==='offre')body=offreHTML(a,canEdit,ctx);
   else if(AS.tab==='chiffrage')body=chiffrageHTML(a,C,canEdit,ctx);
   else if(AS.tab==='fact')body=factHTML(a,t,canEdit);
+  else if(AS.tab==='debours')body=deboursTabHTML(a,canEdit,ctx); /* 19/10 (lot DB) : débours de l'affaire (debours.js) */
   else if(AS.tab==='sites'){const sites=(ctx&&ctx.sites)||[];const linked=(a.sites||[]).map(id=>sites.find(s=>s.id===id)||{id,name:id});
     body=(va?vTracesHTML(va):'')+`<div class="card"><h3>Tracé &amp; chantiers <span class="hint">· dessiner le projet, comparer nos quantités, préparer l'exécution</span></h3><div class="eq-s" style="margin:0 0 8px"><b>À quoi ça sert.</b> Un chantier tracé lié à l'affaire donne trois choses : <b>1)</b> le réseau dessiné (traceur, à partir du DWG du BE ou du plan) → soudures et linéaire par DN, par phase du phasage, pour <b>comparer</b> avec le DPGF et le chiffrage (onglet Chiffrage → table des DN → « ⇄ Comparer avec le tracé », « ← prendre » si on veut) ; <b>2)</b> le plan, les fiches de soudure, le stock, la fourniture et le DOE qui suivront si l'affaire est gagnée — le même chantier, sans ressaisie ; <b>3)</b> plusieurs chantiers pour une même affaire (tranches, sous-affaires) restent rattachés au même dossier commercial.</div>
       ${linked.length?lzRowsHTML(a,linked,canEdit,ctx):'<div class="eq-s">Aucun chantier lié.</div>'}${mutuTabHTML(a,canEdit,ctx,!!va)}
@@ -290,7 +299,7 @@ export function affCSV(){const all=affAll();const y=AS.year;const H=['Numéro','
   return '\ufeff'+H.map(q).join(';')+'\n'+rows.join('\n');}
 export function affView(me,ctx){const canEdit=ctx.canEdit;const segBar=`<div class="eq-filtres af-segs">${SEGS.map(([k,l])=>`<button class="chip${AS.seg===k?' active':''}" data-act="af" data-v="seg|${k}">${l}</button>`).join('')}</div>`;
   if(AS.view==='fiche'&&AS.cur)return `<button class="ac-back" data-act="af" data-v="back|">‹ ${esc((SEGS.find(x=>x[0]===AS.seg)||SEGS[1])[1].replace(/^\S+\s/,''))}</button>`+affFicheHTML(me,canEdit,ctx);
-  if(AS.seg==='rep')return `<h2 class="vt">Commerce <span class="hint">· reporting : toutes les affaires, le gagné, le facturé, le restant</span></h2>`+segBar+affRecapHTML()+affTraceHTML();
+  if(AS.seg==='rep')return `<h2 class="vt">Commerce <span class="hint">· reporting : toutes les affaires, le gagné, le facturé, le restant</span></h2>`+segBar+affRecapHTML()+dbOverviewHTML(ctx)+affTraceHTML(); /* 19/10 (lot DB) : débours des affaires en cours */
   if(AS.seg==='prix')return `<h2 class="vt">Commerce <span class="hint">· base de prix SCR</span></h2>`+segBar+prixPageHTML(ctx);
   const sg=SEGS.find(x=>x[0]===AS.seg)||SEGS[1];
   return `<h2 class="vt">Commerce <span class="hint">· ${esc(sg[1].replace(/^\S+\s/,''))}</span></h2>`+segBar+`<div class="hint" style="margin:0 0 6px">${AS.seg==='devis'?'En suspens, ni gagné ni perdu : préconsultations et devis — création de l\'affaire, DCE, chiffrage (versions : négociation, alignement technique — chacune figée et consultable), offre remise.':AS.seg==='cours'?'Affaires gagnées : à débuter et en cours — chantiers liés, tableau de facturation envoyé au client, situations renseignées pour un suivi à jour.':'Dossiers terminés et perdus : la traçabilité reste (chiffrage, facturé, documents).'}</div>`+affListHTML(me,canEdit);}

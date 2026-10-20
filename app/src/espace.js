@@ -9,10 +9,10 @@
 // Kit avatar : src/avatar.js (repris tel quel). Enveloppe avModele() : pas de médaille d'ancienneté hors travail (règle SCR, à reporter dans le kit).
 import {avatarModele,avatarSVG,avatarMedaillon,EditorLogic} from './avatar.js';
 import {POSTES_DEF,FAM_COLOR,POSTE_FAM} from './acces.js';
-import {docsFor,docsTodo,docsListHTML,docOpen,docsAdminHTML,docAdminOpen,docNewOpen,docsLateHTML,docsAll,docById,KINDS as DOC_KINDS,docTaskInfo} from './docs.js'; // documents d'entreprise à lire et signer (nuit 09→10/10)
+import {docsFor,docsTodo,docsListHTML,docOpen,docsAdminHTML,docAdminOpen,docNewOpen,docsLateHTML,docsAll,docById,KINDS as DOC_KINDS,docTaskInfo,docDueShort,docDue,docsLatePeople} from './docs.js'; // documents d'entreprise à lire et signer (nuit 09→10/10) ; 19/10 (QF) : échéances partout, retards de l'équipe
 import {qhsTodo,qhsMyKey,qhsRecapHTML,qhsTriggerOpen,qhsRuns} from './qhs.js'; // quart d'heure sécurité (10/10)
 import {controlesOf,controleNC,controleReportHTML} from './accueil.js'; // contrôles chantier : suivi direction (10/10)
-import {affView,affAct,affInput,affAll,affState,calcAffaire,factTotaux,affFiles} from './affaires.js';
+import {affView,affAct,affInput,affAll,affState,calcAffaire,factTotaux,affFiles,affEstImportee} from './affaires.js';
 import {dpgfFile} from './commerce.js'; // 13/10 : le dossier de A à Z // volet commerce (nuit 09→10/10)
 import {flotteView,flotteAct,flotteInput,vehAll,vehAlertes,vehDe,monVehiculeHTML,flottePhoto} from './flotte.js'; // parc véhicules (nuit 09→10/10)
 import {cmdView,cmdAct,cmdInput,dbListHTML,dbTodo,dbDe,cmdAll,dbAll,cmdState} from './commandes.js'; // bons de commande & débours (nuit 09→10/10)
@@ -22,6 +22,7 @@ import {buildNavette,navetteSheet,NAV_STYLES,navWeeks,inIDF,addDay as navAddDay,
 import {makeStyledXlsx,makeXlsx,openXlsx} from './xlsx.js';
 import {compteurTimeline,moisCompteurs,parseSoldes,splitPaste,navEnd,ymOfNavEnd,snapSolde,mondayOf as cptMonday,IMPORT_COLS as CPT_IMPORT_COLS,K125,K150,KREP} from './compteurs.js'; // 13/10 (f) : compteur d'heures majoré + plafond, à reporter ×1,5, import des soldes
 import {regAll,regSet,regLoad,regGet,regReload} from './reg.js'; // 12/10 : personnes provisoires créées depuis le planning (registre « prov »), agenda de l'encadrant (« agenda »)
+import {magPersBadge,magMineHTML,magHubRow,magPersCard} from './magasin2.js'; // 19/10 (lot MG) : pastilles « 📦 commandes au dépôt » dans le planning (cartes de personnes, Ta semaine), compteur du hub du chef, fiche de personne
 let A=null;               // API fournie par app.js : state, accounts(), sites(), rights(acc), current(), sync, kv, toast, openSite, userName
 let ROOT=null;            // conteneur du rendu (#homeBody)
 let DATA=null;            // données du rendu courant (voir buildData)
@@ -52,7 +53,7 @@ export function initEspace(api){A=api;}
 /* ═══ 14/10 nuit — MODULES BRANCHÉS (magasin, réception véhicule, accueil RH / passeport…) : chaque module s'enregistre ici sans toucher au cœur.
    m = {id, kinds:[registres à charger], moiSubs(me,ctx)→[[clé,libellé,nBadge,rouge]], view(sub,me,ctx)→html|null (sous-onglets de Moi),
         xview(clé,me,ctx)→html|null (sous-vue « x:<id>:<clé> » d'un hub, avec retour), hub:'parc'|'entreprise'|…, parcSeg(seg,me,ctx,bar)→html|null,
-        hubRows(tab,me,ctx)→[html], tasks(me,ctx)→[notifs « À faire »], gate(me,ctx)→html|null (écran bloquant avant l'accueil),
+        hubRows(tab,me,ctx)→[html], tasks(me,ctx)→[notifs « À faire »], gate(me,ctx)→html|null (écran bloquant avant l'accueil — plus utilisé depuis le 19/10), banner(me,ctx)→html (carte NON bloquante en tête de l'accueil),
         act(v,el,me,ctx) (data-act="x" data-v="<id>|…"), input(champ,el,me,ctx,type) (data-xin="<id>|<champ>") } */
 const EXT=[];
 export function espaceExt(m){if(m&&m.id&&!EXT.some(x=>x.id===m.id)){EXT.push(m);if(m.kinds&&A)regLoad(m.kinds).catch(()=>{});}}
@@ -882,7 +883,7 @@ function cAnciennete(me){const L=DATA.personnes.filter(p=>p.active&&p.entree).ma
 
 /* ── Planning : ma semaine, jour par jour, avec qui je suis et les responsables du chantier ── */
 function htmlPersRow(p,sous){
-  return `<div class="eq-row" role="button" tabindex="0" data-act="fiche" data-v="${p.id}">${avatar(p)}<span class="eq-grow"><span class="eq-t">${esc(nomC(p))}${tagType(p)}</span><span class="eq-s">${esc(sous)}${p.invite?' · pas encore connecté':''}</span></span><a class="btn eq-tel" data-act="tel" href="tel:${(p.tel||'').replace(/ /g,'')}" title="Appeler ${esc(p.prenom)}">📞</a></div>`;
+  return `<div class="eq-row" role="button" tabindex="0" data-act="fiche" data-v="${p.id}">${avatar(p)}<span class="eq-grow"><span class="eq-t">${esc(nomC(p))}${tagType(p)}</span><span class="eq-s">${esc(sous)}${p.invite?' · pas encore connecté':''}</span>${magPersBadge(p.id)}</span><a class="btn eq-tel" data-act="tel" href="tel:${(p.tel||'').replace(/ /g,'')}" title="Appeler ${esc(p.prenom)}">📞</a></div>`;
 }
 /* La scène : le chantier, la météo, moi dans ma tenue du jour et mon équipe dans la sienne */
 function scene(me,d,i){
@@ -935,7 +936,7 @@ function cJour(me,d){
 }
 function vPlanning(me){
   const k=S.planSem,js=semaineDe(k),sel=js.includes(S.planJour)?S.planJour:js.includes(DATA.today)?DATA.today:js[0];
-  return `<h2 class="vt">Ta semaine <span class="hint">· semaine ${numSemaine(js[0])} · du ${fDate(js[0]).slice(0,5)} au ${fDate(js[4])}</span></h2>
+  return `<h2 class="vt">Ta semaine <span class="hint">· semaine ${numSemaine(js[0])} · du ${fDate(js[0]).slice(0,5)} au ${fDate(js[4])}</span></h2>${magMineHTML(me.id)}
     <div class="eq-filtres" style="padding-top:0">${[[0,'Cette semaine'],[1,'Semaine prochaine']].map(([n,t])=>`<button class="chip${k===n?' active':''}" data-act="plansem" data-v="${n}">${t}</button>`).join('')}</div>
     <div class="eq-semaine">${js.map(d=>tuileJour(me,d,d===sel)).join('')}</div>
     ${can(me,'planning.edit')||me.poste==='conducteur'?`<div class="card"><div class="eq-s">Ton planning n'est pas imposé : c'est toi qui le composes (visites de chantier, réunions, rendez-vous) — export Outlook.</div><button class="btn eq-full" data-act="xgo" data-v="agenda">✏️ Composer ma semaine</button></div>`:''}
@@ -1044,6 +1045,7 @@ function blocsFiche(p,me){
     ${dEdit&&!moi?`<button class="btn eq-full" data-act="sim" data-v="Modification de la fiche par les RH">✏️ Modifier la fiche</button>`:''}</div>`);
   if(qse||moi)B.push(`<div class="card"><h3>Habilitations</h3><div class="eq-list">${habsDe(p).map(htmlHab).join('')}</div>
     ${qse?`<div class="eq-acts" style="margin:8px 0 0"><button class="btn" data-act="sim" data-v="Modifier une échéance : date + pièce jointe">✏️ Modifier une échéance</button><button class="btn" data-act="sim" data-v="Ajouter une pièce : photo ou PDF">📎 Ajouter une pièce</button></div>`:''}</div>`);
+  {const h=magPersCard(p.id);if(h)B.push(h);} /* 19/10 (lot MG) : ses commandes au dépôt */
   if(val)B.push(cSemaine(p,'Heures de la semaine'));
   if(dEdit)B.push(`<div class="card"><h3>Documents</h3><div class="eq-list">${((DATA.documents||{})[p.id]||[]).map(d=>`<div class="eq-row"><span class="eq-grow"><span class="eq-t">${d.type==='pdf'?'📎':'📷'} ${esc(d.nom)}</span><span class="eq-s">Déposé le ${fDate(d.date)}</span></span></div>`).join('')||'<div class="eq-s">Aucun document.</div>'}</div>
     <button class="btn eq-full" data-act="sim" data-v="Dépôt d'un document : contrat, qualification, carte BTP…">📎 Déposer un document</button></div>`);
@@ -1194,7 +1196,7 @@ function plChip(p,site,js,aff,me){const sites=plSitesDe(aff,p,js);const jours=si
   const multi=site?plMulti(aff,p,site,js):[];const enc=plEnc(p);const chefIci=site&&p.poste==='chef';const fc=site?site_(site):null;const condIci=site&&fc&&fc.conducteur===p.id;const team=site?teamOf(aff,p.id,site):'';
   const role=site?(enc?(condIci?'📋 conducteur de ce chantier · conduite de travaux':'📋 conduite de travaux'):chefIci?(multi.length?'🦺 chef de chantier · <b>en autonomie</b> ('+plDblDays(aff,p.id,site,js).map(d=>fJour(d).slice(0,4)).join(', ')+') : aussi sur '+multi.map(x=>esc(site_(x).ville||site_(x).nom)).join(', '):(fc&&fc.chef===p.id?'🦺 chef de ce chantier':'🦺 chef de chantier')):(multi.length?'<span class="eq-warn">⚠ 2 chantiers le même jour</span> ('+plDblDays(aff,p.id,site,js).map(d=>fJour(d).slice(0,4)).join(', ')+') : aussi sur '+multi.map(x=>esc(site_(x).ville||site_(x).nom)).join(', '):'')):'';
   return `<div class="eq-plchip${sel?' sel':''}${site?'':' libre'}${enc&&site?' enc':''}${chefIci?' chef':''}${multi.length?' multi':''}${team?' team-'+team:''}" draggable="true" data-drag="${esc(p.id)}" data-site="${esc(site||'')}" data-q="${esc(norm(p.prenom+' '+p.nom+' '+poste(p).label))}">
-    <button class="eq-plmain" data-act="${site?'pledit':'plsel'}" data-v="${esc(site?p.id+'|'+site:p.id)}" title="${site?'Régler les jours, l\'équipe':'Choisir, puis toucher un chantier'}">${avatar(p)}<span class="eq-grow"><b>${esc(p.prenom)} ${esc(p.nom)}</b>${team?`<i class="eq-team t-${team}">${team}</i>`:''}<small>${role&&(chefIci||enc)?role:esc(poste(p).label)+(role?'<br>'+role:'')}${p.type==='interim'?' · intérim'+(p.agence?' '+esc(p.agence):''):''}${p.prov?' · <span style="color:#9a3410">⏳ accès à finaliser</span>':''}${!site&&secteurDe(p)?' · '+esc(SECTEURS[secteurDe(p)]||secteurDe(p)):''}${!site&&fdays.length&&fdays.length<js.length?' · <b style="color:#9a3410">libre '+fdays.map(d=>fJour(d).slice(0,4)).join(', ')+'</b>':''}</small></span>${dots}</button>
+    <button class="eq-plmain" data-act="${site?'pledit':'plsel'}" data-v="${esc(site?p.id+'|'+site:p.id)}" title="${site?'Régler les jours, l\'équipe':'Choisir, puis toucher un chantier'}">${avatar(p)}<span class="eq-grow"><b>${esc(p.prenom)} ${esc(p.nom)}</b>${team?`<i class="eq-team t-${team}">${team}</i>`:''}<small>${role&&(chefIci||enc)?role:esc(poste(p).label)+(role?'<br>'+role:'')}${p.type==='interim'?' · intérim'+(p.agence?' '+esc(p.agence):''):''}${p.prov?' · <span style="color:#9a3410">⏳ accès à finaliser</span>':''}${!site&&secteurDe(p)?' · '+esc(SECTEURS[secteurDe(p)]||secteurDe(p)):''}${!site&&fdays.length&&fdays.length<js.length?' · <b style="color:#9a3410">libre '+fdays.map(d=>fJour(d).slice(0,4)).join(', ')+'</b>':''}${magPersBadge(p.id)}</small></span>${dots}</button>
     ${edit?`<div class="eq-pledit"><div class="eq-s" style="margin-bottom:6px">Jours sur ce chantier <span class="dim">· un jour coché ailleurs aussi reste sur les deux (⚠)</span></div><div class="eq-opts">${js.map(d=>{const other=((aff[p.id]||{})[d]||[]).filter(x=>x!==site).map(x=>site_(x).ville||site_(x).nom).join(' + ');const here=jours.includes(d);return `<button class="chip${here?' active':''}${here&&other?' warn':''}" data-act="plday" data-v="${esc(p.id)}|${esc(site)}|${d}" title="${other?'aussi : '+esc(other):''}">${here&&other?'⚠ ':''}${fJour(d).slice(0,4)} ${d.slice(8,10)}${other?' <span class="dim">·'+esc(other.slice(0,10))+'</span>':''}</button>`;}).join('')}</div>
       <div class="eq-s" style="margin:8px 0 6px">Équipe sur ce chantier</div><div class="eq-teams"><button class="eq-tb${!team?' on':''}" data-act="plsetteam" data-v="${esc(p.id)}|${esc(site)}|" title="Sans équipe">—</button>${teamChoices(plTeamsUsed(aff,site,js).concat(team?[team]:[])).map(t=>`<button class="eq-tb t-${t}${team===t?' on':''}" data-act="plsetteam" data-v="${esc(p.id)}|${esc(site)}|${t}" title="Équipe ${t}">${t}</button>`).join('')}</div>
       <div class="eq-acts" style="margin:8px 0 0"><button class="btn" data-act="plsel" data-v="${esc(p.id)}" title="Puis touche l'autre chantier : tu choisis les jours">↔ Aussi sur un autre chantier</button><button class="btn" data-act="plrm" data-v="${esc(p.id)}|${esc(site)}">Retirer de ce chantier</button><button class="btn" data-act="pledit" data-v="${esc(p.id)}|${esc(site)}">Fermer</button></div>
@@ -1270,8 +1272,11 @@ const whenOf=at=>{if(!at)return '';const t=Date.parse(at);if(!isFinite(t))return
 function notifsFor(me){const L=[];const nets=netsLocal();const name=A.userName?A.userName():nomC(me);const key=A.userKey?A.userKey():null;const today=todayIso();const idsToday=planDe(me.id,today);const mySiteIds=new Set([...idsToday,...mesSites(me).map(c=>c.id)]);
   const open=(id,tab)=>()=>{if(A.openSite)A.openSite(id,tab);};
   const push=o=>L.push(o);
-  /* 0. documentation obligatoire D'ENTREPRISE (règlement intérieur, notes de service, accueil nouvel arrivant) — règle Ethan : avant tout le reste */
-  if(me._acc)docsTodo(me._acc).forEach(d=>push(Object.assign({act:true,sev:'bad',ic:d.kind==='accueil_entreprise'?ICO.hat:ICO.doc,t:(d.kind==='accueil_entreprise'?'Accueil nouvel arrivant à compléter : ':'À lire et signer : ')+d.title,s:(DOC_KINDS[d.kind]||d.kind)+(d.version?' · '+d.version:'')+' · obligatoire, une seule fois',when:whenOf(d.at),go:()=>docOpen(d.id,me._acc)},docTaskInfo(d,me._acc)))); /* 14/10 nuit : document d'accueil → délai restant (orange), rouge une fois dépassé */
+  /* 0. documentation obligatoire D'ENTREPRISE (règlement intérieur, notes de service, documents d'accueil) — règle Ethan : avant tout le reste */
+  if(me._acc)docsTodo(me._acc).map(d=>({d,i:docTaskInfo(d,me._acc)})).sort((a,b)=>((a.i.due?a.i.due.left:1e9)-(b.i.due?b.i.due.left:1e9))).forEach(({d,i})=>push(Object.assign({act:true,sev:'bad',ic:ICO.doc,t:'À lire et signer : '+d.title,s:(DOC_KINDS[d.kind]||d.kind)+(d.version?' · '+d.version:'')+' · à signer sous 7 jours',when:i.due?docDueShort(i.due):whenOf(d.at),go:()=>docOpen(d.id,me._acc)},i))); /* 14/10 nuit : délai restant (orange), rouge une fois dépassé ; 19/10 (QF) : TOUT document a son échéance (« à signer avant le JJ/MM », J-n, « en retard de n j »), le plus urgent d'abord ; plus d'accueil nouvel arrivant provisoire */
+  /* 19/10 (QF) : rappel du chef (son équipe) / des RH, direction, QSE (toute l'entreprise) : « N personnes ont des documents en retard » — lecture seule, comme les habilitations */
+  if(can(me,'pointage.validate')||can(me,'qse.manage')||accueilType(me)==='rh'||accueilType(me)==='direction'||me.admin){const tous=can(me,'qse.manage')||accueilType(me)==='rh'||accueilType(me)==='direction'||me.admin;const late=docsLatePeople((tous?DATA.personnes.filter(p=>p.active&&p.id!==me.id):equipeDe(me)).map(p=>p._acc).filter(Boolean));
+    if(late.length)push({act:false,sev:'bad',ic:ICO.doc,kl:'Documents en retard',kv:late.length+' personne'+(late.length>1?'s':''),t:late.length+' personne'+(late.length>1?'s':'')+' '+(late.length>1?'ont':'a')+' des documents en retard',s:late.slice(0,4).map(x=>x.name+' ('+x.n+')').join(' · ')+(late.length>4?' …':''),go:()=>docsLateOpen(late,tous)});}
   /* 0bis. accueil chantier : sur chaque chantier où je suis placé (cette semaine) sans accueil signé par moi → parcours (PPSPS, 10 points, DICT, prévention) */
   const accSigned=net=>((net.qse&&net.qse.docs)||[]).some(d0=>d0&&!d0.deleted&&d0.type==='accueil'&&qseSigned(d0,name,key));
   if(can(me,'qse.sign')&&['terrain','interim','chef'].includes(kindOf(me))){const wk=new Set(semaineDe(0).flatMap(d=>planDe(me.id,d)));[...wk].forEach(id=>{const net=nets.find(n=>n.id===id);if(net&&accSigned(net))return;const c=site(id);push({act:true,sev:'bad',ic:ICO.hat,t:'Accueil chantier à faire : '+(c.nom||id),s:'PPSPS à dérouler, 10 points, DICT, prévention, signature — avant de commencer sur ce chantier',when:idsToday.includes(id)?'aujourd\'hui':'cette semaine',go:()=>{A.state.autoParcours=true;if(A.openSite)A.openSite(id,'qse');}});});}
@@ -1312,9 +1317,10 @@ function notifsFor(me){const L=[];const nets=netsLocal();const name=A.userName?A
     else if(gens.length)push({act:false,sev:'ok',ic:ICO.cal,kl:'Planning S'+numSemaine(js[0]),kv:'tout le monde est placé 🎉',t:'Semaine prochaine : tout le monde est placé 🎉',s:'',go:()=>goX('orga')});}
   if(can(me,'qse.manage')||can(me,'pointage.validate')){const al=alertesHab(equipeDe(me),0);if(al.length)push({act:false,sev:'warn',ic:ICO.badge,wait:can(me,'qse.manage')?null:'le bureau',kl:'Habilitations équipe',kv:al.length+' à traiter',t:al.length+' habilitation'+(al.length>1?'s':'')+' à traiter dans l\'équipe',s:al.slice(0,3).map(x=>nomC(x.p&&x.p.id?x.p:pers(x.p))+' ('+((DATA.habTypes[x.type]&&DATA.habTypes[x.type].label)||x.type)+')').join(' · '),go:()=>goX('habsEq')});}
   /* débours à valider (conducteur / bureau) ; mes débours refusés (chacun) */
-  /* 13/10 : offres à remettre (dossier de A à Z) — J-3, J-1, jour J et dépassée, pour qui voit les affaires ; priorité à ses propres affaires */
+  /* 13/10 : offres à remettre (dossier de A à Z) — J-3, J-1, jour J et dépassée, pour qui voit les affaires ; priorité à ses propres affaires.
+     19/10 (QF, Ethan : « enlève les notifs qui touchent aux offres sur les dossiers importés : ce sont de vieux historiques ») : jamais pour une affaire importée du reporting (affEstImportee) */
   if(can(me,'affaires.view')){const lim=(()=>{const d=D(today);d.setDate(d.getDate()+3);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());})();const mine=nomC(me);
-    affAll().filter(a=>['preconsult','devis'].includes(a.etat)&&a.dateReponse&&!(a.offre&&a.offre.remiseAt)&&a.dateReponse<=lim).sort((a,b)=>String(a.dateReponse).localeCompare(String(b.dateReponse))).slice(0,3).forEach(a=>{const j=Math.round((new Date(a.dateReponse+'T00:00:00')-new Date(today+'T00:00:00'))/86400000);
+    affAll().filter(a=>!affEstImportee(a)&&['preconsult','devis'].includes(a.etat)&&a.dateReponse&&!(a.offre&&a.offre.remiseAt)&&a.dateReponse<=lim).sort((a,b)=>String(a.dateReponse).localeCompare(String(b.dateReponse))).slice(0,3).forEach(a=>{const j=Math.round((new Date(a.dateReponse+'T00:00:00')-new Date(today+'T00:00:00'))/86400000);
       push({act:true,sev:j<0?'bad':j<=1?'bad':'warn',ic:ICO.pen,t:'Offre '+a.num+' · '+(a.nom||'')+(j<0?' : remise dépassée ('+fDate(a.dateReponse)+')':j===0?' : à remettre aujourd\'hui':' : à remettre '+fJour(a.dateReponse)+' (J-'+j+')'),s:(a.client||'')+(a.charge?' · '+a.charge:'')+(a.charge&&a.charge!==mine?'':' · Commerce → Offre'),when:'J'+(j<0?'+'+(-j):j?'-'+j:''),go:()=>{const AS=affState();AS.cur=a.num;AS.view='fiche';AS.tab='offre';AS.seg='devis';goX('aff');}});});}
   if(can(me,'planning.edit')||can(me,'affaires.edit')||me.admin){const T=dbTodo();if(T.length)push({act:true,sev:'warn',ic:ICO.cart,t:T.length+' note'+(T.length>1?'s':'')+' de frais à valider',s:T.slice(0,3).map(d=>(d.name||'')+' · '+(+d.montant||0).toLocaleString('fr-FR')+' €').join(' · ')+' — '+T.reduce((a,d)=>a+(+d.montant||0),0).toLocaleString('fr-FR')+' € en attente',when:whenOf(T[0].at),go:()=>{cmdState().etat='';goX('frais');}});}
   /* flotte : alertes du parc (responsable flotte) ; mon véhicule (chacun) — à savoir */
@@ -1332,6 +1338,11 @@ function notifsFor(me){const L=[];const nets=netsLocal();const name=A.userName?A
   EXT.forEach(m=>{if(!m.tasks)return;try{(m.tasks(me,extCtx(me))||[]).forEach(o=>push(Object.assign({ic:ICO.doc},o)));}catch(e){console.warn(e);}}); /* 14/10 nuit : modules branchés */
   return L;}
 const kindOf=p=>p.type==='interim'?'interim':p.poste==='chef'?'chef':accueilType(p)==='terrain'?'terrain':accueilType(p);
+/* 19/10 (QF) : fenêtre « documents en retard » (lecture seule) : qui, quels documents, depuis combien de jours — le chef relance, les RH ont la liste imprimable dans Documents d'entreprise */
+function docsLateOpen(late,tous){const rows=late.map(x=>`<tr><td><b>${esc(x.name)}</b><div class="dim" style="font-size:11px">${esc((DATA.postes[x.acc.poste]||{}).label||x.acc.poste||'')}${x.acc.type==='interim'?' · intérim':''}</div></td><td style="white-space:normal;font-size:12px">${x.docs.map(d=>{const u=docDue(d,x.acc);return esc(d.title)+(u?' <b style="color:#9b2c22">(retard '+(-u.left)+' j)</b>':'');}).join('<br>')}</td></tr>`).join('');
+  A.openModal(`<h3 style="margin-top:0">Documents en retard <span class="hint">· ${late.length} personne${late.length>1?'s':''}${tous?'':' de ton équipe'}</span></h3><div class="hint" style="margin:0 0 6px">Documents d'entreprise non signés dont l'échéance (7 jours) est dépassée. Rien ne bloque leur appli : un rappel de vive voix suffit en général.</div>
+    <div style="max-height:60vh;overflow:auto"><table class="rc" style="font-size:12.5px">${rows}</table></div><div class="actions" style="margin-top:8px">${tous?'<button class="btn block" id="dl-print">🖨 Liste imprimable</button>':''}<button class="btn block" data-close>Fermer</button></div>`);
+  const b=document.getElementById('dl-print');if(b)b.onclick=()=>{const w=window.open('','_blank');if(!w){msg('Autorise la fenêtre pop-up pour imprimer');return;}w.document.write(docsLateHTML(DATA.personnes.map(p=>p._acc).filter(Boolean)));w.document.close();};}
 function goSub(k){if(k==='heures'){const me=pers(S.me);if(me&&!can(me,'pointage.self')){goX('valid');return;}} /* encadrant : les pointages de l'équipe sont dans Équipes */S.tab='moi';S.sub=k;S.fiche=null;if(A.homeTab){A.homeTab('espace');return;}render();}
 function goX(k){if(k==='cmd')cmdState().tab='cmd';else if(k==='comptes')cmdState().tab='comptes';else if(k==='frais')cmdState().tab='db';const hk=xsubHome(k)||'expl';S.tab=hk;if(S.tab==='secu'){S.tab='expl';S.hubSeg='secu';}else if(S.tab==='expl')S.hubSeg='eq';S.xsub=k;S.fiche=null;if(A.homeTab){A.homeTab(hk==='secu'?'secu':S.tab);return;}render();}
 function heroAccueil(me){const today=todayIso();const ids=planDe(me.id,today);const t=accueilType(me);const kit=KIT&&avPoste(me);
@@ -1365,9 +1376,10 @@ function spacesFor(me){const L=[{k:'sites',t:'Chantiers',ic:SVG.pin,go:'sites',n
   return L;}
 const notifHTML=(x,i)=>`<button class="ac-notif ${x.sev}" data-act="notif" data-v="${i}"><span class="ic">${x.ic}<i class="nd"></i></span><span class="tx"><b>${esc(x.t)}</b>${x.s?`<small>${esc(x.s)}</small>`:''}</span><span class="when">${esc(x.when||'')}</span><span class="chev">${CHEV}</span></button>`;
 const ktHTML=(x,i)=>`<button class="ac-kt ${x.sev}" data-act="notif" data-v="${i}"><span class="ic">${x.ic}</span><span class="tx"><b>${esc(x.kl||x.t)}</b><small>${esc(x.kv||x.s||'')}</small>${x.wait?`<span class="ac-wait">⏳ on attend ${esc(x.wait)}</span>`:''}</span></button>`;
+const extBanner=me=>EXT.map(m=>{try{return (m.banner&&m.banner(me,extCtx(me)))||'';}catch(e){console.warn(e);return '';}}).join(''); /* 19/10 (QF) : carte NON bloquante d'un module en tête de l'accueil (bienvenue : documents à signer sous 7 jours) */
 function vAccueil(me){NOTIFS=notifsFor(me);const A2=NOTIFS.map((x,i)=>[x,i]).filter(([x])=>x.act),K=NOTIFS.map((x,i)=>[x,i]).filter(([x])=>!x.act);const today=todayIso();
   return `<h1 class="ac-hi">Bonjour ${esc(me.prenom)} 👋</h1><div class="ac-date">${esc(fJourLong(today))} · semaine ${numSemaine(today)}${secteurDe(me)?' · secteur '+esc(SECTEURS[secteurDe(me)]||secteurDe(me)):''}</div>
-    <div class="ac-two"><div>${heroAccueil(me)}${cPointer(me,false)}</div><div>
+    ${extBanner(me)}<div class="ac-two"><div>${heroAccueil(me)}${cPointer(me,false)}</div><div>
     <div class="ac-h"><b>À faire</b><span class="st ${A2.length?'or':'ok'}">${A2.length?A2.length+' action'+(A2.length>1?'s':'')+' attendue'+(A2.length>1?'s':'')+' de toi':'✓ à jour'}</span></div>
     ${A2.length?A2.map(([x,i])=>notifHTML(x,i)).join(''):'<div class="ac-empty">✓ Tu es à jour — rien n\'attend de toi.</div>'}
     <div class="ac-h"><b>À savoir</b><span>${K.length?'raccourcis · '+K.length:'rien de nouveau'}</span></div>
@@ -2042,7 +2054,7 @@ function vExpl(me){const sub=vSub(me);if(sub!==null)return sub;if(S.hubSeg==='se
     ${hubSec('📅','Planning & objectifs','placer, viser, composer',[
       chef?row('Mon planning et mon équipe','Qui est avec toi, quels jours, sur quels chantiers — fait par ton conducteur',ICO.cal,'#fdebe3','orga'):row('Planning des équipes','Placer les gars semaine par semaine, par secteur · équipes A / B · créer un profil en deux minutes',ICO.cal,'#fdebe3','orga',nP?nP+' à placer':null,'bad'),
       row('Objectifs des équipes','Par chantier → équipe → jour : missions en heures estimées, soudures ou tronçon sur le plan, DN — pas un plafond',ICO.flag,'#fdebe3','obj',nObj||null),
-      row('Ma semaine','Composer ta semaine : visites, réunions, rendez-vous · import / export Outlook · la semaine de ceux qui dépendent de toi',ICO.cal,'#e8f0fb','agenda',(()=>{const n=agWeek(me,semaineDe(0)).length;return n||null;})())])}
+      row('Ma semaine','Composer ta semaine : visites, réunions, rendez-vous · import / export Outlook · la semaine de ceux qui dépendent de toi',ICO.cal,'#e8f0fb','agenda',(()=>{const n=agWeek(me,semaineDe(0)).length;return n||null;})()),magHubRow(me,[...equipeIds(me)],row)])}
     ${hubSec('⏱','Heures & paie','pointages, variables de paie, production, déplacements',[
       row('Pointages à valider','Heures de l\'équipe, correction avec motif · pointages manquants',ICO.check,'#e6f5ec','valid',(nV+nM)||null,nM?'bad':''),
       row('Production par équipe','Comme le planning : chantier → équipe → personne · heures de chacun, production de chacun → production de l\'équipe, face aux objectifs',ICO.flag,'#efeafb','prodEq',null),
@@ -2071,7 +2083,7 @@ function hubEntreprise(me){const row=hubRow;const t=accueilType(me);const dir=t=
     ${hubSec('👥','Les gens','',[
       row('Annuaire','Toute l\'entreprise par poste : fiche, téléphone, adresse, ancienneté',ICO.home,'#ececea','annu',DATA.personnes.filter(p=>p.active).length)])}
     ${hubSec('📄','Documents & communication','',[
-      q?row('Documents d\'entreprise','Règlement intérieur, notes de service, flash info, accueil nouvel arrivant — qui a signé, qui est à relancer',ICO.doc,'#e8f0fb','docs',nDocsTodo||null,'bad'):row('Documents d\'entreprise','Règlement intérieur, notes de service, flash info — ce que tu dois lire et signer',ICO.doc,'#e8f0fb','docs'),
+      q?row('Documents d\'entreprise','Règlement intérieur, notes de service, flash info, documents d\'accueil — qui a signé, qui est à relancer (échéance 7 jours)',ICO.doc,'#e8f0fb','docs',nDocsTodo||null,'bad'):row('Documents d\'entreprise','Règlement intérieur, notes de service, flash info — ce que tu dois lire et signer',ICO.doc,'#e8f0fb','docs'),
       row('Communication interne','Infos publiées à tout le monde : actualités, résultats, événements — à lire, sans signature',ICO.msg,'#e3f3f3','info',nInfo||null),
       row('Présentation de l\'entreprise','Qui est SCR : métier, chiffres clés, organisation, valeurs — la page qu\'on montre à un nouvel arrivant',ICO.bld,'#fff4d6','presentation')])}
     ${extHub('entreprise',me).length?hubSec('🧩','Accueil, magasin, véhicules','',extHub('entreprise',me)):''}
@@ -2427,4 +2439,4 @@ function bind(){if(bound)return;bound=true;
     else ACT.plput(z.dataset.drop);});
   document.addEventListener('toggle',e=>{const d=e.target&&e.target.dataset&&e.target.dataset.det;if(d)S[d]=e.target.open;},true);
 }
-bind();
+if(typeof document!=='undefined')bind(); /* 19/10 (assemblage DB) : chargé aussi par les tests Node via debours.js → pas de document hors navigateur */
