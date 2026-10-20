@@ -53,7 +53,7 @@ function lightTabs(){const tb=document.getElementById('tabbar');if(!tb)return;
 // dispatch de renderAll pour les vues injectées
 export function nextRenderTab(tab){qseBadge();if(tab==='bureau'){renderBureau();return true;}if(tab==='admin'&&nOn('admin')){renderAdmin();return true;}if(tab==='qse'){renderQse();return true;}if(scrRenderTab(tab))return true;return false;}
 // ---------- BUREAU DU CHANTIER (nuit 09→10/10) ----------
-const TAB_LABELS={plan:['Plan d’ensemble','📐'],bouclage:['DH · bouclage','🔌'],hydro:['Hydraulique','🌊'],stock:['Stock & livraisons','🚚'],fourniture:['Fourniture · commande','🧾'],phasage:['Phasage','📅'],ts:['Modifs · TS','📄'],conv:['Conversation','💬'],qse:['QSE · accueils','⛑️'],admin:['Dossier administratif','🗂'],export:['Export DOE','📷'],liste:['Liste des soudures','🎖'],recap:['Récap','📊'],catalogue:['Catalogue','📦']};
+const TAB_LABELS={plan:['Plan d’ensemble','📐'],bouclage:['DH · bouclage','🔌'],hydro:['Hydraulique','🌊'],stock:['Stock & livraisons','🚚'],fourniture:['Fourniture · commande','🧾'],phasage:['Phasage','📅'],ts:['Modifs · TS','📄'],conv:['Conversation','💬'],qse:['QSE · accueils','⛑️'],admin:['Dossier administratif','🗂'],export:['Export DOE','📷'],liste:['Liste des soudures','🎖'],recap:['Récap','📊'],catalogue:['Catalogue','📦'],points:['Points de contrôle · photos','📍']}; /* 20/10 (lot PA) : points */
 function renderBureau(){const el=document.getElementById('bureau');if(!el)return;const NET=A.net();const esc=A.esc;if(!NET||NET.id==='__vide'||!A.bureau){el.innerHTML='<h2 class="vt">Bureau</h2><div class="card muted">Aucun chantier.</div>';return;}
   let B=null;try{B=A.bureau(NET.id);}catch(e){console.warn('bureau',e);}if(!B){el.innerHTML='<h2 class="vt">Bureau</h2><div class="card muted">Bureau indisponible.</div>';return;}
   const f=B.fiche||{};const allowed=t=>!A.tabAllowed||A.tabAllowed(t);const tabs=Object.keys(TAB_LABELS).filter(t=>allowed(t)&&(t!=='admin'||nOn('admin'))&&document.querySelector(`#tabbar [data-tab="${t}"]`));
@@ -72,10 +72,10 @@ function renderBureau(){const el=document.getElementById('bureau');if(!el)return
   const pres=B.eqAv&&B.eqAv.length?`<div class="ac-team"><span class="avs">${B.eqAv.slice(0,6).join('')}</span><span>${B.eq.length} présent${B.eq.length>1?'s':''} : ${esc(B.eq.join(', '))}</span></div>`:`<div class="ac-s">personne de placé aujourd'hui (planning)</div>`;
   const hero=`<section class="ac-hero ac-bhero" style="background:${mk?mk[1]:'var(--plane)'}"><div class="r" style="flex:1">
       <span class="ac-kick">Aujourd'hui · ${esc(B.today?B.today.slice(8,10)+'/'+B.today.slice(5,7):'')}${B.pc!==null?' · '+B.pc+' % soudé':''}</span>
-      <div class="ac-site">📍 ${esc(NET.name||'')}</div>
+      <div class="ac-site">📍 ${esc(NET.name||'')}${A.ncTag?A.ncTag(NET.id):''}</div>
       <div class="ac-stats"><div class="ac-stat"><b>${B.chef?esc(B.chef.split(' ')[0]):'—'}</b><small>chef de chantier</small></div><div class="ac-stat"><b>${B.conducteur?esc(B.conducteur.split(' ')[0]):'—'}</b><small>conducteur</small></div>${B.meteo?`<div class="ac-stat"><b>${mk[0]} ${B.meteo.t} °C</b><small>${esc(B.meteo.tenue||B.meteo.label)}</small></div>`:''}</div>
-      <div class="kv" style="font-size:12.5px">${f.horaires?`<span>🕗 ${esc(f.horaires)}</span>`:''}<span>📍 rassemblement : ${esc(f.rassemblement||'base vie')}</span></div>
-      ${pres}</div></section>`;
+      <div class="kv" style="font-size:12.5px">${f.horaires?`<span>🕗 ${esc(f.horaires)}</span>`:''}<span>📍 rassemblement : ${esc(f.rassemblement||'base vie')}</span>${A.ncFiche?A.ncFiche(NET):''}</div>
+      ${pres}</div></section>`; /* 20/10 (lot NC) : ncTag = « créé à la main · sans tracé » ; ncFiche = ville, client, début prévu, fournisseur, note, « ✎ Fiche » */
   el.innerHTML=`<div class="eq-app ac-bureau">${hero}
     ${today.length?`<div class="ac-h"><b>Ce qui t'attend ici</b><span>${today.length} point${today.length>1?'s':''}</span></div>${today.join('')}`:'<div class="okbox" style="margin:10px 0">✓ Rien n’attend de toi sur ce chantier aujourd’hui.</div>'}
     ${B.dash?`<div class="ac-h"><b>Ce qui coince</b><span>${B.bad.length} bloquant${B.bad.length>1?'s':''} · ${B.warn.length} à surveiller</span></div>${(B.bad.concat(B.warn).slice(0,6)).map(x=>`<button class="ac-notif ${B.bad.includes(x)?'bad':'warn'}" data-bur="${esc(x.tab||'plan')}"><span class="tx"><b>${esc(x.lab)} — ${esc(x.v)}</b>${x.s?`<small>${esc(x.s)}</small>`:''}</span>${chk(B.bad.includes(x)?'bad':'warn')}</button>`).join('')||'<div class="ac-empty">✓ Rien ne coince.</div>'}
