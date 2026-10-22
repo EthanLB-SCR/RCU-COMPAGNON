@@ -13,6 +13,10 @@
 // « prendre au prorata de mes ml » = reste + reprise, total inchangé, un seul ↶ · c8 tout est pointé → nouvelle ligne 3.2.3 : la case est toujours là (reprise sur
 // 3.2.1, 3.2.2) · c9 « ↻ Reventiler » (ventilation changée) : écrit, total inchangé, « la Zone … rend … à la Zone … » · c10 une zone dont aucune ligne ne porte :
 // sa part sur ses lignes au ml · c11 consultation d'une version : lecture seule · c12 téléphone 390 px · console.
+// 21/10 (Ethan : « 120 ml ajoutés, laissés à placer, mais je n'avais que 93 ml dispo en installation » ; « 64 % de 63 % de l'installation plutôt que 64 % de 60 % ») :
+// RÈGLE DE COUVERTURE (dpgfzone.js) — une ligne au ml porte ses ml × la part de sa zone ÷ les ml de la zone ; « Laisser à placer » d'une installation ventilée par
+// zone remet la part de zone à jour (c6 : la ventilation qui a changé avec les ml en plus est traitée du même coup) ; c7 : la nouvelle ligne prend ses 48 ml
+// ENTIÈREMENT sur le reste de la zone (plus de reprise) ; c9 : Reventiler après un changement de ventilation (au prix → à parts égales). Adapté exprès : c6, c7, c9.
 // Captures : SHOTS (défaut /root/work/dy_shots).
 import { chromium } from 'playwright';
 import fs from 'fs';import path from 'path';import {fileURLToPath} from 'url';
@@ -157,14 +161,20 @@ await page.evaluate(()=>{const b=document.querySelector('#c3-dlg .dy-keep');if(b
 await click('dxcokeep|');await wait(800);a=await A();out.after={inst:Object.fromEntries(Object.keys(I.posts).map(p=>[p,r2(instQ(a,p))])),pu:await cellsPu(),toast:sp(await toast()),left:(await its()).map(x=>U(x.k)+':'+x.kind).join(' ')};
 const D6=jd(a);await click('dxundo|');await wait(500);a=await A();out.undo=jd(a)===L6;await click('dxredo|');await wait(500);a=await A();out.redo=jd(a)===D6;if(await page.$('#c3-dlg'))await click('dxc3close|');
 console.log('c6) ml en plus :',JSON.stringify(out));
+/* 21/10 : « Tout traiter au prorata » (les 3 installations + « la ventilation par zone a changé » + les soudures) donne les MÊMES installations que « Laisser à placer
+   les 3 installations » : le Reventiler qui suit un « Laisser à placer » ne remet pas une 2e fois à l'échelle (calcul sur les liens en cours d'écriture) */
+const instOf=a=>Object.fromEntries(Object.keys(I.posts).map(p=>[p,(a.dpgf.liens||[]).map(L=>L.a+':'+r2((L.comps||[]).filter(x=>x.k==='inst|'+p).reduce((s,x)=>s+(+x.q||0),0))).sort().join(' ')]));
+{a=await A();const K6=instOf(a);await click('dxundo|');await wait(500);await click('dxc3list|');await wait(600);await click('dxc3all|');await wait(900);a=await A();const T6=instOf(a);const left6=(await its()).map(x=>x.k).join(' ');
+  await click('dxundo|');await wait(500);if(await page.$('#c3-dlg'))await click('dxc3close|');await click('dxc3list|');await wait(600);await click('dxcokeep|');await wait(800);a=await A();const K6b=instOf(a);if(await page.$('#c3-dlg'))await click('dxc3close|');
+  console.log('c6b) tout traiter = laisser à placer :',JSON.stringify({K6,T6,left6}));C.c6b=JSON.stringify(K6)===JSON.stringify(T6)&&JSON.stringify(K6)===JSON.stringify(K6b)&&!/inst\||vz:inst/.test(left6);}
 const e48=p=>48*I.posts[p].amtV/I.ml;
 C.c6=I.ml===588&&bal.length===3&&bal.every(x=>{const p=x.k.split('|')[1];const e=Math.round(e48(p)).toLocaleString('fr-FR').replace(/[\s  ]/g,' ');
     return x.pr==='Laisser à placer pour les nouvelles lignes (48 ml · '+e+' €)'&&x.bt[1]==='Refaire la balance sur les 4 lignes (elles gardent leur PU, rien à placer)'&&x.b[0]==='dxc3do|'+encodeURIComponent(x.k)+'|keep'
       &&/^540 → 588 ml au chiffrage, montant inchangé : l'installation se répartit sur plus de ml ; tes 4 lignes \(2\.1, 2\.2, 3\.2\.1, 3\.2\.2\) gardent leurs ml, leur PU baisse un peu ; 48 ml \(≈ [\d ]+ €\) sont libérés pour les nouvelles lignes\.$/.test(x.t)
       &&/^PU qui changent : 2\.1 [\d ,]+ → [\d ,]+ €/.test(x.pu);})
   &&/^Laisser à placer les 3 installations/.test(out.keepAll)&&/48 ml en plus au chiffrage/.test(out.keepAll)&&/Des ml en plus au chiffrage \(lignes du DPGF inchangées\) → laissés à placer pour les nouvelles lignes/.test(out.all)
-  &&/Zone Nord \(essai\) : [\d ]+ € → [\d ]+ €/.test(out.vz)&&/Le total du DPGF ne change pas/.test(out.vz)
-  &&Object.keys(out.after.inst).every(p=>Math.abs(out.after.inst[p]-540)<0.01)&&out.after.pu.every((x,i)=>nbv(x)<nbv(pu6[i])-0.004)&&/^✓ 3 installations laissées à placer pour les nouvelles lignes/.test(out.after.toast)&&!/inst\|/.test(out.after.left)&&out.undo&&out.redo;
+  &&/Zone Nord \(essai\) : [\d ]+ € → [\d ]+ €/.test(out.vz)&&/Zone Nord \(essai\) : 48 ml du chiffrage ne sont sur aucune ligne du DPGF → [\d ]+ € y restent à placer/.test(out.vz) /* 21/10 : règle de couverture */
+  &&Object.keys(out.after.inst).every(p=>Math.abs(out.after.inst[p]-(588-48*I.sh[0]*588/I.zml[0]))<0.05)&&!/vz:inst/.test(out.after.left)&& /* 21/10 : la part de la Zone Nord des 48 ml reste à placer, la ventilation est remise à jour */out.after.pu.every((x,i)=>nbv(x)<nbv(pu6[i])-0.004)&&/^✓ 3 installations laissées à placer pour les nouvelles lignes/.test(out.after.toast)&&!/inst\|/.test(out.after.left)&&out.undo&&out.redo;
 // ── c7) la nouvelle ligne 2.3 (48 ml, Zone Nord) : ses soudures DN 100 (☑ DN 100) et, pour chaque installation, « prendre au prorata de mes ml : 48 ml » = € / ml
 //        de la zone × 48 ; le détail « X € = Y € du reste de la zone + Z € repris sur 2 lignes de la zone (2.1 −…, 2.2 −…) » ; « Mettre » : la part écrite (le reste
 //        sur la ligne, la reprise en parts données), ce que perdent 2.1 et 2.2 = ce que reçoit la 2.3 au-delà du reste ; le reste des installations est placé ; un seul ↶
@@ -180,10 +190,9 @@ out.put={comps:L23?L23.comps.map(x=>U(x.k)+'='+r2(+x.q)+(x.via?'·'+x.via:'')+(x
 const D7=jd(a);await click('dxundo|');await wait(500);a=await A();out.undo=jd(a)===JSON.stringify(before7);await click('dxredo|');await wait(500);a=await A();out.redo=jd(a)===D7;
 console.log('c7) nouvelle ligne au prorata de ses ml :',JSON.stringify(out));
 const fund=out.rows.map(r=>r.d);const repE=out.put.lose.reduce((s,x)=>s+x,0);const restE=r2(instTot(a,I)-tot7);
-C.c7=out.rows.length===3&&out.rows.every(r=>r.on&&r.v==='48'&&/^prendre au prorata de mes ml : ml = [\d ,]+ €/.test(r.cq))&&fund.every(t=>/^[\d ]+ € = [\d ]+ € du reste de la zone/.test(t))
-  &&fund.some(t=>/\+ [\d ]+ € repris sur 2 lignes de la zone \(2\.1 −[\d ]+ €, 2\.2 −[\d ]+ €\)$/.test(t))
+C.c7=out.rows.length===3&&out.rows.every(r=>r.on&&r.v==='48'&&/^prendre au prorata de mes ml : ml = [\d ,]+ €/.test(r.cq))&&fund.every(t=>/^[\d ]+ € = [\d ]+ € du reste de la zone$/.test(t)) /* 21/10 : plus de reprise — le reste de la zone = la part des 48 ml */
   &&!!out.put.comps&&Object.keys(I.posts).every(p=>Math.abs(out.put.got[p]-out.put.exp[p])<0.05)&&Object.keys(out.put.full).every(p=>Math.abs(out.put.full[p]-588)<0.01)
-  &&repE>0.5&&Math.abs(r2(Object.values(out.put.got).reduce((s,x)=>s+x,0))-r2(restE+repE))<0.05&&out.put.keepS&&/avec sa part d'installations au prorata de ses ml/.test(out.put.toast)&&/repris sur 2 lignes/.test(out.put.toast)&&out.undo&&out.redo;
+  &&Math.abs(repE)<0.01&&Math.abs(r2(Object.values(out.put.got).reduce((s,x)=>s+x,0))-restE)<0.05&&out.put.keepS&&/^Prix lié : [\d ,]+ € dans O13/.test(out.put.toast)&&out.undo&&out.redo;
 // ── c8) tout est pointé : la nouvelle ligne 3.2.3 (20 ml, Zone Sud) — les installations de la zone sont barrées (« tout pointé dans la zone · lignes 3.2.1, 3.2.2 »)
 //        mais la case est là ; cochée : « X € = X € repris sur 2 lignes de la zone (3.2.1 −…, 3.2.2 −…) » ; « Mettre » : 3.2.1 et 3.2.2 rendent exactement ce que reçoit
 //        la 3.2.3, le total ne bouge pas ; un seul ↶
@@ -200,14 +209,19 @@ C.c8=out.r8.length===3&&out.r8.every(r=>r.done&&!r.dis&&/^(✓ tout pointé dans
   &&/avec sa part de 3 postes tout pointés/.test(out.put.toast)&&/reprise au prorata sur 2 lignes/.test(out.put.toast)&&out.undo;
 // ── c9) « ↻ Reventiler » (la ventilation par zone a changé avec les ml en plus) : le texte dit que le total ne change pas et qui rend quoi à qui ; il écrit (chaque
 //        zone porte sa part, le reste à placer ne revient pas), total inchangé, PU de l'aperçu, un seul ↶
-I=await info();a=await A();const tot9=instTot(a,I);const e9=ecart(a,I);const P9b=porte(a,I);const gS=Object.keys(I.posts).reduce((s,p)=>s+P9b[p][1]-part(I,p,1),0); /* ce que la Zone Sud porte en trop */await shut();await click('dxc3list|');await wait(600);L3=await its();const it9=L3.find(x=>x.k==='vz:inst');
+await chif(async()=>{await click('chview|inst');await chg('#eq-app [data-afx="inst§ventil"]','egal');}); /* 21/10 : la ventilation change au chiffrage (au prix → à parts égales) */
+I=await info();a=await A();const tot9=instTot(a,I);const e9=ecart(a,I);const P9b=porte(a,I);const gS=Object.keys(I.posts).reduce((s,p)=>s+P9b[p][0]-part(I,p,0),0); /* ce que la Zone Nord porte en trop */await shut();await click('dxc3list|');await wait(600);L3=await its();const it9=L3.find(x=>x.k==='vz:inst');
 await page.evaluate(()=>{const b=document.querySelector('#c3-dlg .c3-it[data-k="vz:inst"]');if(b)b.scrollIntoView({block:'start'});});await wait(200);await shot('pc_1366_reventiler.png');
 const prev9=Object.fromEntries([...(it9?it9.pu:'').matchAll(/(\d+(?:\.\d+)+) [\d ,]+ → ([\d ,]+) €/g)].map(m=>[m[1],nbv(m[2])]));
 await click('dxc3do|vz%3Ainst|revent');await wait(900);a=await A();const P9=porte(a,I);
 out={gS:r2(gS),t:it9?it9.t:'',b:it9?it9.b:[],prev:prev9,tot:[r2(tot9),r2(instTot(a,I))],e:[r2(e9),r2(ecart(a,I))],pu:Object.fromEntries((await cellsPu()).map((x,i)=>[['2.1','2.2','3.2.1','3.2.2'][i],nbv(x)])),toast:sp(await toast()),left:L3.length};
 const D9=jd(a);await click('dxundo|');await wait(500);a=await A();out.undo=r2(ecart(a,I))===out.e[0];await click('dxredo|');await wait(500);a=await A();out.redo=jd(a)===D9;if(await page.$('#c3-dlg'))await click('dxc3close|');
 console.log('c9) reventiler :',JSON.stringify(out));
-const m9=/Le total du DPGF ne change pas : la Zone Sud \(essai\) rend ([\d ]+) € à la Zone Nord \(essai\)\./.exec(out.t);
+/* 21/10 (Ethan : « si je reprends des lignes pour les actualiser après avoir changé des ml, je trouve des différences entre ml de soudure pointés et d'installation ») :
+   la ligne 2.1 rouverte au calculateur — ses 3 installations de zone disent ses 180 ml (gardés sur la prise), comme ses soudures */
+await openCalc(11);const ml9=await page.$$eval(zb(0)+' .dy-zr [data-dx="cq"]',L=>L.map(i=>i.value));const q9=await page.$eval('#dx-calc .c2-q span',e=>e.textContent).catch(()=>'');await shut();
+console.log('c9b) 2.1 rouverte :',JSON.stringify({ml9,q9:sp(q9)}));C.c9b=ml9.length===3&&ml9.every(v=>v==='180');
+const m9=/Le total du DPGF ne change pas : la Zone Nord \(essai\) rend ([\d ]+) € à la Zone Sud \(essai\)\./.exec(out.t);
 C.c9=!!it9&&!!m9&&gS>1&&Math.abs(nbv(m9[1])-gS)<=1&&out.b[0]==='dxc3do|vz%3Ainst|revent'&&out.e[0]>1&&out.e[1]<0.05&&Math.abs(out.tot[0]-out.tot[1])<0.02
   &&Object.keys(out.prev).length>=4&&Object.keys(out.prev).filter(n=>out.pu[n]!==undefined).every(n=>Math.abs(out.pu[n]-out.prev[n])<0.006)&&/Traité : Installations : la ventilation par zone a changé/.test(out.toast)&&out.undo&&out.redo;
 // ── c10) une zone dont aucune ligne ne porte encore les installations (leurs parts déplacées sur la 2.1, comme un DPGF pointé « au ml global ») : « ventilation par

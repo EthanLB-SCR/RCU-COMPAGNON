@@ -35,5 +35,5 @@ await page.reload();await page.waitForTimeout(1500);await page.evaluate(id=>wind
 await page.click('.zoomctl [data-z=eye]');await page.waitForTimeout(100);await page.click('#disp [data-all="1"]');await page.waitForTimeout(150);console.log('tout:',JSON.stringify(await cnt()));
 await page.click('#disp [data-all="0"]');await page.waitForTimeout(150);console.log('épuré:',JSON.stringify(await cnt()));
 // un tap sur le plan referme le panneau
-await page.mouse.click(280,300);await page.waitForTimeout(150);console.log('panneau fermé:',await page.evaluate(()=>!document.querySelector('#disp').classList.contains('show'))); // (280,300) : dans le plan, au-dessus du panneau 👁 (il s'est étoffé avec les options carte)
+await page.mouse.click(100,300);await page.waitForTimeout(150);console.log('panneau fermé:',await page.evaluate(()=>!document.querySelector('#disp').classList.contains('show'))); // (100,300) : dans le plan, à gauche du panneau 👁 (21/10 : panneau en pastilles, 340 px de large)
 console.log(logs);await browser.close();

@@ -134,9 +134,10 @@ export function docOpen(docId,acc){const d=docById(docId);if(!d||!A)return;acc=a
       const answers=isQ?d.qs.map((q,i)=>({q,ok:true})):undefined;
       docSign(d,acc,Object.assign({img:pad.png(),readAt,readMode:readMode||undefined,answers},ex?{choix:ex.choix||undefined,champs:Object.keys(ex.champs).length?ex.champs:undefined,chap:chap?Object.keys(readCh).length:undefined}:{}));A.closeModal();A.toast('« '+d.title+' » signé ✓');if(A.rerender)A.rerender();};};}
 /* 14/10 nuit (accueil RH) : à la signature — choix à faire (ex. j'autorise / je n'autorise pas), champs à compléter (ex. « Fait à »), mention d'engagement */
+const isFaitA=f=>!!f&&(/^fait_?a$/i.test(String(f.id||''))||/^fait\s+(à|a)\b/i.test(String(f.label||''))); /* 21/10 (Ethan) : « enlève les Fait à… on s'en fout, c'est dématérialisé » — le champ du pack est ignoré (ni affiché, ni demandé) */
 function accFieldsHTML(X){const ch=Array.isArray(X.choix)?X.choix:[];const fs=Array.isArray(X.champs)?X.champs:[];const lab='display:flex;gap:8px;align-items:center;min-height:40px;font-size:14px';
   return (ch.length?`<div class="card" style="padding:8px 10px;margin:0 0 6px"><b style="font-size:13px">Ton choix *</b>${ch.map((c,i)=>`<label style="${lab}"><input type="radio" name="dr-choix" value="${i}" style="width:22px;height:22px"> ${esc(c)}</label>`).join('')}</div>`:'')
-   +fs.map((f,i)=>{const l=esc(f.label||f.id)+(f.requis?' *':'');
+   +fs.map((f,i)=>{if(isFaitA(f))return '';const l=esc(f.label||f.id)+(f.requis?' *':'');
      if(f.type==='case')return `<label style="${lab}"><input type="checkbox" data-champ="${i}" style="width:22px;height:22px"> ${l}</label>`;
      if(f.type==='date')return `<label class="f">${l}</label><input class="f" type="date" data-champ="${i}">`;
      if(f.type==='choix_multiple')return `<div style="margin:4px 0"><b style="font-size:13px">${l}</b><div style="display:flex;flex-wrap:wrap;gap:4px 12px">${(f.options||[]).map(o=>`<label style="${lab}"><input type="checkbox" data-champ="${i}" value="${esc(o)}" style="width:22px;height:22px"> ${esc(o)}</label>`).join('')}</div></div>`;
@@ -145,7 +146,7 @@ function accFieldsHTML(X){const ch=Array.isArray(X.choix)?X.choix:[];const fs=Ar
    +(X.mention?`<div class="okbox" style="margin:6px 0">${esc(X.mention)}</div>`:'');}
 function accFieldsGet(X){const out={choix:null,champs:{},err:null};const ch=Array.isArray(X.choix)?X.choix:[];
   if(ch.length){const r=document.querySelector('#modal input[name=dr-choix]:checked');if(!r)out.err='Fais ton choix ('+ch.join(' / ')+')';else out.choix=ch[+r.value];}
-  (Array.isArray(X.champs)?X.champs:[]).forEach((f,i)=>{if(f.type==='photo')return;const els=[...document.querySelectorAll('#modal [data-champ="'+i+'"]')];let v;
+  (Array.isArray(X.champs)?X.champs:[]).forEach((f,i)=>{if(f.type==='photo'||isFaitA(f))return;const els=[...document.querySelectorAll('#modal [data-champ="'+i+'"]')];let v;
     if(f.type==='case')v=!!(els[0]&&els[0].checked);else if(f.type==='choix_multiple')v=els.filter(e=>e.checked).map(e=>e.value);else v=String((els[0]&&els[0].value)||'').trim();
     const empty=f.type==='case'?!v:Array.isArray(v)?!v.length:!v;if(f.requis&&empty&&!out.err)out.err='À compléter : '+(f.label||f.id);out.champs[f.id||('c'+i)]=v;});
   return out;}

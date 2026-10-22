@@ -109,7 +109,7 @@ await page.evaluate(()=>document.getElementById('dr-read').click());await page.w
 out.n1.step2=await page.evaluate(()=>({radios:document.querySelectorAll('#modal input[name=dr-choix]').length,champ:!!document.querySelector('#modal input[data-champ="0"]'),mention:/Je déclare avoir lu cette note de test/.test(document.getElementById('dr-step2').textContent)}));
 await page.evaluate(()=>document.getElementById('dr-ok').click());await page.waitForTimeout(150);out.n1.t1=await toast(page);
 await page.evaluate(()=>{const r=document.querySelector('#modal input[name=dr-choix][value="0"]');r.checked=true;document.getElementById('dr-ok').click();});await page.waitForTimeout(150);out.n1.t2=await toast(page);
-await page.fill('#modal input[data-champ="0"]','Testville');await page.evaluate(()=>document.getElementById('dr-ok').click());await page.waitForTimeout(150);out.n1.t3=await toast(page);
+out.n1.t3=out.n1.t2; /* 21/10 (Ethan) : plus de « Fait à » (dématérialisé) — le champ du pack n'est ni affiché ni demandé : après le choix, la signature */
 out.ov2=await noOverflow(page);
 await draw(page,'dr-pad');await page.evaluate(()=>document.getElementById('dr-ok').click());await page.waitForTimeout(700);
 out.n1.after=await page.evaluate(()=>{const w=document.querySelector('.acc-welcome');return {gate:!!document.querySelector('.acc-gate'),welcome:w?w.textContent.replace(/\s+/g,' '):'',modal:document.getElementById('modal').classList.contains('show')};});
@@ -130,11 +130,11 @@ const sigN=REG['docsig|acc_note_test|'+INT.email],sigL=REG['docsig|acc_livret_te
 out.sig={note:sigN&&{choix:sigN.data.choix,fait:sigN.data.champs&&sigN.data.champs.fait_a,ver:sigN.data.ver,img:!!sigN.data.img,read:!!sigN.data.readAt},liv:sigL&&{chap:sigL.data.chap,img:!!sigL.data.img,ver:sigL.data.ver}};
 console.log('2) intérimaire : écran bloquant, lecture, signature :',JSON.stringify(out));
 C.c2=!out.gate&&out.tabs&&!!out.welcome&&/Bienvenue chez SCR, Bruno/.test(out.welcome)&&/4 documents à lire et à signer sous 7 jours — le premier avant le 21\/10/.test(out.welcome)&&out.todo.length===4&&out.todo.every(t=>/à signer avant le 21\/10\/2026 \(dans 7 j\)/.test(t))&&out.ov0
-  &&out.n1.dis&&out.n1.name&&out.n1.poste&&out.n1.scroll&&out.n1.mid&&out.n1.end&&out.n1.step2.radios===2&&out.n1.step2.champ&&out.n1.step2.mention&&/Fais ton choix/.test(out.n1.t1)&&/À compléter : Fait à/.test(out.n1.t2)&&/signature/.test(out.n1.t3)&&out.ov1&&out.ov2
+  &&out.n1.dis&&out.n1.name&&out.n1.poste&&out.n1.scroll&&out.n1.mid&&out.n1.end&&out.n1.step2.radios===2&&!out.n1.step2.champ&&out.n1.step2.mention&&/Fais ton choix/.test(out.n1.t1)&&/signature/.test(out.n1.t2) /* 21/10 : plus de « Fait à » */&&out.ov1&&out.ov2
   &&!out.n1.after.gate&&/3 documents à lire et à signer/.test(out.n1.after.welcome)&&!out.n1.after.modal
   &&out.l.chaps.length===2&&out.l.read0.dis&&/0 \/ 2/.test(out.l.read0.txt)&&out.ch0.canvas===1&&out.ch0.after /* une seule page : elle peut tenir à l'écran (le bouton se débloque alors tout de suite, comme ailleurs) */&&out.ch1.canvas===2&&/page 2 \/ 3\|page 3 \/ 3/.test(out.ch1.pages)&&out.ch1.after&&out.ovc0&&out.ovc1
   &&!out.l.read1.dis&&out.l.read1.ticks==='✓✓'&&out.l.mention&&!out.free.gate&&out.free.tabs&&out.free.notifs.some(t=>/Charte \(test\).*à signer avant le 21\/10\/2026 \(dans 7 j\)/.test(t))&&out.ov3
-  &&out.sig.note&&out.sig.note.choix==='J’accepte'&&out.sig.note.fait==='Testville'&&out.sig.note.ver==='v1'&&out.sig.note.img&&out.sig.note.read&&out.sig.liv&&out.sig.liv.chap===2&&out.sig.liv.img;
+  &&out.sig.note&&out.sig.note.choix==='J’accepte'&&out.sig.note.fait===undefined /* 21/10 : plus de « Fait à » */&&out.sig.note.ver==='v1'&&out.sig.note.img&&out.sig.note.read&&out.sig.liv&&out.sig.liv.chap===2&&out.sig.liv.img;
 // ── 3) Moi → Documents : « Mes livrets » (consultable par chapitre) + signés (choix) ; Moi → Passeport : à renouveler sous 90 j, manquantes pour le poste
 await page.evaluate(()=>document.getElementById('htEspace').click());await page.waitForTimeout(300);
 await page.evaluate(()=>[...document.querySelectorAll('#eq-app .eq-subs .chip')].find(x=>/Documents/.test(x.textContent)).click());await page.waitForTimeout(300);

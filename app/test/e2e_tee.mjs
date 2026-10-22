@@ -35,7 +35,7 @@ out=await page.evaluate(()=>({u:document.querySelectorAll('[data-wteeu]').length
 console.log('3) non raccordé : brins en attente, pas de pont:',JSON.stringify(out));
 const c3=out.u===0&&out.wtee>=4;
 // ── 4) étiquette « sortie de té » rangée + taille plafonnée (fini les pavés géants au zoom fort)
-out=await page.evaluate(()=>{const k=window.TRACE.state.view.k;const txts=[...document.querySelectorAll('#net text')].filter(t=>/sortie de té/.test(t.textContent));
+out=await page.evaluate(()=>{const T0=window.TRACE;T0.state.show.pieces=true;T0.renderPlan(); /* 21/10 : les noms des pièces ne sont plus affichés par défaut (👁) — on les affiche pour ce contrôle */const k=window.TRACE.state.view.k;const txts=[...document.querySelectorAll('#net text')].filter(t=>/sortie de té/.test(t.textContent));
   const fs=txts.length?parseFloat(txts[0].getAttribute('font-size')):null;return {n:txts.length,fs,cap:17/k+0.01,ok:fs!==null&&fs<=17/k+0.01};});
 console.log('4) étiquette sortie de té plafonnée:',JSON.stringify(out));
 const c4=out.n>=1&&out.ok;

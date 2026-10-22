@@ -12,7 +12,7 @@
 //   extra:[{id,key,kind,dn,dn2,angle,qty,label,why,at,by,upd,deleted}], zones:[{id,name,poly:[[x,y]…]|ph:<phase>,date,color,at,by,upd,deleted}], cfg:{délai, camion},
 //   dec:[{id,key,etat:'compl'|'inclus',qty,label,by,at,upd,deleted}] (13/10 soir : qualification des écarts au-delà de la commande, comme les TS)}
 //   — partie « fourniture » du chantier (site_set_part v7 : chef / bureau, fusion par id des commandes / pièces en plus / zones ; suppression douce).
-import {matchKey,stockLabel,stockKey,parseBL,dnOfOd,isPU,zoneAgg} from './stock.js';
+import {matchKey,stockLabel,stockKey,parseBL,dnOfOd,isPU,zoneAgg,packBars,pipeLen,weldDn,sleeveCasing} from './stock.js'; // 21/10 : + barres regroupées, DN à la soudure
 // (13/10 soir : le collage passe par l'écran d'import commun, importq.js)
 import {parseTrame,trameRows,trameTSV,trameXlsx,copyText,dlBytes} from './trame.js'; // 13/10 soir : trame type d'import (commande / BL)
 import {iqState,iqSourceHTML,iqPanelHTML,iqWire,iqCounted} from './importq.js'; // 13/10 soir : écran d'import commun (étude, commande, BL)
@@ -68,16 +68,29 @@ function pieceOfEl(l,e){if(!e)return null;const dn=+e.dn||+l.dn||0;const k=e.kin
   if(k==='valve')return {kind:'valve',dn};if(k==='bypass')return {kind:'bypass',dn};
   if(k==='endcap')return e.sub==='provisoire'?null:{kind:'kit',dn};
   return null;}
-const sleeveOf=(l,e)=>{const dn=+((e&&e.dn)||l.dn)||0;return {kind:'sleeve',dn,gaine:(e&&e.casing)||A.gaineMM(dn)||undefined};};
-/* besoin du tracé ACTUEL + ce qui est déjà posé ; inc = {el,j} pour se limiter à une zone */
-export function fournNeeds(inc){const need={},lab={},posed={};const add=(m,o)=>{const k=fKey(o);m[k]=(m[k]||0)+1;if(!lab[k])lab[k]=fLabel(o);};
+const sleeveOf=(l,e)=>{const dn=+((e&&e.dn)||l.dn)||0;return {kind:'sleeve',dn,gaine:(e&&e.casing)||A.gaineMM(dn)||undefined};}; /* ancien comptage (tracés initiaux figés avant le 21/10) */
+const sleeveAt=(l,cd,j)=>{const dn=weldDn(l,cd,j);return {kind:'sleeve',dn,gaine:sleeveCasing(cd,j,dn)||A.gaineMM(dn)||undefined};}; /* 21/10 : DN et gaine À LA SOUDURE (après une réduction : l'aval) */
+/* besoin du tracé ACTUEL + ce qui est déjà posé ; inc = {el,j} pour se limiter à une zone.
+   21/10 (Ethan : « il sort un nombre de barres trop fort ») : les morceaux de tube (barres entières, coupes, manchettes ; pas les manchettes nues) sont regroupés
+   dans des barres de la longueur de la ligne (12 m d'office), chutes réutilisées — avant, chaque morceau coupé comptait une barre ; manchons et mousse au DN de la
+   soudure (une réduction : 1 manchon de chaque DN par conduite, avant : 2 au DN amont). legacy = l'ancien comptage (conversion des tracés initiaux figés avant). */
+export function fournNeeds(inc,legacy){const need={},lab={},posed={};const add=(m,o,n)=>{const k=fKey(o);m[k]=(m[k]||0)+(n===undefined?1:n);if(!lab[k])lab[k]=fLabel(o);};
+  const P={},Q={};const tube=(M,l,e)=>{const dn=+e.dn||+l.dn||0,bar=+l.bar||12,g=dn+'|'+bar;(M[g]=M[g]||{dn,bar,lens:[]}).lens.push(pipeLen(e,bar));};
   Object.values((A.lines&&A.lines())||{}).filter(l=>mvLineIn('fourniture',l)).forEach(l=>{['A','R'].forEach(c=>{const cd=l&&l.cond&&l.cond[c];if(!cd||!Array.isArray(cd.els))return;
-    cd.els.forEach((e,i)=>{const o=pieceOfEl(l,e);if(!o)return;if(inc&&!inc.el(l,c,i,e))return;if(inc&&inc.mark)inc.mark(l.id+'|'+c+'|'+i);add(need,o);});
+    cd.els.forEach((e,i)=>{if(!legacy&&e&&e.kind==='pipe'){if(e.nue)return;if(inc&&!inc.el(l,c,i,e))return;if(inc&&inc.mark)inc.mark(l.id+'|'+c+'|'+i);tube(P,l,e);return;}
+      const o=pieceOfEl(l,e);if(!o)return;if(inc&&!inc.el(l,c,i,e))return;if(inc&&inc.mark)inc.mark(l.id+'|'+c+'|'+i);add(need,o);});
     const seen=new Set();(cd.joints||[]).forEach(j=>{const e=cd.els[j.idx];if(!e)return;if(inc&&!inc.j(l,c,j,e))return;
-      const done=!(j.status==='a_souder'||j.status==='a_reprendre');if(done){const o=pieceOfEl(l,e);if(o)add(posed,o);}
-      if(j.sleeveWith&&seen.has(j.weldId))return;if(j.sleeveWith)seen.add(j.sleeveWith);const sl=sleeveOf(l,e);add(need,sl);add(need,{kind:'pu',dn:sl.dn,gaine:sl.gaine});
+      const done=!(j.status==='a_souder'||j.status==='a_reprendre');if(done){if(!legacy&&e.kind==='pipe'){if(!e.nue)tube(Q,l,e);}else{const o=pieceOfEl(l,e);if(o)add(posed,o);}}
+      if(j.sleeveWith&&seen.has(j.weldId))return;if(j.sleeveWith)seen.add(j.sleeveWith);const sl=legacy?sleeveOf(l,e):sleeveAt(l,cd,j);add(need,sl);add(need,{kind:'pu',dn:sl.dn,gaine:sl.gaine});
       if(j.status==='manchonnee'){add(posed,sl);add(posed,{kind:'pu',dn:sl.dn,gaine:sl.gaine});}});});});
+  Object.values(P).forEach(g=>add(need,{kind:'pipe',dn:g.dn,len:12},packBars(g.lens,g.bar)));Object.values(Q).forEach(g=>add(posed,{kind:'pipe',dn:g.dn,len:12},packBars(g.lens,g.bar)));
   return {need,lab,posed};}
+/* 21/10 : tracé initial figé AVANT le nouveau comptage (pas de v ≥ 2) → converti pour ne pas afficher de fausses « modifs » : une clé dont l'ancien comptage du
+   tracé actuel égale l'initial prend le nouveau comptage ; sinon barres au prorata, manchons / mousse décalés de la même différence */
+function initConv(FI,cur){if(!FI||!FI.need||FI.v>=2)return {need:FI&&FI.need,conv:false};const old=fournNeeds(null,true).need;const I2=Object.assign({},FI.need);let conv=false;
+  new Set([...Object.keys(old),...Object.keys(cur.need),...Object.keys(FI.need)]).forEach(k=>{if(!/^(pipe|sleeve|pu):/.test(k))return;const o=old[k]||0,nw=cur.need[k]||0,i0=FI.need[k]||0;
+    const v=o===i0?nw:k.startsWith('pipe:')?(o>0?Math.round(i0*nw/o):i0):Math.max(0,i0+(nw-o));if(v!==i0)conv=true;if(v)I2[k]=v;else delete I2[k];});
+  return {need:I2,conv};}
 
 /* ---------- zones : polygone entouré sur le plan, ou phase du phasage (tronçons par PK) ---------- */
 let PTC=null; // points des pièces, le temps d'un calcul
@@ -114,7 +127,7 @@ const truckTxt=t=>{const by={};t.lines.forEach(x=>{const o=keyObj(x.k);const g=o
 
 /* ---------- le calcul : comparatif par référence, zones (dans l'ordre des dates) et camions ---------- */
 export function fzCompute(){const F=fournOf();if(!F)return null;PTC=new Map();try{
-  const cur=fournNeeds();const FI=initGet(F);const init=FI&&FI.need?FI.need:cur.need;const lab=Object.assign({},(FI&&FI.lab)||{},cur.lab);
+  const cur=fournNeeds();const FI=initGet(F);const IC=initConv(FI,cur);const init=FI&&FI.need?IC.need:cur.need; /* 21/10 : initial d'avant le nouveau comptage converti */const lab=Object.assign({},(FI&&FI.lab)||{},cur.lab);
   const extra={};live(F.extra).forEach(x=>{const k=x.key||fKey(x);extra[k]=(extra[k]||0)+(+x.qty||0);if(!lab[k])lab[k]=x.label||fLabel(x);});
   const cmd={};live(F.cmds).forEach(c=>(c.lines||[]).forEach(x=>{if(!(+x.qty>0))return;const k=x.key||fKey(x);cmd[k]=(cmd[k]||0)+(+x.qty);if(!lab[k])lab[k]=x.label||fLabel(x);}));
   const s=mvStockView(A.stockOf&&A.stockOf());const liv={},att={},stk={}; /* lot MV : livré / attendu / sur chantier de l'affaire choisie */
@@ -157,12 +170,12 @@ export function fzCompute(){const F=fournOf();if(!F)return null;PTC=new Map();tr
   // ---- planning des camions : annoncés (Stock) + proposés, par date
   const trucks=[];zones.forEach(Z=>{Z.announced.forEach(v=>trucks.push({kind:'ann',v,Z,date:v.date||null,n:v.fzn||0,status:v.status==='prevu'?'annoncé':'livré'}));Z.trucks.forEach(t=>trucks.push({kind:'prop',t,Z,date:t.date,n:t.n,status:'à annoncer'}));});
   trucks.sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999')||String(a.Z.z.name).localeCompare(String(b.Z.z.name))||a.n-b.n);
-  return {F,rows,tot,zones,trucks,hors,cfg:F.cfg,lab};}finally{PTC=null;}}
+  return {F,rows,tot,zones,trucks,hors,cfg:F.cfg,lab,initConv:IC.conv};}finally{PTC=null;}}
 
 /* ---------- tracé initial figé (1re ouverture) : le marché s'il porte le détail par pièce, sinon le tracé du jour ---------- */
 function ensureInit(F){if(initGet(F)&&initGet(F).need)return;const L=Object.keys((A.lines&&A.lines())||{});if(!L.length)return;const M=A.marche&&A.marche();
-  if(M&&M.need&&typeof M.need==='object')initSet(F,{need:Object.assign({},M.need),lab:Object.assign({},M.needLab||{}),src:'marche',at:M.at||nowIso(),by:M.by||who()});
-  else{const r=fournNeeds();initSet(F,{need:r.need,lab:r.lab,src:'trace',at:nowIso(),by:who()});}
+  if(M&&M.need&&typeof M.need==='object')initSet(F,Object.assign({need:Object.assign({},M.need),lab:Object.assign({},M.needLab||{}),src:'marche',at:M.at||nowIso(),by:M.by||who()},M.needV>=2?{v:2}:{}));
+  else{const r=fournNeeds();initSet(F,{v:2,need:r.need,lab:r.lab,src:'trace',at:nowIso(),by:who()});} /* 21/10 : v 2 = barres regroupées, manchons au DN de la soudure */
   if(fzCanEdit())save();}
 
 /* ---------- écarts au-delà de la commande : qualification (comme les TS) + brouillon de commande complémentaire (13/10 soir) ---------- */
@@ -227,7 +240,7 @@ export function renderFourniture(){const el=document.getElementById('fourniture'
   if(!N||N.id==='__vide'){el.innerHTML='<h2 class="vt">Fourniture</h2><div class="card muted">Aucun chantier.</div>';return;}
   const F=fournOf();ensureInit(F);const R=fzCompute();const ed=fzCanEdit();const UI=A.state.fournUI||(A.state.fournUI={});const open=(k,d)=>((UI[k]===undefined?d:UI[k])?'open':'');const T=R.tot;
   const cmds=live(F.cmds);const fil=UI.fil||'all';
-  const FI0=initGet(F);const initTxt=FI0?`Tracé initial : ${FI0.src==='marche'?'tracé marché':'tracé'} du ${dFR(String(FI0.at||'').slice(0,10))}`:'Tracé initial : pas encore figé';
+  const FI0=initGet(F);const initTxt=(FI0?`Tracé initial : ${FI0.src==='marche'?'tracé marché':'tracé'} du ${dFR(String(FI0.at||'').slice(0,10))}`:'Tracé initial : pas encore figé')+(R.initConv?' · converti au comptage du 21/10 (barres regroupées, manchons au DN de la soudure)':''); /* 21/10 */
   const FIL=[['all','Tout'],['ecart','Écarts'],['acmd','À commander'],['reste','Reste à livrer']];
   const rows=R.rows.filter(r=>fil==='all'||(fil==='ecart'&&(r.mod||r.plus||r.aCmd||r.surplus))||(fil==='acmd'&&r.aCmd>0)||(fil==='reste'&&r.resteLiv>0));
   const cell=(v,c)=>`<td class="num"${c?` style="${c}"`:''}>${v?q(v):'<span class="dim">—</span>'}</td>`;
@@ -245,7 +258,7 @@ export function renderFourniture(){const el=document.getElementById('fourniture'
   const capRows=DNS.filter(dn=>R.rows.some(r=>keyObj(r.k).dn===dn&&keyObj(r.k).kind==='pipe')).map(dn=>`<tr><td>DN${dn}</td><td class="num">${(A.gaineMM&&A.gaineMM(dn))||'—'}</td><td class="num">${q(kgm(dn))}</td><td class="num"><b>${barsPerTruck(dn,F.cfg)}</b></td></tr>`).join('');
   el.innerHTML=`<h2 class="vt">Fourniture — commande, livré, reste</h2>
    <div class="ac-stats" style="margin-bottom:8px">${stat(q(T.besoin),'besoin (pièces)')}${stat(q(T.cde),'commandé')}${stat(q(T.liv),'livré')}${stat(q(T.resteLiv),'reste à livrer',T.resteLiv?'or':'')}${stat(q(T.aCmd),'à commander',!cmds.length?'':T.aCmd?'bad':'ok')}${stat(q(T.surplus),'surplus')}</div>
-   <div class="hint" style="margin:-2px 0 8px">${esc(initTxt)} · modifs <b>+${q(T.modP)} / −${q(T.modM)}</b> pièces · ${q(T.plus)} en plus${T.att?` · ${q(T.att)} attendues (camions annoncés)`:''}. Livré et attendu viennent de l'onglet <b>Stock</b> (réceptions pointées) — rien à ressaisir.</div>
+   <div class="hint" style="margin:-2px 0 8px">${esc(initTxt)} · modifs <b>+${q(T.modP)} / −${q(T.modM)}</b> pièces · ${q(T.plus)} en plus${T.att?` · ${q(T.att)} attendues (camions annoncés)`:''}. Livré et attendu viennent de l'onglet <b>Stock</b> (réceptions pointées) — rien à ressaisir. Barres : les morceaux du calepinage regroupés dans des barres entières (chutes réutilisées) ; manchons au DN de la soudure.</div>
    ${!cmds.length?`<div class="warnbox" style="margin:0 0 8px">Pas encore de commande importée : tout le besoin apparaît « à commander ». Importe la commande fournisseur pour le comparatif.</div>`
      :T.aQual?`<div class="err" style="margin:0 0 8px">⚠ <b>Au-delà de la commande — à qualifier</b> (commande complémentaire ou inclus) : ${R.rows.filter(r=>r.aQual>0).slice(0,6).map(r=>esc(r.label)+' ('+q(r.aQual)+')').join(' · ')}${T.nAQual>6?' …':''}${T.compl?` · 📦 ${q(T.compl)} en commande complémentaire à passer`:''}</div>`
      :T.compl?`<div class="warnbox" style="margin:0 0 8px">📦 <b>Commande complémentaire à passer</b> : ${R.rows.filter(r=>r.compl>0).slice(0,6).map(r=>esc(r.label)+' ('+q(r.compl)+')').join(' · ')}${T.nCompl>6?' …':''}</div>`
@@ -296,7 +309,7 @@ function fzAct(k,v,R){const F=fournOf();if(!F)return;const UI=A.state.fournUI||(
   if(k==='xdel'){const x=F.extra.find(y=>y.id===v);if(!x||!confirm('Retirer « '+(x.label||'')+' » des pièces en plus ?'))return;x.deleted=true;x.upd=nowIso();save();renderFourniture();return;}
   if(k==='lasso'){fzStartPose();return;}
   if(k==='phases'){const P=A.phasageOf&&A.phasageOf();const phs=P?P.phases.filter(p=>!p.deleted&&p.level==='exe'&&(p.tr||[]).length):[];if(!phs.length){A.toast('Aucune phase d\'exécution au phasage');return;}let n=0;phs.forEach(ph=>{if(live(F.zones).some(z=>z.ph===ph.id))return;F.zones.push(mvStamp('fourniture',{id:nid('FZ'),name:ph.name||ph.id,ph:ph.id,at:nowIso(),by:who(),upd:nowIso()},(ph.tr||[]).map(t=>t&&t.line)));n++;});if(n){save();}renderFourniture();A.toast(n?'✓ '+n+' phase'+(n>1?'s':'')+' reprise'+(n>1?'s':'')+' en zones de livraison':'Les phases sont déjà reprises');return;}
-  if(k==='refige'){if(!confirm('Re-figer le tracé initial sur le tracé ACTUEL ?\nLes modifs repartent de zéro (l\'ancien initial est gardé dans l\'historique).'))return;const r=fournNeeds();const I0=initGet(F);const prev=I0?(I0.prev||[]).concat([{at:I0.at,by:I0.by,src:I0.src}]).slice(-5):[];initSet(F,{need:r.need,lab:r.lab,src:'trace',at:nowIso(),by:who(),prev});save();renderFourniture();A.toast('Tracé initial re-figé');return;}
+  if(k==='refige'){if(!confirm('Re-figer le tracé initial sur le tracé ACTUEL ?\nLes modifs repartent de zéro (l\'ancien initial est gardé dans l\'historique).'))return;const r=fournNeeds();const I0=initGet(F);const prev=I0?(I0.prev||[]).concat([{at:I0.at,by:I0.by,src:I0.src}]).slice(-5):[];initSet(F,{v:2,need:r.need,lab:r.lab,src:'trace',at:nowIso(),by:who(),prev});save();renderFourniture();A.toast('Tracé initial re-figé');return;}
   if(k==='ann'){const [zid,n]=String(v).split('#');const Z=R.zones.find(x=>x.z.id===zid);const t=Z&&Z.trucks.find(x=>String(x.n)===n);if(!t)return;openAnnounce(Z,[t]);return;}}
 
 /* ---------- zone : la liste à prévoir, les camions, la date ---------- */

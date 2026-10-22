@@ -112,3 +112,14 @@ export function matchKey(o){const std=a=>{a=Math.abs(+a||90);return [15,30,45,60
   if(isPU(o.kind))return 'pu:'+(o.dn||''); // A, B et pochettes = une case par DN (retour Ethan : les mousses sont par DN) ; 'pu:' = ancien ajout sans DN
   return o.kind+':'+(o.dn||o.gaine||'');}
 export function remainByMatch(stock){const m={};globalAgg(stock).forEach(a=>{const k=matchKey(a);m[k]=(m[k]||0)+(a.reste||0);});return m;}
+/* 21/10 (Ethan : « il sort un nombre de barres trop fort ; sur un chantier j'en compte 16 et 20 sont comptés… une réduction compte 4 manchons alors que c'est deux d'un DN
+   et deux de l'autre ») — aides communes à l'onglet Fourniture et au récap du Stock :
+   · packBars : les morceaux de tube du calepinage (barres entières, coupes, manchettes) regroupés dans des barres entières, chutes réutilisées (rangement « plus
+     grand d'abord, meilleure place ») — avant, chaque morceau coupé comptait pour une barre entière ;
+   · weldDn : le DN À LA SOUDURE (celui du traceur s'il est connu ; après une réduction : le DN aval) — avant, le DN de la pièce d'avant (la réduction = DN amont) ;
+   · sleeveCasing : la gaine du manchon = celle du tube du même DN de part ou d'autre de la soudure. */
+export const pipeLen=(e,bar)=>{const L=+(e&&e.len)||Math.abs((+(e&&e.m1)||0)-(+(e&&e.m0)||0));return L>0?L:(+bar||12);};
+export function packBars(lens,bar){bar=+bar||12;const tol=0.005;let n=0;const cut=[];(lens||[]).forEach(L=>{L=+L||0;if(L<=0)return;if(L>=bar-tol)n+=Math.ceil(L/bar-tol);else cut.push(L);});
+  cut.sort((a,b)=>b-a);const rest=[];cut.forEach(L=>{let k=-1;for(let i=0;i<rest.length;i++){if(rest[i]>=L-tol&&(k<0||rest[i]<rest[k]))k=i;}if(k<0){rest.push(bar-L);n++;}else rest[k]-=L;});return n;}
+export function weldDn(l,cd,j){if(j&&+j.dn)return +j.dn;const els=(cd&&cd.els)||[];const e=j?els[j.idx]:null,nx=j?els[j.idx+1]:null;if(e&&e.kind==='reducer')return +(e.dn2||(nx&&nx.dn)||e.dn||(l&&l.dn))||0;return +((e&&e.dn)||(l&&l.dn))||0;}
+export function sleeveCasing(cd,j,dn){const els=(cd&&cd.els)||[];const e=j?els[j.idx]:null,nx=j?els[j.idx+1]:null;if(e&&e.kind!=='reducer'&&+e.dn===+dn&&e.casing)return e.casing;if(nx&&+nx.dn===+dn&&nx.casing)return nx.casing;return null;}

@@ -179,6 +179,8 @@ const mstate=()=>page.evaluate(s=>{const p=document.querySelector(s);if(!p)retur
   pv:p.querySelector('[data-dk="mpv"]').textContent.replace(/[\s\u00A0\u202F]+/g,' ').trim(),sum:p.querySelector('[data-dk="msum"]').textContent.replace(/[\s  ]+/g,' ').trim(),go:{dis:p.querySelector('[data-v^="dxdkmultigo|"]').disabled,t:p.querySelector('[data-v^="dxdkmultigo|"]').textContent.trim()},oth:(p.querySelector('.dk-moth summary')||{}).textContent,find:!!p.querySelector('[data-dk="mf"]')};},mp);
 out.m0=await mstate();await chg(`${mp} [data-dk="mon"][data-v="${v9}"]`,true);await chg(`${mp} [data-dk="mon"][data-v="${v17}"]`,true);out.m1=await mstate();
 const setQ=async(v,q)=>{await page.fill(`${mp} [data-dk="mq"][data-v="${v}"]`,q);await page.dispatchEvent(`${mp} [data-dk="mq"][data-v="${v}"]`,'input');await wait(150);};
+/* 21/10 (Ethan) : « mettre tous les ml sur une case » — « ⇥ tout ici » : toute la quantité sur la ligne, les autres cochées à 0 */
+await page.click(`${mp} .dk-mall[data-v$="|${encodeURIComponent(v17)}"]`);await wait(300);out.mall=await mstate();C.c10b=!!out.mall&&out.mall.q[v17]==='10'&&out.mall.q[v9]==='0'&&out.mall.q[v14]==='0'&&/✓ 10 \/ 10/.test(out.mall.sum);
 await setQ(v9,'3');await setQ(v17,'2');await setQ(v14,'4');out.m2=await mstate();await setQ(v14,'5');out.m3=await mstate();
 await page.fill(`${mp} [data-dk="mf"]`,'2.3');await wait(450);out.find=await page.evaluate(s=>[...document.querySelectorAll(s+' .dk-moth .dk-mr')].map(x=>x.querySelector('b').textContent),mp);out.m4=await mstate();
 await shot('pc_1366_lignes_que_je_coche.png');

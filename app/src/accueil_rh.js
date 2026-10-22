@@ -98,10 +98,10 @@ async function attachPdfs(files,ctx,only){const list=only?[only]:accDocs();const
 const NEW_DAYS=30;
 export function welcomeDocs(acc){if(!acc)return [];const k=docKey(acc);return docsFor(acc).filter(d=>!docSigned(d,k)).map(d=>({d,u:docDue(d,acc)})).sort((a,b)=>((a.u?a.u.left:1e9)-(b.u?b.u.left:1e9)));}
 export function isNewcomer(acc){if(!acc)return false;const c=Date.parse(acc.created_at||'');const fresh=!isNaN(c)&&(Date.now()-c)<NEW_DAYS*864e5;return fresh||docsFor(acc).some(d=>docNewcomer(d,acc));}
-function welcomeHTML(me,acc,L){const n=L.length;const first=L[0];const u=first&&first.u;const min=L.reduce((a,x)=>a+(+(x.d.acc&&x.d.acc.min)||0),0);
+function welcomeHTML(me,acc,L){const n=L.length;const first=L[0];const u=first&&first.u;
   return `<div class="card acc-welcome" role="region" aria-label="Bienvenue"><button class="acc-x" data-act="x" data-v="${ID}|hide" aria-label="Fermer" title="Fermer (la carte revient tant qu'il reste des documents)">✕</button><div class="acc-k">Bienvenue</div>
     <h2 class="vt" style="margin:2px 0 6px">Bienvenue chez SCR${me.prenom?', '+esc(me.prenom):''} 👋</h2>
-    <p style="margin:0 0 8px">${n>1?n+' documents':'1 document'} à lire et à signer <b>sous 7 jours</b>${u?' — le premier '+esc(u.late?'est en retard de '+(-u.left)+' j':u.left===0?'aujourd\'hui':'avant le '+String(u.due).slice(8,10)+'/'+String(u.due).slice(5,7)):''}.${min?' Compte environ '+min+' min en tout.':''} Rien ne bloque : tu peux commencer maintenant ou plus tard depuis « À faire ».</p>
+    <p style="margin:0 0 8px">${n>1?n+' documents':'1 document'} à lire et à signer <b>sous 7 jours</b>${u?' — le premier '+esc(u.late?'est en retard de '+(-u.left)+' j':u.left===0?'aujourd\'hui':'avant le '+String(u.due).slice(8,10)+'/'+String(u.due).slice(5,7)):''}.Rien ne bloque : tu peux commencer maintenant ou plus tard depuis « À faire ».</p>
     <div class="actions"><button class="btn primary block" data-act="x" data-v="${ID}|start">Commencer${first?' : '+esc(first.d.title):''}</button><button class="btn block" data-act="x" data-v="${ID}|docs">Voir mes documents</button></div></div>`;}
 
 /* ── sous-vue Entreprise → Accueil RH (administrateur ; RH en lecture) ── */

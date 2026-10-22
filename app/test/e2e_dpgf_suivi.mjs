@@ -148,6 +148,11 @@ out.pk=await page.evaluate(()=>{const b=document.querySelector('#c3-dlg .c3-pk')
 const setRm=async(id,v)=>{await page.evaluate(([id,v])=>{const i=[...document.querySelectorAll('#c3-dlg [data-c3="rm"]')].find(x=>x.dataset.l===id);i.value=v;i.dispatchEvent(new Event('input',{bubbles:true}));},[id,v]);await wait(150);};
 a=await A();const id9=lk(a,'E9').id,id10=lk(a,'E10').id;await setRm(id9,'10');await setRm(id10,'0');out.half=await page.evaluate(()=>{const b=document.querySelector('#c3-dlg .c3-pk');return {sum:b.querySelector('[data-c3="sum"]').textContent,dis:b.querySelector('[data-v$="|pick"]').disabled};});
 await setRm(id9,'20');out.full=await page.evaluate(()=>{const b=document.querySelector('#c3-dlg .c3-pk');return {sum:b.querySelector('[data-c3="sum"]').textContent,dis:b.querySelector('[data-v$="|pick"]').disabled};});await shot('pc_1366_ligne_par_ligne.png');
+/* 21/10 (Ethan) : « un raccourci pour mettre tout sur une case » — « ⇥ tout ici » sur une ligne : elle prend tout (au plus ce qu'elle a), les autres à 0 */
+{const pkall=async id=>{await page.evaluate(id=>{const b=[...document.querySelectorAll('#c3-dlg .c3-pkall')].find(x=>x.dataset.v.endsWith('|'+encodeURIComponent(id)));if(!b)throw new Error('pas de « tout ici » pour '+id);b.click();},id);await wait(200);};
+ const rmv=()=>page.evaluate(()=>Object.fromEntries([...document.querySelectorAll('#c3-dlg [data-c3="rm"]')].map(i=>[i.dataset.l,{v:i.value,max:i.dataset.max}])));
+ await pkall(id10);const r10=await rmv();await pkall(id9);const r9=await rmv();const okB=await page.evaluate(()=>!document.querySelector('#c3-dlg [data-v$="|pick"]').disabled);
+ out.pkall={r10,r9,okB};C.s2b=r10[id9].v==='0'&&+r10[id10].v.replace(',','.')===Math.min(20,+r10[id10].max)&&r9[id9].v==='20'&&r9[id10].v==='0'&&okB;}
 await doIt('z0|manchons|dn100','pick');a=await A();out.m={E9:lk(a,'E9').comps.filter(x=>U(x.k)==='z0|manchons|dn100').map(x=>x.q),E10:lk(a,'E10').comps.filter(x=>U(x.k)==='z0|manchons|dn100').map(x=>x.q),P:Pof(a,'z0|manchons|dn100')};
 console.log('s2) ligne par ligne :',JSON.stringify(out));
 C.s2=out.i&&/^20 manchons EN MOINS \(120 → 100\) — pointés sur 2\.1, 2\.2 : sur-pointé de 20$/.test(out.i.t)&&out.pk&&out.pk.n===2&&/✓ 20 \/ 20/.test(out.pk.sum)&&!out.pk.dis&&/il manque 10/.test(out.half.sum)&&out.half.dis&&/✓ 20 \/ 20/.test(out.full.sum)&&!out.full.dis
@@ -201,6 +206,35 @@ await click('dxundo|');await wait(600);a=await A();out.undo=JSON.stringify(a.dpg
 console.log('s9) tout traiter :',JSON.stringify(out));
 C.s9=/Le chiffrage a changé : \d+ changements à traiter/.test(out.band)&&out.n>=8&&out.kinds.includes('pro')&&out.kinds.includes('apply')&&/\d+ PU changent/.test(out.allTxt)&&out.after.band===''&&!out.after.dlg&&out.after.stale===0&&!out.after.vstale&&Math.abs(out.after.P100-90)<1e-6
   &&/Tout traité au prorata/.test(out.toast)&&out.undo&&/changements à traiter/.test(out.band2)&&out.band3==='';
+// ── g1) 21/10 (Ethan : « les postes qui sont ensemble dans toutes les ventilations, les traiter ensemble […] pas 4 fois la même action ») : DN 80 60 → 70 soudures (zone 1)
+//    → soudures ET manchons DN 80, pointés ensemble sur la seule 2.3 → UNE carte « 2 postes ensemble · même ligne (2.3) », bandeau « (en N actions) » ; « Ajouter au
+//    prorata … (les 2 ensemble) » → les deux traités d'un coup, un seul ↶ ; les cartes une par une restent derrière « Détailler » (fermé)
+await chif(async()=>{await click('chei|0');await chg('#eq-app [data-afx="e§dn.1.soud"]','70');});
+out={band:await band()};await click('dxc3list|');await wait(600);
+out.g=await page.evaluate(()=>[...document.querySelectorAll('#c3-dlg .c3-gr')].map(g=>({key:g.dataset.g,h:g.querySelector('.c3-ih').textContent.replace(/[\s  ]+/g,' ').trim(),li:[...g.querySelectorAll('.c3-gl li')].map(x=>x.textContent.replace(/[\s  ]+/g,' ').trim()),b:[...g.querySelectorAll(':scope>.c3-acts [data-v]')].map(b=>b.dataset.v.split('|').pop()),bt:(g.querySelector(':scope>.c3-acts .btn.primary')||{}).textContent||'',det:!!g.querySelector('details.c3-gd .c3-it'),open:g.querySelector('details.c3-gd').open})));
+await shot('pc_1366_postes_lies.png');I=await its();out.n=I.length;a=await A();const bg1=JSON.stringify(a.dpgf);
+const g80=out.g.find(g=>g.li.some(x=>/Soudure DN 80/.test(x))&&g.li.some(x=>/Manchons DN 80/.test(x)));
+if(g80)await click('dxc3grp|'+encodeURIComponent(g80.key)+'|def');await wait(500);a=await A();
+out.after={s:lk(a,'E11').comps.filter(x=>U(x.k)==='z0|soudure|dn80').map(x=>x.q),m:lk(a,'E11').comps.filter(x=>U(x.k)==='z0|manchons|dn80').map(x=>x.q),toast:await toast(),left:(await its()).map(x=>U(x.k)),band:await band()};
+await click('dxundo|');await wait(500);a=await A();out.undo=JSON.stringify(a.dpgf)===bg1;await click('dxredo|');await wait(500);a=await A();out.redo=lk(a,'E11').comps.filter(x=>/\|dn80$/.test(U(x.k))).map(x=>x.q).join();
+console.log('g1) postes liés :',JSON.stringify(out));
+C.g1=/\(en \d+ actions?\)/.test(out.band)&&!!g80&&/2 postes ensemble ?· Zone 1 · même ligne \(2\.3\)$/.test(g80.h)&&g80.li.length===2&&g80.b[0]==='def'&&/\(les 2 ensemble\)/.test(g80.bt)&&g80.b.includes('one')&&g80.b.includes('keep')&&g80.b.includes('ok')&&g80.det&&!g80.open
+  &&out.after.s.join()==='70'&&out.after.m.join()==='70'&&/Traités ensemble : 2 postes/.test(out.after.toast)&&!out.after.left.includes('z0|soudure|dn80')&&!out.after.left.includes('z0|manchons|dn80')&&out.undo&&out.redo==='70,70';
+if((await its()).length){await click('dxc3all|');await wait(600);}await click('dxc3close|').catch(()=>{});
+// ── g2) le groupe « Tout sur une ligne » vers une ligne PAS ENCORE pointée (4.1, R:23) : DN 80 70 → 74 → les 2 postes (+4 chacun) sur la même ligne neuve, la 2.3
+//    inchangée ; ↶ (un seul) puis retour à 70 au chiffrage → plus rien à traiter
+await chif(async()=>{await click('chei|0');await chg('#eq-app [data-afx="e§dn.1.soud"]','74');});
+await click('dxc3list|');await wait(600);
+const g2=await page.evaluate(()=>{const g=[...document.querySelectorAll('#c3-dlg .c3-gr')].find(x=>/Soudure DN 80/.test(x.textContent)&&/Manchons DN 80/.test(x.textContent));if(!g)return null;const sel=g.querySelector('select[data-c3="gone"]');if(!sel)return {key:g.dataset.g,noSel:true};
+  const o=[...sel.options].find(x=>x.value==='R:23')||[...sel.options].find(x=>/^R:/.test(x.value));if(!o)return {key:g.dataset.g,noR:true};sel.value=o.value;sel.dispatchEvent(new Event('change',{bubbles:true}));return {key:g.dataset.g,row:+o.value.slice(2),grp:!!o.parentElement&&o.parentElement.tagName==='OPTGROUP'};});
+a=await A();const bg2=JSON.stringify(a.dpgf);
+if(g2&&g2.row)await click('dxc3grp|'+encodeURIComponent(g2.key)+'|one');await wait(500);a=await A();
+const Lr=g2&&g2.row?(a.dpgf.liens||[]).filter(L=>L.a==='E'+g2.row):[];
+out={g2,neu:Lr.map(L=>L.comps.map(x=>U(x.k)+'='+x.q).sort().join('+')),e11:lk(a,'E11').comps.filter(x=>/\|dn80$/.test(U(x.k))).map(x=>x.q).join(),left:(await its()).map(x=>U(x.k)),toast:await toast()};
+await click('dxundo|');await wait(500);a=await A();out.undo=JSON.stringify(a.dpgf)===bg2;
+await click('dxc3close|').catch(()=>{});await chif(async()=>{await click('chei|0');await chg('#eq-app [data-afx="e§dn.1.soud"]','70');});out.band=await band();
+console.log('g2) groupe sur une ligne neuve :',JSON.stringify(out));
+C.g2=!!g2&&g2.row===23&&g2.grp&&out.neu.length===1&&out.neu[0]==='z0|manchons|dn80=4+z0|soudure|dn80=4'&&out.e11==='70,70'&&!out.left.includes('z0|soudure|dn80')&&!out.left.includes('z0|manchons|dn80')&&/Traités ensemble : 2 postes/.test(out.toast)&&out.undo&&out.band==='';
 // ── k2) SST SUPPRIMÉE : on retire la 1re SST DN 80 (pointée sur 3.5) ; la 2e (pointée sur 3.2) garde son lien et son prix ; la supprimée : « supprimée — pointée sur 3.5 » → retirée
 a=await A();const l32=lk(a,'E17');const pu32=l32.pu;
 await chif(async()=>{await click('chei|0');await unfold('sst');await click('chrm|sst|0');});

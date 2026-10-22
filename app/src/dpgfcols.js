@@ -280,7 +280,7 @@ export function prRow(a,M,CP,C,T,v,ro,o){const k=v.k;const on=C.chk[k]!==undefin
 export function prSplit(a,M,CP,T,C,L,ZI){const out={rows:[],e:{rest:0,rep:0},n:0,short:0,ids:new Set(),chg:false};if(!CP||!CP.zv||!T||!T.line)return out;const lk=X.linkAt(a,T.sh,T.a);
   Object.keys(C.chk||{}).forEach(k=>{const v=CP.by.get(k);if(!v||!v.v||!prOn(a,M,CP,C,T,v))return;const t=X.parseQ(C.chk[k],v);if(!(t>1e-9))return;const P=prPlan(a,M,CP,C,T,v,lk,t,ZI);
     const rq=P.rep+P.cross.reduce((s,x)=>s+x.q*x.v.f/v.f,0);out.n++;out.e.rest+=(P.fZ+P.fG)*v.puV;out.short+=P.short*v.puV;if(!(rq>1e-6)&&!(P.short>1e-6))return;
-    const keep=r6((P.fZ+P.fG)*v.f);const i=L.comps.findIndex(x=>x.k===v.bk&&x.zs===v.zt&&!x.via&&!x.rep);if(i>=0){out.chg=true;if(keep>1e-9)L.comps[i]=Object.assign({},L.comps[i],{q:keep});else L.comps.splice(i,1);}
+    const keep=r6((P.fZ+P.fG)*v.f);const i=L.comps.findIndex(x=>x.k===v.bk&&x.zs===v.zt&&!x.via&&!x.rep);if(i>=0){out.chg=true;if(keep>1e-9){const c0=L.comps[i];const nx=Object.assign({},c0,{q:keep});if(c0.t!==undefined&&+c0.q>0)nx.t=r3(c0.t*keep/(+c0.q));L.comps[i]=nx;}else L.comps.splice(i,1);} /* 21/10 : t (ml) suit la part gardée */
     if(P.rep>1e-6){out.rows.push({k:v.k,q:r3(P.rep),ids:P.ds.map(d=>d.id)});out.e.rep+=P.rep*v.puV;P.ds.forEach(d=>out.ids.add(d.id));}
     P.cross.forEach(x=>{if(!(x.q>1e-6))return;out.rows.push({k:x.v.k,q:r3(x.q),ids:x.ds.map(d=>d.id),zs:v.zt});out.e.rep+=x.e;x.ds.forEach(d=>out.ids.add(d.id));});});
   return out;}

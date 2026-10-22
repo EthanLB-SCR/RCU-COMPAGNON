@@ -88,10 +88,12 @@ const lst=L=>L.slice(0,5).join(', ')+(L.length>5?' +'+(L.length-5):'');
 /* ═════════ 3 · LE CALCULATEUR (dpgfclair.js, dpgfxl.js) ═════════ */
 /* une prise d'un lien avec zs → la case de la zone (calcState) ; la quantité exacte gardée (C.zx) : « Mettre » sans y toucher la réécrit telle quelle */
 export function load(CP,C,x0){if(!on(CP)||!x0||!x0.zs||x0.sub)return false;const c=CP.by.get(x0.k);if(!c||c.v||c.z>=0)return false;const v=(CP.zv.vcs.get(c.k)||[])[CP.zv.ti.get(x0.zs)];if(!v||!(v.f>0))return false;
-  C.zx=C.zx||{};C.zx[v.k]=(C.zx[v.k]||0)+(+x0.q||0);C.chk[v.k]=X.fmtIn(r3(C.zx[v.k]/v.f));return true;}
+  C.zx=C.zx||{};C.zx[v.k]=(C.zx[v.k]||0)+(+x0.q||0);C.zt=C.zt||{};const tk=v.u==='ml'&&x0.t!==undefined&&isFinite(+x0.t)&&C.zt[v.k]!==null;C.zt[v.k]=tk?(C.zt[v.k]||0)+(+x0.t):null; /* 21/10 : les ml pris gardés sur la prise (t) — sinon comme avant */
+  C.chk[v.k]=X.fmtIn(r3(C.zt[v.k]!==null?C.zt[v.k]:C.zx[v.k]/v.f));return true;}
 /* « Mettre » : la case d'une zone → {k: l'installation globale, q en unités globales, zs} (en place) */
 export function toLink(CP,C,comps){if(!on(CP))return comps;for(let i=comps.length-1;i>=0;i--){const x=comps[i];const v=CP.by.get(x.k);if(!v||!v.v)continue;const ex=C.zx&&C.zx[v.k];
-  let q=r6(x.q*v.f);if(ex!==undefined&&Math.abs(x.q-r3(ex/v.f))<=0.0006)q=ex;if(q>1e-9)comps[i]={k:v.bk,q,zs:v.zt};else comps.splice(i,1);}return comps;}
+  const zt=C.zt&&C.zt[v.k]!==undefined?C.zt[v.k]:undefined;let q=r6(x.q*v.f);if(ex!==undefined&&(zt!==undefined&&zt!==null?Math.abs(q-ex)<=Math.max(1e-6,Math.abs(ex)*1e-6):Math.abs(x.q-r3(ex/v.f))<=0.0006))q=ex; /* 21/10 : ml gardés → la part suit la ventilation du jour */
+  if(q>1e-9){comps[i]={k:v.bk,q,zs:v.zt};if(v.u==='ml')comps[i].t=r3(x.q);}else comps.splice(i,1);}return comps;}
 /* Σ du calculateur : les parts « ⇶ sa part » cochées */
 export function ppAmt(a,CP,C){if(!C||!C.pp||!CP)return 0;let s=0;Object.keys(C.pp).forEach(k=>{const c=CP.by.get(k);const v=numIn(C.pp[k]);if(c&&v!==null&&v>0)s+=v*c.puV;});return s;}
 export const hasPP=C=>!!(C&&C.pp&&Object.keys(C.pp).length);
@@ -225,16 +227,17 @@ function vzDiff(CP,ref){if(!ref)return null;const Z=CP.zv;const per=new Map();le
 /* les éléments : « ventilation par zone changée » (prioritaire) ou « ventilation par zone à refaire » */
 export function items(a,CP,M,ok){if(!on(CP)||!M)return [];const d=zd(a,M,CP);if(!d||!d.P.size)return [];const S=(a.dpgf||{}).suivi||null;const force=!!ZS.force[a.num];ok=ok||{};
   const st=stOf(a,M,CP);const zt=zTot(CP,st);const byId=new Map(((a.dpgf||{}).liens||[]).map(L=>[L.id,L]));const ids=new Set();d.P.forEach(o=>o.by.forEach((x,id)=>ids.add(id)));const lines=[...ids].map(id=>byId.get(id)).filter(Boolean);
-  const rv=revPlan(a,M,CP);const base={c:null,zn:'toutes les zones',lines,zt,rv,solo:true,rk:-1};
+  const rv=covPlan(a,M,CP);const base={c:null,zn:'toutes les zones',lines,zt,rv,solo:true,rk:-1}; /* 21/10 : règle de couverture */
   const ch=S&&S.vz?vzDiff(CP,S.vz):null;
   if(ch)return [Object.assign({},base,{k:'vz:inst',kind:'vz',nm:'Installations : la ventilation par zone a changé',ch,short:'Installations : la ventilation par zone a changé'})];
   if(!isOver(st))return [];const sig=gapSig(st);if(!force&&ok['vzgap:inst']===sig)return [];
   return [Object.assign({},base,{k:'vzgap:inst',kind:'vzgap',nm:'Installations : ventilation par zone à refaire',sig,short:'Installations : ventilation par zone à refaire'})];}
-const unplTxt=rv=>rv.unpl.length?' <b class="c3-bad">'+rv.unpl.map(u=>esc(u.nom)+' : aucune ligne au ml n\'en porte — '+eur(u.e)+' resteront à placer').join(' · ')+'</b>.':'';
-export function phrase(it){const Z=it.rv;const how=' ↻ Reventiler : chaque zone reçoit sa part, sur ses lignes au ml (leurs proportions gardées) ; les lignes au forfait ne bougent pas.';
+const unplTxt=rv=>(rv.unpl.length?' <b class="c3-bad">'+rv.unpl.map(u=>esc(u.nom)+' : aucune ligne au ml n\'en porte — '+eur(u.e)+' resteront à placer').join(' · ')+'</b>.':'')
+  +((rv.unc||[]).length?' '+rv.unc.map(u=>esc(u.nom)+' : '+String(Math.round(u.ml*10)/10).replace('.',',')+' ml du chiffrage ne sont sur aucune ligne du DPGF → '+eur(u.e)+' y restent à placer (une nouvelle ligne les prend au prorata de ses ml)').join(' · ')+'.':''); /* 21/10 */
+export function phrase(it){const Z=it.rv;const how=' ↻ Reventiler : chaque ligne au ml prend ses ml × la part de sa zone ÷ les ml de la zone ; les lignes au forfait ne bougent pas.'; /* 21/10 : règle de couverture */
   if(it.kind==='vz')return `La ventilation des installations a changé au chiffrage : ${it.ch.map(x=>'<b>'+esc(x.nom)+'</b> : '+eur(x.from)+' → '+eur(x.to)).join(' · ')} — le DPGF porte encore l'ancienne répartition.${how}${mvTxt(Z)}${unplTxt(Z)}`; /* (lot DY) qui rend quoi */
   return `Le DPGF porte les installations autrement que la ventilation du chiffrage : ${it.zt.filter(x=>Math.abs(x.gap)>=GAP).map(x=>'<b>'+esc(x.z.nom)+'</b> : '+eur(x.P)+' portés pour '+eur(x.S)+' ventilés').join(' · ')}.${how}${mvTxt(Z)}${unplTxt(Z)}`;}
-export const actsHTML=(B,okB)=>B('revent','↻ Reventiler les installations par zone','primary','Chaque zone reçoit sa part ventilée, sur ses lignes au ml (proportions gardées) ; total inchangé ; un seul ↶')+okB;
+export const actsHTML=(B,okB)=>B('revent','↻ Reventiler les installations par zone','primary','Chaque ligne au ml prend ses ml × la part de sa zone ÷ les ml de la zone ; ce qui est sur aucune ligne reste à placer dans sa zone ; un seul ↶')+okB;
 /* « ↻ Reventiler » : le calcul (par poste et par zone) */
 function revPlan(a,M,CP){const Z=CP.zv;const d=zd(a,M,CP);const n=CP.zones.length;const out={posts:[],unpl:[],chg:false,mv:new Float64Array(n),zn:CP.zones.map(z=>z.nom),NL:X.CO?zLines(a,CP,d):null};const un=new Map(); /* (lot DY) mv : ce que chaque zone rend (−) ou reçoit (+), en € ; NL : les lignes au ml de chaque zone */
   Z.G.forEach(c=>{const o=d.P.get(c.k);if(!o)return;const S=Z.sh.map(s=>s*c.qty);const T=S.map((s,i)=>Math.max(0,s-o.fix[i]));const Zm=[];for(let i=0;i<n;i++)if(o.mov[i]>1e-9)Zm.push(i);
@@ -244,12 +247,48 @@ function revPlan(a,M,CP){const Z=CP.zv;const d=zd(a,M,CP);const n=CP.zones.lengt
     for(let i=0;i<n;i++)if(!(o.mov[i]>1e-9)&&!Zn.includes(i)&&T[i]*c.puV>=TOL){const u=un.get(i)||{i,nom:CP.zones[i].nom,e:0};u.e+=T[i]*c.puV;un.set(i,u);}
     out.posts.push({c,o,fac,Zm,Zn,tg});});
   out.unpl=[...un.values()];return out;}
+/* 21/10 (Ethan) : « la répartition change à cause des ml : 63 % dans cette zone au lieu de 60 % […] 137 ml qui correspondent à 64 % des ml de la zone, sur le
+   montant de 63 % → 64 % de 63 % de l'installation plutôt que 64 % de 60 % » ; « j'ai rajouté 120 ml, laissés à placer, mais je n'avais que 93 ml dispo en
+   installation ». RÈGLE (zone en ml) : une ligne au ml porte SES ml × (part de la zone − lignes au forfait) ÷ max(ml de la zone au chiffrage, ml des lignes qui la
+   portent). Des ml de la zone qui ne sont sur aucune ligne (ml en plus laissés à placer) gardent leur part À PLACER dans la zone — exactement ce que prendra la
+   nouvelle ligne au prorata de ses ml ; plus de ml sur les lignes que dans la zone : la part de la zone au prorata de leurs ml. Les ml d'une ligne = ceux gardés sur
+   ses prises (t : calculateur, Reventiler), sinon ses ml × sa part de la zone. Zone sans ml (« % ») : comme avant (proportions gardées). only = une seule installation. */
+function lineT(CP,Z,L,l,ck,n){const t=new Float64Array(n),cur=new Float64Array(n),kn=new Uint8Array(n);
+  (L.comps||[]).forEach(x=>{if(x.sub||X.SV.kOf(CP,x)!==ck||!((+x.q||0)>0))return;const w=wPiece(Z,CP,L,x,l,null);w.forEach((wi,i)=>{if(!(wi>0))return;cur[i]+=(+x.q||0)*wi;if(x.zs&&x.t!==undefined&&isFinite(+x.t)){t[i]+=+x.t;kn[i]|=1;}else kn[i]|=2;});});
+  let zw;for(let i=0;i<n;i++){if(!(cur[i]>1e-12)||kn[i]===1)continue;if(zw===undefined)zw=zwOf(CP,L,l?l.des:'');const tc=cur.reduce((s,x)=>s+x,0);const sh=zw?zw[i]:(tc>0?cur[i]/tc:0);t[i]=(+l.q||0)*sh;}
+  return {t,cur};}
+function covPlan(a,M,CP,only){const Z=CP.zv;const d=zd(a,M,CP);const n=CP.zones.length;const old=revPlan(a,M,CP);const out={posts:[],unpl:[],unc:[],chg:false,mv:new Float64Array(n),zn:old.zn,NL:old.NL};const un=new Map(),uc=new Map();
+  const byId=new Map(((a.dpgf||{}).liens||[]).map(L=>[L.id,L]));
+  old.posts.forEach(p0=>{const c=p0.c,o=p0.o;if(only&&c.k!==only)return;const vs=Z.vcs.get(c.k)||[];const T=Z.sh.map((s,i)=>Math.max(0,s*c.qty-o.fix[i]));
+    const per=new Map();o.by.forEach((arr,id)=>{const l=d.LI.get(id);if(!l||!l.isMl||!(l.q>0))return;const L=byId.get(id);if(!L)return;per.set(id,Object.assign({l},lineT(CP,Z,L,l,c.k,n),{tg:new Float64Array(n)}));});
+    const add=[];const zT=new Float64Array(n);const Zn=[];
+    for(let i=0;i<n;i++){const v=vs[i];const zml=v&&v.u==='ml'?(+CP.zones[i].ml||0):0;const car=[...per.values()].filter(x=>x.cur[i]>1e-12);
+      if(!(zml>0)){car.forEach(x=>{x.tg[i]=x.cur[i]*(p0.fac[i]||0);zT[i]+=x.tg[i];});if((p0.Zn||[]).includes(i)){const ls=(old.NL||[])[i]||[];const W=ls.reduce((s,y)=>s+y.w,0);const g=p0.tg?p0.tg[i]:0;if(W>0&&g>1e-9){Zn.push(i);ls.forEach(y=>{const q=g*y.w/W;add.push({id:y.id,i,q,t:null});zT[i]+=q;});}}continue;}
+      const St=car.reduce((s,x)=>s+x.t[i],0);
+      if(St>1e-9){const f=T[i]/Math.max(zml,St);car.forEach(x=>{x.tg[i]=x.t[i]*f;zT[i]+=x.tg[i];});}
+      else{const ls=(old.NL||[])[i]||[];const W=ls.reduce((s,y)=>s+y.w,0);if(W>0&&T[i]>1e-12){Zn.push(i);const f=T[i]/Math.max(zml,W);ls.forEach(y=>{const q=y.w*f;add.push({id:y.id,i,q,t:y.w});zT[i]+=q;});}}
+      const left=(T[i]-zT[i])*c.puV;const cov=St>1e-9?St:((old.NL||[])[i]||[]).reduce((s,y)=>s+y.w,0);if(cov>1e-9&&zml-cov>0.05&&left>=TOL){const u=uc.get(i)||{i,nom:CP.zones[i].nom,ml:zml-cov,e:0};u.e+=left;uc.set(i,u);}
+      if(!(cov>1e-9)&&T[i]*c.puV>=TOL){const u=un.get(i)||{i,nom:CP.zones[i].nom,e:0};u.e+=T[i]*c.puV;un.set(i,u);}}
+    per.forEach(x=>{for(let i=0;i<n;i++)if(Math.abs(x.tg[i]-x.cur[i])*c.puV>=0.005)out.chg=true;});if(add.some(y=>y.q*c.puV>=0.005))out.chg=true;
+    for(let i=0;i<n;i++)out.mv[i]+=(zT[i]-o.mov[i])*c.puV;
+    out.posts.push({c,o,per,add,vs,Zn});});
+  out.unpl=[...un.values()];out.unc=[...uc.values()];return out;}
 /* run() du lot C3 : act 'revent' — les liens réécrits dans R.W (un seul dxWrite derrière) */
-export function runAct(a,CP,M,it,act,arg,R){if(act!=='revent')return false;if(!on(CP)){R.msg.push('pas d\'installations ventilées par zone');return true;}const Z=CP.zv;const d=zd(a,M,CP);const rv=revPlan(a,M,CP);let n=0;
-  rv.posts.forEach(p=>{p.o.by.forEach((arr,id)=>{const l=d.LI.get(id);if(!l||!l.isMl||!(l.q>0))return; /* au forfait : ne bouge pas */const L=R.ed(id);if(!L)return;
-    L.comps=L.comps.flatMap(x=>{if(x.sub||X.SV.kOf(CP,x)!==p.c.k||!((+x.q||0)>0))return [x];const w=wPiece(Z,CP,L,x,l,null);const out=[];w.forEach((wi,i)=>{if(!(wi>0))return;const q=r6((+x.q||0)*wi*p.fac[i]);if(q>1e-9)out.push(Object.assign({},x,{q,zs:Z.tok[i]}));});n++;return out;});});});
-  rv.posts.forEach(p=>(p.Zn||[]).forEach(i=>{const ls=(rv.NL||[])[i]||[];const W=ls.reduce((s,x)=>s+x.w,0);const g=p.tg?p.tg[i]:0;if(!(W>0)||!(g>1e-9))return;ls.forEach(x=>{const q=r6(g*x.w/W);const L=q>1e-9?R.ed(x.id):null;if(!L)return;L.comps.push({k:p.c.k,q,zs:Z.tok[i]});n++;});})); /* (lot DY) une zone sans ligne qui porte : sa part sur ses lignes au ml, au prorata de leurs ml */
+export function runAct(a,CP,M,it,act,arg,R){if(act!=='revent')return false;if(!on(CP)){R.msg.push('pas d\'installations ventilées par zone');return true;}const n=covWrite(Object.assign({},a,{dpgf:Object.assign({},a.dpgf||{},{liens:R.W.slice()})}),CP,M,R,null); /* 21/10 : sur les liens EN COURS d'écriture (« Tout traiter » : après un « Laisser à placer ») — copie = calculs frais */
   if(!n)R.msg.push('aucune ligne au ml ne porte les installations');return true;}
+/* 21/10 : l'écriture de la règle de couverture (Reventiler, et « Laisser à placer » d'une installation ventilée par zone) — les prises des lignes au ml mises à
+   leur part (t gardé sur chaque prise d'une zone en ml), les lignes au forfait ne bougent pas */
+function covWrite(a,CP,M,R,only){const Z=CP.zv;const rv=covPlan(a,M,CP,only);let n=0;
+  rv.posts.forEach(p=>{p.per.forEach((x,id)=>{const L=R.ed(id);if(!L)return;
+      L.comps=L.comps.flatMap(cx=>{if(cx.sub||X.SV.kOf(CP,cx)!==p.c.k||!((+cx.q||0)>0))return [cx];const w=wPiece(Z,CP,L,cx,x.l,null);const res=[];
+        w.forEach((wi,i)=>{if(!(wi>0))return;const piece=(+cx.q||0)*wi;const cur=x.cur[i];if(!(cur>1e-12))return;const q=r6(piece*x.tg[i]/cur);const ml=p.vs[i]&&p.vs[i].u==='ml'&&+CP.zones[i].ml>0;
+          if(q>1e-9){const nx=Object.assign({},cx,{q,zs:Z.tok[i]});if(ml)nx.t=r3(x.t[i]*piece/cur);else delete nx.t;res.push(nx);}});n++;return res;});});
+    p.add.forEach(y=>{const L=R.ed(y.id);if(!L)return;const nx={k:p.c.k,q:r6(y.q),zs:Z.tok[y.i]};if(y.t!==null)nx.t=r3(y.t);L.comps.push(nx);n++;});});
+  return n;}
+/* « Laisser à placer » (lot DY) d'une installation ventilée par zone : en même temps, sa règle de couverture — les lignes gardent leurs ml, la zone qui a pris des ml
+   garde exactement leur part à placer ; la référence de ventilation de ce poste est remise à jour (rien d'autre à traiter pour lui) */
+export function keepCov(a,CP,M,it,R){try{if(!on(CP)||!it||!it.mlUp||!it.c||it.c.v||!(it.c.z<0))return null; /* seulement des ml en plus (lot DY) : un « laisser dans le reste » d'un montant reste dans le reste */const c=CP.by.get(it.c.k);if(!c||!CP.zv.vcs.get(c.k))return null;
+    const a2=Object.assign({},a,{dpgf:Object.assign({},a.dpgf||{},{liens:R.W.slice()})});covWrite(a2,CP,M,R,c.k);return c.p;}catch(e){console.warn(e);return null;}}
 /* (lot DY) les lignes au ml de chaque zone (leurs ml × la part de la zone dans la ligne) */
 function zLines(a,CP,d){const NL=CP.zones.map(()=>[]);((a.dpgf||{}).liens||[]).forEach(L=>{const l=d.LI.get(L.id);if(!l||!l.isMl||!(l.q>0))return;const w=zwOf(CP,L,l.des);if(!w)return;w.forEach((x,i)=>{if(x>0.001)NL[i].push({id:L.id,w:l.q*x,lab:l.n||L.a});});});return NL;}
 /* (lot DY) le texte de « ↻ Reventiler » : qui rend quoi à qui ; le total ne change pas */
@@ -263,7 +302,8 @@ export function onWrite(a,a2,CP,M2,S,S0,ok,sv){if(!on(CP)||!M2)return;try{sv=sv|
     const pend=S.vz&&M1&&hasInst(a,M1,CP)&&vzDiff(CP,S.vz); /* référence en attente seulement si des installations étaient déjà pointées AVANT cette écriture */if(!S.vz||!pend||sv['vz:inst'])S.vz=vzNow(CP);
     const st=stOf(a2,M2,CP);const sig=isOver(st)?gapSig(st):null;const o0=((S0&&S0.ok)||{})['vzgap:inst'];
     if(sig&&(sv['vzgap:inst']==='ok'||sv['vz:inst']==='ok'))ok['vzgap:inst']=sig;else if(sig&&o0===sig&&!sv['vzgap:inst'])ok['vzgap:inst']=o0;else delete ok['vzgap:inst'];
-    if(sv['vzgap:inst']||sv['vz:inst'])ZS.force[a2.num]=false;}catch(e){console.warn(e);}}
+    if(sv['vzgap:inst']||sv['vz:inst'])ZS.force[a2.num]=false;
+    if(S.vz)Object.keys(sv).forEach(k=>{const m=/^vzp:(.+)$/.exec(k);if(!m)return;const nw=vzNow(CP);if(nw[m[1]])S.vz=Object.assign({},S.vz,{[m[1]]:nw[m[1]]});}); /* 21/10 : poste traité par « Laisser à placer » (keepCov) */}catch(e){console.warn(e);}}
 /* 1re ouverture d'un DPGF existant (modifiable, pas en consultation) : la référence = la ventilation du jour (pas de fausse alerte) */
 export function ensure(a,M,canEdit){if(!canEdit||a._vview||ZS.busy[a.num]||!M)return;const D=a.dpgf||{};if(!D.suivi||D.suivi.vz)return;if(((a.chiffrage||{}).etudes||[]).some(z=>z&&!z.id))return;const CP=X.compsOf(a);if(!on(CP)||!hasInst(a,M,CP))return;
   ZS.busy[a.num]=1;setTimeout(()=>{ZS.busy[a.num]=0;const a2=X.affOf(a.num);if(!a2||a2._vview||!X.XS.canEdit)return;const D2=a2.dpgf||{};if(!D2.suivi||D2.suivi.vz)return;const CP2=X.compsOf(a2);if(!on(CP2))return;
