@@ -163,10 +163,18 @@ const persona=u=>normAccount({id:'l:'+u.id,name:u.name,role:u.role,poste:u.poste
 // compte courant : profil serveur si connecté — sauf 🧪 MODE TEST : un ADMINISTRATEUR connecté qui choisit un personnage (sélecteur du chantier) voit l'appli avec
 // les droits de ce personnage (Ethan 08/10 : « avec un profil soudeur j'ai pu en supprimer 4 sans parler de crédit » — le personnage changeait la signature, pas les droits).
 // Un compte non administrateur ne peut pas jouer un personnage (il resterait lui-même). Hors connexion : le personnage de démo (Ethan L. = administrateur).
+/* 22/10 (Ethan : « j'arrive sur des profils test quand ça charge… même sur l'ordi d'un collègue, il faut enlever ça, que ça n'arrive jamais à personne : c'est ton
+   compte ou rien » ; « alors que je suis connecté avec mon compte je n'ai pas la vraie appli ») : les PERSONNAGES DE DÉMO n'existent plus sur le site publié —
+   seulement en local (localhost / 127.0.0.1 : développement, tests automatiques) ou avec ?demo=1 dans l'adresse. Connecté sans profil encore chargé : un compte
+   « en chargement » SANS AUCUN DROIT d'écriture (visiteur), jamais un personnage. */
+export const demoOK=()=>{try{const h=String(location.hostname||'');return /^(localhost|127\.0\.0\.1|\[::1\]|::1)$/.test(h)||location.protocol==='file:'||/[?&]demo=1(&|$)/.test(location.search||'');}catch(e){return true;}};
+const PENDING_ACC={id:'pending',name:'Ton compte (chargement…)',email:'',role:'visiteur',poste:'visiteur',type:'visiteur',admin:false,active:true,pending:true};
 export function currentAccount(){if(!A)return null;const S=A.state;
   if(S.profile){const real=normAccount(S.profile);if(S.userId==='__me'||!real.admin)return real;
     if(String(S.userId).startsWith('acc:')){const id=String(S.userId).slice(4);const acc=(S.accounts||[]).find(a=>String(a.id)===id);if(!acc)return real;return {...acc,test:!S.actAs,acting:!!S.actAs,via:real.name};} // 🧪 voir comme une VRAIE personne (lecture seule) — ou, 12/10 (Ethan : « que je puisse aussi faire des choses comme si j'étais la personne »), AGIR comme elle (state.actAs) : tout est signé de son nom, le serveur garde qui a réellement écrit (updated_by)
     const u=(A.users()||[]).find(x=>x.id===S.userId);if(!u)return real;const p=persona(u);p.test=!S.sandbox;p.sandbox=!!S.sandbox;return p;} /* bac à sable (10/10) : on AGIT comme le personnage de démo (rien ne part au serveur) ; sinon lecture seule */
+  if(S.cloudUser)return normAccount(PENDING_ACC); /* 22/10 : connecté, profil pas encore là → lecture seule, jamais un personnage */
+  if(!demoOK())return null; /* site publié, pas connecté : personne (l'écran de connexion) */
   const u=(A.users()||[]).find(x=>x.id===S.userId)||(A.users()||[])[0];if(!u)return null;return persona(u);}
 export const isTesting=()=>{const a=currentAccount();return !!(a&&a.test);};
 let cache={key:'',rights:null};
