@@ -9,19 +9,17 @@ export const axisOf=l=>l.pts&&l.pts.length?l.pts.map(p=>Array.isArray(p)?[+p[0],
 export const polyLen=pts=>pts.reduce((s,p,i)=>i?s+Math.hypot(p[0]-pts[i-1][0],p[1]-pts[i-1][1]):0,0);
 const turn=(a,b,c)=>{let d=(Math.atan2(c[1]-b[1],c[0]-b[0])-Math.atan2(b[1]-a[1],b[0]-a[0]))*180/Math.PI;while(d>180)d-=360;while(d<-180)d+=360;return d;};
 // lyres et baïonnettes lues sur l'axe : lyre = 4 virages ≈ 90° en s, −s, −s, s rapprochés (bras < 25 m) ; baïonnette = 2 virages égaux et opposés rapprochés
-export function countShapes(pts){const out={lyres:0,baio:0};if(!pts||pts.length<4)return out;const T=[];for(let i=1;i<pts.length-1;i++){const d=turn(pts[i-1],pts[i],pts[i+1]);if(Math.abs(d)>=20)T.push({i,d,m:Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1])});}
+// 23/10 : UN SEUL détecteur (detectShapes → indices des sommets de chaque forme) ; countShapes (comptage) et shapesAt (PK, 22/10) en dérivent — mêmes sorties qu'avant ;
+// shapesIdx sert au traceur (« 🗑 Supprimer la lyre », ◀ ▶ décaler, ⇅ inverser).
+function detectShapes(pts){const out={lyres:[],baio:[]};if(!pts||pts.length<4)return out;const T=[];for(let i=1;i<pts.length-1;i++){const d=turn(pts[i-1],pts[i],pts[i+1]);if(Math.abs(d)>=20)T.push({i,d});}
   const near=(a,b)=>Math.hypot(pts[b.i][0]-pts[a.i][0],pts[b.i][1]-pts[a.i][1])<25;const used=new Set();
-  for(let k=0;k+3<T.length;k++){const [a,b,c,d]=T.slice(k,k+4);if([a,b,c,d].some(x=>used.has(x.i)))continue;const s=Math.sign(a.d);if(Math.abs(a.d)>70&&Math.sign(b.d)===-s&&Math.abs(b.d)>70&&Math.sign(c.d)===-s&&Math.abs(c.d)>70&&Math.sign(d.d)===s&&Math.abs(d.d)>70&&near(a,b)&&near(b,c)&&near(c,d)){out.lyres++;[a,b,c,d].forEach(x=>used.add(x.i));k+=3;}}
-  for(let k=0;k+1<T.length;k++){const [a,b]=T.slice(k,k+2);if(used.has(a.i)||used.has(b.i))continue;if(Math.sign(a.d)===-Math.sign(b.d)&&Math.abs(Math.abs(a.d)-Math.abs(b.d))<12&&near(a,b)){out.baio++;used.add(a.i);used.add(b.i);k++;}}
+  for(let k=0;k+3<T.length;k++){const [a,b,c,d]=T.slice(k,k+4);if([a,b,c,d].some(x=>used.has(x.i)))continue;const s=Math.sign(a.d);if(Math.abs(a.d)>70&&Math.sign(b.d)===-s&&Math.abs(b.d)>70&&Math.sign(c.d)===-s&&Math.abs(c.d)>70&&Math.sign(d.d)===s&&Math.abs(d.d)>70&&near(a,b)&&near(b,c)&&near(c,d)){out.lyres.push({v:[a.i,b.i,c.i,d.i],side:s});[a,b,c,d].forEach(x=>used.add(x.i));k+=3;}}
+  for(let k=0;k+1<T.length;k++){const [a,b]=T.slice(k,k+2);if(used.has(a.i)||used.has(b.i))continue;if(Math.sign(a.d)===-Math.sign(b.d)&&Math.abs(Math.abs(a.d)-Math.abs(b.d))<12&&near(a,b)){out.baio.push({v:[a.i,b.i],side:Math.sign(a.d)});used.add(a.i);used.add(b.i);k++;}}
   return out;}
-// 22/10 (Ethan : « ajoute le DN des écarts concernés ») : MÊMES RÈGLES que countShapes (à garder identiques), avec la POSITION de chaque forme = PK sur l'axe
-// au milieu de la forme → le DN d'une lyre / baïonnette en plus ou en moins. Utilisé par l'appli seulement (le traceur ne l'importe pas).
-export function shapesAt(pts){const out={lyres:[],baio:[]};if(!pts||pts.length<4)return out;const T=[];for(let i=1;i<pts.length-1;i++){const d=turn(pts[i-1],pts[i],pts[i+1]);if(Math.abs(d)>=20)T.push({i,d});}
-  const cum=[0];for(let i=1;i<pts.length;i++)cum.push(cum[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));const pk=(a,b)=>+((cum[a.i]+cum[b.i])/2).toFixed(1);
-  const near=(a,b)=>Math.hypot(pts[b.i][0]-pts[a.i][0],pts[b.i][1]-pts[a.i][1])<25;const used=new Set();
-  for(let k=0;k+3<T.length;k++){const [a,b,c,d]=T.slice(k,k+4);if([a,b,c,d].some(x=>used.has(x.i)))continue;const s=Math.sign(a.d);if(Math.abs(a.d)>70&&Math.sign(b.d)===-s&&Math.abs(b.d)>70&&Math.sign(c.d)===-s&&Math.abs(c.d)>70&&Math.sign(d.d)===s&&Math.abs(d.d)>70&&near(a,b)&&near(b,c)&&near(c,d)){out.lyres.push(pk(a,d));[a,b,c,d].forEach(x=>used.add(x.i));k+=3;}}
-  for(let k=0;k+1<T.length;k++){const [a,b]=T.slice(k,k+2);if(used.has(a.i)||used.has(b.i))continue;if(Math.sign(a.d)===-Math.sign(b.d)&&Math.abs(Math.abs(a.d)-Math.abs(b.d))<12&&near(a,b)){out.baio.push(pk(a,b));used.add(a.i);used.add(b.i);k++;}}
-  return out;}
+export function countShapes(pts){const d=detectShapes(pts);return {lyres:d.lyres.length,baio:d.baio.length};}
+export function shapesIdx(pts){return detectShapes(pts);}
+export function shapesAt(pts){const d=detectShapes(pts);const cum=[0];for(let i=1;i<(pts||[]).length;i++)cum.push(cum[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));const pk=v=>+((cum[v[0]]+cum[v[v.length-1]])/2).toFixed(1);
+  return {lyres:d.lyres.map(x=>pk(x.v)),baio:d.baio.map(x=>pk(x.v))};}
 // quantités d'une ligne ; base=true → tracé seul (sans les soudures ajoutées sur place ni les extrusions : ce qu'on fige comme marché)
 export function lineCounts(l,base){const c=Z();const pts=axisOf(l);c.ml=+polyLen(pts).toFixed(1);const sh=countShapes(pts);c.lyres=sh.lyres;c.baio=sh.baio;
   ['A','R'].forEach(k=>{const cd=l.cond&&l.cond[k];if(!cd)return;
