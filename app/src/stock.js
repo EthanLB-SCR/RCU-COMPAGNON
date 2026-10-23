@@ -119,7 +119,18 @@ export function remainByMatch(stock){const m={};globalAgg(stock).forEach(a=>{con
    · weldDn : le DN À LA SOUDURE (celui du traceur s'il est connu ; après une réduction : le DN aval) — avant, le DN de la pièce d'avant (la réduction = DN amont) ;
    · sleeveCasing : la gaine du manchon = celle du tube du même DN de part ou d'autre de la soudure. */
 export const pipeLen=(e,bar)=>{const L=+(e&&e.len)||Math.abs((+(e&&e.m1)||0)-(+(e&&e.m0)||0));return L>0?L:(+bar||12);};
-export function packBars(lens,bar){bar=+bar||12;const tol=0.005;let n=0;const cut=[];(lens||[]).forEach(L=>{L=+L||0;if(L<=0)return;if(L>=bar-tol)n+=Math.ceil(L/bar-tol);else cut.push(L);});
-  cut.sort((a,b)=>b-a);const rest=[];cut.forEach(L=>{let k=-1;for(let i=0;i<rest.length;i++){if(rest[i]>=L-tol&&(k<0||rest[i]<rest[k]))k=i;}if(k<0){rest.push(bar-L);n++;}else rest[k]-=L;});return n;}
+export function packBarsV2(lens,bar){bar=+bar||12;const tol=0.005;let n=0;const cut=[];(lens||[]).forEach(L=>{L=+(L&&L.len!==undefined?L.len:L)||0;if(L<=0)return;if(L>=bar-tol)n+=Math.ceil(L/bar-tol);else cut.push(L);});
+  cut.sort((a,b)=>b-a);const rest=[];cut.forEach(L=>{let k=-1;for(let i=0;i<rest.length;i++){if(rest[i]>=L-tol&&(k<0||rest[i]<rest[k]))k=i;}if(k<0){rest.push(bar-L);n++;}else rest[k]-=L;});return n;} /* 21/10 → 23/10 : ancien rangement (chutes mises en commun pour tout le chantier, plus grand d'abord) — gardé pour convertir les tracés initiaux figés avec lui (v 2) */
+/* 23/10 (Ethan : « sur plan deux fois 5 m = une barre coupée deux fois ; 8 + 8 + 8 = trois barres, on ne soude pas 2 × 4 m pour faire 8 ; une réutilisation évidente d'une chute on
+   la prend, du racolage on ne prend pas ») — RÈGLE : on avance le long de chaque LIGNE (conduite aller puis retour, morceaux dans l'ordre du calepinage) ; un morceau ≥ barre =
+   barres entières (le reste redevient un morceau) ; un morceau court est coupé dans la plus petite chute DE LA MÊME LIGNE qui suffit (réutilisation évidente), sinon dans une barre
+   neuve dont la chute reste disponible pour la suite de la ligne ; une chute de moins de CHUTE_MIN (1 m) est un déchet ; jamais deux chutes assemblées pour faire un morceau ;
+   jamais une chute d'une autre ligne. Entrée : [{len, line}] (des nombres seuls = une seule ligne). */
+export const CHUTE_MIN=1;
+export function packBars(lens,bar){bar=+bar||12;const tol=0.005;let n=0;const byLine={};(lens||[]).forEach(x=>{const L=+(x&&x.len!==undefined?x.len:x)||0;if(L<=0)return;const k=(x&&x.line)||'';(byLine[k]=byLine[k]||[]).push(L);});
+  Object.values(byLine).forEach(list=>{const rest=[];list.forEach(L0=>{let L=L0;if(L>=bar-tol){const w=Math.floor(L/bar+tol);n+=w;L=+(L-w*bar).toFixed(3);if(L<=tol)return;}
+    let k=-1;for(let i=0;i<rest.length;i++){if(rest[i]>=L-tol&&(k<0||rest[i]<rest[k]))k=i;}
+    if(k<0){n++;const r=bar-L;if(r>=CHUTE_MIN-tol)rest.push(r);}else{rest[k]-=L;if(rest[k]<CHUTE_MIN-tol)rest.splice(k,1);}});});
+  return n;}
 export function weldDn(l,cd,j){if(j&&+j.dn)return +j.dn;const els=(cd&&cd.els)||[];const e=j?els[j.idx]:null,nx=j?els[j.idx+1]:null;if(e&&e.kind==='reducer')return +(e.dn2||(nx&&nx.dn)||e.dn||(l&&l.dn))||0;return +((e&&e.dn)||(l&&l.dn))||0;}
 export function sleeveCasing(cd,j,dn){const els=(cd&&cd.els)||[];const e=j?els[j.idx]:null,nx=j?els[j.idx+1]:null;if(e&&e.kind!=='reducer'&&+e.dn===+dn&&e.casing)return e.casing;if(nx&&+nx.dn===+dn&&nx.casing)return nx.casing;return null;}

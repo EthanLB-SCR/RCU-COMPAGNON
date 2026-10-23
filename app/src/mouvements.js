@@ -57,7 +57,8 @@ export function mvEvents(){const E=[];const P=(at,o)=>{if(at)E.push(Object.assig
   regAll('vrec').forEach(r=>{if(!r||!r.vehId)return;const im=r.immat||r.vehId;const X=r.conducteurNom||'';const Xk=r.conducteurKey||'';const sw=r.switchId?' · changement déclaré par '+(r.declarePar||'un responsable'):'';
     if(r.type==='restitution'&&r.lache){const to=r.a?r.a.nom:'qui le prendra';const par=X+(r.rempliPar&&r.rempliPar.nom&&r.rempliPar.nom!==X?' (noté par '+r.rempliPar.nom+')':'');
       P(r.lache.at||r.at,{k:'laisse',c:!!r.contest,immat:im,who:[Xk,r.a&&r.a.key,r.rempliPar&&r.rempliPar.key],t:'Laissé par '+par+' à '+to+(r.lache.ou?' · '+r.lache.ou:'')+(r.quand&&r.quand>String(r.at).slice(0,10)?' · prévu le '+dFR(r.quand):'')+(r.memoire?' · de mémoire':'')+sw,
-        st:r.pris?'ok':r.contest?(r.arbitre?'ok':'contest'):r.valide?'ok':'attente',s:r.pris?'signé « exact » par '+(r.pris.nom||'')+' le '+dFR(r.pris.at):r.contest?'contesté par '+(r.contest.nom||'')+(r.arbitre?' · tranché par '+(r.arbitre.nom||''):' · à trancher'):r.valide?'validé par '+(r.valide.nom||'')+' (modèle d\'hier)':'attend la signature de '+to+' · '+jl(r.at),rec:r.id});
+        st:r.pris?'ok':r.contest?(r.arbitre?'ok':'contest'):r.valide?'ok':'attente',s:r.pris?'signé « exact » par '+(r.pris.nom||'')+' le '+dFR(r.pris.at):r.contest?'contesté par '+(r.contest.nom||'')+(r.arbitre?' · tranché par '+(r.arbitre.nom||''):' · à trancher'):r.valide?(r.valide.sansPrise?'état des lieux validé par '+(r.valide.nom||'')+' · véhicule laissé '+(r.valide.ou||r.lache.ou||'sur place')+', à prendre':'validé par '+(r.valide.nom||'')+' (modèle d\'hier)'):'attend la signature de '+to+' · '+jl(r.at),rec:r.id});
+      if(r.valide&&r.valide.sansPrise)P(r.valide.at,{k:'valide',immat:im,who:[r.valide.par,Xk],t:'État des lieux de '+X+' validé par '+(r.valide.nom||'')+' sans prendre le véhicule — reste '+(r.valide.ou||r.lache.ou||'sur place')+(r.pris?'':', à prendre'),st:'ok',rec:r.id}); /* 23/10 */
       if(r.pris)P(r.pris.at,{k:'pris',immat:im,who:[r.pris.par,Xk],t:'Pris par '+(r.pris.nom||'')+' : état des lieux de '+X+' signé « exact »',st:'ok',rec:r.id});
       if(r.contest)P(r.contest.at,{k:'contest',c:true,immat:im,who:[r.contest.par,Xk],t:'Contesté par '+(r.contest.nom||'')+' : « '+court(r.contest.motif,90)+' »',st:r.arbitre?'ok':'contest',s:r.arbitre?'':'à trancher par un responsable · '+jl(r.contest.at),rec:r.id});
       if(r.arbitre)P(r.arbitre.at,{k:'arbitre',c:true,immat:im,who:[r.arbitre.par,r.contest&&r.contest.par,Xk],t:'Tranché par '+(r.arbitre.nom||'')+' : '+(r.arbitre.decision==='redo'?'nouvel état des lieux demandé à '+(r.contest&&r.contest.nom||''):'vu — clôturé')+(r.arbitre.note?' · « '+court(r.arbitre.note,90)+' »':''),st:'ok',rec:r.id});
@@ -145,3 +146,35 @@ flotteVue('mouv','↔ Mouvements',ctx=>RENDER.mouv?RENDER.mouv(ctx):mvHTML({peop
 flotteVue('qui','🧑 Qui a quoi',ctx=>RENDER.qui?RENDER.qui(ctx):quiHTML({}));
 export const openMouv=()=>{try{flotteState().view='mouv';flotteState().cur=null;}catch(e){}};
 export const openQui=()=>{try{flotteState().view='qui';flotteState().cur=null;}catch(e){}};
+/* ── 🕓 HISTORIQUE (23/10, Ethan : « quand je choisis un véhicule j'ai son historique ; je choisis un gars et j'ai l'historique des véhicules qu'il a eus ; je veux savoir à telle
+   date ce que telle personne avait, ou tel véhicule qui l'avait tel jour ») — un véhicule et/ou une personne, et une date : la réponse du jour, puis les périodes et les déclarations. ── */
+const HS={veh:'',pers:'',date:''};export const histState=()=>HS;
+const endOf=d=>d?d+'T23:59:59':'9999';
+const covers=(x,t)=>(!x.debut||String(x.debut)<=t)&&(!x.fin||String(x.fin)>t);
+export function vehAt(v,date){const t=endOf(date);return conducteursDe(v).filter(p=>covers(p,t));} /* qui avait ce véhicule ce jour-là (fin de journée) */
+export function persAt(key,date){const t=endOf(date);return persVehs(key).filter(x=>covers(x,t));} /* ce que cette personne avait ce jour-là */
+export function laisseAt(v,date){const t=endOf(date);return recsOf(v.immat).find(r=>r.type==='restitution'&&r.lache&&!r.remplacePar&&String(r.lache.at||r.at)<=t&&(!r.pris||String(r.pris.at)>t))||null;} /* laissé (sans conducteur) ce jour-là */
+const periode=x=>(x.debut?'du '+dFR(x.debut):'depuis une date inconnue')+(x.fin?' au '+dFR(x.fin):x.cur||!x.fin?' à aujourd\'hui':'');
+export function histHTML(o){o=o||{};const M=nomsMap(o.people);const date=HS.date||todayIso();const V=HS.veh?vehGet(HS.veh):null;const K=HS.pers||'';
+  const vehs=vehAll().slice().sort((a,b)=>String(a.immat).localeCompare(String(b.immat))).map(v=>[v.immat,v.immat+' · '+[v.marque,v.modele].filter(Boolean).join(' ')+(v.conducteur?' · '+v.conducteur:'')]);
+  const keys=new Set(Object.keys(M));vehAll().forEach(v=>{conducteursDe(v).forEach(p=>{if(p.key){keys.add(p.key);if(!M[p.key]&&p.nom)M[p.key]=p.nom;}});});
+  const pers=[...keys].map(k=>[k,M[k]||k]).sort((a,b)=>a[1].localeCompare(b[1],'fr'));
+  const selH=(name,val,opts,all)=>`<select class="f mv-sel" data-xin="veh|hist~${name}"><option value="">${esc(all)}</option>${opts.map(([k,l])=>`<option value="${esc(k)}"${val===k?' selected':''}>${esc(l)}</option>`).join('')}</select>`;
+  let ans='';
+  if(V){const P=vehAt(V,date);const la=!P.length?laisseAt(V,date):null;
+    ans+=`<div class="card"><h3 style="margin:0 0 4px">🚐 ${esc(V.immat)} <span class="hint">· ${esc([V.marque,V.modele].filter(Boolean).join(' '))}</span></h3>
+      <div class="hist-ans">Le <b>${dFR(date)}</b> : ${P.length?P.map(p=>`<b>${esc(p.nom)}</b> <span class="eq-s">(${periode(p)}${p.how?' · '+esc(p.how):''})</span>`).join(' · '):la?`<b>sans conducteur</b> — laissé par ${esc(la.conducteurNom||'')} le ${dFR(la.lache.at||la.at)}${la.lache.ou?' · '+esc(la.lache.ou):''}${la.a?' · à '+esc(la.a.nom):''}`:'<b>aucun conducteur connu</b> ce jour-là'}</div>
+      ${conducteursHTML(V)||'<div class="eq-s">Aucun conducteur enregistré.</div>'}
+      ${(()=>{const E=mvEvents().filter(e=>e.immat===V.immat);return E.length?`<div class="veh-hh"><b>Déclarations</b><span>${E.length}</span></div>${E.slice(0,40).map(e=>mvLine(e,{veh:false})).join('')}`:'';})()}
+      <div class="eq-acts" style="margin-top:6px"><button class="btn sm" data-act="fl" data-v="open|${esc(V.immat)}">Fiche du véhicule</button></div></div>`;}
+  if(K){const P=persAt(K,date);const nom=M[K]||K;
+    ans+=`<div class="card"><h3 style="margin:0 0 4px">🧑 ${esc(nom)}</h3>
+      <div class="hist-ans">Le <b>${dFR(date)}</b> : ${P.length?P.map(x=>`<b>${esc(x.immat)}</b> ${esc([x.v.marque,x.v.modele].filter(Boolean).join(' '))} <span class="eq-s">(${periode(x)})</span>`).join(' · '):'<b>aucun véhicule</b> ce jour-là'}</div>
+      ${persHTML(K,{n:40,fiche:true})||'<div class="eq-s">Aucun véhicule ni déclaration enregistrés.</div>'}</div>`;}
+  if(!V&&!K){const rows=vehAll().slice().sort((a,b)=>String(a.immat).localeCompare(String(b.immat))).map(v=>{const P=vehAt(v,date);const la=!P.length?laisseAt(v,date):null;return {v,P,la};});const n=rows.filter(x=>x.P.length).length;
+    ans+=`<div class="card"><h3 style="margin:0 0 4px">Qui avait quoi le ${dFR(date)} <span class="hint">· ${n} véhicule${n>1?'s':''} avec conducteur</span></h3>
+      <table class="hist-tbl"><tr><th>Véhicule</th><th>Conducteur ce jour-là</th><th>Période</th></tr>${rows.map(({v,P,la})=>`<tr><td><button class="lnk" data-act="x" data-v="veh|hist|veh~${esc(v.immat)}"><b>${esc(v.immat)}</b></button><br><span class="eq-s">${esc([v.marque,v.modele].filter(Boolean).join(' '))}</span></td><td>${P.length?P.map(p=>p.key?`<button class="lnk" data-act="x" data-v="veh|hist|pers~${esc(p.key)}">${esc(p.nom)}</button>`:esc(p.nom)).join(', '):la?`<span class="eq-s">laissé ${esc(la.lache.ou||'')} par ${esc(la.conducteurNom||'')}</span>`:'<span class="eq-s">—</span>'}</td><td class="eq-s">${P.map(periode).join(' · ')}</td></tr>`).join('')}</table></div>`;}
+  return `<div class="card"><div class="veh-row mv-sels hist-sels">${selH('veh',HS.veh,vehs,'Un véhicule…')}${selH('pers',HS.pers,pers,'Une personne…')}<label class="hist-date">le <input type="date" class="f" data-xin="veh|hist~date" value="${esc(date)}"></label>${(HS.veh||HS.pers)?`<button class="btn sm" data-act="x" data-v="veh|hist|clear">Tout le parc</button>`:''}</div>
+    <div class="hint">Un véhicule : qui l'avait ce jour-là, ses conducteurs successifs, ses déclarations. Une personne : ce qu'elle avait ce jour-là, ses véhicules (actuel, précédents), ses déclarations. Rien de choisi : tout le parc à la date.</div></div>${ans}`;}
+flotteVue('hist','🕓 Historique',ctx=>histHTML({people:ctx.people}));
+export const openHist=(o)=>{o=o||{};HS.veh=o.veh||'';HS.pers=o.pers||'';if(o.date!==undefined)HS.date=o.date||'';try{flotteState().view='hist';flotteState().cur=null;}catch(e){}};

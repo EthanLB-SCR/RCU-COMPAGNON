@@ -361,7 +361,7 @@ flotteHook('fiche',(v,canEdit)=>{ensureCss();const C=vcfg();const L=recsOf(v.imm
   const cartes=Object.entries(v.cartes||{}).filter(([,n])=>n);const nH=L.length+(v.switchHist||[]).length+(v.switch?1:0);
   return `<div class="card veh-card"><h3>📋 États des lieux et mouvements <span class="hint">· remise, laissé, pris, changement de conducteur, documents signés</span></h3>${st}<div class="eq-acts veh-acts" style="margin-top:8px">${bt}</div>
     ${cartes.length?`<div class="hint">Cartes du véhicule : ${cartes.map(([id,n])=>esc(dispoLabel(id))+' n° '+esc(n)).join(' · ')}</div>`:''}
-    ${R2.conducteursHist(v)}${nH?`<div class="veh-hh"><b>Historique</b><span>${nH}</span></div>${hist}`:''}
+    ${R2.conducteursHist(v)}<div style="margin:4px 0 6px"><button class="btn sm" data-act="x" data-v="veh|hist|veh~${esc(v.immat)}">🕓 Historique complet · qui l'avait à une date</button></div>${nH?`<div class="veh-hh"><b>Historique</b><span>${nH}</span></div>${hist}`:''}
     ${canEdit?`<div style="margin-top:6px;text-align:right"><button class="btn sm" data-act="x" data-v="veh|cfg|">⚙ Pack véhicules</button></div>`:''}</div>`;});
 /* ── Moi → Mon véhicule (conducteur) : sa dernière remise, la charte signée ou à signer ── */
 flotteHook('mine',(v,acc)=>{ensureCss();const key=docKey(acc);const r=openRec(v);const m=manque(r);const {charte:type}=profil(v);const ch=charteCur(type);const sig=charteSigOf(key,type);let h='';const pend=!!(r&&(r.aValider||r.refus)); /* 19/10 VH : à valider / refusée → R2 */
@@ -430,7 +430,7 @@ export default {id:ID,kinds:['vcfg','vrec'],hub:'parc',
     return L;},
   act(v,el,me,ctx){cap(ctx);const i=String(v).indexOf('|');const a=i<0?String(v):String(v).slice(0,i);const arg=i<0?'':String(v).slice(i+1);
     if(a==='print'){printRec(arg);return;}if(a==='charteVoir'){charteModal(arg,me,ctx);return;}if(a==='cfg'){ctx.go('x:'+ID+':cfg');return;}
-    if(ctx.viewing()&&/^(mv|quiprint|quimoi|gomouv|voir|rec|arb|swy|home)$/.test(a)){R2.act(a,arg,el,me,ctx);return;} /* 20/10 VM : écrans et filtres en lecture seule */
+    if(ctx.viewing()&&/^(mv|hist|quiprint|quimoi|gomouv|voir|rec|arb|swy|home)$/.test(a)){R2.act(a,arg,el,me,ctx);return;} /* 20/10 VM : écrans et filtres en lecture seule */
     if(ctx.viewing()){ctx.toast('👁 Lecture seule : tu regardes l\'appli comme quelqu\'un d\'autre');return;}
     if(a==='charte'){charteModal(arg,me,ctx);return;}
     if(R2.act(a,arg,el,me,ctx))return; /* 19/10 VH : écrans et modes en plus (droits vérifiés là-bas) */
@@ -465,7 +465,7 @@ export default {id:ID,kinds:['vcfg','vrec'],hub:'parc',
   input(champ,el,me,ctx,type){cap(ctx);const i=String(champ).indexOf('~');const f=i<0?champ:champ.slice(0,i);const arg=i<0?'':champ.slice(i+1);
     if(f==='packfile'){if(type!=='change')return;const file=el.files&&el.files[0];el.value='';if(!file)return;if(!me.admin||ctx.viewing()){ctx.toast('Import réservé à l\'administrateur');return;}
       file.text().then(t=>packImport(JSON.parse(t),ctx)).then(s=>{ctx.toast('✓ '+s);ctx.render();}).catch(e=>{console.warn(e);ctx.toast('Import impossible : '+(e&&e.message||e));});return;}
-    if(f==='mv'){R2.input(f,arg,el,me,ctx,type);return;} /* 20/10 VM : filtres des mouvements (lecture seule comprise) */
+    if(f==='mv'||f==='hist'){R2.input(f,arg,el,me,ctx,type);return;} /* 23/10 : + 🕓 Historique */ /* 20/10 VM : filtres des mouvements (lecture seule comprise) */
     if(ctx.viewing())return;if(R2.input(f,arg,el,me,ctx,type))return; /* 19/10 VH : champs des écrans en plus */
     if(!W)return;const val=el.value;
     switch(f){
