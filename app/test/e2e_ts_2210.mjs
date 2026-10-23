@@ -5,7 +5,7 @@
 // soudures +4 = +4 − —) · c2 tableau « Ce qui est en plus » : ajouté et « Toutes les modifs » côte à côte + explication (retiré jamais dans les modifs) · c3 carte à
 // qualifier : avant → après de la ligne (ouvert) · c4 « Par ligne » : un bloc par ligne avec avant / après et « retiré : té PK 30 (aller) » · c5 qualifiée (TS proposé) :
 // « Cette modif compte » + avant → après (fermé) ; tronçon déclaré : « Dans ce tronçon (réel, PK …) » · c6 export : mêmes colonnes + avant / après par ligne ·
-// c7 téléphone 390 : pas de débordement de page · c8 console.
+// (22/10 après-midi : les pièces des listes portent leur DN — « té DN 100 PK 30 » ; le détail du DN des écarts : e2e_tsdn_2210) · c7 téléphone 390 : pas de débordement de page · c8 console.
 import { chromium } from 'playwright';
 const BASE=process.env.BASE||'http://localhost:8765';const SHOTS=process.env.SHOTS||null;
 const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
@@ -50,7 +50,7 @@ o=await page.evaluate(()=>{const d=document.querySelector('#tsview details.tsLin
 await page.evaluate(()=>{const d=document.querySelector('#tsview details.tsLines');if(d)d.scrollIntoView({block:'start'});});await page.waitForTimeout(150);await shot(page,'4_par_ligne');
 console.log('c4) par ligne :',JSON.stringify(o));
 const l1=o&&o.L.find(x=>x.t==='Rue Fictive'),l2=o&&o.L.find(x=>x.t==='Allée Fictive');
-C.c4=!!o&&/Par ligne \(2 lignes modifiées\) — avant → après/.test(o.sum)&&!!l1&&!!l2&&num(rowOf(l1.rows,'Tés')[3])===-1&&num(rowOf(l1.rows,'Linéaire d\'axe (ml)')[3])===-5&&l1.pcs.some(p=>/retiré : té PK 30 \(aller\)/.test(p))&&num(rowOf(l2.rows,'Linéaire d\'axe (ml)')[3])===10;
+C.c4=!!o&&/Par ligne \(2 lignes modifiées\) — avant → après/.test(o.sum)&&!!l1&&!!l2&&num(rowOf(l1.rows,'Tés')[3])===-1&&num(rowOf(l1.rows,'Linéaire d\'axe (ml)')[3])===-5&&l1.pcs.some(p=>/retiré : té DN 100 PK 30 \(aller\)/.test(p))&&num(rowOf(l2.rows,'Linéaire d\'axe (ml)')[3])===10;
 // ── c5) qualifier le candidat de L2 (TS proposé) → « Cette modif compte » + avant → après (fermé) ; tronçon déclaré sur L1 → « Dans ce tronçon »
 o=await page.evaluate(()=>{const T=window.TRACE;const c=T.ts.candidates().find(x=>x.line==='L2');T.ts.markCandidate(c,'propose','DEV-F1');T.ts.markRange('L1',5,20,{etat:'forfait'});T.renderAll();
   const cards=[...document.querySelectorAll('#tsview .tsCard:not(.cand)')];const a=cards.find(x=>/Allée Fictive/.test(x.textContent)),b=cards.find(x=>/tronçon PK 5/.test(x.textContent));
@@ -58,7 +58,7 @@ o=await page.evaluate(()=>{const T=window.TRACE;const c=T.ts.candidates().find(x
 await shot(page,'5_qualifiees');console.log('c5) qualifiées :',JSON.stringify({a:o.a&&{open:o.a.open,cpt:(o.a.txt.match(/Cette modif compte : [^·]*·[^·]*/)||[''])[0]},b:o.b&&(o.b.match(/Dans ce tronçon[^.]*/)||[''])[0]}));
 C.c5=!!o.a&&/Cette modif compte : \+10 ml · \+4 soudures/.test(o.a.txt)&&!o.a.open&&/Avant → après de la ligne/.test(o.a.txt)&&!!o.b&&/Dans ce tronçon \(réel, PK 5 → 20\) : 15 ml · \d+ soudures/.test(o.b);
 // ── c6) export : mêmes colonnes + avant / après par ligne
-o=await page.evaluate(()=>{const h=window.TRACE.ts.export?null:null;const T=window.TRACE;const html=T.doe&&T.doe.tsHTML?T.doe.tsHTML():'';return {n:html.length,cols:/dont ajouté/.test(html)&&/dont retiré/.test(html),ex:/Écart = ajouté − retiré/.test(html),par:/Par ligne — avant \(marché\) → après \(réel\)/.test(html),te:/retiré<\/b> : té PK 30 \(aller\)/.test(html)};});
+o=await page.evaluate(()=>{const h=window.TRACE.ts.export?null:null;const T=window.TRACE;const html=T.doe&&T.doe.tsHTML?T.doe.tsHTML():'';return {n:html.length,cols:/dont ajouté/.test(html)&&/dont retiré/.test(html),ex:/Écart = ajouté − retiré/.test(html),par:/Par ligne — avant \(marché\) → après \(réel\)/.test(html),te:/retiré<\/b> : té DN 100 PK 30 \(aller\)/.test(html)};});
 console.log('c6) export :',JSON.stringify(o));C.c6=o.n>1000&&o.cols&&o.ex&&o.par&&o.te;
 await ctx.close();
 // ── c7) téléphone 390 : l'onglet tient (tableaux défilants dans leur cadre, pas la page)

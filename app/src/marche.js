@@ -14,6 +14,14 @@ export function countShapes(pts){const out={lyres:0,baio:0};if(!pts||pts.length<
   for(let k=0;k+3<T.length;k++){const [a,b,c,d]=T.slice(k,k+4);if([a,b,c,d].some(x=>used.has(x.i)))continue;const s=Math.sign(a.d);if(Math.abs(a.d)>70&&Math.sign(b.d)===-s&&Math.abs(b.d)>70&&Math.sign(c.d)===-s&&Math.abs(c.d)>70&&Math.sign(d.d)===s&&Math.abs(d.d)>70&&near(a,b)&&near(b,c)&&near(c,d)){out.lyres++;[a,b,c,d].forEach(x=>used.add(x.i));k+=3;}}
   for(let k=0;k+1<T.length;k++){const [a,b]=T.slice(k,k+2);if(used.has(a.i)||used.has(b.i))continue;if(Math.sign(a.d)===-Math.sign(b.d)&&Math.abs(Math.abs(a.d)-Math.abs(b.d))<12&&near(a,b)){out.baio++;used.add(a.i);used.add(b.i);k++;}}
   return out;}
+// 22/10 (Ethan : « ajoute le DN des écarts concernés ») : MÊMES RÈGLES que countShapes (à garder identiques), avec la POSITION de chaque forme = PK sur l'axe
+// au milieu de la forme → le DN d'une lyre / baïonnette en plus ou en moins. Utilisé par l'appli seulement (le traceur ne l'importe pas).
+export function shapesAt(pts){const out={lyres:[],baio:[]};if(!pts||pts.length<4)return out;const T=[];for(let i=1;i<pts.length-1;i++){const d=turn(pts[i-1],pts[i],pts[i+1]);if(Math.abs(d)>=20)T.push({i,d});}
+  const cum=[0];for(let i=1;i<pts.length;i++)cum.push(cum[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));const pk=(a,b)=>+((cum[a.i]+cum[b.i])/2).toFixed(1);
+  const near=(a,b)=>Math.hypot(pts[b.i][0]-pts[a.i][0],pts[b.i][1]-pts[a.i][1])<25;const used=new Set();
+  for(let k=0;k+3<T.length;k++){const [a,b,c,d]=T.slice(k,k+4);if([a,b,c,d].some(x=>used.has(x.i)))continue;const s=Math.sign(a.d);if(Math.abs(a.d)>70&&Math.sign(b.d)===-s&&Math.abs(b.d)>70&&Math.sign(c.d)===-s&&Math.abs(c.d)>70&&Math.sign(d.d)===s&&Math.abs(d.d)>70&&near(a,b)&&near(b,c)&&near(c,d)){out.lyres.push(pk(a,d));[a,b,c,d].forEach(x=>used.add(x.i));k+=3;}}
+  for(let k=0;k+1<T.length;k++){const [a,b]=T.slice(k,k+2);if(used.has(a.i)||used.has(b.i))continue;if(Math.sign(a.d)===-Math.sign(b.d)&&Math.abs(Math.abs(a.d)-Math.abs(b.d))<12&&near(a,b)){out.baio.push(pk(a,b));used.add(a.i);used.add(b.i);k++;}}
+  return out;}
 // quantités d'une ligne ; base=true → tracé seul (sans les soudures ajoutées sur place ni les extrusions : ce qu'on fige comme marché)
 export function lineCounts(l,base){const c=Z();const pts=axisOf(l);c.ml=+polyLen(pts).toFixed(1);const sh=countShapes(pts);c.lyres=sh.lyres;c.baio=sh.baio;
   ['A','R'].forEach(k=>{const cd=l.cond&&l.cond[k];if(!cd)return;
