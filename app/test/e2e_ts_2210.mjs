@@ -38,8 +38,9 @@ C.c1=!!o&&o.th.join('|')==='Quantité|Marché|Réel / projeté|Écart|dont ajout
 o=await page.evaluate(()=>{const t=document.querySelector('#tsview table.tsQ');const th=[...t.querySelectorAll('tr th')].map(x=>x.textContent.trim());const rows=Object.fromEntries([...t.querySelectorAll('tr')].slice(1).map(tr=>{const td=[...tr.querySelectorAll('td')].map(x=>x.textContent.trim());return [td[0],td.slice(1)];}));
   return {th,rows,hint:document.getElementById('tsview').textContent.replace(/[\s  ]+/g,' ')};});
 console.log('c2) en plus :',JSON.stringify({th:o.th,rows:o.rows}));
-C.c2=o.th.join('|')==='Ce qui est en plus|Ajouté|Toutes les modifs'&&num((o.rows['Linéaire d\'axe (ml)']||[])[0])===10&&num((o.rows['Linéaire d\'axe (ml)']||[])[1])===10&&num((o.rows['Soudures (aller + retour)']||[])[1])===4&&!o.rows['Tés']
-  &&/ne portent que sur ce qui est en plus/.test(o.hint)&&/Tés : écart −2, modifs —/.test(o.hint);
+/* 23/10 : les retraits comptent aussi (−) : Modifications | Ajouté | Retiré | filtre (net) ; ml +10 / −5 → net +5 ; tés — / −1 → −1 */
+C.c2=o.th.join('|')==='Modifications|Ajouté|Retiré|Toutes les modifs'&&num((o.rows['Linéaire d\'axe (ml)']||[])[0])===10&&num((o.rows['Linéaire d\'axe (ml)']||[])[1])===-5&&num((o.rows['Linéaire d\'axe (ml)']||[])[2])===5&&num((o.rows['Soudures (aller + retour)']||[])[2])===4&&num((o.rows['Tés']||[])[1])===-1&&num((o.rows['Tés']||[])[2])===-1
+  &&/ajouté/.test(o.hint)&&/un groupe compte son net/.test(o.hint);
 // ── c3) carte « à qualifier » de L2 : avant → après (ouvert)
 o=await page.evaluate(()=>{const c=[...document.querySelectorAll('#tsview .tsCard.cand')].find(x=>/Allée Fictive/.test(x.textContent));if(!c)return null;const d=c.querySelector('details.tsAAd');const rows=d?[...d.querySelectorAll('table tr')].slice(1).map(tr=>[...tr.querySelectorAll('td')].map(x=>x.textContent.trim())):[];return {open:!!d&&d.open,sum:d?d.querySelector('summary').textContent.replace(/\s+/g,' '):'',rows};});
 console.log('c3) carte à qualifier :',JSON.stringify(o));
