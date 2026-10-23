@@ -35,15 +35,17 @@ const minis=await page.evaluate(()=>[...document.querySelectorAll('#tsview .tsOv
 console.log('c1) candidats :',JSON.stringify({K,cardNeg,minis}));
 const neg=K.find(c=>c.neg),pos=K.find(c=>!c.neg);
 C.c1=K.length===2&&!!neg&&neg.line==='L1'&&/retrait : −1 té \(PK 30\) · -5 ml/.test(neg.label)&&neg.qty.tes===-1&&neg.qty.ml===-5&&!!pos&&pos.line==='L2'&&cardNeg.length===1&&/− retrait/.test(cardNeg[0])&&minis.includes('−')&&minis.includes('?');
-// ── c2) 🔗 Regrouper : les deux cartes → bilan → Valider
-await page.click('#tsview [data-tsgrp]');await page.waitForTimeout(250);const keys=await page.evaluate(()=>[...document.querySelectorAll('#tsview [data-tsgsel]')].map(b=>b.dataset.tsgsel));
-for(const k of keys){await page.click(`#tsview [data-tsgsel="${k}"]`);await page.waitForTimeout(200);}
+// ── c2) 🔗 « Regrouper avec… » depuis la carte du retrait (présélectionné) → l'autre carte → bilan → Valider
+const withBtn=await page.evaluate(()=>[...document.querySelectorAll('#tsview .tsCard.cand.neg [data-tsgwith]')].map(b=>b.dataset.tsgwith));await page.click('#tsview .tsCard.cand.neg [data-tsgwith]');await page.waitForTimeout(250);
+const pre=await page.evaluate(()=>document.querySelectorAll('#tsview .tsCard.gsel').length);const keys=await page.evaluate(()=>[...document.querySelectorAll('#tsview [data-tsgsel]')].map(b=>b.dataset.tsgsel));
+for(const k of keys){const on=await page.evaluate(k=>document.querySelector(`#tsview [data-tsgsel="${k}"]`).classList.contains('primary'),k);if(!on){await page.click(`#tsview [data-tsgsel="${k}"]`);await page.waitForTimeout(200);}}
+console.log('c2) regrouper avec… :',JSON.stringify({withBtn,pre}));
 const bar=await page.evaluate(()=>{const b=document.getElementById('tsGrpBar');const ok=b&&b.querySelector('[data-tsgok]');return b?{txt:b.textContent.replace(/[\s  ]+/g,' ').trim(),ok:ok?!ok.disabled:null,sel:document.querySelectorAll('#tsview .tsCard.gsel').length}:null;});await shot(page,'2_bilan');
 await page.click('#tsview [data-tsgok]');await page.waitForTimeout(400);
 let o=await page.evaluate(()=>{const T=window.TRACE.ts.of();const g=T.items.find(x=>x.kind==='group');const live=T.items.filter(window.TRACE.ts.live);const card=document.querySelector('#tsview .tsCard.grp');return {g:g?{qty:g.qty,n:g.members.length,etat:g.etat,label:g.label}:null,live:live.length,cands:window.TRACE.ts.candidates().length,card:card?card.textContent.replace(/[\s  ]+/g,' ').trim().slice(0,900):null,toast:(document.getElementById('toast')||{}).textContent||''};});
 const Q2=await tblQ(page);await shot(page,'2_groupe');
 console.log('c2) groupe :',JSON.stringify({bar,g:o.g,live:o.live,cands:o.cands,card:o.card&&o.card.slice(0,120),Q2}));
-C.c2=keys.length===2&&!!bar&&/2 choisies/.test(bar.txt)&&/Bilan : \+5 ml · \+4 soudures · -1 té/.test(bar.txt)&&/ajouté \+10 ml · \+4 soudures/.test(bar.txt)&&/retiré -5 ml · -1 té/.test(bar.txt)&&bar.ok===true&&bar.sel===2
+C.c2=withBtn.length===1&&pre===1&&keys.length===2&&!!bar&&/2 choisies/.test(bar.txt)&&/Bilan : \+5 ml · \+4 soudures · -1 té/.test(bar.txt)&&/ajouté \+10 ml · \+4 soudures/.test(bar.txt)&&/retiré -5 ml · -1 té/.test(bar.txt)&&bar.ok===true&&bar.sel===2
   &&!!o.g&&o.g.n===2&&o.g.qty.ml===5&&o.g.qty.soud===4&&o.g.qty.tes===-1&&o.live===1&&o.cands===0&&/🔗 groupe · 2 modifs/.test(o.card)&&/Bilan du groupe : \+5 ml · \+4 soudures · -1 té/.test(o.card)
   &&(Q2['Linéaire d\'axe (ml)']||[])[2]==='+5'&&(Q2['Tés']||[])[2]==='−1';
 // la pastille d'un membre (plan d'ensemble) → la carte du groupe
@@ -54,7 +56,7 @@ await page.click('#tsview [data-tsungroup]');await page.waitForTimeout(400);o=aw
 console.log('c3) dégroupé :',JSON.stringify(o));C.c3=o.items===0&&o.cands===2;
 // ── c4) correction du marché sur l'ajout de L2
 const M0=await tblMain(page);const iPos=await page.evaluate(()=>window.TRACE.ts.candidates().findIndex(c=>!c.neg));
-await page.click(`#tsview [data-tscorr="c${iPos}"]`);await page.waitForTimeout(400);const M1=await tblMain(page);
+await page.selectOption(`#tsview [data-tscet="${iPos}"]`,'corr');await page.click(`#tsview [data-tscok="${iPos}"]`);await page.waitForTimeout(400);const M1=await tblMain(page); /* 23/10 soir : « correction du marché » = 5e choix du menu Qualifier */
 o=await page.evaluate(()=>{const T=window.TRACE;const D=T.ts.diff();const r=D.rows.find(x=>x.id==='L2');const det=document.querySelector('#tsview details.tsCorr');const html=T.doe.tsHTML();return {r:{mar:r.mar,reel:r.reel,d:r.d,changed:D.changed.map(x=>x.id)},corrN:T.ts.of().items.filter(x=>x.etat==='corr').length,cands:T.ts.candidates().map(c=>!!c.neg),det:det?det.querySelector('summary').textContent.replace(/[\s  ]+/g,' ').trim():null,exp:/Corrections du marché/.test(html),live:T.ts.of().items.filter(T.ts.live).length};});
 await page.evaluate(()=>{const d=document.querySelector('#tsview details.tsCorr');if(d)d.open=true;});await shot(page,'4_correction');
 console.log('c4) correction :',JSON.stringify({before:{ml:M0['Linéaire d\'axe (ml)'],sd:M0['Soudures (aller + retour)']},after:{ml:M1['Linéaire d\'axe (ml)'],sd:M1['Soudures (aller + retour)']},o}));
