@@ -89,7 +89,8 @@ out=await page.evaluate(()=>{const T=window.TRACE;T.state.tab='plan';T.renderAll
 console.log('8) calques 👁 marché / TS / extrusions :',JSON.stringify(out));C.c8=out.on&&out.off&&out.noExt&&out.labs===4;
 // ── 9) export dossier TS : fenêtre imprimable avec plan, tableau, TS-01 / TS-02 / TS-03
 await page.evaluate(()=>{window.TRACE.closeSheet();document.querySelector('#tabbar [data-tab=ts]').click();});await page.waitForTimeout(300);
-const [pop]=await Promise.all([page.waitForEvent('popup'),page.evaluate(()=>document.querySelector('#tsview [data-tsexport]').click())]);await pop.waitForLoadState('domcontentloaded');await pop.waitForTimeout(300);
+await page.evaluate(()=>document.querySelector('#tsview [data-tsexport]').click());await page.waitForTimeout(300); /* 23/10 : le bouton ouvre d'abord la fenêtre de choix ; « Export complet » = l'export d'avant */
+const [pop]=await Promise.all([page.waitForEvent('popup'),page.evaluate(()=>document.querySelector('#modal #tsXfull').click())]);await pop.waitForLoadState('domcontentloaded');await pop.waitForTimeout(300);
 out=await pop.evaluate(()=>({h1:document.querySelector('h1').textContent,svg:!!document.querySelector('svg'),t:document.body.textContent}));await pop.close();
 console.log('9) export :',JSON.stringify({h1:out.h1,svg:out.svg,ts:/DEV-01/.test(out.t)&&/DEV-02/.test(out.t)&&/DEV-03/.test(out.t),desig:/sectionnement/.test(out.t)&&/Désignation/.test(out.t),tbl:/Marché vs réel/.test(out.t)}));C.c9=/Modifications du tracé/.test(out.h1)&&out.svg&&/DEV-01/.test(out.t)&&/DEV-02/.test(out.t)&&/DEV-03/.test(out.t)&&/sectionnement/.test(out.t);
 // ── 10) persistance : rechargement → marché (date), marques (4) et extrusion conservés ; puis re-figer (avenant) → 0 candidat, historique 1

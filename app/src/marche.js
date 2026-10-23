@@ -40,7 +40,7 @@ const dnAtP=(prof,m)=>{for(const s of prof){if(m>=s.m0-1e-6&&m<=s.m1+1e-6)return
 // écarts de DN entre deux profils : [{m0, m1, from, to}] (tronçons où le DN du réel diffère de celui du marché), sur la longueur commune
 export function dnDiff(marP,reelP){if(!marP||!marP.length||!reelP||!reelP.length)return [];const L=Math.min(marP[marP.length-1].m1,reelP[reelP.length-1].m1);const cuts=new Set([0,L]);[...marP,...reelP].forEach(s=>{if(s.m0<L)cuts.add(s.m0);if(s.m1<L)cuts.add(s.m1);});
   const xs=[...cuts].sort((a,b)=>a-b);const out=[];for(let i=1;i<xs.length;i++){const a=xs[i-1],b=xs[i];if(b-a<0.3)continue;const mid=(a+b)/2;const dm=dnAtP(marP,mid),dr=dnAtP(reelP,mid);if(!dm||!dr||dm===dr)continue;const last=out[out.length-1];if(last&&last.from===dm&&last.to===dr&&Math.abs(last.m1-a)<0.05)last.m1=+b.toFixed(2);else out.push({m0:+a.toFixed(2),m1:+b.toFixed(2),from:dm,to:dr});}
-  return out.filter(x=>x.m1-x.m0>=0.5);}
+  return out.filter(x=>x.m1-x.m0>=1);} /* moins d'1 m = bruit (emprise d'une réduction), pas un changement de DN */
 // photographie du réseau : par ligne (axe, quantités, profil de DN) + totaux — c'est le « tracé marché »
 export function marcheSnapshot(lines,meta){const L=(lines||[]).filter(l=>l&&l.cond&&(l.cond.A||l.cond.R)).map(l=>({id:l.id,name:l.name||l.id,dn:+l.dn||0,axis:axisOf(l).map(p=>[+p[0].toFixed(2),+p[1].toFixed(2)]),c:lineCounts(l,true),pcs:linePieces(l).map(p=>({k:p.k,c:p.c,m:p.m})),dnp:dnProfile(l)}));
   return {v:1,at:new Date().toISOString(),...(meta||{}),lines:L,tot:sumCounts(L.map(x=>x.c))};}

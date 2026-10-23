@@ -7,7 +7,8 @@
 // c3 ⛓ Dégrouper → les deux candidats réapparaissent, plus de groupe
 // c4 ✏ Correction du marché sur l'ajout de L2 : sort des modifs, Marché vs réel : L2 n'a plus d'écart (marché corrigé : 50 ml, 12 soudures), pli « Corrections du marché (1) »,
 //    le retrait de L1 reste à qualifier ; export : section « Corrections du marché » · c5 ↶ Annuler la correction → l'écart et le candidat reviennent
-// c6 un groupe se qualifie comme une modif (TS proposé via la fenêtre : désignation + devis) et le DOE / export le liste avec ses membres · c7 téléphone 390 · c8 console.
+// c6 un groupe se qualifie comme une modif (TS proposé via la fenêtre : désignation + devis) et le DOE / export le liste avec ses membres · c6b ligne supprimée du tracé = retrait de tout
+// son marché (23/10 soir) · c7 téléphone 390 · c8 console.
 import { chromium } from 'playwright';
 const BASE=process.env.BASE||'http://localhost:8765';const SHOTS=process.env.SHOTS||null;
 const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
@@ -45,8 +46,8 @@ await page.click('#tsview [data-tsgok]');await page.waitForTimeout(400);
 let o=await page.evaluate(()=>{const T=window.TRACE.ts.of();const g=T.items.find(x=>x.kind==='group');const live=T.items.filter(window.TRACE.ts.live);const card=document.querySelector('#tsview .tsCard.grp');return {g:g?{qty:g.qty,n:g.members.length,etat:g.etat,label:g.label}:null,live:live.length,cands:window.TRACE.ts.candidates().length,card:card?card.textContent.replace(/[\s  ]+/g,' ').trim().slice(0,900):null,toast:(document.getElementById('toast')||{}).textContent||''};});
 const Q2=await tblQ(page);await shot(page,'2_groupe');
 console.log('c2) groupe :',JSON.stringify({bar,g:o.g,live:o.live,cands:o.cands,card:o.card&&o.card.slice(0,120),Q2}));
-C.c2=withBtn.length===1&&pre===1&&keys.length===2&&!!bar&&/2 choisies/.test(bar.txt)&&/Bilan : \+5 ml · \+4 soudures · -1 té/.test(bar.txt)&&/ajouté \+10 ml · \+4 soudures/.test(bar.txt)&&/retiré -5 ml · -1 té/.test(bar.txt)&&bar.ok===true&&bar.sel===2
-  &&!!o.g&&o.g.n===2&&o.g.qty.ml===5&&o.g.qty.soud===4&&o.g.qty.tes===-1&&o.live===1&&o.cands===0&&/🔗 groupe · 2 modifs/.test(o.card)&&/Bilan du groupe : \+5 ml · \+4 soudures · -1 té/.test(o.card)
+C.c2=withBtn.length===1&&pre===1&&keys.length===2&&!!bar&&/2 choisies/.test(bar.txt)&&/Bilan net : \+5 ml · \+4 soudures · -1 té/.test(bar.txt)&&/ajouté \+10 ml · \+4 soudures/.test(bar.txt)&&/retiré -5 ml · -1 té/.test(bar.txt)&&bar.ok===true&&bar.sel===2
+  &&!!o.g&&o.g.n===2&&o.g.qty.ml===5&&o.g.qty.soud===4&&o.g.qty.tes===-1&&o.live===1&&o.cands===0&&/🔗 groupe · 2 modifs/.test(o.card)&&/Bilan net : \+5 ml · \+4 soudures · -1 té/.test(o.card)&&/Avant → après des lignes concernées \(Rue Fictive, Allée Fictive\)/.test(o.card)&&/− Rue Fictive : retrait : −1 té \(PK 30\) · -5 ml/.test(o.card)
   &&(Q2['Linéaire d\'axe (ml)']||[])[2]==='+5'&&(Q2['Tés']||[])[2]==='−1';
 // la pastille d'un membre (plan d'ensemble) → la carte du groupe
 const gid=o.g?await page.evaluate(()=>window.TRACE.ts.of().items.find(x=>x.kind==='group').id):null;
@@ -72,6 +73,20 @@ await page.click(`#tsview [data-tsst="propose"][data-tsid="${gid2}"]`);await pag
 if(modal){await page.fill('#modal #tsqDesig','Lyre déplacée (groupe)');await page.fill('#modal #tsqDevis','DEV-G1');await page.click('#modal #tsqOk');await page.waitForTimeout(400);}
 o=await page.evaluate(()=>{const T=window.TRACE;const g=T.ts.of().items.find(x=>x.kind==='group');const html=T.doe.tsHTML();return {etat:g.etat,ts:g.ts,desig:g.desig,exp:/Devis DEV-G1/.test(html)&&/\(net\)/.test(html)&&/<li>− Rue Fictive/.test(html)&&/<li>\+ Allée Fictive/.test(html)};});
 console.log('c6) groupe qualifié :',JSON.stringify({modal,o}));C.c6=modal&&o.etat==='propose'&&o.ts==='DEV-G1'&&o.desig==='Lyre déplacée (groupe)'&&o.exp;
+// ── c6c) export au choix (23/10 soir) : fenêtre avec cases (groupe coché, candidats décochés), export de la sélection = une fiche par modif retenue avec schéma zoomé + avant → après
+await page.click('#tsview [data-tsexport]');await page.waitForTimeout(300);
+o=await page.evaluate(()=>{const m=document.getElementById('modal');const boxes=[...m.querySelectorAll('input[data-xk]')].map(i=>({k:i.dataset.xk,on:i.checked}));const vig=m.querySelectorAll('.tsXv svg').length;return {boxes,vig,txt:m.textContent.replace(/[\s  ]+/g,' ').slice(0,200)};});
+const exp=await page.evaluate(()=>({sel:[...document.querySelectorAll('#modal input[data-xk]:checked')].map(i=>i.dataset.xk)}));
+const xhtml=await page.evaluate(sel=>window.TRACE.ts.exportHTML({sel}),exp.sel);
+await page.evaluate(()=>{const b=document.querySelector('#modal [data-close]');if(b)b.click();});await page.waitForTimeout(200);
+console.log('c6c) export au choix :',JSON.stringify({boxes:o.boxes,vig:o.vig,sel:exp.sel,n:xhtml.length,fiches:(xhtml.match(/Modifications retenues \((\d+)\)/)||[])[1],zoom:(xhtml.match(/<svg class="tsSvg"/g)||[]).length,aa:/Avant \(marché\)/.test(xhtml),grp:/Groupe — /.test(xhtml)}));
+C.c6c=o.boxes.length>=1&&o.boxes.filter(b=>!b.k.startsWith('c')).every(b=>b.on)&&o.boxes.filter(b=>b.k.startsWith('c')).every(b=>!b.on)&&o.vig>=1&&xhtml.length>1000&&/Modifications retenues \(1\)/.test(xhtml)&&(xhtml.match(/<svg class="tsSvg"/g)||[]).length>=1&&(xhtml.match(/<svg /g)||[]).length>=2&&/Groupe — /.test(xhtml)&&/Avant \(marché\)/.test(xhtml);
+// ── c6b) une ligne supprimée du tracé = un retrait (tout son marché), positionné sur l'axe du marché, qualifiable
+await page.evaluate(()=>{const T=window.TRACE;T.ts.of().items.length=0;delete T.state.lines.L2;Object.values(T.state.sheets||{}).forEach(sh=>{if(sh&&sh.lines)sh.lines=sh.lines.filter(id=>id!=='L2');});T.renderAll();});await page.waitForTimeout(300); /* comme après une mise à jour du traceur sans L2 */
+o=await page.evaluate(()=>{const T=window.TRACE;const cs=T.ts.candidates();const g=cs.find(c=>c.gone);const card=[...document.querySelectorAll('#tsview .tsCard.cand')].map(x=>x.textContent.replace(/[\s  ]+/g,' ').trim().slice(0,160));return {n:cs.length,g:g?{line:g.line,label:g.label,qty:g.qty,pos:!!g.pos}:null,card,vig:document.querySelectorAll('#tsview .tsCard.cand .tsVig svg').length};});
+if(o.g){const i=await page.evaluate(()=>window.TRACE.ts.candidates().findIndex(c=>c.gone));await page.selectOption(`#tsview [data-tscet="${i}"]`,'forfait');await page.click(`#tsview [data-tscok="${i}"]`);await page.waitForTimeout(300);}
+const after=await page.evaluate(()=>{const T=window.TRACE;const it=T.ts.of().items.find(x=>x.gone);return {it:it?{etat:it.etat,pos:!!it.pos}:null,cands:T.ts.candidates().filter(c=>c.gone).length,card:!!document.querySelector('#tsview .tsCard:not(.cand)')};});
+console.log('c6b) ligne supprimée :',JSON.stringify({o,after}));C.c6b=!!o.g&&o.g.line==='L2'&&/ligne supprimée \(tout le marché de la ligne\) : -40 ml · -8 soudures/.test(o.g.label)&&o.g.qty.ml===-40&&o.g.pos&&o.card.some(t=>/ligne supprimée/.test(t))&&!!after.it&&after.it.etat==='forfait'&&after.it.pos&&after.cands===0&&after.card;
 await ctx.close();
 // ── c7) téléphone : mode regrouper, barre collante, pas de débordement
 ({ctx,page}=await mk({width:390,height:844}));await page.click('#tsview [data-tsgrp]');await page.waitForTimeout(250);
