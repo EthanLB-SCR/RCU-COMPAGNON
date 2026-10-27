@@ -43,15 +43,22 @@ for(const k of keys){const on=await page.evaluate(k=>document.querySelector(`#ts
 console.log('c2) regrouper avec… :',JSON.stringify({withBtn,pre}));
 const bar=await page.evaluate(()=>{const b=document.getElementById('tsGrpBar');const ok=b&&b.querySelector('[data-tsgok]');return b?{txt:b.textContent.replace(/[\s  ]+/g,' ').trim(),ok:ok?!ok.disabled:null,sel:document.querySelectorAll('#tsview .tsCard.gsel').length}:null;});await shot(page,'2_bilan');
 await page.click('#tsview [data-tsgok]');await page.waitForTimeout(400);
-let o=await page.evaluate(()=>{const T=window.TRACE.ts.of();const g=T.items.find(x=>x.kind==='group');const live=T.items.filter(window.TRACE.ts.live);const card=document.querySelector('#tsview .tsCard.grp');return {g:g?{qty:g.qty,n:g.members.length,etat:g.etat,label:g.label}:null,live:live.length,cands:window.TRACE.ts.candidates().length,card:card?card.textContent.replace(/[\s  ]+/g,' ').trim().slice(0,900):null,toast:(document.getElementById('toast')||{}).textContent||''};});
+let o=await page.evaluate(()=>{const T=window.TRACE.ts.of();const g=T.items.find(x=>x.kind==='group');const live=T.items.filter(window.TRACE.ts.live);const card=document.querySelector('#tsview .tsCard.grp');return {g:g?{qty:g.qty,n:g.members.length,etat:g.etat,label:g.label}:null,live:live.length,cands:window.TRACE.ts.candidates().length,card:card?card.textContent.replace(/[\s  ]+/g,' ').trim().slice(0,2000):null,toast:(document.getElementById('toast')||{}).textContent||''};});
 const Q2=await tblQ(page);await shot(page,'2_groupe');
-console.log('c2) groupe :',JSON.stringify({bar,g:o.g,live:o.live,cands:o.cands,card:o.card&&o.card.slice(0,120),Q2}));
+console.log('c2) groupe :',JSON.stringify({bar,g:o.g,live:o.live,cands:o.cands,card:o.card&&o.card.slice(0,700),Q2}));
 C.c2=withBtn.length===1&&pre===1&&keys.length===2&&!!bar&&/2 choisies/.test(bar.txt)&&/Bilan net : \+5 ml · \+4 soudures · -1 té/.test(bar.txt)&&/ajouté \+10 ml · \+4 soudures/.test(bar.txt)&&/retiré -5 ml · -1 té/.test(bar.txt)&&bar.ok===true&&bar.sel===2
   &&!!o.g&&o.g.n===2&&o.g.qty.ml===5&&o.g.qty.soud===4&&o.g.qty.tes===-1&&o.live===1&&o.cands===0&&/🔗 groupe · 2 modifs/.test(o.card)&&/Bilan net : \+5 ml · \+4 soudures · -1 té/.test(o.card)&&/Avant → après des lignes concernées \(Rue Fictive, Allée Fictive\)/.test(o.card)&&/− Rue Fictive : retrait : −1 té \(PK 30\) · -5 ml/.test(o.card)
   &&(Q2['Linéaire d\'axe (ml)']||[])[2]==='+5'&&(Q2['Tés']||[])[2]==='−1';
 // la pastille d'un membre (plan d'ensemble) → la carte du groupe
 const gid=o.g?await page.evaluate(()=>window.TRACE.ts.of().items.find(x=>x.kind==='group').id):null;
 const miniG=await page.evaluate(()=>[...document.querySelectorAll('#tsview .tsOverview [data-tsmini]')].map(g=>g.dataset.tsmini));console.log('c2) pastilles du groupe :',JSON.stringify({miniG,gid}));C.c2=C.c2&&miniG.length>=1&&miniG.every(x=>x===gid);
+// ── c2c) cartes repliables (23/10 soir, Ethan : « l'onglet Modifs, c'est vite un enfer la taille ») : une qualifiée est repliée (une ligne), une à qualifier dépliée ; toucher l'en-tête déplie ; « Tout replier / déplier »
+const unfold=async key=>{await page.evaluate(k=>{const h=document.querySelector(`#tsview .tsHead[data-tsfold="${k}"]`);if(h&&h.closest('.tsCard').classList.contains('fold'))h.click();},key);await page.waitForTimeout(250);};
+o=await page.evaluate(gid=>{const g=document.querySelector(`#tsview .tsCard[data-tscard="${gid}"]`);const vis=el=>!!el&&el.offsetParent!==null;return {fold:g.classList.contains('fold'),h:Math.round(g.getBoundingClientRect().height),bodyVis:vis(g.querySelector('.tsCardBody')),headTxt:g.querySelector('.tsHead').textContent.replace(/\s+/g,' ').trim().slice(0,120),btnAll:(document.querySelector('#tsview [data-tsfoldall]')||{}).textContent};},gid);
+await unfold(gid);const o2=await page.evaluate(gid=>{const g=document.querySelector(`#tsview .tsCard[data-tscard="${gid}"]`);return {fold:g.classList.contains('fold'),bodyVis:g.querySelector('.tsCardBody').offsetParent!==null,ungroupVis:(document.querySelector('#tsview [data-tsungroup]')||{}).offsetParent!==null};},gid);
+await page.click('#tsview [data-tsfoldall]');await page.waitForTimeout(250);const o3=await page.evaluate(()=>({folded:document.querySelectorAll('#tsview .tsCard.fold').length,all:document.querySelectorAll('#tsview .tsCard').length,btn:(document.querySelector('#tsview [data-tsfoldall]')||{}).textContent}));
+await page.click('#tsview [data-tsfoldall]');await page.waitForTimeout(250);const o4=await page.evaluate(()=>({folded:document.querySelectorAll('#tsview .tsCard.fold').length,all:document.querySelectorAll('#tsview .tsCard').length}));
+console.log('c2c) cartes repliables :',JSON.stringify({o,o2,o3,o4}));C.c2c=o.fold&&o.h<110&&!o.bodyVis&&/TS proposé/.test(o.headTxt)&&/Rue Fictive/.test(o.headTxt)&&/Tout replier/.test(o.btnAll)&&!o2.fold&&o2.bodyVis&&o2.ungroupVis&&o3.folded===o3.all&&o3.all>=1&&/Tout déplier/.test(o3.btn)&&o4.folded===0;
 // ── c3) dégrouper
 await page.click('#tsview [data-tsungroup]');await page.waitForTimeout(400);o=await page.evaluate(()=>({items:window.TRACE.ts.of().items.length,cands:window.TRACE.ts.candidates().length}));
 console.log('c3) dégroupé :',JSON.stringify(o));C.c3=o.items===0&&o.cands===2;
@@ -68,7 +75,7 @@ await page.click('#tsview [data-tscorrx]');await page.waitForTimeout(400);o=awai
 console.log('c5) annulée :',JSON.stringify(o));C.c5=o.corrN===0&&o.cands===2&&o.marMl===110;
 // ── c6) groupe qualifié TS proposé (fenêtre : désignation + devis), export avec les membres
 await page.evaluate(()=>{const T=window.TRACE;const cs=T.ts.candidates();T.ts.group(cs.map(c=>({cand:c})),'propose');T.renderAll();});await page.waitForTimeout(300);
-const gid2=await page.evaluate(()=>window.TRACE.ts.of().items.find(x=>x.kind==='group').id);
+const gid2=await page.evaluate(()=>window.TRACE.ts.of().items.find(x=>x.kind==='group').id);await unfold(gid2);
 await page.click(`#tsview [data-tsst="propose"][data-tsid="${gid2}"]`);await page.waitForTimeout(300);const modal=await page.evaluate(()=>!!document.querySelector('#modal #tsqDevis'));
 if(modal){await page.fill('#modal #tsqDesig','Lyre déplacée (groupe)');await page.fill('#modal #tsqDevis','DEV-G1');await page.click('#modal #tsqOk');await page.waitForTimeout(400);}
 o=await page.evaluate(()=>{const T=window.TRACE;const g=T.ts.of().items.find(x=>x.kind==='group');const html=T.doe.tsHTML();return {etat:g.etat,ts:g.ts,desig:g.desig,exp:/Devis DEV-G1/.test(html)&&/\(net\)/.test(html)&&/<li>− Rue Fictive/.test(html)&&/<li>\+ Allée Fictive/.test(html)};});

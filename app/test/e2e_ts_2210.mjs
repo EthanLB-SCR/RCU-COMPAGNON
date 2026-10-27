@@ -41,11 +41,11 @@ console.log('c2) en plus :',JSON.stringify({th:o.th,rows:o.rows}));
 /* 23/10 : les retraits comptent aussi (−) : Modifications | Ajouté | Retiré | filtre (net) ; ml +10 / −5 → net +5 ; tés — / −1 → −1 */
 C.c2=o.th.join('|')==='Modifications|Ajouté|Retiré|Toutes les modifs'&&num((o.rows['Linéaire d\'axe (ml)']||[])[0])===10&&num((o.rows['Linéaire d\'axe (ml)']||[])[1])===-5&&num((o.rows['Linéaire d\'axe (ml)']||[])[2])===5&&num((o.rows['Soudures (aller + retour)']||[])[2])===4&&num((o.rows['Tés']||[])[1])===-1&&num((o.rows['Tés']||[])[2])===-1
   &&/ajouté/.test(o.hint)&&/un groupe compte son net/.test(o.hint);
-// ── c3) carte « à qualifier » de L2 : avant → après (ouvert)
+// ── c3) carte « à qualifier » de L2 : avant → après (replié depuis le 23/10 soir — Ethan : « l'onglet Modifs, c'est vite un enfer la taille » ; le résumé reste lisible sur la ligne du pli)
 o=await page.evaluate(()=>{const c=[...document.querySelectorAll('#tsview .tsCard.cand')].find(x=>/Allée Fictive/.test(x.textContent));if(!c)return null;const d=c.querySelector('details.tsAAd');const rows=d?[...d.querySelectorAll('table tr')].slice(1).map(tr=>[...tr.querySelectorAll('td')].map(x=>x.textContent.trim())):[];return {open:!!d&&d.open,sum:d?d.querySelector('summary').textContent.replace(/\s+/g,' '):'',rows};});
 console.log('c3) carte à qualifier :',JSON.stringify(o));
 const rowOf=(rows,lab)=>(rows||[]).find(r=>r[0]===lab);
-C.c3=!!o&&o.open&&/Avant → après de la ligne : \+10 ml · \+4 soudures/.test(o.sum)&&!!rowOf(o.rows,'Linéaire d\'axe (ml)')&&num(rowOf(o.rows,'Linéaire d\'axe (ml)')[3])===10&&num(rowOf(o.rows,'Soudures (aller + retour)')[3])===4;
+C.c3=!!o&&!o.open&&/Avant → après de la ligne : \+10 ml · \+4 soudures/.test(o.sum)&&!!rowOf(o.rows,'Linéaire d\'axe (ml)')&&num(rowOf(o.rows,'Linéaire d\'axe (ml)')[3])===10&&num(rowOf(o.rows,'Soudures (aller + retour)')[3])===4;
 // ── c4) « Par ligne » : un bloc par ligne modifiée, avant / après, « retiré : té PK 30 (aller) »
 o=await page.evaluate(()=>{const d=document.querySelector('#tsview details.tsLines');if(!d)return null;d.open=true;const L=[...d.querySelectorAll('.tsLn')].map(x=>({t:x.querySelector('b').textContent,sum:x.querySelector('summary').textContent.replace(/\s+/g,' '),rows:[...x.querySelectorAll('table tr')].slice(1).map(tr=>[...tr.querySelectorAll('td')].map(y=>y.textContent.trim())),pcs:[...x.querySelectorAll('.tsPcs')].map(y=>y.textContent.replace(/\s+/g,' '))}));return {sum:d.querySelector('summary').textContent,L};});
 await page.evaluate(()=>{const d=document.querySelector('#tsview details.tsLines');if(d)d.scrollIntoView({block:'start'});});await page.waitForTimeout(150);await shot(page,'4_par_ligne');
