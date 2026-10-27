@@ -35,7 +35,7 @@ let K=await cands(page);const cardNeg=await page.evaluate(()=>{const c=[...docum
 const minis=await page.evaluate(()=>[...document.querySelectorAll('#tsview .tsOverview [data-tscandmini] text')].map(t=>t.textContent));await shot(page,'1_retrait');
 console.log('c1) candidats :',JSON.stringify({K,cardNeg,minis}));
 const neg=K.find(c=>c.neg),pos=K.find(c=>!c.neg);
-C.c1=K.length===2&&!!neg&&neg.line==='L1'&&/retrait : −1 té \(PK 30\) · -5 ml/.test(neg.label)&&neg.qty.tes===-1&&neg.qty.ml===-5&&!!pos&&pos.line==='L2'&&cardNeg.length===1&&/− retrait/.test(cardNeg[0])&&minis.includes('−')&&minis.includes('?');
+C.c1=K.length===2&&!!neg&&neg.line==='L1'&&/^PK 30 : −1 té \(PK 30\) · -5 ml$/.test(neg.label)&&neg.qty.tes===-1&&neg.qty.ml===-5 /* 27/10 : une zone = ses pièces et son linéaire ; ce que la ligne a en plus ou en moins sans endroit (ici le −5 ml « synthétique ») va dans la plus grosse zone */&&!!pos&&pos.line==='L2'&&cardNeg.length===1&&/− retrait/.test(cardNeg[0])&&minis.includes('−')&&minis.includes('?');
 // ── c2) 🔗 « Regrouper avec… » depuis la carte du retrait (présélectionné) → l'autre carte → bilan → Valider
 const withBtn=await page.evaluate(()=>[...document.querySelectorAll('#tsview .tsCard.cand.neg [data-tsgwith]')].map(b=>b.dataset.tsgwith));await page.click('#tsview .tsCard.cand.neg [data-tsgwith]');await page.waitForTimeout(250);
 const pre=await page.evaluate(()=>document.querySelectorAll('#tsview .tsCard.gsel').length);const keys=await page.evaluate(()=>[...document.querySelectorAll('#tsview [data-tsgsel]')].map(b=>b.dataset.tsgsel));
@@ -47,7 +47,7 @@ let o=await page.evaluate(()=>{const T=window.TRACE.ts.of();const g=T.items.find
 const Q2=await tblQ(page);await shot(page,'2_groupe');
 console.log('c2) groupe :',JSON.stringify({bar,g:o.g,live:o.live,cands:o.cands,card:o.card&&o.card.slice(0,700),Q2}));
 C.c2=withBtn.length===1&&pre===1&&keys.length===2&&!!bar&&/2 choisies/.test(bar.txt)&&/Bilan net : \+5 ml · \+4 soudures · -1 té/.test(bar.txt)&&/ajouté \+10 ml · \+4 soudures/.test(bar.txt)&&/retiré -5 ml · -1 té/.test(bar.txt)&&bar.ok===true&&bar.sel===2
-  &&!!o.g&&o.g.n===2&&o.g.qty.ml===5&&o.g.qty.soud===4&&o.g.qty.tes===-1&&o.live===1&&o.cands===0&&/🔗 groupe · 2 modifs/.test(o.card)&&/Bilan net : \+5 ml · \+4 soudures · -1 té/.test(o.card)&&/Avant → après des lignes concernées \(Rue Fictive, Allée Fictive\)/.test(o.card)&&/− Rue Fictive : retrait : −1 té \(PK 30\) · -5 ml/.test(o.card)
+  &&!!o.g&&o.g.n===2&&o.g.qty.ml===5&&o.g.qty.soud===4&&o.g.qty.tes===-1&&o.live===1&&o.cands===0&&/🔗 groupe · 2 modifs/.test(o.card)&&/Bilan net : \+5 ml · \+4 soudures · -1 té/.test(o.card)&&/Avant → après des lignes concernées \(Rue Fictive, Allée Fictive\)/.test(o.card)&&/− Rue Fictive : PK 30 : −1 té \(PK 30\) · -5 ml/.test(o.card)
   &&(Q2['Linéaire d\'axe (ml)']||[])[2]==='+5'&&(Q2['Tés']||[])[2]==='−1';
 // la pastille d'un membre (plan d'ensemble) → la carte du groupe
 const gid=o.g?await page.evaluate(()=>window.TRACE.ts.of().items.find(x=>x.kind==='group').id):null;

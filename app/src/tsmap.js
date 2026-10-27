@@ -1,0 +1,74 @@
+// tsmap.js — « MODIFS SUR LE PLAN » (27/10/2026). Ethan : « une vue plan comme le plan d'ensemble, ou depuis le plan d'ensemble afficher tout ce qui est modifs, et pouvoir
+// dessus choisir : ça montre bien les modifs avant / après, grouper ce qu'on veut grouper, que ça fasse les comptes, que ça affiche bien ce qui a changé, si c'est un
+// changement de DN que ça le spécifie ; entourer une zone ou sélectionner des points du réseau et dire “ça c'est la même modif” ; et comme les autres, choisir si on
+// affiche ou cache ces options-là ». Plein écran : à gauche le plan (marché gris pointillé, réel rouge, zones soulignées, pastilles numérotées : jaune « ? » = à qualifier,
+// couleur = état), on touche une pastille pour la choisir, ⭕ Entourer = dessiner au doigt autour de plusieurs ; à droite les modifs choisies (avant → après, pièces, DN,
+// quantités) et les actions : qualifier, 🔗 regrouper (bilan net), ✏ correction du marché, ↻ reprendre une dépassée, 📄 exporter la sélection. Calques 👁 : marché,
+// à qualifier, qualifiées, changements de DN, numéros. Rien n'est écrit ici : les actions passent par les mêmes gestes que l'onglet Modifs (tsHandleClick).
+let A=null;
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+export const MS={open:false,sel:[],view:null,fit:null,lasso:null,drag:null,show:{marche:true,cand:true,items:true,dn:true,num:true},zoomN:0};
+/* la liste numérotée des modifs visibles : candidats (à qualifier) puis marques vivantes puis dépassées */
+function list(){const cands=A.cands();const items=A.items();const stale=A.stale();const L=[];let n=0;
+  if(MS.show.cand)cands.forEach((c,i)=>{if(!MS.show.dn&&c.kind==='dn')return;L.push({o:c,isCand:true,key:'c'+i,n:++n});});
+  if(MS.show.items)items.forEach(it=>{if(!MS.show.dn&&it.kind==='dn')return;L.push({o:it,isCand:false,key:it.id,n:++n});});
+  if(MS.show.items)stale.forEach(it=>{L.push({o:it,isCand:false,key:it.id,n:++n,stale:true});});
+  return L;}
+const byKey=(L,k)=>L.find(x=>x.key===k);
+export function tsMapOpen(o){o=o||{};MS.open=true;MS.sel=(o.sel||[]).slice();MS.view=null;MS.lasso=null;try{document.body.classList.add('tsmap-on');}catch(e){}render();}
+export function tsMapClose(){MS.open=false;MS.lasso=null;const el=document.getElementById('tsMap');if(el)el.remove();try{document.body.classList.remove('tsmap-on');}catch(e){}try{A.renderAll();}catch(e){}}
+function pos(x){return x.isCand?A.candPos(x.o):A.itemPos(x.o);}
+function inPoly(q,P){let ins=false;for(let i=0,j=P.length-1;i<P.length;j=i++){const xi=P[i][0],yi=P[i][1],xj=P[j][0],yj=P[j][1];if(((yi>q.y)!==(yj>q.y))&&(q.x<(xj-xi)*(q.y-yi)/((yj-yi)||1e-12)+xi))ins=!ins;}return ins;}
+function toWorld(cx,cy){const svg=document.querySelector('#tsmPlan svg');if(!svg||!MS.view)return null;const r=svg.getBoundingClientRect();const V=MS.view;const s=Math.max(V[2]/r.width,V[3]/r.height);const ox=(r.width-V[2]/s)/2,oy=(r.height-V[3]/s)/2;return {x:V[0]+(cx-r.left-ox)*s,y:V[1]+(cy-r.top-oy)*s};}
+function zoom(f,cx,cy){const V=MS.view;if(!V)return;const c=cx!=null?{x:cx,y:cy}:{x:V[0]+V[2]/2,y:V[1]+V[3]/2};MS.view=[c.x-(c.x-V[0])*f,c.y-(c.y-V[1])*f,V[2]*f,V[3]*f];MS.zoomN+=f<1?1:-1;render(true);}
+function render(planOnly){if(!MS.open)return;let el=document.getElementById('tsMap');if(!el){el=document.createElement('div');el.id='tsMap';document.body.appendChild(el);bind(el);}
+  const L=list();const sel=new Set(MS.sel.filter(k=>byKey(L,k)));MS.sel=[...sel];const box=[];
+  const svg=A.svg(L.filter(x=>!x.stale||sel.has(x.key)),{boxOut:box,viewBox:MS.view||undefined,sel,candCol:'#e0a800',fill:true,marche:MS.show.marche,num:MS.show.num});
+  if(!MS.view&&box.length){MS.view=box[0].slice();MS.fit=box[0].slice();}
+  if(planOnly){const pl=el.querySelector('#tsmPlan');if(pl){pl.innerHTML=svg+lassoSVG();return;}}
+  const canEd=A.can('ts.qualify');const nC=L.filter(x=>x.isCand).length,nI=L.filter(x=>!x.isCand&&!x.stale).length,nS=L.filter(x=>x.stale).length;
+  const chosen=MS.sel.map(k=>byKey(L,k)).filter(Boolean);const ms=chosen.map(x=>x.o);const B=ms.length>=2?A.bilan(ms):null;
+  const eye=(k,lab)=>`<label class="tsmEye"><input type="checkbox" data-tsmeye="${k}" ${MS.show[k]?'checked':''}> ${lab}</label>`;
+  const side=chosen.length?chosen.map(x=>{const o=x.o;const col=x.isCand?'#e0a800':(A.COL[o.etat]||'#999');const i=x.isCand?+x.key.slice(1):null;const rowOf=A.rowOf;
+      const head=`<div class="tsmIh"><span class="tsmN" style="background:${col}">${x.n}</span>${x.isCand?'<span class="tsTag" style="background:#ffe08a;color:#5a4300;border:1px dashed #b8860b">à qualifier</span>':x.stale?'<span class="tsTag" style="background:#9b2c22">⚠ dépassée</span>':`<span class="tsTag" style="background:${A.COL[o.etat]||'#999'}">${esc(A.ET[o.etat]||o.etat)}</span>`}${!x.isCand&&o.kind==='group'?`<span class="tsTag" style="background:#1c3d6b">🔗 ${(o.members||[]).length}</span>`:''}<b>${esc(A.lineName(o.line)||o.name||'')}</b>${o.ts?` <b>${esc(o.ts)}</b>`:''}<button class="btn sm tsmX" data-tsmsel="${esc(x.key)}" title="retirer de la sélection">✕</button></div>`;
+      const vig=`<div class="tsmVig">${A.zoomSVG(x)}</div>`;
+      const body=x.stale?`<div class="tsPcs">${esc(o.desig||A.shortLab(o))}<div class="dim" style="margin-top:4px">Le tracé a encore changé : cette modif ne correspond plus à l'écart avec le marché et ne compte plus.</div>${canEd?`<div class="row" style="gap:6px;margin-top:6px"><button class="btn sm primary" data-tsreplace="${esc(o.id)}">↻ Reprendre sur la nouvelle modif</button><button class="btn sm" data-tsdel="${esc(o.id)}">🗑 Retirer</button></div>`:''}</div>`
+        :(x.isCand?`<div class="tsmLab">${esc(o.label)}</div>`+A.candBody(o,i,{rowOf,canEd,G:null}):`<div class="tsmLab">${esc(o.desig||A.shortLab(o))}</div>`+A.itemBody(o,{rowOf,canEd,G:null,corrBtn:A.corrBtn}));
+      return `<div class="tsmItem" data-tsmitem="${esc(x.key)}">${head}${vig}${body}</div>`;}).join('')
+    :`<div class="tsmHint"><b>Touche une pastille</b> sur le plan pour voir la modif (avant → après, pièces, DN, quantités) et la qualifier.<br>Plusieurs pastilles (ou <b>⭕ Entourer</b> au doigt) → <b>🔗 Regrouper</b> : une seule modif aux yeux du client, comptée sur le net.<br>Jaune « ? » = à qualifier · couleur = état · souligné = l'emprise de la modif · gris pointillé = tracé marché.</div>`;
+  const bar=chosen.length?`<div class="tsmBar"><div><b>${chosen.length} modif${chosen.length>1?'s':''} choisie${chosen.length>1?'s':''}</b>${B?` — <b>bilan net : ${esc(B.txt)}</b>${B.txtP||B.txtM?`<span class="dim"> (ajouté ${esc(B.txtP||'—')} · retiré ${esc(B.txtM||'—')})</span>`:''}`:''}</div>
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:4px">${canEd&&chosen.length>=2&&chosen.every(x=>!x.stale&&(x.isCand||x.o.kind!=='group'))?`<button class="btn sm primary" data-tsmgroup="1" style="min-height:44px">🔗 Regrouper ces ${chosen.length} modifs (net)</button>`:''}<button class="btn sm" data-tsmexport="1" style="min-height:44px">📄 Exporter la sélection</button><button class="btn sm" data-tsmclear="1" style="min-height:44px">Tout désélectionner</button></div></div>`:'';
+  el.innerHTML=`<div class="tsmTop"><button class="btn sm" data-tsmclose="1">✕ Fermer</button><div class="tsmTitle"><b>🗺 Modifs sur le plan</b><span class="dim"> · ${nC} à qualifier · ${nI} qualifiée${nI>1?'s':''}${nS?' · '+nS+' dépassée'+(nS>1?'s':''):''}</span></div>
+      <div class="tsmEyes">${eye('marche','tracé marché')}${eye('cand','à qualifier')}${eye('items','qualifiées')}${eye('dn','changements de DN')}${eye('num','numéros')}</div>
+      <button class="btn sm ${MS.lasso?'primary':''}" data-tsmlasso="1" title="dessine au doigt autour des modifs à choisir">⭕ Entourer</button></div>
+    <div class="tsmBody"><div class="tsmPlanWrap"><div class="tsmBanner ${MS.lasso?'on':''}">${MS.lasso?'Dessine au doigt (ou à la souris) autour des modifs à choisir, puis relâche.':'Touche une pastille pour la choisir, touche encore pour la retirer · glisser = déplacer la vue · molette ou ＋ − = zoom'}</div><div id="tsmPlan">${svg}${lassoSVG()}</div>
+      <div class="tsmZoom"><button class="btn sm" data-tsmz="in">＋</button><button class="btn sm" data-tsmz="out">－</button><button class="btn sm" data-tsmz="fit">⌂</button></div></div>
+      <div class="tsmSide">${bar}${side}</div></div>`;}
+function lassoSVG(){const P=MS.lasso&&MS.lasso.pts;if(!P||P.length<2||!MS.view)return '';const V=MS.view;const sw=V[2]*.004;return `<svg class="tsmLasso" viewBox="${V[0]} ${V[1]} ${V[2]} ${V[3]}" preserveAspectRatio="xMidYMid meet" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"><path d="M ${P.map(p=>p[0]+' '+p[1]).join(' L ')}" fill="rgba(28,61,107,.12)" stroke="#1c3d6b" stroke-width="${sw}" stroke-dasharray="${sw*3} ${sw*2}" stroke-linejoin="round"/></svg>`;}
+function toggle(key){const i=MS.sel.indexOf(key);if(i>=0)MS.sel.splice(i,1);else MS.sel.push(key);render();}
+function bind(el){el.addEventListener('click',e=>{const t=e.target;const b=t.closest('[data-tsmclose],[data-tsmlasso],[data-tsmz],[data-tsmsel],[data-tsmclear],[data-tsmgroup],[data-tsmexport],[data-tsmn]');if(!b)return;const d=b.dataset;
+    if(d.tsmclose){tsMapClose();return;}if(d.tsmlasso){MS.lasso=MS.lasso?null:{pts:[],on:false};render();return;}
+    if(d.tsmz){if(d.tsmz==='fit'){MS.view=MS.fit?MS.fit.slice():null;MS.zoomN=0;render(true);}else zoom(d.tsmz==='in'?0.7:1/0.7);return;}
+    if(d.tsmn!==undefined){e.stopPropagation();toggle(d.tsmn);return;}
+    if(d.tsmsel!==undefined){toggle(d.tsmsel);return;}if(d.tsmclear){MS.sel=[];render();return;}
+    if(d.tsmgroup){const L=list();const ms=MS.sel.map(k=>byKey(L,k)).filter(x=>x&&!x.stale).map(x=>x.isCand?{cand:x.o}:{item:x.o});if(ms.length<2)return;const g=A.group(ms,'propose');MS.sel=g?[g.id]:[];A.toast(g?'🔗 Groupe créé — compté sur le net':'Impossible');render();if(g)A.edit(g.id);return;}
+    if(d.tsmexport){A.exportSel(MS.sel.slice());return;}});
+  el.addEventListener('change',e=>{const t=e.target;if(t.dataset.tsmeye){MS.show[t.dataset.tsmeye]=t.checked;render();}});
+  /* plan : glisser = déplacer ; en mode ⭕ : glisser = dessiner le contour ; molette = zoom */
+  el.addEventListener('pointerdown',e=>{const pl=e.target.closest('#tsmPlan');if(!pl||e.target.closest('[data-tsmn]'))return;const w=toWorld(e.clientX,e.clientY);if(!w)return;if(MS.lasso){MS.lasso={pts:[[w.x,w.y]],on:true};pl.setPointerCapture&&pl.setPointerCapture(e.pointerId);e.preventDefault();return;}MS.drag={x:e.clientX,y:e.clientY,v:MS.view.slice(),moved:false};});
+  el.addEventListener('pointermove',e=>{if(MS.lasso&&MS.lasso.on){const w=toWorld(e.clientX,e.clientY);if(w){const P=MS.lasso.pts;const last=P[P.length-1];if(!last||Math.hypot(w.x-last[0],w.y-last[1])>MS.view[2]*.004)P.push([w.x,w.y]);const pl=document.getElementById('tsmPlan');const old=pl&&pl.querySelector('.tsmLasso');if(old)old.remove();if(pl)pl.insertAdjacentHTML('beforeend',lassoSVG());}return;}
+    const D=MS.drag;if(!D)return;const svg=document.querySelector('#tsmPlan svg');if(!svg)return;const r=svg.getBoundingClientRect();const sc=Math.max(MS.view[2]/r.width,MS.view[3]/r.height);const dx=(e.clientX-D.x)*sc,dy=(e.clientY-D.y)*sc;if(Math.hypot(e.clientX-D.x,e.clientY-D.y)>3)D.moved=true;if(D.moved){MS.view=[D.v[0]-dx,D.v[1]-dy,D.v[2],D.v[3]];render(true);}});
+  el.addEventListener('pointerup',e=>{if(MS.lasso&&MS.lasso.on){const P=MS.lasso.pts;MS.lasso=null;if(P.length>=3){const L=list();let n=0;L.forEach(x=>{if(x.stale)return;const q=pos(x);if(q&&inPoly(q,P)&&!MS.sel.includes(x.key)){MS.sel.push(x.key);n++;}});A.toast(n?n+' modif'+(n>1?'s':'')+' ajoutée'+(n>1?'s':'')+' à la sélection':'Rien dans le contour');}render();return;}MS.drag=null;});
+  el.addEventListener('wheel',e=>{if(!e.target.closest('#tsmPlan'))return;e.preventDefault();const w=toWorld(e.clientX,e.clientY);zoom(e.deltaY<0?0.8:1.25,w&&w.x,w&&w.y);},{passive:false});}
+const CSS=`#tsMap{position:fixed;inset:0;z-index:60;background:#f6f5f2;display:flex;flex-direction:column;font-family:inherit;color:#141413}
+body.tsmap-on .modal{position:fixed;z-index:70}body.tsmap-on #toast{z-index:71}
+.tsmTop{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#fff;border-bottom:1px solid #e1ded6;flex-wrap:wrap}.tsmTitle{flex:1;min-width:0;font-size:14px}.tsmEyes{display:flex;gap:4px 10px;flex-wrap:wrap;font-size:12.5px}.tsmEye{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;cursor:pointer}
+.tsmBody{flex:1;min-height:0;display:flex;gap:10px;padding:10px}.tsmPlanWrap{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;position:relative}.tsmSide{width:420px;flex:none;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding-right:4px}
+#tsmPlan{flex:1;min-height:0;position:relative;background:#fff;border:1px solid #dddad3;border-radius:14px;overflow:hidden;touch-action:none}#tsmPlan>svg.tsSvg{width:100%;height:100%;display:block;border:0;border-radius:0}
+.tsmZoom{position:absolute;right:14px;top:52px;display:flex;flex-direction:column;gap:4px}.tsmZoom .btn{min-width:40px;min-height:40px;background:#fff}
+.tsmBanner{background:#1c3d6b;color:#fff;border-radius:12px;padding:7px 12px;font-size:12.5px;font-weight:600;line-height:1.35}.tsmBanner.on{background:#eb6834}
+.tsmBar{background:#eef3fa;border:1px solid #c9d8ea;border-radius:12px;padding:8px 10px;font-size:13px;position:sticky;top:0;z-index:2}
+.tsmItem{background:#fff;border:1px solid #e1ded6;border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}.tsmIh{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px}.tsmN{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;color:#fff;font-weight:800;font-size:12.5px;flex:none}.tsmX{margin-left:auto;min-width:32px}
+.tsmVig .tsSvg{height:170px!important;width:100%}.tsmLab{font-size:13px;line-height:1.35}.tsmHint{background:#fff;border:1px dashed #c9c6bd;border-radius:14px;padding:12px;font-size:13px;line-height:1.5;color:#3d3d3a}
+@media(max-width:760px){.tsmBody{flex-direction:column;overflow-y:auto}.tsmPlanWrap{flex:none;height:48vh}.tsmSide{width:auto;flex:none;overflow:visible}.tsmZoom{top:auto;bottom:14px}.tsmTop .tsmEyes{order:9;flex:1 1 100%}}`;
+export function initTsMap(api){A=api;try{const st=document.createElement('style');st.id='css-tsmap-2710';st.textContent=CSS;document.head.appendChild(st);}catch(e){}return {open:tsMapOpen,close:tsMapClose,render:()=>render(),state:MS,list,toggle};}
