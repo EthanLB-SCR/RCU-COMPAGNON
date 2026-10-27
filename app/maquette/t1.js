@@ -10,7 +10,7 @@
 // État propre au lot, rangé PAR CONTEXTE (comme le dessin) sous trace:maquette:t1[:contexte] : cv (version courante du chiffrage) et zones de chiffrage.
 import {normEnd,endKindOf,isBypassEnd,endLabel,endTxt,endAbbr,endColor,endOrder,endOptionsHTML,END_HELP,endInfo} from './extremites.js';
 import {makeHistory} from './historique.js';
-import {polyLen,ptAt,fmt,pvLabel} from './traceur.js';
+import {polyLen,ptAt,projOnPoly,fmt,pvLabel} from './traceur.js';
 import {reglesCheck,reglesSummary,lmaxOf,REGLES_LS,reglesFromStore} from '../src/regles.js';import {kv} from '../src/kv.js';import * as DX from './dilatx.js'; // 16/10 (lot TA) : tableau relu dans le registre de l'appareil, contrôle dit ligne par ligne
 import {tbInit} from './tversions.js'; // 16/10 soir (lot TB) : version par tronçon (l.sv), ce qui a été supprimé reste grisé (l.del, lignes fantômes), historique des versions (🕑)
 // couches d'affichage ajoutées au menu 👁 (cochées par défaut)
@@ -211,7 +211,10 @@ export function t1Init(api){const {state,esc}=api;
   function bestSeg(a){let best=-1,bi=1;for(let i=1;i<a.length;i++){const d=Math.hypot(a[i][0]-a[i-1][0],a[i][1]-a[i-1][1]);if(d>best){best=d;bi=i;}}const p=a[bi-1],q2=a[bi];let ang=Math.atan2(q2[1]-p[1],q2[0]-p[0])*180/Math.PI;if(ang>90)ang-=180;if(ang<=-90)ang+=180;return {mx:(p[0]+q2[0])/2,my:(p[1]+q2[1])/2,ang};}
   // nom de ligne LE LONG de la ligne (milieu du plus long tronçon, dans son sens) — avant : au 1er sommet, donc pour une antenne SUR la parente, au té
   function lineLabel(l,B,k){if(!B.axis||B.axis.length<2)return '';const p=bestSeg(B.axis);const off=B.e/2+(k>=7?26:10)/k;
-    return `<text class="t1-lname" data-line="${esc(l.id)}" transform="translate(${p.mx} ${p.my}) rotate(${p.ang})" y="${-off}" font-size="${12/k}" text-anchor="middle" fill="#52514e" font-weight="600" stroke="#fff" stroke-width="${3/k}" paint-order="stroke" font-family="system-ui,sans-serif" pointer-events="none">${esc(l.name)} · DN${l.dn}</text>`;}
+    const reds=(l.specials||[]).filter(x=>x.type==='reducer'&&x.dn2).sort((a,b)=>a.m-b.m);const Lt=polyLen(l.pts);const pkM=projOnPoly(l.pts,[p.mx,p.my]).m;let dn=l.dn;reds.forEach(r=>{if(r.m<=pkM)dn=r.dn2;}); /* 27/10 soir (Ethan : « et la maquette ») : DN en vigueur là où le nom est écrit */
+    let h=`<text class="t1-lname" data-line="${esc(l.id)}" transform="translate(${p.mx} ${p.my}) rotate(${p.ang})" y="${-off}" font-size="${12/k}" text-anchor="middle" fill="#52514e" font-weight="600" stroke="#fff" stroke-width="${3/k}" paint-order="stroke" font-family="system-ui,sans-serif" pointer-events="none">${esc(l.name)} · DN${dn}</text>`;
+    if(k>=1.5)reds.forEach(r=>{const q=ptAt(l.pts,Math.min(Lt-0.5,r.m+2));let ang=q.th*180/Math.PI;if(ang>90)ang-=180;if(ang<=-90)ang+=180;h+=`<text transform="translate(${q.x} ${q.y}) rotate(${ang})" y="${-off}" font-size="${11/k}" text-anchor="start" fill="#52514e" font-weight="700" stroke="#fff" stroke-width="${3/k}" paint-order="stroke" font-family="system-ui,sans-serif" pointer-events="none">DN${r.dn2}</text>`;}); /* « DN80 » après chaque réduction */
+    return h;}
   /* ---------- tableaux de l'onglet Lignes ---------- */
   function endsRows(){const m=new Map();let libres=0;state.lines.forEach(l=>{const add=(t,dn)=>{const v=normEnd(t);if(!endKindOf(v)){libres++;return;}const k=v+'|'+dn;m.set(k,(m.get(k)||0)+1);};if(!l.parent)add(l.startType||'sousstation',l.dn);add(api.endTypeOf(l),dnAtEnd(l));});
     return {rows:[...m.entries()].map(([k,n])=>{const [t,dn]=k.split('|');return {t,dn:+dn,n};}).sort((a,b)=>endOrder(a.t)-endOrder(b.t)||a.dn-b.dn),libres};}
