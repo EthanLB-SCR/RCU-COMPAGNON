@@ -8,7 +8,7 @@
 //   · meta : lignes brutes du chantier (extrémités C1 : ends, sinon startType / endType ; tranche C2 : tranche / option) — une ligne de session ne les porte pas ;
 //   · zones : site.traceur.zones (C4) = [{id, nom, lines:[ids]}].
 // Sortie (inchangée pour les champs d'avant) : {rows:[{dn, barres, mlTube, mlTr, soud, coudes, tes, piq, red, vannes, kits, purges, vidanges, src}], tot, ext,
-//   byTranche?, byZone?} — purges / vidanges : 1 par té vertical (= une PAIRE aller + retour, l'unité des paniers PURGE / VIDANGE), au DN de la BRANCHE (dnb : le
+//   byTranche?, byZone?, pcs (27/10 soir : les pièces variante par variante [{kind, dn, dn2?, angle?, pv?, sub?, n}] pour le comparatif fournisseur — qcompare.js)} — purges / vidanges : 1 par té vertical (= une PAIRE aller + retour, l'unité des paniers PURGE / VIDANGE), au DN de la BRANCHE (dnb : le
 //   DN du panier PURGE de la zone, z.purges = {dn, paires}) ; ext = extrémités {type:{dn:nombre}} au DN de la conduite à ce bout.
 export const END_TYPES=[['pec','PEC (piquage en charge)','racc'],['insertion','Insertion de tés','racc'],['attente','Sur attente existante','racc'],
   ['kit','Kit fin de ligne','fin'],['bypass_extrusion','By-pass extrusion','fin'],['bypass_regard','By-pass nu en regard','fin'],['fondbombe_regard','Fond bombé nu en regard','fin'],['provisoire','Fin provisoire à reprendre','fin'],
@@ -31,6 +31,11 @@ function norm(l,sess,m){let els=Array.isArray(l.els)?l.els:[];let cond=null,jc=f
   const meta=m||l;return {id:l.id,l,els,cond,jc,nC:l.single?1:2,meta,tr:trancheOf(meta)};}
 /* les quantités d'un ensemble de lignes (ids = toutes les lignes du chantier : un piquage compte si l'antenne part d'une ligne du chantier) */
 function qtyLines(L,ids){const by={};const g=dn=>by[dn]||(by[dn]={dn,soud:0,mlTr:0,mlTube:0,mlPipe:0,coudes:0,tes:0,piq:0,red:0,vannes:0,kits:0,purges:0,vidanges:0,runs:[]});const ext={};
+  /* 27/10 soir (lot 2710i, Ethan : « toutes les pièces en face d'un quantitatif fournisseur ») : LES PIÈCES variante par variante — coude / courbe acier (angle), té (DN de la branche,
+     purge / vidange), réduction (DN 2), vanne, by-pass, kit fin de ligne (fin provisoire signalée) — × 2 conduites (1 si simple) ; coude nu / vanne nue d'une remontée SST : pas une pièce pré-isolée */
+  const pc={};const addPc=(o,n)=>{const key=[o.kind,o.dn,o.dn2||'',o.angle||'',o.pv||'',o.sub||''].join(':');(pc[key]=pc[key]||Object.assign({n:0},o)).n+=n;};
+  const pcOf=(e,dn)=>{if(!e||e.nu)return null;const k=e.kind;if(k==='bend'||k==='steelbend')return {kind:k,dn,angle:Math.abs(+e.angle||90)};if(k==='tee')return {kind:'tee',dn,dn2:+e.dnb||undefined,pv:e.vert?(e.pvKind||(e.vert==='down'?'vidange':'purge')):undefined};
+    if(k==='reducer')return {kind:'reducer',dn,dn2:+e.dn2||undefined};if(k==='valve')return {kind:'valve',dn};if(k==='bypass')return {kind:'bypass',dn};if(k==='endcap')return {kind:'kit',dn,sub:e.sub==='provisoire'?'provisoire':undefined};return null;};
   /* 14/10 (Ethan : « le nombre doit être environ le ml/12, des barres ENTAMÉES, sans rajouter de soudure : on ne prend pas 6 chutes de 2 m pour faire un tube ») :
      les barres se comptent par TRONÇON CONTINU de tube (une pièce — coude, té, vanne, réduction — ou un changement de DN coupe le tronçon) : barres pleines + UNE chute
      par tronçon ; les chutes resservent pour les petites longueurs du même DN (2 chutes tiennent dans une même barre SANS soudure en plus), jamais aboutées. */
@@ -39,7 +44,7 @@ function qtyLines(L,ids){const by={};const g=dn=>by[dn]||(by[dn]={dn,soud:0,mlTr
     let tot=0;Object.keys(B).forEach(k=>{const b=B[k];b.rems.sort((x,y)=>y-x);const bins=[];b.rems.forEach(r=>{let i=-1;for(let j=0;j<bins.length;j++)if(bins[j]+r<=+k+1e-9){i=j;break;}if(i<0)bins.push(r);else bins[i]+=r;});tot+=b.full+bins.length;});return tot;};
   const addExt=(t,dn)=>{t=endType(t);if(!t||t==='libre'||!dn)return;const o=ext[t]||(ext[t]={});o[dn]=(o[dn]||0)+1;};
   L.forEach(x=>{const l=x.l;const els=x.els;const nC=x.nC;const dnOf=i=>{for(let k=0;k<els.length;k++){const a=els[i-k],b=els[i+k];if(a&&+a.dn)return +a.dn;if(b&&+b.dn)return +b.dn;}return +l.dn||0;};
-    els.forEach((e,i)=>{if(!e)return;const dn=dnOf(i);if(!dn)return;const r=g(dn);const len=+e.len||0;if(!e.riser)r.mlTr+=len;r.mlTube+=len*nC; /* 27/10 : coude de remontée SST = pièce pré-isolée (tube) mais pas de tranchée */if(e.kind==='pipe')r.mlPipe+=len*nC;else if(e.kind==='bend'||e.kind==='steelbend')r.coudes+=nC;else if(e.kind==='tee')r.tes+=nC;else if(e.kind==='reducer')r.red+=nC;else if(e.kind==='valve')r.vannes+=nC;else if(e.kind==='endcap')r.kits+=nC;
+    els.forEach((e,i)=>{if(!e)return;const dn=dnOf(i);if(!dn)return;const r=g(dn);const len=+e.len||0;if(!e.riser)r.mlTr+=len;r.mlTube+=len*nC;{const o=pcOf(e,dn);if(o)addPc(o,nC);} /* 27/10 : coude de remontée SST = pièce pré-isolée (tube) mais pas de tranchée */if(e.kind==='pipe')r.mlPipe+=len*nC;else if(e.kind==='bend'||e.kind==='steelbend')r.coudes+=nC;else if(e.kind==='tee')r.tes+=nC;else if(e.kind==='reducer')r.red+=nC;else if(e.kind==='valve')r.vannes+=nC;else if(e.kind==='endcap')r.kits+=nC;
       if(e.kind==='tee'&&e.vert){const pv=e.pvKind||(e.vert==='down'?'vidange':'purge');g(+e.dnb||dn)[pv==='vidange'?'vidanges':'purges']++;}}); /* C8 : té vertical = purge / vidange (nature : pvKind, sinon vert), au DN de sa branche */
     {let run=null;const endRun=()=>{if(run){addRun(run.dn,run.len,l.bar,nC);run=null;}};
       els.forEach((e,i)=>{if(!e)return;const dn=dnOf(i);const len=+e.len||0;
@@ -53,17 +58,18 @@ function qtyLines(L,ids){const by={};const g=dn=>by[dn]||(by[dn]={dn,soud:0,mlTr
     if(m.ends&&typeof m.ends==='object'){const s=m.ends.start,e=m.ends.end;if(s&&s.type)addExt(s.type,+s.dn||dnOf(0));if(e&&e.type)addExt(e.type,+e.dn||dnOf(last));}
     else{if(m.startType&&!m.parent)addExt(m.startType,dnOf(0));if(m.endType)addExt(m.endType,dnOf(last));}});
   const rows=Object.values(by).filter(r=>r.soud||r.mlTr||r.purges||r.vidanges).sort((x,y)=>y.dn-x.dn).map(r=>({dn:r.dn,barres:r.runs.length?barresOf(r.runs):Math.ceil(r.mlPipe/12-1e-9),mlTube:r1(r.mlTube),mlTr:r1(r.mlTr),soud:r.soud,coudes:r.coudes,tes:r.tes,piq:r.piq,red:r.red,vannes:r.vannes,kits:r.kits,purges:r.purges,vidanges:r.vidanges,src:'tracé'}));
-  const T=k=>rows.reduce((s,r)=>s+(r[k]||0),0);
-  return {rows,tot:{barres:T('barres'),mlTube:T('mlTube'),mlTr:r1(T('mlTr')),soud:T('soud'),coudes:T('coudes'),tes:T('tes'),piq:T('piq'),red:T('red'),vannes:T('vannes'),kits:T('kits'),purges:T('purges'),vidanges:T('vidanges')},ext};}
+  const T=k=>rows.reduce((s,r)=>s+(r[k]||0),0);const KO={bend:1,steelbend:2,tee:3,reducer:4,valve:5,kit:6,bypass:7};
+  const pcs=Object.values(pc).sort((a,b)=>(b.dn-a.dn)||((KO[a.kind]||9)-(KO[b.kind]||9))||((a.dn2||a.angle||0)-(b.dn2||b.angle||0))||String(a.pv||'').localeCompare(String(b.pv||'')));
+  return {rows,tot:{barres:T('barres'),mlTube:T('mlTube'),mlTr:r1(T('mlTr')),soud:T('soud'),coudes:T('coudes'),tes:T('tes'),piq:T('piq'),red:T('red'),vannes:T('vannes'),kits:T('kits'),purges:T('purges'),vidanges:T('vidanges')},ext,pcs};}
 export function traceQtyOf(o){o=o||{};const src=o.lines||[];if(!src.length)return null;const M={};(o.meta||[]).forEach(m=>{if(m&&m.id!==undefined&&!M[m.id])M[m.id]=m;});
   const L=src.filter(l=>l&&!l.ghost).map(l=>norm(l,!!o.sess,M[l.id]));const ids=new Set(L.map(x=>x.id)); /* 16/10 soir (lot TB, K3) : ce qui a été supprimé entre deux versions n'est jamais compté — tronçons (traceur.lines[].del) et lignes fantômes (traceur.ghosts, ghost:true) ne sont pas dans site.lines ; une ligne « ghost » passée par erreur est écartée ici */
-  const all=qtyLines(L,ids);const out={rows:all.rows,tot:all.tot,ext:all.ext};
+  const all=qtyLines(L,ids);const out={rows:all.rows,tot:all.tot,ext:all.ext,pcs:all.pcs}; /* 27/10 soir : pcs = les pièces variante par variante (comparatif fournisseur) */
   /* C2 : par tranche (seulement s'il y a des options) */
-  if(L.some(x=>x.tr!=='ferme')){out.byTranche={};[...new Set(L.map(x=>x.tr))].sort(trSort).forEach(k=>{const q=qtyLines(L.filter(x=>x.tr===k),ids);out.byTranche[k]={rows:q.rows,tot:q.tot,ext:q.ext};});}
+  if(L.some(x=>x.tr!=='ferme')){out.byTranche={};[...new Set(L.map(x=>x.tr))].sort(trSort).forEach(k=>{const q=qtyLines(L.filter(x=>x.tr===k),ids);out.byTranche[k]={rows:q.rows,tot:q.tot,ext:q.ext,pcs:q.pcs};});}
   /* C4 : par zone dessinée dans le traceur (une ligne dans une seule zone : la première qui la cite) + « hors zone » s'il reste des lignes */
   const Z=(Array.isArray(o.zones)?o.zones:[]).filter(z=>z&&Array.isArray(z.lines));
-  if(Z.length){const seen=new Set();out.byZone=Z.map((z,i)=>{const ls=L.filter(x=>z.lines.includes(x.id)&&!seen.has(x.id));ls.forEach(x=>seen.add(x.id));const q=qtyLines(ls,ids);return {id:String(z.id||('z'+(i+1))),nom:String(z.nom||('Zone '+(i+1))),ch:z.ch?String(z.ch):undefined,rows:q.rows,tot:q.tot,ext:q.ext,lines:ls.map(x=>x.id)};});
-    const rest=L.filter(x=>!seen.has(x.id));if(rest.length){const q=qtyLines(rest,ids);out.byZone.push({id:'_hors',nom:'Hors zone',hors:true,rows:q.rows,tot:q.tot,ext:q.ext,lines:rest.map(x=>x.id)});}}
+  if(Z.length){const seen=new Set();out.byZone=Z.map((z,i)=>{const ls=L.filter(x=>z.lines.includes(x.id)&&!seen.has(x.id));ls.forEach(x=>seen.add(x.id));const q=qtyLines(ls,ids);return {id:String(z.id||('z'+(i+1))),nom:String(z.nom||('Zone '+(i+1))),ch:z.ch?String(z.ch):undefined,rows:q.rows,tot:q.tot,ext:q.ext,pcs:q.pcs,lines:ls.map(x=>x.id)};});
+    const rest=L.filter(x=>!seen.has(x.id));if(rest.length){const q=qtyLines(rest,ids);out.byZone.push({id:'_hors',nom:'Hors zone',hors:true,rows:q.rows,tot:q.tot,ext:q.ext,pcs:q.pcs,lines:rest.map(x=>x.id)});}}
   return out;}
 /* ── outils communs (Quantités, chiffrage) ── */
 /* somme d'extrémités {type:{dn:n}} */

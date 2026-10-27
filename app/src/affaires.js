@@ -263,7 +263,8 @@ export function affAct(v,el,ctx){const [k,arg,arg2,arg3]=String(v).split('|');co
     case 'sitrm':{if(!canEdit||!a)return;upd({situations:(a.situations||[]).filter(s=>s.id!==arg)});break;}
     case 'link':{if(!canEdit||!a)return;const sel=document.getElementById('afs-site');const id=sel&&sel.value;if(!id||(a.sites||[]).includes(id))return;const off=Object.assign({},a.sitesOff||{});delete off[id];upd(Object.assign({sites:(a.sites||[]).concat([id])},a.sitesOff&&a.sitesOff[id]?{sitesOff:off}:{}));lzLinkSite(a.num,id);break;} /* 14/10 soir (lot L) : lié à la main = il reste lié (et un chantier réel garde « Ouvrir ») */
     case 'unlink':{if(!canEdit||!a)return;upd({sites:(a.sites||[]).filter(x=>x!==arg),sitesOff:Object.assign({},a.sitesOff||{},{[arg]:new Date().toISOString()})});lzUnlinkSite(a.num,arg);break;} /* 14/10 soir (lot L) : ✕ qui tient — a.sitesOff (partagé, tous les appareils) + repère du chantier marqué délié */
-    case 'etopen':{if(!a||!arg)return;lzOpenEtude(arg,a.num);return;} /* 14/10 soir (lot L) : une étude s'ouvre dans le traceur de l'affaire (C6 : site, aff, cv) */
+    case 'etopen':{if(!a||!arg)return;lzOpenEtude(arg,a.num);return;}
+    case 'etviewer':{if(!a||!arg)return;if(ctx.traceViewer)ctx.traceViewer(arg);else say('Export indisponible ici');return;} /* 27/10 soir (lot 2710j) : Plan interactif (.html) d'une étude, sans ouvrir l'écran Tracé */ /* 14/10 soir (lot L) : une étude s'ouvre dans le traceur de l'affaire (C6 : site, aff, cv) */
     case 'print':{if(!a)return;const w=window.open('','_blank');if(!w){say('Autorise la fenêtre pop-up pour imprimer');return;}w.document.write(prixBase()&&etudesOf(a).length?chiffragePrint2HTML(a):chiffragePrintHTML(a));w.document.close();return;}
     default:return;}
   if(ctx.render)ctx.render();}

@@ -453,6 +453,9 @@ export function doeOpts(){const S=A.state;if(!S.doeOpts)S.doeOpts=JSON.parse(JSO
 function openHTML(html){const w=window.open('about:blank');if(!w){A.toast('Autorise l\'ouverture de fenêtres pour l\'export');return false;}w.document.write(html);w.document.close();return true;}
 function download(name,blob){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);}
 const sizeTxt=n=>n>1024*1024*1024?(n/1024/1024/1024).toFixed(2)+' Go':n>1024*1024?(n/1024/1024).toFixed(1)+' Mo':Math.round(n/1024)+' Ko';
+/* 27/10 soir (lot 2710j) — Ethan : « pouvoir exporter une maquette aussi d'un chantier tracé qui est juste dans Commerce » : le Plan interactif (le même fichier .html que le bouton
+   🧭 de l'onglet Export) du chantier dont les fiches sont en place — app.js y met celles d'une étude (etudeViewer) le temps de l'appel */
+export function viewerDownload(){const d=doeData();if(!d||!d.lines.length)return false;const o=doeOpts();const pr=o.parts.plan?planPrintHTML(d,o):null;download(`Plan_interactif_${slug(d.site.name)}.html`,new Blob([viewerHTML(d,{fond:o.fond,planches:pr?pr.planches:{}})],{type:'text/html;charset=utf-8'}));return true;}
 export function renderExport(){const el=document.getElementById('exportview');if(!el)return;const D=doeData();const o=doeOpts();
   if(!D){el.innerHTML='<h2 class="vt">Export</h2><div class="card muted">Aucun chantier ouvert.</div>';return;}
   const ck=(k,lab,sub,n)=>`<label class="doeCk"><input type="checkbox" data-part="${k}" ${o.parts[k]?'checked':''}><span><b>${lab}</b>${n!==undefined?` <span class="dim">(${n})</span>`:''}<br><span class="hint">${sub}</span></span></label>`;

@@ -13,6 +13,7 @@ import {pasteRows,quantitesHTML} from './commerce.js';
 import {TRAME_TYPES,TRAME_DNS,typeOfKind} from './trame.js';
 import {iqState,iqSourceHTML,iqPanelHTML,iqWire,iqCounted,IQ_KINDS} from './importq.js'; // 13/10 soir : écran d'import commun (étude, commande, BL) + lecture automatique du fichier fournisseur
 import {qsynth} from './qcalc.js';
+import {qCompare} from './qcompare.js'; // 27/10 soir (lot 2710i) : le tracé en face d'un quantitatif fournisseur, pièce par pièce
 import {initQz,qzAct,qzTraceHTML,qzRefExtra} from './qzones.js'; // 14/10 soir (lot Q) : extrémités, purges / vidanges, tranches, zones du traceur → zones du chiffrage, répartition
 import {extAdd} from './qtrace.js';
 export {qsynth};
@@ -21,13 +22,13 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const nb=(x,d)=>{x=+x||0;return x.toLocaleString('fr-FR',{maximumFractionDigits:d===undefined?0:d});};
 const dFR=x=>x?new Date(x).toLocaleDateString('fr-FR'):'';
 const num=v=>v===''||v===null||v===undefined?0:(isFinite(+v)?+v:0);
-const QS={sel:null,lines:false};
+const QS={sel:null,lines:false,cmpT:null,cmpS:null,cmpOnly:false}; /* 27/10 soir : tracé et étude du comparatif pièce par pièce, filtre « seulement les écarts » */
 export const qsState=()=>QS;
 const setsOf=a=>(a.qsets||[]).filter(s=>s&&!s.deleted);
 /* synthèse par DN : qcalc.js (pur, testé dans Node) */
 /* le tracé des chantiers liés à l'affaire (soudures et ml par DN, comme le compare le chiffrage) */
 function traceSets(a,ctx){const sites=(ctx&&ctx.sites)||[];return (a.sites||[]).map(id=>{const s=sites.find(x=>x.id===id)||{id,name:id};let q=null;try{q=ctx&&ctx.traceQty?ctx.traceQty(id):null;}catch(e){q=null;}
-  if(q&&q.rows&&q.rows.length)return {id:'trace:'+id,siteId:id,site:s.name||id,nom:'Tracé · '+(s.name||id),kind:'trace',rows:q.rows,tot:q.tot,full:true,ext:q.ext||{},byTranche:q.byTranche,byZone:q.byZone}; /* 14/10 soir (lot Q) : + extrémités, tranches, zones */
+  if(q&&q.rows&&q.rows.length)return {id:'trace:'+id,siteId:id,site:s.name||id,nom:'Tracé · '+(s.name||id),kind:'trace',rows:q.rows,tot:q.tot,full:true,ext:q.ext||{},byTranche:q.byTranche,byZone:q.byZone,pcs:q.pcs||[]}; /* 27/10 soir : + pcs (pièces variante par variante) */ /* 14/10 soir (lot Q) : + extrémités, tranches, zones */
   let agg={};try{agg=ctx&&ctx.traceAgg?(ctx.traceAgg(id)||{}):{};}catch(e){agg={};}const rows=Object.keys(agg).map(Number).filter(Boolean).sort((x,y)=>y-x).map(dn=>({dn,soud:num(agg[dn].nb),mlTr:Math.round(num(agg[dn].ml)*10)/10}));
   return {id:'trace:'+id,siteId:id,site:s.name||id,nom:'Tracé · '+(s.name||id),kind:'trace',rows,tot:rows.length?{soud:rows.reduce((x,r)=>x+r.soud,0),mlTr:Math.round(rows.reduce((x,r)=>x+r.mlTr,0)*10)/10}:null,full:false,empty:!rows.length};});}
 /* 14/10 (somme des tracés) — Ethan : un chantier de 15 antennes se dessine en 15 tracés (un par antenne), tous liés à la même affaire : il faut LA SOMME de tous les
@@ -40,7 +41,8 @@ function traceSum(TR){const P=TR.filter(t=>!t.empty&&t.rows&&t.rows.length);if(P
   P.forEach(t=>t.rows.forEach(r=>{const o=by[r.dn]||(by[r.dn]={dn:r.dn,src:'tracé'});keys.forEach(k=>{o[k]=(o[k]||0)+num(r[k]);});}));
   const rows=Object.values(by).sort((x,y)=>y.dn-x.dn).map(r=>{if(r.mlTr!==undefined)r.mlTr=r1(r.mlTr);if(r.mlTube!==undefined)r.mlTube=r1(r.mlTube);return r;});
   const tot={};keys.forEach(k=>{const s=rows.reduce((x,r)=>x+num(r[k]),0);tot[k]=k==='mlTr'||k==='mlTube'?r1(s):s;});
-  return {id:SUM_ID,kind:'trace',sum:true,nom:'Σ '+P.length+' tracés',n:P.length,sites:P.map(t=>t.siteId),rows,tot,full,ext:full?P.reduce((e,t)=>extAdd(e,t.ext),{}):{}};}
+  const pc={};if(full)P.forEach(t=>(t.pcs||[]).forEach(p=>{const key=[p.kind,p.dn,p.dn2||'',p.angle||'',p.pv||'',p.sub||''].join(':');(pc[key]=pc[key]||Object.assign({},p,{n:0})).n+=num(p.n);})); /* 27/10 soir : pièces additionnées */
+  return {id:SUM_ID,kind:'trace',sum:true,nom:'Σ '+P.length+' tracés',n:P.length,sites:P.map(t=>t.siteId),rows,tot,full,ext:full?P.reduce((e,t)=>extAdd(e,t.ext),{}):{},pcs:Object.values(pc)};}
 /* 13/10 soir (Ethan) : « pour comparer avec un tracé, ça devrait être à côté des quantités fournisseur importées : une bulle « quantités tracé » ; tu cliques dessus,
    ça t'envoie vers le traceur ; tu vois les quantités actuellement tracées, et si rien n'est encore tracé ça te demande de tracer » */
 /* 13/10 nuit (Ethan : « que la bulle pour choisir le tracé et comparer les quantités se présente comme les quantités importées : les quantités du tracé, puis celles
@@ -77,10 +79,31 @@ export function qsetsHTML(a,canEdit,ctx){const S=setsOf(a);const TR=traceSets(a,
   const cols=[{nom:'★ Référence',kind:'rep',rows:((a.quantites||{}).rows||[]).filter(r=>+r.dn).map(r=>({dn:+r.dn,soud:num(r.soud),mlTr:num(r.ml)}))}].concat(S.map(s=>Object.assign({nom:s.nom||'Étude',kind:s.kind,id:s.id},{rows:qsynth(s.lignes).rows}))).concat(TRc.map(t=>Object.assign({},t,{rows:(t.rows||[]).filter(r=>r.soud||r.mlTr)})));
   const dns=[...new Set(cols.flatMap(c=>c.rows.map(r=>r.dn)))].sort((x,y)=>y-x);const cell=(c,dn)=>c.rows.find(r=>r.dn===dn);const ref=cols[0];
   const cmp=dns.length&&cols.length>1?`<div class="eq-lab" style="margin-top:8px">Comparatif par DN <span class="hint">· soudures / ml de tranchée ; en orange : plus de 5 % d'écart avec les quantités de référence</span></div><div style="overflow:auto"><table class="rc af-tab ch-tab cm-qcmp"><tr><th>DN</th>${cols.map(c=>`<th>${c.kind==='rep'?'<b>★ Référence</b>':esc(c.nom)}${c.sum?' <small>(somme)</small>':c.kind==='trace'?' <small>(tracé)</small>':''}</th>`).join('')}</tr>${dns.map(dn=>{const r0=cell(ref,dn);return `<tr><td>DN ${dn}</td>${cols.map((c,ci)=>{const r=cell(c,dn);if(!r)return '<td class="num dim">—</td>';const off=ci>0&&r0&&(Math.abs(r.soud-r0.soud)>Math.max(1,r0.soud*0.05)||Math.abs(r.mlTr-r0.mlTr)>Math.max(1,r0.mlTr*0.05));return `<td class="num${off?' cm-off':''}">${nb(r.soud)} <span class="dim">/ ${nb(r.mlTr,1)} ml</span></td>`;}).join('')}</tr>`;}).join('')}<tr class="tot"><td>Total</td>${cols.map(c=>`<td class="num">${nb(c.rows.reduce((s,r)=>s+r.soud,0))} <span class="dim">/ ${nb(c.rows.reduce((s,r)=>s+r.mlTr,0),1)} ml</span></td>`).join('')}</tr></table></div>${ro?'':`<div class="eq-acts" style="margin-top:4px">${TRc.map(t=>`<button class="btn sm" style="white-space:normal;max-width:100%;height:auto;min-height:38px;text-align:left" data-act="af" data-v="qstake|${esc(t.id)}" title="${t.sum?'La somme des tracés devient la référence (préremplit le chiffrage)':'Le tracé devient la référence (préremplit le chiffrage)'}">★ ${esc(t.nom)} en référence</button>`).join('')}</div>`}`:'';
+  const qpc=qpcHTML(a,TRc,S,ro); /* 27/10 soir (lot 2710i) : pièce par pièce */
   return `<div class="card cm-qsets"><div class="cm-qsets-h"><h3>Quantités · tracé et quantitatifs fournisseurs <span class="hint">· le tracé, puis un quantitatif par fournisseur (Excel ou PDF lu tout seul) ; on compare, on choisit la référence ★</span></h3></div>
     ${ro?'':`<div class="eq-acts" style="margin:0 0 6px"><button class="btn" data-act="af" data-v="qsimp|">📥 Importer une étude fournisseur</button><button class="btn" data-act="af" data-v="qsnew|">✍ Saisie à la main</button></div>`}
     <div class="eq-filtres cm-qschips">${chips}</div>${S.length?'':`<div class="eq-s">Aucun quantitatif fournisseur : importe celui du fournisseur (Excel ou PDF) ou saisis les pièces à la main.</div>`}
-    ${body}${cmp}${src?`<div class="hint" style="margin-top:6px">★ Référence prise sur « ${esc(src.nom)} » le ${dFR(src.at)}.</div>`:''}</div>`;}
+    ${body}${cmp}${qpc}${src?`<div class="hint" style="margin-top:6px">★ Référence prise sur « ${esc(src.nom)} » le ${dFR(src.at)}.</div>`:''}</div>`;}
+/* ═════════ 27/10 soir (lot 2710i) — Ethan : « comparer les quantités tracées dans un chiffrage et celles importées d'un fournisseur : pas juste soudures et ml, vraiment toutes les pièces
+   en face l'une de l'autre » : LE TRACÉ EN FACE D'UN QUANTITATIF, PIÈCE PAR PIÈCE (qcompare.js) — choix du tracé (Σ ou un seul) et de l'étude, une ligne par nature et par DN
+   (tracé | fournisseur | écart = fournisseur − tracé), sous-lignes par variante (angle des coudes, DN de la branche des tés, DN 2 des réductions, kit / manchon fin de ligne),
+   « seulement les écarts » ; ce que l'un des deux ne compte pas reste « — ». ═════════ */
+const CSS_QPC=`.cm-qpc td,.cm-qpc th{white-space:nowrap}.cm-qpc tr.cm-qpc-g td{background:#f1efe9;font-weight:700;font-size:12px;padding:5px 8px}.cm-qpc tr.cm-qpc-sub td{color:var(--ink2);font-size:11.5px;padding-top:2px;padding-bottom:2px}.cm-qpc tr.cm-qpc-sub td:first-child{padding-left:22px}.cm-qpc td.cm-off{background:#fff1e3;color:#7a3b00;font-weight:700}.cm-qpc td.cm-ok{color:#15673a}.cm-qpc td small{font-weight:400;color:var(--ink2)}.cm-qpc-h{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 4px}.cm-qpc-h select.f{margin:0;max-width:240px;min-height:34px;font-size:12.5px}.cm-qpc-h label{display:flex;gap:5px;align-items:center;font-size:12.5px;min-height:34px}.cm-qpc-n{font-size:12px;color:var(--ink2)}@media (max-width:480px){.cm-qpc td small{display:none}.cm-qpc td:first-child{white-space:normal;min-width:110px}.cm-qpc td,.cm-qpc th{padding-left:5px;padding-right:5px}}`;
+function cssQpc(){if(typeof document==='undefined'||document.getElementById('css-qpc'))return;const st=document.createElement('style');st.id='css-qpc';st.textContent=CSS_QPC;document.head.appendChild(st);}
+function qpcHTML(a,TRc,S,ro){const TT=TRc.filter(t=>!t.empty&&t.full&&t.rows&&t.rows.length);if(!TT.length||!S.length)return '';cssQpc();
+  if(!TT.some(t=>t.id===QS.cmpT))QS.cmpT=TT[0].id;if(!S.some(x=>x.id===QS.cmpS))QS.cmpS=(S.find(x=>x.id===QS.sel)||S[S.length-1]).id;
+  const t=TT.find(x=>x.id===QS.cmpT),s=S.find(x=>x.id===QS.cmpS);const R=qCompare(t,s.lignes||[]);
+  const sel=(k,opts,cur)=>`<select class="f" data-afx="qpc§${k}" aria-label="${k==='t'?'Tracé':'Quantitatif fournisseur'}">${opts.map(o=>`<option value="${esc(o.id)}"${o.id===cur?' selected':''}>${esc(o.nom)}</option>`).join('')}</select>`;
+  const N=(v,u)=>v===null||v===undefined?'<span class="dim">—</span>':nb(v,u==='ml'?1:0);
+  const D=r=>r.d===null?'<span class="dim">—</span>':(r.d>0?'+':r.d<0?'−':'')+nb(Math.abs(r.d),r.unit==='ml'?1:0)+(r.pct!==null&&r.d?` <small>(${r.pct>0?'+':r.pct<0?'−':''}${nb(Math.abs(r.pct))} %)</small>`:'');
+  const tr=(r,sub,g)=>`<tr class="${sub?'cm-qpc-sub':''}" data-qpc="${esc(g)}|${esc(r.k)}${sub?'|'+esc(r.key||''):''}"><td>${sub?'↳ ':''}${esc(r.lab)}</td><td class="num">${N(r.t,r.unit)}</td><td class="num">${N(r.f,r.unit)}${r.est?' <span class="eq-tag warn" title="Pas de manchon à ce DN dans l\'étude : soudures estimées par les bouts des pièces">≈</span>':''}</td><td class="num${r.off?' cm-off':r.d===0?' cm-ok':''}">${D(r)}</td></tr>`;
+  const keep=r=>!QS.cmpOnly||r.off||(r.sub||[]).some(x=>x.off);
+  const grp=(lab,rows,g)=>{const body=rows.filter(keep).map(r=>tr(r,false,g)+r.sub.filter(x=>!QS.cmpOnly||x.off).map(x=>tr(x,true,g)).join('')).join('');return body?`<tr class="cm-qpc-g"><td colspan="4">${lab}</td></tr>${body}`:'';};
+  const table=grp('Toutes DN',R.all,'all')+R.groups.map(g=>grp('DN '+g.dn,g.rows,String(g.dn))).join('');
+  return `<div class="eq-lab" style="margin-top:10px">Pièce par pièce : le tracé en face du quantitatif <span class="hint">· écart = fournisseur − tracé ; orange : plus de 5 % (barres, ml, soudures) ou une pièce de différence</span></div>
+    <div class="cm-qpc-h">${sel('t',TT.map(x=>({id:x.id,nom:x.sum?x.nom+' (somme)':x.nom})),QS.cmpT)}<span class="dim">⇄</span>${sel('s',S.map(x=>({id:x.id,nom:(x.kind==='saisie'?'✍ ':'🏭 ')+(x.nom||'Étude')})),QS.cmpS)}<label><input type="checkbox" data-afx="qpc§only"${QS.cmpOnly?' checked':''}> seulement les écarts</label><span class="cm-qpc-n">${R.n.off} écart${R.n.off>1?'s':''} sur ${R.n.rows} ligne${R.n.rows>1?'s':''}</span></div>
+    <div style="overflow:auto"><table class="rc af-tab ch-tab cm-qpc"><tr><th>Pièce</th><th>Tracé</th><th>Fournisseur</th><th>Écart</th></tr>${table||'<tr><td colspan="4" class="dim">Aucun écart.</td></tr>'}</table></div>
+    <div class="hint">Tracé : × 2 conduites (aller + retour), barres entamées par tronçon, purges / vidanges = tés verticaux (leur branche compte en piquage à son DN, comme chez le fournisseur). Fournisseur : soudures = manchons (≈ estimées quand il n'y a pas de manchon au DN), purges et vidanges livrées en tés et vannes (« — »), DHEC et passages de mur hors tracé (« — »).${R.extra.length?' Compté aussi par le fournisseur, hors comparaison : '+R.extra.map(e=>esc(e.lab)+' × '+nb(e.n)).join(' · ')+'.':''}</div>`;}
 const KSEL=(v,attr)=>`<select class="f" ${attr}>${TRAME_TYPES.map(([l,k])=>`<option value="${k}"${k===v?' selected':''}>${esc(l)}</option>`).join('')}</select>`; /* v = 'reducerJ' pour une réduction dans un manchon (joint) */
 const DSEL=(v,attr,blank)=>`<select class="f" ${attr}>${blank?'<option value="">—</option>':''}${TRAME_DNS.map(d=>`<option value="${d}"${+v===d?' selected':''}>DN ${d}</option>`).join('')}</select>`;
 function linesHTML(s,ro){const L=s.lignes||[];const P=(i,k)=>`data-afx="qsl§${esc(s.id)}§${i}§${k}"`;
@@ -107,7 +130,8 @@ export function qsetsAct(k,arg,arg2,ctx){if(/^qz(mk|split|re)$/.test(k))return q
       if(!rows.length){say('Rien à prendre : aucune barre ni soudure par DN');return true;}const has=((a.quantites||{}).rows||[]).length;if(has&&!confirm('« '+src.nom+' » devient la référence : remplacer les quantités de référence actuelles ('+has+' DN) ? (« dont antennes » est gardé pour les DN qui restent)'))return true;
       const n=takeInto(a,rows,tot,src,extra);say('★ Référence : '+n+' DN pris sur « '+src.nom+' » — « → Préremplir le chiffrage » pour les passer au chiffrage');render();return true;}}
   return true;}
-export function qsetsInput(el,ctx){const d=el.dataset;if(!d.afx||!/^qsl?§/.test(d.afx))return false;if(!ctx.canEdit){el.value='';return true;}const a=A.cur?A.cur():null;if(!a)return true;const P=d.afx.split('§');const render=()=>{if(ctx.render)ctx.render();};
+export function qsetsInput(el,ctx){const d=el.dataset;if(d.afx&&/^qpc§/.test(d.afx)){const k=d.afx.split('§')[1];if(k==='t')QS.cmpT=el.value;else if(k==='s')QS.cmpS=el.value;else if(k==='only')QS.cmpOnly=!!el.checked;if(ctx.render)ctx.render();return true;} /* 27/10 soir : choix du comparatif pièce par pièce (affichage seulement) */
+  if(!d.afx||!/^qsl?§/.test(d.afx))return false;if(!ctx.canEdit){el.value='';return true;}const a=A.cur?A.cur():null;if(!a)return true;const P=d.afx.split('§');const render=()=>{if(ctx.render)ctx.render();};
   if(P[0]==='qs'){saveSets(a,S=>{const s=S.find(x=>x.id===P[1]);if(s&&P[2]==='nom')s.nom=String(el.value||'').trim()||s.nom;});render();return true;}
   saveSets(a,S=>{const s=S.find(x=>x.id===P[1]);const x=s&&(s.lignes||[])[+P[2]];if(!x)return;const k=P[3];let v=el.value;
     if(k==='kind'){if(v==='reducerJ'){x.kind='reducer';x.joint=true;}else{x.kind=v;delete x.joint;}if(x.kind==='pipe'&&!x.len)x.len=12;if(x.kind!=='pipe'&&x.kind!=='acc'){x.unit='u';delete x.ml;}}
