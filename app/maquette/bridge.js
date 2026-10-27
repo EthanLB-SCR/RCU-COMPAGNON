@@ -5,7 +5,7 @@ const KLABEL={pipe:'barre',bend:'coude',tee:'té',valve:'vanne',reducer:'réduct
 import {reduceDrawing} from '../src/dxfimport.js';
 import {marcheSnapshot} from '../src/marche.js';
 import {fuseDxfPlans,legacyImageOfPlan,tfNorm,planMeta} from '../src/plans.js'; // 14/10 (multi-plans) ; planMeta : 14/10 soir (T2), PDF / échelle 1/N
-import {normEnd} from './extremites.js';
+import {normEnd,endKindOf} from './extremites.js';
 import {affInherit} from '../src/mutufus.js'; // 16/10 soir (lot MU) : chantier mutualisé — chaque ligne garde son affaire (l.aff) // 14/10 soir (lot T1) : extrémités (contrat C1)
 const r3=v=>+(+v||0).toFixed(3);
 /* 14/10 soir (lot T1) — contrats C1 à C5 :
@@ -15,7 +15,8 @@ const r3=v=>+(+v||0).toFixed(3);
    · étude : NI marché NI TS (pas de site.marche, pas de site.ts, même si la version précédente en avait) — le marché sera figé quand l'affaire sera gagnée (appli). */
 const dnAtEnd=l=>{const reds=(l.specials||[]).filter(s=>s.type==='reducer'&&s.dn2).sort((a,b)=>a.m-b.m);return reds.length?reds[reds.length-1].dn2:l.dn;};
 function lineExtras(l,etude){const o={};const st=l.parent?null:normEnd(l.startType||'sousstation');const et=l.pause?'libre':normEnd(l.endType||'kit');
-  o.startType=st;o.endType=et;o.ends={start:st?{type:st,dn:l.dn}:null,end:{type:et,dn:dnAtEnd(l)}};
+  const rS=st&&endKindOf(st)==='endpoint'&&+l.riserStart>0?+l.riserStart:0,rE=endKindOf(et)==='endpoint'&&+l.riserEnd>0?+l.riserEnd:0; // 27/10 : remontée en local (hauteur) — les coudes / tube / soudures sont déjà dans els et welds (riser:true)
+  o.startType=st;o.endType=et;o.ends={start:st?{type:st,dn:l.dn,...(rS?{riser:rS}:{})}:null,end:{type:et,dn:dnAtEnd(l),...(rE?{riser:rE}:{})}};
   if(etude||l.tranche!=null){const op=l.tranche==='option';o.tranche=op?'option':'ferme';if(op)o.option=Math.max(1,parseInt(l.option,10)||1);}
   if(etude||l.v0!=null||l.vm!=null){const v0=Math.max(1,parseInt(l.v0,10)||1);o.v0=v0;o.vm=Math.max(1,parseInt(l.vm,10)||v0);}
   if(Array.isArray(l.sv)&&Array.isArray(l.pts)&&l.sv.length===l.pts.length-1)o.sv=l.sv.map(v=>Math.max(1,parseInt(v,10)||1)); // 16/10 soir (lot TB, K3) : version de chaque tronçon de l'axe (tronçon i = axis[i] → axis[i+1])
@@ -34,11 +35,11 @@ export function siteFromTraceur({id,name,supplier,serie,lines,built,rules,bg,pre
   const used=new Set();let next=1;const prevW=(prev&&prev.welds)||[];prevW.forEach(w=>{const n=+String(w.weldId||'').replace(/\D/g,'');if(n>=next)next=n+1;});
   const lost=[];const idFor=(line,cond,m)=>{const cand=prevW.filter(w=>w.line===line&&w.cond===cond&&!used.has(w.weldId)&&Math.abs(w.m-m)<0.35).sort((a,b)=>Math.abs(a.m-m)-Math.abs(b.m-m))[0];if(cand){used.add(cand.weldId);return cand.weldId;}let s;do{s='S-'+String(next++).padStart(4,'0');}while(used.has(s));used.add(s);return s;};
   const outLines=[];lines.forEach(l=>{const B=built[l.id];if(!B||!B.A||!B.R)return;const cond={};
-    ['A','R'].forEach(c=>{const cd=B[c];const els=cd.pieces.map(p=>{const kind=KIND[p.kind]||p.kind;const axis=p.path.map(q=>[r3(q[0]),r3(q[1])]);return {id:p.id,kind,kindLabel:KLABEL[kind]||kind,dn:p.dn,dn2:p.dn2,casing:Math.round((p.casing||0.2)*1000),len:r3(p.L),m0:r3(p.m0),m1:r3(p.m1),angle:p.angle,plane:p.plane,axis:[axis],from:axis[0],to:axis[axis.length-1],cut:!!p.cut,std:!!p.std,manchette:!!p.manchette,nue:!!p.nue,ref:p.ref,sub:p.sub,vert:p.vert?(pvNature(p)==='purge'?'up':'down'):p.vert,pvKind:p.vert?pvNature(p):undefined,pvDir:p.vert||undefined,dnb:p.dnb,teeType:p.teeType,saut:!!p.saut,under:!!p.under,photo:p.photo||undefined,branch:p.branch?p.branch.map(q=>[r3(q[0]),r3(q[1])]):undefined,err:p.err||undefined,resid:p.resid,fcWhere:p.fcWhere,legIn:p.legIn,legOut:p.legOut};});
+    ['A','R'].forEach(c=>{const cd=B[c];const els=cd.pieces.map(p=>{const kind=KIND[p.kind]||p.kind;const axis=p.path.map(q=>[r3(q[0]),r3(q[1])]);return {id:p.id,kind,kindLabel:KLABEL[kind]||kind,dn:p.dn,dn2:p.dn2,casing:Math.round((p.casing||0.2)*1000),len:r3(p.L),m0:r3(p.m0),m1:r3(p.m1),angle:p.angle,plane:p.plane,axis:[axis],from:axis[0],to:axis[axis.length-1],cut:!!p.cut,std:!!p.std,manchette:!!p.manchette,nue:!!p.nue,ref:p.ref,sub:p.sub,vert:p.vert?(pvNature(p)==='purge'?'up':'down'):p.vert,pvKind:p.vert?pvNature(p):undefined,pvDir:p.vert||undefined,dnb:p.dnb,teeType:p.teeType,saut:!!p.saut,under:!!p.under,photo:p.photo||undefined,branch:p.branch?p.branch.map(q=>[r3(q[0]),r3(q[1])]):undefined,err:p.err||undefined,resid:p.resid,fcWhere:p.fcWhere,legIn:p.legIn,legOut:p.legOut,riser:p.riser?true:undefined,riserH:p.riserH||undefined};});
       const welds=[];let shift=0; // 14/10 soir (lot T1) : by-pass au départ → jonction insérée AVANT le coude (les pièces suivantes décalées d'un rang)
       cd.welds.forEach(w=>{let idx=w.i+shift;if(w.bypass){const atS=w.bypassAt==='start';const U=cd.pieces.findIndex(p=>p.kind==='bypassEnd'&&(atS?p.sid==='end:start':p.sid!=='end:start'));if(U<0)return;const ap=cd.pieces[U].apex||[w.x,w.y];const Ue=U+shift;const mJ=atS?els[Ue].m0:els[Ue].m1;
           els.splice(atS?Ue:Ue+1,0,{id:atS?'U-liaison-depart':'U-liaison',kind:'bypass',kindLabel:'jonction du by-pass (aller ↔ retour)',dn:w.dn,casing:els[Ue].casing,len:0,m0:mJ,m1:mJ,axis:[[[r3(ap[0]),r3(ap[1])],[r3(ap[0]),r3(ap[1])]]],from:[r3(ap[0]),r3(ap[1])],to:[r3(ap[0]),r3(ap[1])],link:true});idx=Ue;if(atS)shift++;}
-        welds.push({idx,weldId:idFor(l.id,c,w.m),m:r3(w.m),x:r3(w.x),y:r3(w.y),dev:+(w.dev||0).toFixed(2),fc:!!w.fc,dn:w.dn,teeOut:!!w.teeOut,bypass:!!w.bypass,between:w.between,sleeve:w.sleeve||undefined});});
+        welds.push({idx,weldId:idFor(l.id,c,w.m),m:r3(w.m),x:r3(w.x),y:r3(w.y),dev:+(w.dev||0).toFixed(2),fc:!!w.fc,dn:w.dn,teeOut:!!w.teeOut,bypass:!!w.bypass,between:w.between,sleeve:w.sleeve||undefined,riser:w.riser?true:undefined});});
       welds.forEach(w=>{if(!w.sleeve)return;const o=welds.find(x=>x!==w&&x.sleeve===w.sleeve);if(o)w.sleeveWith=o.weldId;}); // deux soudures dans le même manchon
       cond[c]={els,welds,length:r3(cd.length),notes:cd.notes.map(n=>({kind:n.kind,txt:n.txt,m:r3(n.m||0)}))};});
     const profL=l.prof!=null&&isFinite(+l.prof)?+l.prof:(prof!=null&&isFinite(+prof)?+prof:undefined); // 14/10 : profondeur en vigueur sur la ligne (surcharge, sinon défaut du tracé)
