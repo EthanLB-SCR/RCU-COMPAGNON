@@ -47,7 +47,7 @@ C.c2=!!A&&!!B&&A.dnT==='DN 150 / 100'&&B.dnT==='DN 80'&&A.rows['Coudes']==='DN 1
   &&A.pcs.some(p=>/retiré : coude DN 150 PK 30 \(aller\)/.test(p))&&A.pcs.some(p=>/ajouté : vanne DN 100 PK \d+ \(aller\), vanne DN 100 PK \d+ \(retour\)/.test(p))&&B.rows['Soudures (aller + retour)']==='DN 80';
 // ── c3) carte à qualifier de la ligne A : DN à côté du nom
 o=await page.evaluate(()=>{const c=[...document.querySelectorAll('#tsview .tsCard.cand')].find(x=>/Ligne Fictive A/.test(x.textContent));return c?c.querySelector('.tsHead').textContent.replace(/[\s  ]+/g,' ').trim().replace(/^[▸▾]\s*/,''):null;}); /* 23/10 soir : l'en-tête repliable de la carte */
-console.log('c3) carte :',JSON.stringify(o));C.c3=/^\?\s*Ligne Fictive A DN 150 \/ 100/.test(o||'');
+console.log('c3) carte :',JSON.stringify(o));C.c3=/^[a-z]+ \?\s*Ligne Fictive A DN 150 \/ 100/.test(o||''); /* 27/10 soir : « a ? » = lettre du candidat */
 // ── c4) qualifiées : candidat de la ligne B (TS proposé) et tronçon PK 50 → 80 de la ligne A (à cheval sur la réduction)
 o=await page.evaluate(()=>{const T=window.TRACE;const c=T.ts.candidates().find(x=>x.line==='L2');T.ts.markCandidate(c,'propose','DEV-F2');T.ts.markRange('L1',50,80,{etat:'forfait'});T.renderAll();
   const cards=[...document.querySelectorAll('#tsview .tsCard:not(.cand)')];const a=cards.find(x=>/Ligne Fictive B/.test(x.textContent)),b=cards.find(x=>/tronçon PK 50/.test(x.textContent));

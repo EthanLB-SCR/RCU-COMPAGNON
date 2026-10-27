@@ -9,10 +9,10 @@ let A=null;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const MS={open:false,sel:[],view:null,fit:null,lasso:null,drag:null,show:{marche:true,cand:true,items:true,dn:true,num:true},zoomN:0};
 /* la liste numérotée des modifs visibles : candidats (à qualifier) puis marques vivantes puis dépassées */
-function list(){const cands=A.cands();const items=A.items();const stale=A.stale();const L=[];let n=0;
-  if(MS.show.cand)cands.forEach((c,i)=>{if(!MS.show.dn&&c.kind==='dn')return;L.push({o:c,isCand:true,key:'c'+i,n:++n});});
-  if(MS.show.items)items.forEach(it=>{if(!MS.show.dn&&it.kind==='dn')return;L.push({o:it,isCand:false,key:it.id,n:++n});});
-  if(MS.show.items)stale.forEach(it=>{L.push({o:it,isCand:false,key:it.id,n:++n,stale:true});});
+function list(){const cands=A.cands();const items=A.items();const stale=A.stale();const L=[]; /* 27/10 soir : lettres pour les candidats (rang dans la liste complète), numéro STABLE des marques (A.numOf : celui de l'id) — rien ne bouge quand on qualifie ou regroupe */
+  if(MS.show.cand)cands.forEach((c,i)=>{if(!MS.show.dn&&c.kind==='dn')return;L.push({o:c,isCand:true,key:'c'+i,n:A.letter(i)});});
+  if(MS.show.items)items.slice().sort((a,b)=>A.numOf(a)-A.numOf(b)).forEach(it=>{if(!MS.show.dn&&it.kind==='dn')return;L.push({o:it,isCand:false,key:it.id,n:A.numOf(it)});});
+  if(MS.show.items)stale.slice().sort((a,b)=>A.numOf(a)-A.numOf(b)).forEach(it=>{L.push({o:it,isCand:false,key:it.id,n:A.numOf(it),stale:true});});
   return L;}
 const byKey=(L,k)=>L.find(x=>x.key===k);
 export function tsMapOpen(o){o=o||{};MS.open=true;MS.sel=(o.sel||[]).slice();MS.view=null;MS.lasso=null;try{document.body.classList.add('tsmap-on');}catch(e){}render();}
@@ -35,7 +35,7 @@ function render(planOnly){if(!MS.open)return;let el=document.getElementById('tsM
       const body=x.stale?`<div class="tsPcs">${esc(o.desig||A.shortLab(o))}<div class="dim" style="margin-top:4px">Le tracé a encore changé : cette modif ne correspond plus à l'écart avec le marché et ne compte plus.</div>${canEd?`<div class="row" style="gap:6px;margin-top:6px"><button class="btn sm primary" data-tsreplace="${esc(o.id)}">↻ Reprendre sur la nouvelle modif</button><button class="btn sm" data-tsdel="${esc(o.id)}">🗑 Retirer</button></div>`:''}</div>`
         :(x.isCand?`<div class="tsmLab">${esc(o.label)}</div>`+A.candBody(o,i,{rowOf,canEd,G:null}):`<div class="tsmLab">${esc(o.desig||A.shortLab(o))}</div>`+A.itemBody(o,{rowOf,canEd,G:null,corrBtn:A.corrBtn}));
       return `<div class="tsmItem" data-tsmitem="${esc(x.key)}">${head}${vig}${body}</div>`;}).join('')
-    :`<div class="tsmHint"><b>Touche une pastille</b> sur le plan pour voir la modif (avant → après, pièces, DN, quantités) et la qualifier.<br>Plusieurs pastilles (ou <b>⭕ Entourer</b> au doigt) → <b>🔗 Regrouper</b> : une seule modif aux yeux du client, comptée sur le net.<br>Jaune « ? » = à qualifier · couleur = état · souligné = l'emprise de la modif · gris pointillé = tracé marché.</div>`;
+    :`<div class="tsmHint"><b>Touche une pastille</b> sur le plan pour voir la modif (avant → après, pièces, DN, quantités) et la qualifier.<br>Plusieurs pastilles (ou <b>⭕ Entourer</b> au doigt) → <b>🔗 Regrouper</b> : une seule modif aux yeux du client, comptée sur le net.<br>Jaune (lettre) = à qualifier · couleur et numéro = qualifiée (le numéro ne change jamais) · souligné = l'emprise de la modif · gris pointillé = tracé marché.</div>`;
   const bar=chosen.length?`<div class="tsmBar"><div><b>${chosen.length} modif${chosen.length>1?'s':''} choisie${chosen.length>1?'s':''}</b>${B?` — <b>bilan net : ${esc(B.txt)}</b>${B.txtP||B.txtM?`<span class="dim"> (ajouté ${esc(B.txtP||'—')} · retiré ${esc(B.txtM||'—')})</span>`:''}`:''}</div>
       <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:4px">${canEd&&chosen.length>=2&&chosen.every(x=>!x.stale&&(x.isCand||x.o.kind!=='group'))?`<button class="btn sm primary" data-tsmgroup="1" style="min-height:44px">🔗 Regrouper ces ${chosen.length} modifs (net)</button>`:''}<button class="btn sm" data-tsmexport="1" style="min-height:44px">📄 Exporter la sélection</button><button class="btn sm" data-tsmclear="1" style="min-height:44px">Tout désélectionner</button></div></div>`:'';
   el.innerHTML=`<div class="tsmTop"><button class="btn sm" data-tsmclose="1">✕ Fermer</button><div class="tsmTitle"><b>🗺 Modifs sur le plan</b><span class="dim"> · ${nC} à qualifier · ${nI} qualifiée${nI>1?'s':''}${nS?' · '+nS+' dépassée'+(nS>1?'s':''):''}</span></div>
