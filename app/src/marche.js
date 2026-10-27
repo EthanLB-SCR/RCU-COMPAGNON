@@ -21,11 +21,11 @@ export function shapesIdx(pts){return detectShapes(pts);}
 export function shapesAt(pts){const d=detectShapes(pts);const cum=[0];for(let i=1;i<(pts||[]).length;i++)cum.push(cum[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));const pk=v=>+((cum[v[0]]+cum[v[v.length-1]])/2).toFixed(1);
   return {lyres:d.lyres.map(x=>pk(x.v)),baio:d.baio.map(x=>pk(x.v))};}
 // quantités d'une ligne ; base=true → tracé seul (sans les soudures ajoutées sur place ni les extrusions : ce qu'on fige comme marché)
-export function lineCounts(l,base){const c=Z();const pts=axisOf(l);c.ml=+polyLen(pts).toFixed(1);const sh=countShapes(pts);c.lyres=sh.lyres;c.baio=sh.baio;
+export function lineCounts(l,base){const c=Z();const pts=axisOf(l);c.ml=+polyLen(pts).toFixed(1);const sh=countShapes(pts);c.lyres=sh.lyres;c.baio=sh.baio;let nu=0;
   ['A','R'].forEach(k=>{const cd=l.cond&&l.cond[k];if(!cd)return;
     (cd.els||[]).forEach(e=>{if(e.link||e.kind==='teeout'||e.kind==='endpoint')return;if(e.kind==='bend'||e.kind==='steelbend')c.coudes++;else if(e.kind==='valve')c.vannes++;else if(e.kind==='tee'){if(e.vert==='up')c.purges++;else if(e.vert==='down')c.vidanges++;else c.tes++;}else if(e.kind==='reducer')c.reduc++;else if(e.kind==='endcap'||e.kind==='bypass')c.bouchons++;});
-    (cd.joints||cd.welds||[]).forEach(j=>{if(base&&j.extra)return;c.soud++;if(j.fc)c.fc++;if(!base&&j.extru)c.extru++;});});
-  c.manchons=c.soud-c.extru;return c;}
+    (cd.joints||cd.welds||[]).forEach(j=>{if(base&&j.extra)return;c.soud++;if(j.fc)c.fc++;if(!base&&j.extru)c.extru++;if(j.nu)nu++;});});
+  c.manchons=c.soud-c.extru-nu;return c;} /* 27/10 soir : soudures nues (remontée SST : coude nu, vanne nue) = pas de manchon */
 // pièces repérables d'une ligne : {k: valve | tee | purge | vidange | reducer | bend | endcap, c: A | R, m: PK milieu} — ce qui permet de LOCALISER un ajout (vanne en plus à PK 100…)
 export function linePieces(l){const out=[];['A','R'].forEach(c=>{const cd=l.cond&&l.cond[c];if(!cd)return;(cd.els||[]).forEach(e=>{if(e.link||e.kind==='teeout'||e.kind==='endpoint'||e.kind==='pipe')return;let k=e.kind==='steelbend'?'bend':e.kind==='bypass'?'endcap':e.kind;if(k==='tee'&&e.vert)k=e.vert==='up'?'purge':'vidange';if(!['valve','tee','purge','vidange','reducer','bend','endcap'].includes(k))return;out.push({k,c,m:+(((+e.m0||0)+(+e.m1||0))/2).toFixed(1),id:e.id});});});return out;}
 // pièces ajoutées / enlevées entre deux listes — 27/10 (Ethan : « j'ai retapé un gros plan et la liste des modifs est très dure à interpréter ») : avant, appariement par PK

@@ -3,7 +3,7 @@
 // c1 une zone avec deux paquets de coudes (2 bosses, 16 coudes aller + retour) à 100 m l'un de l'autre, sans ancre entre : UNE modif, mais une pastille sur CHAQUE paquet (même lettre)
 // c2 lettres : candidat « a » (carte de l'onglet, plan interactif, export) ; qualifié → numéro stable = celui de l'id (carte, plan, export)
 // c3 numéros stables : une 2e modif arrive (lettre a), le numéro de la 1re ne bouge pas ; regroupement → le groupe prend un numéro neuf, rien d'autre ne change
-// c4 marché sans soudures mémorisées (estimation) : une fois la zone qualifiée, pas de candidat « reste » fantôme (arrondis ≤ 2 soudures / 1 ml)
+// c4 marché sans soudures mémorisées (estimation) : une fois la zone qualifiée, pas de candidat « reste » fantôme (arrondis ≤ 2 soudures / 1 ml) ; au-delà : encart « Restes non localisés » (sans pastille), « Garder pour mémoire »
 // c5 fichier de diagnostic : sans photos, rechargeable comme un chantier → mêmes candidats
 // c6 fenêtres d'export : barre ⬇ fichier / 🖨 PDF / 📤 envoyer (script embarqué), pas de lien local · c7 console propre
 import { chromium } from 'playwright';
@@ -70,10 +70,12 @@ if(iE>=0){const dbg0=await page.evaluate(i=>{const c=document.querySelector(`#ts
   const dbg1=await page.evaluate(()=>({modal:document.getElementById('modal').className,toast:(document.getElementById('toast')||{}).textContent,items:window.TRACE.ts.of().items.map(x=>x.id+':'+x.etat+':'+(x.ts||'')+':'+((x.qty||{}).soud||0))}));console.log('c4) dbg1',JSON.stringify({md,dbg1}));}
 o=await page.evaluate(()=>{const T=window.TRACE;const D=T.ts.diff();const r=D.rows.find(x=>x.id==='L1');const marked=T.ts.of().items.filter(x=>T.ts.live(x)).reduce((s,x)=>s+((x.qty||{}).soud||0),0);const cs=T.ts.candidates();return {dSoud:r.d.soud,marked,cs:cs.map(c=>c.label),rest:cs.filter(c=>c.rest).length};});
 console.log('c4) après qualification :',JSON.stringify(o));
-/* on force l'écart d'estimation : 2 soudures de moins dans la marque → rien ; 5 de moins → un « reste non localisé » pour mémoire (sans pastille de pièce), puis on remet */
-const o4=await page.evaluate(()=>{const T=window.TRACE;const it=T.ts.of().items.find(x=>x.ts==='DEV-E1');const s0=it.qty.soud;it.qty.soud=s0-2;const a=T.ts.candidates().map(c=>c.label);it.qty.soud=s0-5;const b=T.ts.candidates().map(c=>({label:c.label,rest:!!c.rest,qty:c.qty,def:c.def}));it.qty.soud=s0;return {a,b,after:T.ts.candidates().length};});
-console.log('c4) écart forcé :',JSON.stringify(o4));
-C.c4=c4a&&o.cs.length===0&&o.rest===0&&o.dSoud===o.marked&&o4.a.length===0&&o4.b.length===1&&o4.b[0].rest&&o4.b[0].def==='note'&&o4.b[0].qty.soud===5&&/reste non localisé/.test(o4.b[0].label)&&o4.after===0;
+/* on force l'écart d'estimation : 2 soudures de moins dans la marque → rien ; 5 de moins → un « reste non localisé » (encart, sans pastille ni lettre), « Garder pour mémoire » → marque note ; puis on remet */
+const o4=await page.evaluate(()=>{const T=window.TRACE;const it=T.ts.of().items.find(x=>x.ts==='DEV-E1');const s0=it.qty.soud;it.qty.soud=s0-2;const a=T.ts.candidates().length+T.ts.rests().length;it.qty.soud=s0-5;const b=T.ts.candidates().length;const R=T.ts.rests().map(c=>({label:c.label,qty:c.qty,def:c.def}));T.renderAll();const el=document.getElementById('tsview');return {a,b,R,notice:/Restes non localisés/.test(el.textContent),btn:!!el.querySelector('[data-tsrest="0"]'),badges:el.querySelectorAll('.tsOverview [data-tscandmini]').length,s0};});
+await page.click('#tsview [data-tsrest="0"]');await page.waitForTimeout(400);
+const o5=await page.evaluate(()=>{const T=window.TRACE;const notes=T.ts.of().items.filter(x=>x.etat==='note').map(x=>x.qty);const rests=T.ts.rests().length;const n=T.ts.of().items.find(x=>x.etat==='note'&&x.qty&&x.qty.soud===5);if(n)T.ts.remove(n.id);const it=T.ts.of().items.find(x=>x.ts==='DEV-E1');it.qty.soud=20;return {notes,rests,after:T.ts.candidates().length+T.ts.rests().length};});
+console.log('c4) écart forcé :',JSON.stringify({o4,o5}));
+C.c4=c4a&&o.cs.length===0&&o.rest===0&&o.dSoud===o.marked&&o4.a===0&&o4.b===0&&o4.R.length===1&&o4.R[0].def==='note'&&o4.R[0].qty.soud===5&&/reste non localisé/.test(o4.R[0].label)&&o4.notice&&o4.btn&&o4.badges===0&&o5.notes.some(q=>q&&q.soud===5)&&o5.rests===0&&o5.after===0;
 // ── c5) diagnostic
 o=await page.evaluate(async()=>{const T=window.TRACE;const d=T.ts.diag();const s=JSON.stringify(d);const n0=T.ts.candidates().length;const items0=T.ts.of().items.length;const d2=JSON.parse(s);d2.id='diag_'+d2.id;d2.name='Diag copie';T.etude.addSite(d2);await T.go(d2.id);return {format:d.format,keys:Object.keys(d),photos:/"photos":\[[^\]]/.test(s),drawing:'drawing' in d,n0,n1:T.ts.candidates().length,items0,items1:T.ts.of().items.length,size:s.length};});
 console.log('c5) diagnostic :',JSON.stringify(o));

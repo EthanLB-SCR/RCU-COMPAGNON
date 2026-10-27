@@ -59,7 +59,7 @@ function keyObj(k){const p=String(k).split(':');const kind=p[0];const o={kind,dn
 const keyLabel=(k,lab)=>String(k).startsWith('acc:')?(lab||k.slice(4)):fLabel(keyObj(k));
 const rowSort=(a,b)=>{const A1=keyObj(a.k),B1=keyObj(b.k);return ((KORD[A1.kind]??15)-(KORD[B1.kind]??15))||((A1.dn||0)-(B1.dn||0))||((A1.dn2||A1.angle||0)-(B1.dn2||B1.angle||0))||String(a.label).localeCompare(String(b.label));};
 // pièce à fournir pour un élément du calepinage (même règle que le Stock : une barre par élément « tube » hors manchettes, + vannes, by-pass, kits fin de ligne, courbes acier)
-function pieceOfEl(l,e){if(!e)return null;const dn=+e.dn||+l.dn||0;const k=e.kind;
+function pieceOfEl(l,e){if(!e||e.nu)return null; /* 27/10 soir : coude nu / vanne nue d'une remontée SST : rien à commander en pré-isolé */const dn=+e.dn||+l.dn||0;const k=e.kind;
   if(k==='pipe')return e.manchette||e.nue?null:{kind:'pipe',dn,len:12};
   if(k==='bend')return {kind:'bend',dn,angle:Math.abs(+e.angle||90)};
   if(k==='steelbend')return {kind:'steelbend',dn,angle:Math.abs(+e.angle||90)};
@@ -79,7 +79,7 @@ export function fournNeeds(inc,legacy,rule){const need={},lab={},posed={};const 
   Object.values((A.lines&&A.lines())||{}).filter(l=>mvLineIn('fourniture',l)).forEach(l=>{['A','R'].forEach(c=>{const cd=l&&l.cond&&l.cond[c];if(!cd||!Array.isArray(cd.els))return;
     cd.els.forEach((e,i)=>{if(!legacy&&e&&e.kind==='pipe'){if(e.nue)return;if(inc&&!inc.el(l,c,i,e))return;if(inc&&inc.mark)inc.mark(l.id+'|'+c+'|'+i);tube(P,l,e);return;}
       const o=pieceOfEl(l,e);if(!o)return;if(inc&&!inc.el(l,c,i,e))return;if(inc&&inc.mark)inc.mark(l.id+'|'+c+'|'+i);add(need,o);});
-    const seen=new Set();(cd.joints||[]).forEach(j=>{const e=cd.els[j.idx];if(!e)return;if(inc&&!inc.j(l,c,j,e))return;
+    const seen=new Set();(cd.joints||[]).forEach(j=>{const e=cd.els[j.idx];if(!e)return;if(j.nu)return; /* 27/10 soir : soudure nue (remontée) : ni manchon ni mousse */if(inc&&!inc.j(l,c,j,e))return;
       const done=!(j.status==='a_souder'||j.status==='a_reprendre');if(done){if(!legacy&&e.kind==='pipe'){if(!e.nue)tube(Q,l,e);}else{const o=pieceOfEl(l,e);if(o)add(posed,o);}}
       if(j.sleeveWith&&seen.has(j.weldId))return;if(j.sleeveWith)seen.add(j.sleeveWith);const sl=legacy?sleeveOf(l,e):sleeveAt(l,cd,j);add(need,sl);add(need,{kind:'pu',dn:sl.dn,gaine:sl.gaine});
       if(j.status==='manchonnee'){add(posed,sl);add(posed,{kind:'pu',dn:sl.dn,gaine:sl.gaine});}});});});
