@@ -28,12 +28,11 @@ export function splitBars(G,bar,chuteMin){if(G<=1e-6)return [];const n=Math.max(
    endStart / endEnd : 'libre' | 'kit' (kit fin de ligne) | 'provisoire' (fond bombé soudé, à reprendre) | 'sousstation' (raccordement) | 'bypass' (les deux conduites se rejoignent)
      — 14/10 soir (lot T1, contrat C1) : + 'fondbombe_regard' (fond bombé, comme provisoire) · 'pec' 'insertion' 'attente' 'chaufferie' 'attente_chaufferie' (raccordements, comme sous-station)
      · 'bypass_extrusion' 'bypass_regard' (= ancien 'bypass') ; toutes possibles aux deux bouts (by-pass au départ : arc symétrique) — voir extremites.js
-   riserStart / riserEnd : 27/10 (Ethan : « en SST pouvoir choisir si c'est des coudes de remontée pour bien compter une paire de coudes du DN » ; 27/10 soir : « quand je coche
-     il faut rajouter deux soudures au cul du dernier point de la branche : les coudes soudés directement, et deux d'après, les vannes nues soudées derrière les coudes ») — vrai / faux :
-     REMONTÉE au bout « raccordement » (sous-station, chaufferie…) : par conduite, un coude 90° acier nu soudé DIRECTEMENT au bout du tube (la conduite monte dans le local)
-     puis une vanne nue soudée derrière le coude, puis le raccordement au local : tube → coude, coude → vanne, vanne → raccordement = 3 soudures nues (sans manchon) par conduite,
-     soit 2 de plus qu'un raccordement direct (tube → raccordement).
-     Dessinée « dépliée » dans l'axe au-delà du bout : PK < 0 (départ) ou > Ltot (fin), pièces riser:true nu:true.
+   riserStart / riserEnd : 27/10 (Ethan : « en SST pouvoir choisir si c'est des coudes de remontée pour bien compter une paire de coudes du DN » ; 27/10 soir : « deux soudures
+     en plus pré-isolé puis le point de la SST, comme avant » ; pas de vanne) — vrai / faux : REMONTÉE au bout « raccordement » (sous-station, chaufferie…) : par conduite, un coude
+     90° pré-isolé du DN (catalogue, compté et commandé comme les autres) soudé au bout du tube — la conduite monte dans le local — puis le raccordement comme avant :
+     tube → coude (soudure de plus, manchonnée) et coude → raccordement (la soudure d'avant). Une paire de coudes = un par conduite (aller + retour).
+     Dessinée « dépliée » dans l'axe au-delà du bout : PK < 0 (départ) ou > Ltot (fin), pièces riser:true.
    → {pieces:[{kind, id, L, m0, m1, mc, angle, turn, legIn, legOut, long, R, x, y, th, path:[[x,y]...], ref, dn, dn2, note, err, key}], welds:[{i, m, x, y, dev, between}], notes:[{kind,txt,m}], length} */
 export function buildConduit(o){
   const {pts,dn,cat,rules}=o;const specials=(o.specials||[]).slice().sort((a,b)=>a.m-b.m);const notes=[];const bar=o.bar||rules.barreParDefaut||12;const chuteMin=rules.chuteMin,legMin=rules.jambeMin,devMax=rules.devMax;
@@ -44,28 +43,24 @@ export function buildConduit(o){
   // la remontée de FIN prolonge le chaînage au-delà de Ltot. Tous les nœuds sont en u ; pAt(u) place en plan (au-delà des bouts : dans l'axe, « déplié ») ; les PK rendus sont remis en plan (− sh) à la fin.
   // Sans remontée : sh = 0, Lu = Ltot, pAt = ptAt — strictement le comportement d'avant.
   const riserOn=(v,type)=>!!v&&endKindOf(type)==='endpoint';const hS=riserOn(o.riserStart,o.endStart),hE=riserOn(o.riserEnd,o.endEnd);
-  // pièces nues de la remontée : coude 90° acier nu (jambes = 1,5 × diamètre extérieur, R = 1,5 D) et vanne nue (2,5 D, mini 0,2 m) — pas des pièces catalogue pré-isolées
-  const nuDim=dl=>{const od=(cat.od?cat.od(dl):0)||dl/1000||0.1;return {lg:Math.max(0.15,+(1.5*od).toFixed(2)),Lv:Math.max(0.2,+(2.5*od).toFixed(2)),R:+(1.5*od).toFixed(2)};};
-  const NS=hS?nuDim(dnAt(0)):null,NE=hE?nuDim(dnAt(Ltot)):null;const sh=hS?NS.Lv+2*NS.lg:0;const Lu=sh+Ltot+(hE?2*NE.lg+NE.Lv:0);const uOf=m=>m+sh;
-  const STRETCH=3; /* les pièces nues de la remontée (0,3 m chacune) sont dessinées 3 × plus longues au-delà du bout : lisibles, soudures touchables ; les PK restent vrais */
-  const pAt=u=>{const m=u-sh;if(m<-1e-9&&hS){const a=pts[0],b=pts[1]||pts[0];const th=Math.atan2(b[1]-a[1],b[0]-a[0]);return {x:a[0]+Math.cos(th)*m*STRETCH,y:a[1]+Math.sin(th)*m*STRETCH,th,i:1};}
-    if(m>Ltot+1e-9&&hE){const a=pts[pts.length-2]||pts[0],b=pts[pts.length-1];const th=Math.atan2(b[1]-a[1],b[0]-a[0]);const d=(m-Ltot)*STRETCH;return {x:b[0]+Math.cos(th)*d,y:b[1]+Math.sin(th)*d,th,i:pts.length-1};}
+  const BS=hS?cat.bend(dnAt(0)):null,BE=hE?cat.bend(dnAt(Ltot)):null;const sh=hS?BS.legs[0]+BS.legs[1]:0;const Lu=sh+Ltot+(hE?BE.legs[0]+BE.legs[1]:0);const uOf=m=>m+sh;
+  const pAt=u=>{const m=u-sh;if(m<-1e-9&&hS){const a=pts[0],b=pts[1]||pts[0];const th=Math.atan2(b[1]-a[1],b[0]-a[0]);return {x:a[0]+Math.cos(th)*m,y:a[1]+Math.sin(th)*m,th,i:1};}
+    if(m>Ltot+1e-9&&hE){const a=pts[pts.length-2]||pts[0],b=pts[pts.length-1];const th=Math.atan2(b[1]-a[1],b[0]-a[0]);const d=m-Ltot;return {x:b[0]+Math.cos(th)*d,y:b[1]+Math.sin(th)*d,th,i:pts.length-1};}
     return ptAt(pts,m);};
   // 1) nœuds rigides le long du chaînage : coudes aux sommets (angle ≥ devMax), spéciaux ; départ/fin
   const nodes=[{kind:'start',m:0}];let acc=0;const fcMax=rules.fausseCoupeMax===undefined?15:rules.fausseCoupeMax;const pas=rules.coudeAnglePas||15;
   // extrémités : la pièce de bout est un nœud rigide collé au départ / à la fin (kit = bouchon catalogue, provisoire = fond bombé soudé, sous-station = raccordement sans pièce, by-pass = coude 90° recoupé vers l'autre conduite)
   const endNode=(type,atStart)=>{const ek=endKindOf(type);if(!ek)return null;const sid='end:'+(atStart?'start':'end');const dl=dnAt(atStart?0:Ltot); // 14/10 soir (lot T1) : la pièce posée dépend de la famille du bout (extremites.js)
     if(ek==='endcap'){const ec=cat.endcap(dl);const L=ec.L||0.3;return {kind:'endcap',sub:type,m:atStart?L/2:Lu-L/2,L,legIn:L/2,legOut:L/2,sid,dn:dl,ref:type==='kit'?`kit fin de ligne DN${dl} (${ec.ref})`:type==='provisoire'?`fin de ligne provisoire DN${dl} — fond bombé soudé, à reprendre`:`fond bombé nu en regard DN${dl} — fond bombé soudé, acier nu dans le regard`};}
-    if(ek==='endpoint'){const h=atStart?hS:hE;return {kind:'endpoint',sub:type,m:atStart?0:Lu,L:0,legIn:0,legOut:0,sid,dn:dl,riser:h?true:undefined,ref:(type==='sousstation'?(atStart?'raccordement (chaufferie / sous-station)':'raccordement sous-station'):endTxt(type))+(h?' — derrière la vanne nue de la remontée (soudure nue)':'')};}
+    if(ek==='endpoint'){const h=atStart?hS:hE;return {kind:'endpoint',sub:type,m:atStart?0:Lu,L:0,legIn:0,legOut:0,sid,dn:dl,riser:h?true:undefined,ref:(type==='sousstation'?(atStart?'raccordement (chaufferie / sous-station)':'raccordement sous-station'):endTxt(type))+(h?' — au bout du coude de remontée':'')};}
     if(ek==='bypass'){const L=legMin;const Bl=cat.bend(dl);return {kind:'bypassEnd',sub:type,atStart,m:atStart?L/2:Lu-L/2,L,legIn:L/2,legOut:L/2,sid,dn:dl,turn:o.bypassTurn||1,r:(o.e||casing+0.15)/2,ref:`${type==='bypass'?'by-pass':endTxt(type)} : coude 90° ${Bl.ref} recoupé (jambe ${fmt(legMin)} m) vers l'autre conduite`};}
     return null;};
   const nStart=endNode(o.endStart,true),nEnd=endNode(o.endEnd,false);if(nStart)nodes.push(nStart);
-  // 27/10 soir : remontée = coude nu soudé directement au bout du tube (vertex à une jambe du bout), puis vanne nue collée derrière (au départ : vanne puis coude, le plan commence à u = sh)
-  const riserNodes=(atStart,N)=>{const dl=dnAt(atStart?0:Ltot);const sid='riser:'+(atStart?'start':'end');const Bl={legs:[N.lg,N.lg],R:N.R,ref:`coude 90° acier nu DN${dl}`,std:[90],anyAngle:true};
-    const bend=m=>({kind:'bend',plane:'V',riser:true,nu:true,atStart,m,angle:90,angleReal:90,resid:0,turn:1,legIn:N.lg,legOut:N.lg,sid:sid+':coude',dn:dl,B:Bl});
-    const valve=m=>({kind:'valve',riser:true,nu:true,atStart,m,L:N.Lv,legIn:N.Lv/2,legOut:N.Lv/2,sid:sid+':vanne',dn:dl,ref:`vanne nue DN${dl} — remontée (soudée derrière le coude)`});
-    return atStart?[valve(N.Lv/2),bend(N.Lv+N.lg)]:[bend(sh+Ltot+N.lg),valve(sh+Ltot+2*N.lg+N.Lv/2)];};
-  if(hS)nodes.push(...riserNodes(true,NS));if(hE)nodes.push(...riserNodes(false,NE));
+  // 27/10 soir : remontée = un coude 90° pré-isolé du DN soudé au bout du tube (vertex à une jambe du bout), le raccordement au bout de son autre jambe (au départ : symétrique, le plan commence à u = sh)
+  const riserNodes=(atStart,Bl)=>{const dl=dnAt(atStart?0:Ltot);const sid='riser:'+(atStart?'start':'end')+':coude';
+    const bend=m=>({kind:'bend',plane:'V',riser:true,atStart,m,angle:90,angleReal:90,resid:0,turn:1,legIn:Bl.legs[0],legOut:Bl.legs[1],sid,dn:dl,B:Bl});
+    return [atStart?bend(Bl.legs[0]):bend(sh+Ltot+Bl.legs[0])];};
+  if(hS)nodes.push(...riserNodes(true,BS));if(hE)nodes.push(...riserNodes(false,BE));
   // coupes forcées (soudure coulissée à la main entre deux tubes) : nœud rigide sans longueur — les barres se réorganisent de part et d'autre (barres entières + chute)
   (o.cuts||[]).forEach((m,i)=>{if(m>0.05&&m<Ltot-0.05)nodes.push({kind:'cut',m:uOf(m),L:0,legIn:0,legOut:0,sid:'cut:'+i});});
   const covered=m=>specials.some(sp=>sp.type==='bend3d'&&Math.abs(sp.m-m)<=(sp.cover||1.3)); // sommets « mangés » par un coude de jeu en altimétrie (la cassure en plan fait partie du coude 3D)
@@ -87,7 +82,7 @@ export function buildConduit(o){
   // 2) écarts entre nœuds rigides consécutifs → barres, coude contre coude, jambes recoupées, ou erreur
   const fills=[];
   for(let k=0;k<rigid.length-1;k++){const a=rigid[k],b=rigid[k+1];const D=b.m-a.m;const la=a.kind==='start'?0:a.legOut,lb=b.kind==='end'?0:b.legIn;let G=D-la-lb;const bendA=a.kind==='bend',bendB=b.kind==='bend';let bars=[];let note=null,err=null,manch=false,nue=false;
-    const manchetteMin=rules.manchetteMin===undefined?0.2:rules.manchetteMin;const nom=x=>x.kind==='start'?(o.head?'la sortie du té':'le départ'):x.kind==='end'?'la fin':x.kind==='bend'?(x.riser?'le coude nu de la remontée':x.plane==='3D'?'le coude en altimétrie':'le coude du sommet '+x.vertex):x.kind==='tee'?'le té':x.kind==='valve'?(x.riser?'la vanne nue de la remontée':'la vanne'):x.kind==='reducer'?'la réduction':x.kind==='endcap'?(x.sub==='kit'?'le kit fin de ligne':x.sub==='fondbombe_regard'?'le fond bombé en regard':'la fin de ligne provisoire'):x.kind==='endpoint'?'le raccordement':x.kind==='bypassEnd'?'le coude du by-pass':x.kind==='cut'?'la soudure coulissée':x.kind;
+    const manchetteMin=rules.manchetteMin===undefined?0.2:rules.manchetteMin;const nom=x=>x.kind==='start'?(o.head?'la sortie du té':'le départ'):x.kind==='end'?'la fin':x.kind==='bend'?(x.riser?'le coude de remontée':x.plane==='3D'?'le coude en altimétrie':'le coude du sommet '+x.vertex):x.kind==='tee'?'le té':x.kind==='valve'?'la vanne':x.kind==='reducer'?'la réduction':x.kind==='endcap'?(x.sub==='kit'?'le kit fin de ligne':x.sub==='fondbombe_regard'?'le fond bombé en regard':'la fin de ligne provisoire'):x.kind==='endpoint'?'le raccordement':x.kind==='bypassEnd'?'le coude du by-pass':x.kind==='cut'?'la soudure coulissée':x.kind;
     if(G>=chuteMin-1e-6){bars=splitBars(G,bar,chuteMin);}
     else if(G>=manchetteMin-1e-6){ // pas la place d'une chute : une manchette (bout de tube court, deux soudures) — c'est ce qui se fait entre deux pièces (lyre extérieure, chicane…)
       bars=[G];manch=true;note={kind:'interp',txt:`manchette de ${fmt(G)} m entre ${nom(a)} et ${nom(b)} (pas la place d'une chute ≥ ${fmt(chuteMin)} m)`};}
@@ -111,8 +106,8 @@ export function buildConduit(o){
   const place=(m0,m1)=>{const a=pAt(m0),b=pAt(m1);return {x:a.x,y:a.y,th:a.th,x1:b.x,y1:b.y};};
   for(let k=0;k<rigid.length;k++){const nd=rigid[k];
     if(nd.kind==='bend'&&nd.plane){const m0=nd.m-nd.legIn,m1=nd.m+nd.legOut;const path=[];const a=pAt(Math.max(0,m0));const bq=pAt(Math.min(Lu,m1));path.push([a.x,a.y]);for(let i=a.i;i<bq.i;i++)path.push(pts[i].slice());path.push([bq.x,bq.y]); // coude hors du plan (altimétrie, remontée) : suit l'axe en plan
-      const Bl=nd.B||B,dl=nd.dn||dn;const ref=nd.riser?Bl.ref+' — remontée (soudé directement au bout du tube, la conduite monte dans le local)':Bl.ref.replace(/90/,String(nd.angle))+' · en altimétrie (jeu de coudes'+(nd.dz?(nd.dz>0?', monte':', descend'):'')+')'+(nd.cut?' · jambes recoupées':''); // remontée : coude acier nu (pas une pièce pré-isolée), compté dans les coudes
-      pushPiece({kind:'bend',plane:nd.plane,jeu:nd.jeu,riser:nd.riser||undefined,nu:nd.nu||undefined,id:idOf('C'),m0,m1,mc:nd.m,angle:nd.angle,angleReal:nd.angle,resid:0,turn:nd.turn,legIn:nd.legIn,legOut:nd.legOut,cut:!!nd.cut,R:Bl.R,path,x:a.x,y:a.y,th:a.th,dn:dl,casing:cat.casing(dl),ref,std:Bl.std.includes(nd.angle),vertex:null,L:nd.legIn+nd.legOut,sid:nd.sid});carry=null;}
+      const Bl=nd.B||B,dl=nd.dn||dn;const ref=nd.riser?Bl.ref+(nd.cut?' · jambes recoupées':''):Bl.ref.replace(/90/,String(nd.angle))+' · en altimétrie (jeu de coudes'+(nd.dz?(nd.dz>0?', monte':', descend'):'')+')'+(nd.cut?' · jambes recoupées':''); // remontée : même référence qu'un coude 90° ordinaire (nomenclature, fourniture : une paire de coudes du DN) ; le rôle est dans riserTxt
+      pushPiece({kind:'bend',plane:nd.plane,jeu:nd.jeu,riser:nd.riser||undefined,riserTxt:nd.riser?'coude de remontée (la conduite monte dans le local, raccordement au bout de la jambe)':undefined,id:idOf('C'),m0,m1,mc:nd.m,angle:nd.angle,angleReal:nd.angle,resid:0,turn:nd.turn,legIn:nd.legIn,legOut:nd.legOut,cut:!!nd.cut,R:Bl.R,path,x:a.x,y:a.y,th:a.th,dn:dl,casing:cat.casing(dl),ref,std:Bl.std.includes(nd.angle),vertex:null,L:nd.legIn+nd.legOut,sid:nd.sid});carry=null;}
     else if(nd.kind==='bend'){const m0=nd.m-nd.legIn,m1=nd.m+nd.legOut;const a=pAt(Math.max(0,m0)),c=pAt(nd.m);const B=nd.B||cat.bend(dn),dl=nd.dn||dn;
       const A=nd.angle,r=nd.resid||0;const R=Math.min(B.R,Math.max(.05,Math.min(nd.legIn,nd.legOut)/Math.tan(rad(A)/2)-1e-3));const T=R*Math.tan(rad(A)/2);
       const hIn0=Math.atan2(pts[nd.vertex][1]-pts[nd.vertex-1][1],pts[nd.vertex][0]-pts[nd.vertex-1][0]);
@@ -127,7 +122,7 @@ export function buildConduit(o){
       if(!std&&!B.anyAngle)notes.push({kind:'doubt',m:nd.m,txt:`sommet ${nd.vertex} : coude de ${A}° — pas au catalogue de ce fournisseur (angles ${B.std.join('/')}) → coude spécial ? déviations aux manchons ?`});
       else if(!std)notes.push({kind:'info',m:nd.m,txt:`sommet ${nd.vertex} : coude ${A}° sur mesure à commander (${B.ref.replace(/90/,String(A))})`});}
     else if(nd.kind==='cut'){carry=null;}
-    else if(nd.kind==='tee'||nd.kind==='valve'||nd.kind==='reducer'||nd.kind==='endcap'||nd.kind==='endpoint'||nd.kind==='bypassEnd'){const m0=nd.m-nd.legIn,m1=nd.m+nd.legOut;const g=place(m0,m1);const c=pAt(nd.m);const path=[[g.x,g.y],[g.x1,g.y1]];const dl=nd.dn||dn;const p={kind:nd.kind,id:idOf(nd.kind==='tee'?'T':nd.kind==='valve'?'V':nd.kind==='reducer'?'R':nd.kind==='endpoint'?'X':nd.kind==='bypassEnd'?'U':nd.sub?'F':'B'),m0,m1,mc:nd.m,L:nd.L,path,x:g.x,y:g.y,th:g.th,dn:dl,casing:cat.casing(dl),ref:nd.ref,sid:nd.sid,dn2:nd.dn2,dnb:nd.dnb,side:nd.side,teeType:nd.teeType,Bb:nd.B,H:nd.H,sub:nd.sub,vert:nd.vert,pvKind:nd.pvKind,photo:nd.photo,atEnd:nd.atEnd,riser:nd.riser,nu:nd.nu};
+    else if(nd.kind==='tee'||nd.kind==='valve'||nd.kind==='reducer'||nd.kind==='endcap'||nd.kind==='endpoint'||nd.kind==='bypassEnd'){const m0=nd.m-nd.legIn,m1=nd.m+nd.legOut;const g=place(m0,m1);const c=pAt(nd.m);const path=[[g.x,g.y],[g.x1,g.y1]];const dl=nd.dn||dn;const p={kind:nd.kind,id:idOf(nd.kind==='tee'?'T':nd.kind==='valve'?'V':nd.kind==='reducer'?'R':nd.kind==='endpoint'?'X':nd.kind==='bypassEnd'?'U':nd.sub?'F':'B'),m0,m1,mc:nd.m,L:nd.L,path,x:g.x,y:g.y,th:g.th,dn:dl,casing:cat.casing(dl),ref:nd.ref,sid:nd.sid,dn2:nd.dn2,dnb:nd.dnb,side:nd.side,teeType:nd.teeType,Bb:nd.B,H:nd.H,sub:nd.sub,vert:nd.vert,pvKind:nd.pvKind,photo:nd.photo,atEnd:nd.atEnd,riser:nd.riser};
       if(nd.kind==='tee'&&nd.vert){p.center=[c.x,c.y];p.cth=c.th;} // purge / vidange : branche verticale, symbole au centre
       // aim (antenne à 1 m) : la branche part du côté réel de l'antenne ; sinon side (té posé à la main)
       else if(nd.kind==='tee'){const s=nd.aim?(((-Math.sin(c.th))*(nd.aim[0]-c.x)+Math.cos(c.th)*(nd.aim[1]-c.y))>=0?1:-1):(nd.side||1);const nx=-Math.sin(c.th)*s,ny=Math.cos(c.th)*s;p.branch=[[c.x,c.y],[c.x+nx*(nd.B||1),c.y+ny*(nd.B||1)]];p.branchPort={x:c.x+nx*(nd.B||1),y:c.y+ny*(nd.B||1),th:Math.atan2(ny,nx)};p.saut=/saut/i.test(nd.teeType||'');}
@@ -155,7 +150,7 @@ export function buildConduit(o){
   pieces.forEach((p,i)=>{if(!p.nue)return;welds.forEach(w=>{if(w.i===i-1||w.i===i)w.sleeve=p.id;});});
   // 27/10 : remontée au départ → PK rendus en plan (u − sh) : les pièces de la remontée ont des PK < 0, tout le reste retrouve son chaînage ; soudures dans la remontée : riser (l'appli les étiquette)
   if(sh){pieces.forEach(p=>{if(p.fixedId)return;p.m0-=sh;p.m1-=sh;if(p.mc!=null)p.mc-=sh;});welds.forEach(w=>{w.m-=sh;});notes.forEach(n=>{if(n.m!=null)n.m-=sh;});}
-  if(hS||hE)welds.forEach(w=>{const p=pieces[w.i],q=pieces[w.i+1];if((p&&p.riser)||(q&&q.riser)){w.riser=true;w.nu=true;}}); /* soudures de la remontée : nues (coude nu, vanne nue) → pas de manchon */
+  if(hS||hE)welds.forEach(w=>{const p=pieces[w.i],q=pieces[w.i+1];if((p&&p.riser)||(q&&q.riser))w.riser=true;}); /* soudures de la remontée (tube → coude, coude → raccordement) : manchonnées comme les autres */
   return {pieces,welds,notes,length:Ltot,casing,dn,riser:(hS||hE)?{start:hS,end:hE}:undefined};
 }
 // nomenclature : comptage par référence (les raccordements et sorties de té ne sont pas des pièces à commander)

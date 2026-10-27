@@ -15,7 +15,7 @@ const r3=v=>+(+v||0).toFixed(3);
    · étude : NI marché NI TS (pas de site.marche, pas de site.ts, même si la version précédente en avait) — le marché sera figé quand l'affaire sera gagnée (appli). */
 const dnAtEnd=l=>{const reds=(l.specials||[]).filter(s=>s.type==='reducer'&&s.dn2).sort((a,b)=>a.m-b.m);return reds.length?reds[reds.length-1].dn2:l.dn;};
 function lineExtras(l,etude){const o={};const st=l.parent?null:normEnd(l.startType||'sousstation');const et=l.pause?'libre':normEnd(l.endType||'kit');
-  const rS=!!(st&&endKindOf(st)==='endpoint'&&l.riserStart),rE=!!(endKindOf(et)==='endpoint'&&l.riserEnd); // 27/10 : remontée en local (vrai / faux) — coude nu, vanne nue et soudures nues sont déjà dans els et welds (riser:true, nu:true)
+  const rS=!!(st&&endKindOf(st)==='endpoint'&&l.riserStart),rE=!!(endKindOf(et)==='endpoint'&&l.riserEnd); // 27/10 : remontée en local (vrai / faux) — le coude de remontée et ses soudures sont déjà dans els et welds (riser:true)
   o.startType=st;o.endType=et;o.ends={start:st?{type:st,dn:l.dn,...(rS?{riser:true}:{})}:null,end:{type:et,dn:dnAtEnd(l),...(rE?{riser:true}:{})}};
   if(etude||l.tranche!=null){const op=l.tranche==='option';o.tranche=op?'option':'ferme';if(op)o.option=Math.max(1,parseInt(l.option,10)||1);}
   if(etude||l.v0!=null||l.vm!=null){const v0=Math.max(1,parseInt(l.v0,10)||1);o.v0=v0;o.vm=Math.max(1,parseInt(l.vm,10)||v0);}
