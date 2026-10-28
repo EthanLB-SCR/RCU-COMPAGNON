@@ -2,6 +2,7 @@
   "_": "Règles du traceur — modifiables sans toucher au code. Longueurs en mètres, angles en degrés. purgeDN / vidangeDN : DN de branche par défaut des tés de purge (vers le haut) et de vidange (vers le bas). dilatTemp (°C : 120 ou 110) / dilatContrainte (N/mm² : 150, 168 ou 190) / dilatAlerte : règles de dilatation INDICATIVES (tableau des longueurs maximales entre coudes 90° = pack SCR, partie Règles).",
   "chuteMin": 1.0,
   "manchetteMin": 0.2,
+  "soudureProcheMin": 0.3,
   "jambeMin": 0.5,
   "devMax": 3,
   "fausseCoupeMax": 15,

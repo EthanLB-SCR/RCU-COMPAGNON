@@ -86,7 +86,19 @@ export function dnDiff(marP,reelP){if(!marP||!marP.length||!reelP||!reelP.length
   return out.filter(x=>x.m1-x.m0>=1);} /* moins d'1 m = bruit (emprise d'une réduction), pas un changement de DN */
 // photographie du réseau : par ligne (axe, quantités, profil de DN) + totaux — c'est le « tracé marché »
 export function marcheSnapshot(lines,meta){const L=(lines||[]).filter(l=>l&&l.cond&&(l.cond.A||l.cond.R)).map(l=>({id:l.id,name:l.name||l.id,dn:+l.dn||0,axis:axisOf(l).map(p=>[+p[0].toFixed(2),+p[1].toFixed(2)]),c:lineCounts(l,true),pcs:linePieces(l).map(p=>({k:p.k,c:p.c,m:p.m})),dnp:dnProfile(l),wk:{A:weldPks(l.cond.A,true),R:weldPks(l.cond.R,true)}})); /* 27/10 : wk = PK des soudures du marché (soudures d'une zone exactes) */
-  return {v:1,at:new Date().toISOString(),...(meta||{}),lines:L,tot:sumCounts(L.map(x=>x.c))};}
+  return {v:1,v2:{ends:true,snap:MARCHE_SNAP},at:new Date().toISOString(),...(meta||{}),lines:L,tot:sumCounts(L.map(x=>x.c))};} /* 28/10 : v2 = compté sans les soudures de bout de ligne, soudures à moins de snap m fusionnées (marcheMigrate ne repasse pas) */
+/* 28/10 (Ethan : « pas de soudure ni de manchon sur les bouts de ligne » ; « deux soudures à moins de 30 cm ne font qu'une ») — un marché figé AVANT (PLOEMEUR, 20/10) comptait ces
+   soudures : on retire de ses PK mémorisés (wk) les soudures de bout (au PK des points de bout du réel, ± 0,2 m) et on fusionne les paires à moins de snap m, puis on recompte
+   c.soud / c.manchons ; sans wk (marché d'avant le 27/10) : une soudure de moins par point de bout du réel. Une seule fois (M.v2.ends). Les autres quantités ne bougent pas. */
+export const MARCHE_SNAP=0.3;
+export function marcheMigrate(M,lines,snap){if(!M||!Array.isArray(M.lines)||(M.v2&&M.v2.ends))return false;snap=snap||MARCHE_SNAP;let ch=false;
+  M.lines.forEach(x=>{const l=(lines||[]).find(y=>y&&y.id===x.id);if(!l||!l.cond||!x.c)return;let rm=0;
+    ['A','R'].forEach(c=>{const cd=l.cond[c];if(!cd)return;const ends=(cd.joints||[]).filter(j=>j.sst).map(j=>{const e=cd.els&&cd.els[j.idx];return j.m!=null?+j.m:(e?+e.m1:0);});
+      if(x.wk&&Array.isArray(x.wk[c])){const W=x.wk[c].slice().sort((a,b)=>a[0]-b[0]);ends.forEach(m=>{let bi=-1,bd=0.2;W.forEach((w,i)=>{const d=Math.abs(w[0]-m);if(d<bd){bd=d;bi=i;}});if(bi>=0){W.splice(bi,1);rm++;}});
+        for(let i=W.length-1;i>0;i--){if(W[i][0]-W[i-1][0]<snap-1e-6){W.splice(i,1);rm++;}}x.wk[c]=W;}
+      else rm+=ends.length;});
+    if(rm){x.c.soud=Math.max(0,(+x.c.soud||0)-rm);x.c.manchons=Math.max(0,(+x.c.manchons||0)-rm);ch=true;}});
+  M.v2=Object.assign({},M.v2||{},{ends:true,snap});if(ch)M.tot=sumCounts(M.lines.map(x=>x.c));return true;}
 // écart : par ligne (marché | réel | delta), lignes nouvelles / disparues, totaux
 export function diffMarche(M,lines){const reel=(lines||[]).filter(l=>l&&l.cond&&(l.cond.A||l.cond.R));const byId={};(M&&M.lines||[]).forEach(x=>byId[x.id]=x);const seen=new Set();const rows=[];
   reel.forEach(l=>{const m=byId[l.id]||null;seen.add(l.id);const r=lineCounts(l,false);const d=Z();M_KEYS.forEach(([k])=>d[k]=+((r[k]||0)-(m?m.c[k]||0:0)).toFixed(1));const pc=m&&m.pcs?diffPieces(m.pcs,linePieces(l),0,{posM:mm=>atOnAxis(m.axis,mm),posR:(ax=>mm=>atOnAxis(ax,mm))(axisOf(l))}):{added:m?linePieces(l).filter(p=>!(m.c[PIECE_KEY[p.k]]>0)):linePieces(l),removed:[],unknown:!!m}; /* marché sans PK mémorisés : une nature de pièce absente du marché (0 vanne) → toutes celles du réel sont ajoutées, donc localisables */ rows.push({id:l.id,name:l.name||l.id,dn:+l.dn||0,mar:m?m.c:null,reel:r,d,isNew:!m,geo:m?geoDiff(m.axis,axisOf(l)):[],added:pc.added,removed:pc.removed,pairs:pc.pairs||[],pcsUnknown:!!(m&&!m.pcs),dnd:m&&m.dnp?dnDiff(m.dnp,dnProfile(l)):[],dnpUnknown:!!(m&&!m.dnp)});});

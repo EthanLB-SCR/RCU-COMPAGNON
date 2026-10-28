@@ -75,7 +75,7 @@ await page.setInputFiles('#eq-app input[data-afprix]',{name:'fixture_prix.xlsx',
 await page.evaluate(([s1,s2,n])=>{const T=window.TRACE;T.etude.addSite(s1);T.etude.addSite(s2);T.affaires.set(n,{sites:['trc_q1','trc_old']});},[SITE(LINES()),OLD,N1]);
 const Q=await page.evaluate(()=>window.TRACE.etude.qty('trc_q1'));
 console.log('0) quantités du tracé :',J(Q.tot),'· extrémités',J(Q.ext),'· tranches',Object.keys(Q.byTranche||{}).join(),'· zones',(Q.byZone||[]).map(z=>z.nom).join());
-C.c0=!!(await page.evaluate(()=>window.TRACE.reg.get('prix','base')))&&Q.tot.soud===64&&Q.tot.purges===3&&Q.tot.vidanges===1&&Object.keys(Q.byTranche||{}).join()==='ferme,option 1'&&(Q.byZone||[]).map(z=>z.nom).join()==='Zone Nord,Zone Sud';
+C.c0=!!(await page.evaluate(()=>window.TRACE.reg.get('prix','base')))&&Q.tot.soud===38&&Q.tot.purges===3&&Q.tot.vidanges===1&&Object.keys(Q.byTranche||{}).join()==='ferme,option 1'&&(Q.byZone||[]).map(z=>z.nom).join()==='Zone Nord,Zone Sud';
 // ══ c1 · Quantités : la puce du tracé ══
 await openAff(N1,'quantites');await click('qssel|trace:trc_q1');
 let out=await page.evaluate(()=>{const R=s=>[...document.querySelectorAll(s)];const t=e=>e.textContent.replace(/[\s  ]+/g,' ').trim();

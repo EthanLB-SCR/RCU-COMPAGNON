@@ -7,7 +7,7 @@
 // 5) panier by-pass : composition par défaut (2 coudes + vannette + MO), même total que le classeur ; sans bloc by-pass : 4 soudures au prix de la zone.
 // node test/qtrace_test.mjs → RESULTAT: TOUT VERT | ECHEC <clés>
 import fs from 'fs';import path from 'path';import {fileURLToPath} from 'url';
-import {traceQtyOf,splitLR,splitLR1,extAdd} from '../src/qtrace.js';
+import {traceQtyOf,splitLR,splitLR1,extAdd,isEndWeld} from '../src/qtrace.js';
 import {qOfTrace,qOfRef,fillZone,splitQ,snapDn,typeFor} from '../src/qfill.js';
 import {parsePrixWorkbook,emptyEtude,calcEtude,panierRow,panierOf,BP_SST,foLookup,teamCost,cadOf,bpSw} from '../src/prix.js';
 const HERE=path.dirname(fileURLToPath(import.meta.url));
@@ -31,7 +31,7 @@ function traceQtyOld(src,sess){if(!src.length)return null;
   const rows=Object.values(by).filter(r=>r.soud||r.mlTr).sort((x,y)=>y.dn-x.dn).map(r=>({dn:r.dn,barres:r.runs.length?barresOf(r.runs):Math.ceil(r.mlPipe/12-1e-9),mlTube:Math.round(r.mlTube*10)/10,mlTr:Math.round(r.mlTr*10)/10,soud:r.soud,coudes:r.coudes,tes:r.tes,piq:r.piq,red:r.red,vannes:r.vannes,kits:r.kits,src:'tracé'}));
   const T=k=>rows.reduce((x,r)=>x+(r[k]||0),0);return {rows,tot:{barres:T('barres'),mlTube:T('mlTube'),mlTr:Math.round(T('mlTr')*10)/10,soud:T('soud'),coudes:T('coudes'),tes:T('tes'),piq:T('piq'),red:T('red'),vannes:T('vannes'),kits:T('kits')}};}
 const OLDK=['dn','barres','mlTube','mlTr','soud','coudes','tes','piq','red','vannes','kits','src'];
-const sameOld=(n,o)=>{if(!n||!o)return n===o;const pick=r=>OLDK.map(k=>r[k]);const nr=n.rows.filter(r=>r.soud||r.mlTr);return J(nr.map(pick))===J(o.rows.map(pick))&&J(Object.keys(o.tot).map(k=>n.tot[k]))===J(Object.values(o.tot));};
+const sameOld=(n,o,skip)=>{if(!n||!o)return n===o;const S=new Set(skip||[]);const K=OLDK.filter(k=>!S.has(k));const pick=r=>K.map(k=>r[k]);const nr=n.rows.filter(r=>r.soud||r.mlTr);return J(nr.map(pick))===J(o.rows.map(pick))&&J(Object.keys(o.tot).filter(k=>!S.has(k)).map(k=>n.tot[k]))===J(Object.keys(o.tot).filter(k=>!S.has(k)).map(k=>o.tot[k]));}; /* skip : quantités dont la règle a changé (28/10 : soudures sans les bouts de ligne) */
 // ── 1) anciens chantiers (sans les champs du contrat)
 const mk=(id,els,joints,o)=>Object.assign({id,els,joints,length:els.reduce((s,e)=>s+e.len,0)},o||{});
 const dxf=[mk('L1',[{kind:'endcap',dn:150,len:0.3},{kind:'pipe',dn:150,len:12},{kind:'pipe',dn:150,len:12},{kind:'bend',dn:150,len:0.6},{kind:'pipe',dn:150,len:7.5},{kind:'tee',dn:150,len:1.1},{kind:'reducer',dn:100,len:0.5},{kind:'pipe',dn:100,len:12},{kind:'valve',dn:100,len:0.4},{kind:'pipe',dn:100,len:3.2}],[{idx:0},{idx:1},{idx:2},{idx:3},{idx:4},{idx:5},{idx:6},{idx:7},{idx:8}]),
@@ -60,9 +60,10 @@ const tr=[
   TL('L7',[T('endpoint',65,0),T('pipe',65,12),T('pipe',65,12),T('endpoint',65,0)],{startType:'attente',endType:'sousstation',tranche:'option',option:1}), /* sans ends : startType / endType + DN des bouts */
   TL('L8',[T('endpoint',50,0),T('pipe',50,9),T('bypass',50,0.5)],{startType:'sousstation',endType:'bypass'})]; /* ancienne valeur « bypass » = by-pass nu en regard */
 const zones=[{id:'z1',nom:'Zone Nord',lines:['L1','L2','L3','L8']},{id:'z2',nom:'Zone Sud',lines:['L4','L5','L6']}]; /* L7 hors zone */
-const setup=L=>{const line={id:L.id,parent:L.parent||null,single:null,traceur:true,dn:L.dn,cond:{}};['A','R'].forEach(c=>{const cd=L.cond[c];const els=cd.els.map(e=>Object.assign({},e,{pvKind:undefined}));line.cond[c]={els,joints:(cd.welds||[]).map((w,k)=>({idx:w.idx!==undefined?w.idx:k,dn:w.dn})).filter(j=>j.idx>=0&&j.idx<els.length)};});line.els=(line.cond.A||line.cond.R).els;return line;}; /* comme setupTraceurLine : pvKind perdu, vert = nature */
+const setup=L=>{const line={id:L.id,parent:L.parent||null,single:null,traceur:true,dn:L.dn,cond:{}};['A','R'].forEach(c=>{const cd=L.cond[c];const els=cd.els.map(e=>Object.assign({},e,{pvKind:undefined}));line.cond[c]={els,joints:(cd.welds||[]).map((w,k)=>{const idx=w.idx!==undefined?w.idx:k;return {idx,dn:w.dn,sst:isEndWeld(w,els,idx)?true:undefined};}).filter(j=>j.idx>=0&&j.idx<els.length)};});line.els=(line.cond.A||line.cond.R).els;return line;}; /* comme setupTraceurLine : pvKind perdu, vert = nature ; 28/10 : point de bout de ligne (sst) comme à l'ouverture du chantier */
 const raw=traceQtyOf({lines:tr,sess:false,meta:tr,zones}),ses=traceQtyOf({lines:tr.map(setup),sess:true,meta:tr,zones});const old=traceQtyOld(tr.map(setup),true);
-log('c1d_jamais_ouvert_egal_ouvert',J(raw)===J(ses)&&sameOld(ses,old)&&raw.tot.soud===old.tot.soud&&raw.tot.soud>0,{raw:raw.tot,ses:ses.tot,old:old.tot});
+const nEnds=tr.reduce((n,l)=>n+['A','R'].reduce((m,c)=>m+(l.cond[c]?l.cond[c].welds.filter((w,k)=>isEndWeld(w,l.cond[c].els,w.idx!==undefined?w.idx:k)).length:0),0),0); /* 28/10 : les soudures de bout de ligne ne comptent plus (l'ancien calcul les comptait) */
+log('c1d_jamais_ouvert_egal_ouvert',J(raw)===J(ses)&&sameOld(ses,old,['soud'])&&raw.tot.soud===old.tot.soud-nEnds&&raw.tot.soud>0&&nEnds>0,{raw:raw.tot,ses:ses.tot,old:old.tot,nEnds});
 log('c1e_ancien_brut_vide',traceQtyOld(tr,false).rows.length===0); /* avant : un tracé jamais ouvert donnait 0 */
 console.log('1d) tracé du traceur :',J(raw.tot));
 // ── 2) contrat

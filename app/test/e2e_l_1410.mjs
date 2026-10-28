@@ -84,7 +84,7 @@ const dessin=await page.evaluate(()=>{const b=document.querySelector('#eq-app [d
 await page.evaluate(()=>{document.querySelector('#eq-app [data-act=tabgo][data-v=traceur]').click();});
 await page.waitForURL(/traceur\.html/,{timeout:8000}).catch(()=>{});const urlNew=lastNav();await wait(900);
 await page.evaluate(()=>{const M=window.MAQ;M.state.lines.push({id:'L'+(M.state.seq++),name:'Feeder fictif',dn:100,bar:12,pts:[[0,0],[40,0],[40,25]],specials:[],parent:null});M.rebuild();M.save();});
-const nW1=await page.evaluate(()=>Object.values(window.MAQ.state.built).reduce((s,B)=>s+B.A.welds.length+B.R.welds.length,0));
+const nW1=await page.evaluate(()=>Object.values(window.MAQ.state.built).reduce((s,B)=>s+B.A.welds.filter(w=>!w.sst).length+B.R.welds.filter(w=>!w.sst).length,0)); /* 28/10 : les soudures de bout de ligne ne comptent pas (points de bout) */
 await page.click('#bSave');await wait(250);await page.fill('#svName','Étude fictive A');await page.click('#svOk');await wait(1400);
 let out={urlNew,dessin,nW1,go:await page.evaluate(()=>(document.getElementById('svGo')||{}).textContent||'')};
 const E1=await page.evaluate(()=>window.MAQ.state.siteRef&&window.MAQ.state.siteRef.id);out.E1=E1;out.srv=!!SITES[E1];
@@ -124,7 +124,7 @@ await page.evaluate(id=>{document.querySelector('#eq-app [data-v="etopen|'+id+'"
 await page.waitForURL(/traceur\.html/,{timeout:8000}).catch(()=>{});const urlEt=lastNav();await wait(2200);
 out={urlEt,tr:await T(()=>{const M=window.MAQ;return {ref:M.state.siteRef&&M.state.siteRef.id,lines:M.state.lines.length,badge:document.getElementById('siteBadge').textContent,top:document.getElementById('bOpenApp').textContent,ctx:localStorage.getItem('trace:maquette:ctx')};})};
 await page.evaluate(()=>{const M=window.MAQ;M.state.lines.push({id:'L'+(M.state.seq++),name:'Antenne fictive',dn:65,bar:12,pts:[[40,25],[40,45]],specials:[],parent:null});M.rebuild();M.save();});
-const nW2=await page.evaluate(()=>Object.values(window.MAQ.state.built).reduce((s,B)=>s+B.A.welds.length+B.R.welds.length,0));
+const nW2=await page.evaluate(()=>Object.values(window.MAQ.state.built).reduce((s,B)=>s+B.A.welds.filter(w=>!w.sst).length+B.R.welds.filter(w=>!w.sst).length,0)); /* 28/10 : sans les points de bout de ligne */
 await page.click('#bSave');await wait(250);out.mode=await T(()=>{const s=document.getElementById('svMode');return s?s.value:null;});await page.click('#svOk');await wait(1400);
 out.go=await T(()=>(document.getElementById('svGo')||{}).textContent||'');out.ref2=await T(()=>window.MAQ.state.siteRef&&window.MAQ.state.siteRef.id);
 await page.click('#svGo');

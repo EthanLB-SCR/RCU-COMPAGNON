@@ -17,6 +17,10 @@ export const END_GROUPS={racc:'Raccordement sur existant',fin:'Fin de ligne',cha
 export const endLabel=t=>(END_TYPES.find(x=>x[0]===t)||[t,t])[1];
 export const endType=t=>{t=String(t||'').trim();return t==='bypass'?'bypass_regard':t;}; /* C1 : l'ancienne valeur « bypass » = by-pass nu en regard */
 const num=v=>v===null||v===undefined||v===''?0:(isFinite(+v)?+v:0);
+/* 28/10 (Ethan : « pas de soudure ni de manchon sur les bouts de ligne ») : une soudure contre une pièce de bout (raccordement, kit / fond bombé / fin provisoire, by-pass) ou la soudure
+   du by-pass = POINT DE BOUT DE LIGNE, hors comptage — reconnu au drapeau sst du traceur (28/10+) ou, pour une remise d'avant, à la pièce voisine. Même règle que l'ouverture du chantier (app.js). */
+export const isEndEl=e=>!!e&&(e.kind==='endpoint'||e.kind==='endcap'||e.kind==='bypass'||e.kind==='bypassEnd');
+export const isEndWeld=(w,els,idx)=>!!(w&&(w.sst||w.bypass))||isEndEl(els&&els[idx])||isEndEl(els&&els[idx+1]);
 const r1=x=>Math.round(x*10)/10;
 /* clé de tranche d'une ligne (C2) : 'ferme' (défaut) | 'option n' */
 export const trancheOf=m=>m&&m.tranche==='option'?'option '+Math.max(1,Math.round(num(m.option))||1):'ferme';
@@ -27,7 +31,7 @@ function norm(l,sess,m){let els=Array.isArray(l.els)?l.els:[];let cond=null,jc=f
   if(sess){if(l.cond){cond=l.cond;jc=true;}}
   else if(l.traceur&&l.cond&&typeof l.cond==='object'&&!els.length){ /* remise du traceur jamais ouverte sur l'appareil : comme setupTraceurLine (app.js) — conduite A (sinon R), soudures de chaque conduite */
     const c0=l.cond.A||l.cond.R;els=c0&&Array.isArray(c0.els)?c0.els:[];cond={};
-    ['A','R'].forEach(c=>{const cd=l.cond[c];if(!cd)return;const E=Array.isArray(cd.els)?cd.els:[];cond[c]={els:E,joints:(cd.welds||[]).map((w,k)=>({idx:w.idx!==undefined?w.idx:k,dn:w.dn,sst:w.sst?true:undefined})).filter(j=>j.idx>=0&&j.idx<E.length)};});jc=true;}
+    ['A','R'].forEach(c=>{const cd=l.cond[c];if(!cd)return;const E=Array.isArray(cd.els)?cd.els:[];cond[c]={els:E,joints:(cd.welds||[]).map((w,k)=>{const idx=w.idx!==undefined?w.idx:k;return {idx,dn:w.dn,sst:isEndWeld(w,E,idx)?true:undefined};}).filter(j=>j.idx>=0&&j.idx<E.length)};});jc=true;}
   const meta=m||l;return {id:l.id,l,els,cond,jc,nC:l.single?1:2,meta,tr:trancheOf(meta)};}
 /* les quantités d'un ensemble de lignes (ids = toutes les lignes du chantier : un piquage compte si l'antenne part d'une ligne du chantier) */
 function qtyLines(L,ids){const by={};const g=dn=>by[dn]||(by[dn]={dn,soud:0,mlTr:0,mlTube:0,mlPipe:0,coudes:0,tes:0,piq:0,red:0,vannes:0,kits:0,purges:0,vidanges:0,runs:[]});const ext={};

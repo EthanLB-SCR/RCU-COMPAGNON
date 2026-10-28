@@ -74,20 +74,21 @@ const sleeveAt=(l,cd,j)=>{const dn=weldDn(l,cd,j);return {kind:'sleeve',dn,gaine
    21/10 (Ethan : « il sort un nombre de barres trop fort ») : les morceaux de tube (barres entières, coupes, manchettes ; pas les manchettes nues) sont regroupés
    dans des barres de la longueur de la ligne (12 m d'office), chutes réutilisées — avant, chaque morceau coupé comptait une barre ; manchons et mousse au DN de la
    soudure (une réduction : 1 manchon de chaque DN par conduite, avant : 2 au DN amont). legacy = l'ancien comptage (conversion des tracés initiaux figés avant). */
-export function fournNeeds(inc,legacy,rule){const need={},lab={},posed={};const pack=rule==='v2'?packBarsV2:packBars; /* 23/10 : rule 'v2' = l'ancien rangement des barres (conversion des tracés initiaux figés avec lui) */const add=(m,o,n)=>{const k=fKey(o);m[k]=(m[k]||0)+(n===undefined?1:n);if(!lab[k])lab[k]=fLabel(o);};
+export function fournNeeds(inc,legacy,rule){const need={},lab={},posed={};const pack=rule==='v2'?packBarsV2:packBars;const withEnds=!!legacy||rule==='v2'||rule==='v3'; /* 28/10 : les anciens comptages (v 1, 2, 3) comptaient les bouts de ligne */ /* 23/10 : rule 'v2' = l'ancien rangement des barres (conversion des tracés initiaux figés avec lui) */const add=(m,o,n)=>{const k=fKey(o);m[k]=(m[k]||0)+(n===undefined?1:n);if(!lab[k])lab[k]=fLabel(o);};
   const P={},Q={};const tube=(M,l,e)=>{const dn=+e.dn||+l.dn||0,bar=+l.bar||12,g=dn+'|'+bar;(M[g]=M[g]||{dn,bar,lens:[]}).lens.push({len:pipeLen(e,bar),line:l.id});};
   Object.values((A.lines&&A.lines())||{}).filter(l=>mvLineIn('fourniture',l)).forEach(l=>{['A','R'].forEach(c=>{const cd=l&&l.cond&&l.cond[c];if(!cd||!Array.isArray(cd.els))return;
     cd.els.forEach((e,i)=>{if(!legacy&&e&&e.kind==='pipe'){if(e.nue)return;if(inc&&!inc.el(l,c,i,e))return;if(inc&&inc.mark)inc.mark(l.id+'|'+c+'|'+i);tube(P,l,e);return;}
       const o=pieceOfEl(l,e);if(!o)return;if(inc&&!inc.el(l,c,i,e))return;if(inc&&inc.mark)inc.mark(l.id+'|'+c+'|'+i);add(need,o);});
-    const seen=new Set();(cd.joints||[]).forEach(j=>{const e=cd.els[j.idx];if(!e)return;if(j.nu||j.sst)return; /* 27/10 soir : soudure nue / point SST (remontée) : ni manchon ni mousse */if(inc&&!inc.j(l,c,j,e))return;
-      const done=!(j.status==='a_souder'||j.status==='a_reprendre');if(done){if(!legacy&&e.kind==='pipe'){if(!e.nue)tube(Q,l,e);}else{const o=pieceOfEl(l,e);if(o)add(posed,o);}}
+    const seen=new Set();(cd.joints||[]).forEach(j=>{const e=cd.els[j.idx];if(!e)return;if(inc&&!inc.j(l,c,j,e))return;
+      const done=!(j.status==='a_souder'||j.status==='a_reprendre');if(done){if(!legacy&&e.kind==='pipe'){if(!e.nue)tube(Q,l,e);}else{const o=pieceOfEl(l,e);if(o)add(posed,o);}} /* 28/10 : le posé AVANT les exclusions : le dernier tube d'une ligne (sa soudure est le point de bout) et le coude de remontée (soudure nue) sont bien posés */
+      if(j.nu)return;if(j.sst&&!withEnds)return; /* 27/10 soir → 28/10 : soudure nue / point de bout de ligne : ni manchon ni mousse (sauf recomptage à l'ancienne règle, pour convertir un initial figé avant) */
       if(j.sleeveWith&&seen.has(j.weldId))return;if(j.sleeveWith)seen.add(j.sleeveWith);const sl=legacy?sleeveOf(l,e):sleeveAt(l,cd,j);add(need,sl);add(need,{kind:'pu',dn:sl.dn,gaine:sl.gaine});
       if(j.status==='manchonnee'){add(posed,sl);add(posed,{kind:'pu',dn:sl.dn,gaine:sl.gaine});}});});});
   Object.values(P).forEach(g=>add(need,{kind:'pipe',dn:g.dn,len:12},pack(g.lens,g.bar)));Object.values(Q).forEach(g=>add(posed,{kind:'pipe',dn:g.dn,len:12},pack(g.lens,g.bar)));
   return {need,lab,posed};}
 /* 21/10 : tracé initial figé AVANT le nouveau comptage (pas de v ≥ 2) → converti pour ne pas afficher de fausses « modifs » : une clé dont l'ancien comptage du
    tracé actuel égale l'initial prend le nouveau comptage ; sinon barres au prorata, manchons / mousse décalés de la même différence */
-function initConv(FI,cur){if(!FI||!FI.need||FI.v>=3)return {need:FI&&FI.need,conv:false};const old=FI.v===2?fournNeeds(null,false,'v2').need:fournNeeds(null,true).need; /* 23/10 : un initial figé avec le rangement du 21/10 (v 2) se convertit de la même façon */const I2=Object.assign({},FI.need);let conv=false;
+function initConv(FI,cur){if(!FI||!FI.need||FI.v>=4)return {need:FI&&FI.need,conv:false};const old=FI.v===3?fournNeeds(null,false,'v3').need:FI.v===2?fournNeeds(null,false,'v2').need:fournNeeds(null,true).need; /* 28/10 : v 4 = sans manchon ni mousse aux bouts de ligne ; un initial v 3 (21→28/10) se convertit en recomptant AVEC les bouts (rule 'v3') */ /* 23/10 : un initial figé avec le rangement du 21/10 (v 2) se convertit de la même façon */const I2=Object.assign({},FI.need);let conv=false;
   new Set([...Object.keys(old),...Object.keys(cur.need),...Object.keys(FI.need)]).forEach(k=>{if(!/^(pipe|sleeve|pu):/.test(k))return;const o=old[k]||0,nw=cur.need[k]||0,i0=FI.need[k]||0;
     const v=o===i0?nw:k.startsWith('pipe:')?(o>0?Math.round(i0*nw/o):i0):Math.max(0,i0+(nw-o));if(v!==i0)conv=true;if(v)I2[k]=v;else delete I2[k];});
   return {need:I2,conv};}
@@ -175,7 +176,7 @@ export function fzCompute(){const F=fournOf();if(!F)return null;PTC=new Map();tr
 /* ---------- tracé initial figé (1re ouverture) : le marché s'il porte le détail par pièce, sinon le tracé du jour ---------- */
 function ensureInit(F){if(initGet(F)&&initGet(F).need)return;const L=Object.keys((A.lines&&A.lines())||{});if(!L.length)return;const M=A.marche&&A.marche();
   if(M&&M.need&&typeof M.need==='object')initSet(F,Object.assign({need:Object.assign({},M.need),lab:Object.assign({},M.needLab||{}),src:'marche',at:M.at||nowIso(),by:M.by||who()},M.needV>=2?{v:M.needV}:{}));
-  else{const r=fournNeeds();initSet(F,{v:3,need:r.need,lab:r.lab,src:'trace',at:nowIso(),by:who()});} /* 21/10 : v 2 = barres regroupées, manchons au DN de la soudure ; 23/10 : v 3 = barres par ligne */
+  else{const r=fournNeeds();initSet(F,{v:4,need:r.need,lab:r.lab,src:'trace',at:nowIso(),by:who()});} /* 21/10 : v 2 = barres regroupées, manchons au DN de la soudure ; 23/10 : v 3 = barres par ligne */
   if(fzCanEdit())save();}
 
 /* ---------- écarts au-delà de la commande : qualification (comme les TS) + brouillon de commande complémentaire (13/10 soir) ---------- */
@@ -240,7 +241,7 @@ export function renderFourniture(){const el=document.getElementById('fourniture'
   if(!N||N.id==='__vide'){el.innerHTML='<h2 class="vt">Fourniture</h2><div class="card muted">Aucun chantier.</div>';return;}
   const F=fournOf();ensureInit(F);const R=fzCompute();const ed=fzCanEdit();const UI=A.state.fournUI||(A.state.fournUI={});const open=(k,d)=>((UI[k]===undefined?d:UI[k])?'open':'');const T=R.tot;
   const cmds=live(F.cmds);const fil=UI.fil||'all';
-  const FI0=initGet(F);const initTxt=(FI0?`Tracé initial : ${FI0.src==='marche'?'tracé marché':'tracé'} du ${dFR(String(FI0.at||'').slice(0,10))}`:'Tracé initial : pas encore figé')+(R.initConv?' · converti au comptage du 21/10 (barres regroupées, manchons au DN de la soudure)':''); /* 21/10 */
+  const FI0=initGet(F);const initTxt=(FI0?`Tracé initial : ${FI0.src==='marche'?'tracé marché':'tracé'} du ${dFR(String(FI0.at||'').slice(0,10))}`:'Tracé initial : pas encore figé')+(R.initConv?' · converti au comptage du 21/10 (barres regroupées, manchons au DN de la soudure) et du 28/10 (pas de manchon aux bouts de ligne)':''); /* 21/10 */
   const FIL=[['all','Tout'],['ecart','Écarts'],['acmd','À commander'],['reste','Reste à livrer']];
   const rows=R.rows.filter(r=>fil==='all'||(fil==='ecart'&&(r.mod||r.plus||r.aCmd||r.surplus))||(fil==='acmd'&&r.aCmd>0)||(fil==='reste'&&r.resteLiv>0));
   const cell=(v,c)=>`<td class="num"${c?` style="${c}"`:''}>${v?q(v):'<span class="dim">—</span>'}</td>`;
@@ -309,7 +310,7 @@ function fzAct(k,v,R){const F=fournOf();if(!F)return;const UI=A.state.fournUI||(
   if(k==='xdel'){const x=F.extra.find(y=>y.id===v);if(!x||!confirm('Retirer « '+(x.label||'')+' » des pièces en plus ?'))return;x.deleted=true;x.upd=nowIso();save();renderFourniture();return;}
   if(k==='lasso'){fzStartPose();return;}
   if(k==='phases'){const P=A.phasageOf&&A.phasageOf();const phs=P?P.phases.filter(p=>!p.deleted&&p.level==='exe'&&(p.tr||[]).length):[];if(!phs.length){A.toast('Aucune phase d\'exécution au phasage');return;}let n=0;phs.forEach(ph=>{if(live(F.zones).some(z=>z.ph===ph.id))return;F.zones.push(mvStamp('fourniture',{id:nid('FZ'),name:ph.name||ph.id,ph:ph.id,at:nowIso(),by:who(),upd:nowIso()},(ph.tr||[]).map(t=>t&&t.line)));n++;});if(n){save();}renderFourniture();A.toast(n?'✓ '+n+' phase'+(n>1?'s':'')+' reprise'+(n>1?'s':'')+' en zones de livraison':'Les phases sont déjà reprises');return;}
-  if(k==='refige'){if(!confirm('Re-figer le tracé initial sur le tracé ACTUEL ?\nLes modifs repartent de zéro (l\'ancien initial est gardé dans l\'historique).'))return;const r=fournNeeds();const I0=initGet(F);const prev=I0?(I0.prev||[]).concat([{at:I0.at,by:I0.by,src:I0.src}]).slice(-5):[];initSet(F,{v:3,need:r.need,lab:r.lab,src:'trace',at:nowIso(),by:who(),prev});save();renderFourniture();A.toast('Tracé initial re-figé');return;}
+  if(k==='refige'){if(!confirm('Re-figer le tracé initial sur le tracé ACTUEL ?\nLes modifs repartent de zéro (l\'ancien initial est gardé dans l\'historique).'))return;const r=fournNeeds();const I0=initGet(F);const prev=I0?(I0.prev||[]).concat([{at:I0.at,by:I0.by,src:I0.src}]).slice(-5):[];initSet(F,{v:4,need:r.need,lab:r.lab,src:'trace',at:nowIso(),by:who(),prev});save();renderFourniture();A.toast('Tracé initial re-figé');return;}
   if(k==='ann'){const [zid,n]=String(v).split('#');const Z=R.zones.find(x=>x.z.id===zid);const t=Z&&Z.trucks.find(x=>String(x.n)===n);if(!t)return;openAnnounce(Z,[t]);return;}}
 
 /* ---------- zone : la liste à prévoir, les camions, la date ---------- */

@@ -259,12 +259,12 @@ export function t1Init(api){const {state,esc}=api;
   const T1={
     etude:()=>ETUDE,cv:()=>state.cv,
     endLen:(t,dn)=>{const k=endKindOf(t);return k==='endcap'?(api.cat().endcap(dn).L||0.3):k==='bypass'?rules().jambeMin:0;}, // longueur de la pièce de bout (purge / vidange collée au bout) ; 27/10 soir : la remontée est au-delà du bout, rien à réserver
-    endKind:endKindOf,endGroup:t=>{const i=endInfo(t);return i?i.group:null;}, // 27/10 : l'option « remontée » n'est proposée qu'aux raccordements en local (sous-station, chaufferie)
+    endKind:endKindOf,endGroup:t=>{const i=endInfo(t);return i?i.group:null;},endLabel:t=>endLabel(t), /* 28/10 : libellé d'un bout (point de bout de ligne) */ // 27/10 : l'option « remontée » n'est proposée qu'aux raccordements en local (sous-station, chaufferie)
     isBypass:isBypassEnd,endShort:t=>endTxt(t),
     endOptions:(atStart,cur)=>endOptionsHTML(atStart,cur,esc),endHelp:()=>END_HELP,
     // by-pass au départ : la soudure de jonction (aller ↔ retour), portée par l'aller, en tête des soudures (ordre du chaînage)
     bypassStart(l,conds,e,dn){if(l.parent||!isBypassEnd(l.startType)||!conds.A||!conds.R)return;const uA=conds.A.pieces.find(p=>p.kind==='bypassEnd'&&p.sid==='end:start'),uR=conds.R.pieces.find(p=>p.kind==='bypassEnd'&&p.sid==='end:start');if(!uA||!uR||!uA.apex)return;
-      conds.A.welds.unshift({i:-1,m:0,x:uA.apex[0],y:uA.apex[1],between:[uA.id,uR.id+' (retour)'],dev:0,fc:false,dn:uA.dn||dn,bypass:true,bypassAt:'start'});
+      conds.A.welds.unshift({i:-1,m:0,x:uA.apex[0],y:uA.apex[1],between:[uA.id,uR.id+' (retour)'],dev:0,fc:false,dn:uA.dn||dn,bypass:true,bypassAt:'start',sst:true,endType:normEnd(l.startType||'')}); /* 28/10 : soudure du by-pass = point de bout de ligne */
       conds.A.notes.push({kind:'doubt',m:0,txt:`by-pass en départ de ligne : 2 coudes 90° recoupés + soudure entre eux, à l'entraxe ${fmt(e)} m — les jambes pré-isolées (mini ${fmt(rules().jambeMin)} m) ne rentrent pas dans ${fmt(e/2)} m : à réaliser en coudes acier nus isolés sur place ou en élargissant l'entraxe (à cadrer)`});},
     afterRebuild(opts){if(opts&&opts.light)return;const ids=new Set(state.lines.map(l=>l.id));state.zones.forEach(z=>{z.lines=z.lines.filter(id=>ids.has(id));}); // une ligne supprimée quitte sa zone (même étape)
       if(ETUDE&&!versionsChecked&&state.lines.length){versionsChecked=true;if(state.lines.some(l=>vmOf(l)>1)&&state.show.versions===false){state.show.versions=true;api.saveShow();api.render();}}

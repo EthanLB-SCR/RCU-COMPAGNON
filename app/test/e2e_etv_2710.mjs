@@ -30,16 +30,22 @@ await page.evaluate(([s1,s2,n])=>{const T=window.TRACE;T.etude.addSite(s1);T.etu
 const st0=await page.evaluate(()=>({screen:window.TRACE.state.screen,site:window.TRACE.state.siteId,nL:Object.keys(window.TRACE.state.lines||{}).length,net:(window.TRACE.net||{}).id||null}));
 // ── c1 · onglet Tracé & chantiers : le bouton sur l'étude tracée, pas sur l'étude vide
 await openAff(N1,'sites');await wait(500);
-let o=await page.evaluate(()=>{const R=[...document.querySelectorAll('#eq-app .lz-row')].map(r=>({id:r.dataset.lzsite,et:!!r.querySelector('.lz-tag.et'),open:!!r.querySelector('[data-v^="etopen|"]'),viewer:!!r.querySelector('[data-v^="etviewer|"]'),txt:r.textContent.replace(/\s+/g,' ').trim().slice(0,120)}));return R;});
+let o=await page.evaluate(()=>{const R=[...document.querySelectorAll('#eq-app .lz-row')].map(r=>({id:r.dataset.lzsite,et:!!r.querySelector('.lz-tag.et'),open:!!r.querySelector('[data-v^="etopen|"]'),viewer:!!r.querySelector('[data-v^="etviewer|"]'),mail:!!r.querySelector('[data-v^="etmail|"]'),txt:r.textContent.replace(/\s+/g,' ').trim().slice(0,120)}));return R;});
 console.log('1) lignes :',J(o));
 const r1=o.find(x=>x.id==='trc_e1')||{},r2=o.find(x=>x.id==='trc_e2')||{};
-C.c1=r1.et&&r1.open&&r1.viewer&&r2.et&&r2.open&&!r2.viewer;
+C.c1=r1.et&&r1.open&&r1.viewer&&r1.mail&&r2.et&&r2.open&&!r2.viewer&&!r2.mail;
 // ── c2 · le téléchargement
 const [dl]=await Promise.all([page.waitForEvent('download',{timeout:15000}),click('etviewer|trc_e1')]);
 const path=await dl.path();const fs=await import('fs');const html=fs.readFileSync(path,'utf8');
 const o2={name:dl.suggestedFilename(),n:html.length,title:/<title>Plan interactif — Réseau étude E<\/title>/.test(html),l1:/Feeder étude/.test(html),l2:/Antenne étude/.test(html),welds:(html.match(/S-\d+/g)||[]).length,dn:/DN150→100|DN150/.test(html),angle:/45°/.test(html),sst:/SST/.test(html)};
 console.log('2) fichier :',J(o2));
 C.c2=o2.name==='Plan_interactif_Reseau_etude_E.html'&&o2.n>20000&&o2.title&&o2.l1&&o2.l2&&o2.welds>=10&&o2.dn&&o2.angle;
+// ── c2b · 28/10 (lot 2810b, Ethan : « la maquette ne passe pas dans un mail ») : 📧 Pour mail → la même maquette dans un .zip (+ Lisez-moi), bien plus petit
+const [dz]=await Promise.all([page.waitForEvent('download',{timeout:15000}),click('etmail|trc_e1')]);const pz=await dz.path();const {unzipSync,strFromU8}=await import('fflate');
+const files=unzipSync(new Uint8Array(fs.readFileSync(pz)));const inner=strFromU8(files['Plan_interactif_Reseau_etude_E.html']||new Uint8Array());await wait(300);
+const o2b={name:dz.suggestedFilename(),n:fs.statSync(pz).size,names:Object.keys(files),innerOk:/<title>Plan interactif — Réseau étude E<\/title>/.test(inner)&&Math.abs(inner.length-html.length)<200,lisez:/Extraire tout/.test(strFromU8(files['Lisez-moi.txt']||new Uint8Array())),toast:await page.evaluate(()=>(document.querySelector('#toast,.toast')||{}).textContent||'')};
+console.log('2b) pour mail :',J(o2b));
+C.c2b=o2b.name==='Plan_interactif_Reseau_etude_E.zip'&&o2b.n<html.length/2&&o2b.names.length===2&&o2b.innerOk&&o2b.lisez&&/pour mail/.test(o2b.toast);
 // ── c3 · l'appli n'a pas bougé
 const st1=await page.evaluate(()=>({screen:window.TRACE.state.screen,site:window.TRACE.state.siteId,nL:Object.keys(window.TRACE.state.lines||{}).length,net:(window.TRACE.net||{}).id||null,tab:window.TRACE.affaires.state().tab,cur:window.TRACE.affaires.state().cur,toast:(document.querySelector('#toast,.toast')||{}).textContent||''}));
 console.log('3) avant / après :',J(st0),J(st1));

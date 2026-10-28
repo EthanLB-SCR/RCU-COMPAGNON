@@ -12,6 +12,7 @@
 import {regGet,regAll} from './reg.js';
 import {mergeSites,unmergeSite,activityOn,tfFromGeo,commonName,affLabels,isMutu,origOf,affOfLine,lineIdsOf,MU_COLORS} from './mutufus.js';
 import {marcheSnapshot} from './marche.js';
+import {isEndWeld} from './qtrace.js'; /* 28/10 : les points de bout de ligne ne sont pas des soudures comptées (avancement) */
 import {mergeServerParts} from './sync.js';
 import {partageClean} from './mutufus.js';
 import {initMv,mvOperator,mvSel,mvResetSel,mvLineIdIn,mvRecIn,mvTag,mvFoldHTML,mvFoldRead,mvWireRows,mvOpenPartage,mvTestApi} from './mutu2.js'; // 17/10 (lot MV) : commun / séparé par dossier, sélecteur d'affaire, vue des opérateurs (mutu2.js)
@@ -236,7 +237,7 @@ async function commitUndo(num,cId,ent){if(busy)return {ok:false,why:'opération 
 /* ═════════ 7 · ONGLET « TRACÉ & CHANTIERS » DE L'AFFAIRE ═════════ */
 const AV={};
 /* avancement des lignes d'une affaire : soudures faites / soudures — serveur (connecté, relu au plus toutes les minutes), sinon la session de l'appareil */
-function avOf(id,aff){const n=siteOf(id);if(!n||!Array.isArray(n.lines))return null;const ids=lineIdsOf(n,aff===origOf(n)?'':aff);const W=new Set();n.lines.forEach(L=>{if(!L||!ids.has(String(L.id)))return;['A','R'].forEach(c=>{const cd=L.cond&&L.cond[c];((cd&&(cd.welds||cd.joints))||[]).forEach(w=>{if(w&&w.weldId)W.add(w.weldId);});});});if(!W.size)return null;
+function avOf(id,aff){const n=siteOf(id);if(!n||!Array.isArray(n.lines))return null;const ids=lineIdsOf(n,aff===origOf(n)?'':aff);const W=new Set();n.lines.forEach(L=>{if(!L||!ids.has(String(L.id)))return;['A','R'].forEach(c=>{const cd=L.cond&&L.cond[c];const els=(cd&&cd.els)||[];((cd&&(cd.welds||cd.joints))||[]).forEach((w,k)=>{if(w&&w.weldId&&!isEndWeld(w,els,w.idx!=null?w.idx:k))W.add(w.weldId);});});});if(!W.size)return null; /* 28/10 : sans les points de bout de ligne (raccordements, kits, by-pass) — comme les quantités */
   let rows=null;if(A.state.cloudUser){const c=AV[id];if(!c||Date.now()-c.at>60000){AV[id]={at:Date.now(),rows:c?c.rows:null};A.sync.loadWelds(id).then(r=>{AV[id]={at:Date.now(),rows:r||[]};try{A.softRender('avancement');}catch(e){}}).catch(()=>{});}rows=AV[id]&&AV[id].rows;}
   const st=new Map();(rows||[]).forEach(r=>{if(r&&W.has(r.weld_id))st.set(r.weld_id,r.status);});sessJoints(id).forEach(j=>{if(j&&W.has(j.weldId)&&j.status&&j.status!=='a_souder')st.set(j.weldId,j.status);});
   let done=0;st.forEach(v=>{if(DONE.includes(v))done++;});return {tot:W.size,done,pct:Math.round(100*done/W.size),wait:A.state.cloudUser&&!rows};}

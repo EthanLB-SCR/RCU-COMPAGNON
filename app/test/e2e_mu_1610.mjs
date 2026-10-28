@@ -94,7 +94,7 @@ await patchSite(CID,{geo:geoC,fiche:{ville:VILLE}});await patchSite(EID,{geo:geo
 const set=(n,o)=>{const k='affaire|'+n;REG[k].data=Object.assign({},REG[k].data,o);REG[k].updated_at=nowIso();};
 set(A25,{sites:[CID]});set(AD,{sites:[DID]});set(A26,{sites:[EID]});set(A27,{sites:[E27]});set(A28,{sites:[E28]});
 /* chantier 2025 en cours : 3 soudures déjà faites (serveur) */
-const cW=(SITES[CID].data.lines||[]).flatMap(L=>['A','R'].flatMap(c=>((L.cond[c]||{}).welds||[]).map(w=>({line:L.id,c,id:w.weldId}))));
+const isEndEl0=e=>!!e&&(e.kind==='endpoint'||e.kind==='endcap'||e.kind==='bypass');const cW=(SITES[CID].data.lines||[]).flatMap(L=>['A','R'].flatMap(c=>{const cd=L.cond[c]||{};const E=cd.els||[];return (cd.welds||[]).filter((w,k)=>{const i=w.idx!=null?w.idx:k;return !(w.sst||w.bypass||isEndEl0(E[i])||isEndEl0(E[i+1]));}).map(w=>({line:L.id,c,id:w.weldId}));})); /* 28/10 : les soudures COMPTÉES (pas les points de bout de ligne) */
 cW.slice(0,3).forEach(w=>{WELDS[CID+'|'+w.id]={site_id:CID,weld_id:w.id,line_id:w.line,cond:w.c,status:'soudee',data:{events:[{type:'soudee',by:'Soudeur fictif',at:'2026-10-10T10:00:00Z'}],photos:[]}};});
 const marche25=JSON.parse(JSON.stringify(SITES[CID].data.marche||null));const nLines25=SITES[CID].data.lines.length,nW25=cW.length;
 await page.evaluate(()=>{Object.keys(localStorage).filter(k=>/^trace:reg/.test(k)).forEach(k=>localStorage.removeItem(k));});
@@ -177,9 +177,9 @@ await page.evaluate(()=>{const b=document.querySelector('#muChips [data-muchip="
 /* soudure sur une ligne 2026 (étape 1 : photo, procédé, contrôle visuel) */
 const PNG='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 const L26id=ids26[0];
-await page.evaluate(([L,PNG])=>{const T=window.TRACE;const j=T.lines[L].cond.A.joints[0];j.steps=j.steps||{};j.steps[1]={photos:[PNG]};T.openJoint(L,'A',0);},[L26id,PNG]);await wait(500);
+await page.evaluate(([L,PNG])=>{const T=window.TRACE;const J=T.lines[L].cond.A.joints;let k=J.findIndex(x=>!x.sst);if(k<0)k=0;const j=J[k];j.steps=j.steps||{};j.steps[1]={photos:[PNG]};T.openJoint(L,'A',k);},[L26id,PNG]);await wait(500); /* 28/10 : une vraie soudure (la première est le point de bout de ligne) */
 await page.evaluate(()=>{const s=document.querySelector('#sheet');const p=s.querySelector('#st1-proc');if(p)p.value='cellu';const v=s.querySelector('#st1-vis');if(v)v.checked=true;const b=s.querySelector('[data-stepok="1"]');if(b)b.click();});await wait(1500);
-const w26=await T(L=>{const j=window.TRACE.lines[L].cond.A.joints[0];return {id:j.weldId,st:j.status};},L26id);await page.evaluate(()=>window.TRACE.closeSheet());await wait(300);
+const w26=await T(L=>{const J=window.TRACE.lines[L].cond.A.joints;const j=J.find(x=>!x.sst)||J[0];return {id:j.weldId,st:j.status};},L26id); /* 28/10 : une vraie soudure (pas le point de bout) */await page.evaluate(()=>window.TRACE.closeSheet());await wait(300);
 out.w26=w26;out.srvW=WELDS[CID+'|'+w26.id]&&WELDS[CID+'|'+w26.id].status;
 console.log('3) terrain :',JSON.stringify(out).slice(0,1800));
 C.c3=out.metas.includes(CID)&&!out.metas.includes(EID)&&!out.metas.includes(E27)&&out.list.c&&!out.list.e&&!out.list.e2&&out.p0.name==='Villefictive'&&out.p0.ids.length===net.length&&out.p0.dim.length===0&&out.p0.halo===3
@@ -199,11 +199,13 @@ await page.evaluate(id=>window.TRACE.openSiteFromHome(id),CID);await page.waitFo
 out.doe=await T(([A26,ids26])=>{const T=window.TRACE;const all=T.doe.data();const b=[...document.querySelectorAll('#muChips button')].find(x=>x.textContent.trim().endsWith('2026'));b.click();const d26=T.doe.data();document.querySelector('#muChips [data-muchip="-1"]').click();
   return {all:all.lines.length,allW:all.welds.length,n26:d26.lines.length,ok26:d26.lines.every(l=>ids26.includes(l.id)),name:d26.site.name,w26:d26.welds.length,m:d26.marche&&d26.marche.at};},[A26,ids26]);
 console.log('4) commerce par affaire :',JSON.stringify(out).slice(0,1800));
-const s26=SITES[CID].data.lines.filter(l=>l.aff===A26).reduce((s,L)=>s+L.cond.A.welds.length+L.cond.R.welds.length,0);
+const isEndEl=e=>!!e&&(e.kind==='endpoint'||e.kind==='endcap'||e.kind==='bypass');const cntW=cd=>(cd.welds||[]).filter((w,k)=>{const i=w.idx!=null?w.idx:k;return !(w.sst||w.bypass||isEndEl((cd.els||[])[i])||isEndEl((cd.els||[])[i+1]));}).length; /* 28/10 : les points de bout de ligne ne sont pas des soudures comptées (quantités ET avancement) */
+const s26=SITES[CID].data.lines.filter(l=>l.aff===A26).reduce((s,L)=>s+cntW(L.cond.A)+cntW(L.cond.R),0);
+const s26all=SITES[CID].data.lines.filter(l=>l.aff===A26).reduce((s,L)=>s+L.cond.A.welds.length+L.cond.R.welds.length,0); /* le DOE liste aussi les points de bout de ligne (à prendre en photo) */
 C.c4=out.q25&&out.q26&&out.q27&&out.qAll&&out.q25.soud===nW25&&out.q26.soud===s26&&out.q25.soud+out.q26.soud+out.q27.soud===out.qAll.soud&&out.q26.agg===s26&&out.q25.agg===nW25
   &&!!out.row25&&/chantier partagé/.test(out.row25)&&/avec 2026/.test(out.row25)&&new RegExp(nW25+' soudures').test(out.row25)&&/avancement 3\/'?/.test(out.row25)
   &&!!out.row26&&new RegExp(s26+' soudures').test(out.row26.t)&&new RegExp('avancement 1/'+s26).test(out.row26.t)&&out.row26.undo&&/étude versée/.test(out.verse||'')&&out.qtab.some(c=>new RegExp(s26+' soudures').test(c))
-  &&/Chantier partagé/.test(out.fact||'')&&out.doe.all===ids25.length /* 17/10 (lot MV, règle changée exprès) : « un DOE par marché » — avec la puce « Toutes », le DOE est celui de l'origine (plus jamais tout mélangé) */&&out.doe.n26===2&&out.doe.ok26&&/2026/.test(out.doe.name)&&out.doe.w26===s26&&!!out.doe.m;
+  &&/Chantier partagé/.test(out.fact||'')&&out.doe.all===ids25.length /* 17/10 (lot MV, règle changée exprès) : « un DOE par marché » — avec la puce « Toutes », le DOE est celui de l'origine (plus jamais tout mélangé) */&&out.doe.n26===2&&out.doe.ok26&&/2026/.test(out.doe.name)&&out.doe.w26===s26all&&!!out.doe.m;
 // ── 5) marché et TS séparés (appli, onglet Modifs, traceur)
 out=await T(([A26,L26])=>{const T=window.TRACE;const r={};const chip=i=>{const b=document.querySelector('#muChips [data-muchip="'+i+'"]');if(b)b.click();};
   chip(-1);r.mAll={id:(T.ts.marche()||{}).aff||'origine',lines:(T.ts.marche()||{lines:[]}).lines.length,changed:T.ts.diff().changed.length,cands:T.ts.candidates().length};

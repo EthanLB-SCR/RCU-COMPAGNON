@@ -29,12 +29,12 @@ let I=await info();await selX('end');let P=await panel();const hasOpt=await page
 await page.evaluate(()=>{const S=window.MAQ.state;S.lines[0].endType='kit';window.MAQ.rebuild();});await wait(150);await page.evaluate(()=>{const S=window.MAQ.state;const B=S.built.L1;const p=B.A.pieces.find(x=>x.kind==='endcap');S.sel={kind:'piece',line:'L1',cond:'A',id:p.id};S.tab='sel';window.MAQ.rebuild();});await wait(150);const kitOpt=await page.$('#panel .riserOn');
 await page.evaluate(()=>{const S=window.MAQ.state;S.lines[0].endType='sousstation';window.MAQ.rebuild();});await wait(150);
 console.log('c1) sans remontée :',JSON.stringify({nW:I.A.nW,nB:I.A.nB,xs:I.A.xs,hasOpt:!!hasOpt,kitOpt:!!kitOpt,txt:/Remontée dans le local/.test(P)}));
-C.c1=I.A.nW===5&&I.A.nB===0&&I.R.nB===0&&!!hasOpt&&!kitOpt&&/Remontée dans le local/.test(P)&&I.A.xs.length===2&&I.A.xs[1][1]===40;
+C.c1=I.A.nW===5&&I.A.nS===2&&I.A.nWc===3&&I.A.nB===0&&I.R.nB===0&&!!hasOpt&&!kitOpt&&/Remontée dans le local/.test(P)&&I.A.xs.length===2&&I.A.xs[1][1]===40; /* 28/10 : les 2 soudures de bout (raccordements) = points de bout de ligne, 3 soudures comptées par conduite */
 // ── c2 : coche depuis la fiche du raccordement
 await selX('end');await page.click('#panel .riserOn[data-start="0"]');await wait(300);I=await info();await shot('2_remontee');
 const nomen=await page.evaluate(()=>{const S=window.MAQ.state;const B=S.built.L1;const refs={};['A','R'].forEach(c=>B[c].pieces.forEach(p=>{if(p.kind==='tube'||p.kind==='endpoint')return;refs[p.ref]=(refs[p.ref]||0)+1;}));return refs;});
 console.log('c2) remontée :',JSON.stringify({re:I.re,A:{nW:I.A.nW,wR:I.A.wR,nB:I.A.nB,bV:I.A.bV,nV:I.A.nV,nu:I.A.nu,xs:I.A.xs,errs:I.A.errs,maxs:I.A.maxs,len:I.A.len,pcs:I.A.pcs},R:{nW:I.R.nW,bV:I.R.bV},nomen}));
-C.c2=I.re===true&&I.A.nW===6&&I.A.nS===1&&I.A.nWc===5&&I.R.nS===1&&I.A.wR===2&&I.A.nu===0&&I.A.nB===1&&I.A.bV===1&&I.A.nV===0&&I.R.nB===1&&I.R.nW===6&&I.A.errs===0&&I.A.xs[1][0]>40&&I.A.xs[1][1]>40&&I.A.xs[1][2]&&I.A.maxs>40&&Math.abs(I.A.len-40)<0.01&&nomen['K – 100/90']===2&&!Object.keys(nomen).some(k=>/vanne/.test(k))&&/X1 P1 P2 P3 P4 C1\* X2\*/.test(I.A.pcs);
+C.c2=I.re===true&&I.A.nW===6&&I.A.nS===2&&I.A.nWc===4&&I.R.nS===2&&I.A.wR===2&&I.A.nu===0&&I.A.nB===1&&I.A.bV===1&&I.A.nV===0&&I.R.nB===1&&I.R.nW===6&&I.A.errs===0&&I.A.xs[1][0]>40&&I.A.xs[1][1]>40&&I.A.xs[1][2]&&I.A.maxs>40&&Math.abs(I.A.len-40)<0.01&&nomen['K – 100/90']===2&&!Object.keys(nomen).some(k=>/vanne/.test(k))&&/X1 P1 P2 P3 P4 C1\* X2\*/.test(I.A.pcs);
 // ── c3 : décoche depuis la fiche de la ligne → retour à l'état d'avant
 await page.evaluate(()=>{const S=window.MAQ.state;S.sel={kind:'line',id:'L1'};S.tab='sel';window.MAQ.rebuild();});await wait(200);
 await page.click('#panel .riserOn[data-start="0"]');await wait(300);const I3=await info();
@@ -64,18 +64,18 @@ C.c5b=o6.rem===2&&o6.arrow&&o6.fc===1&&o6.ring&&o6.vLeg&&o6.pLeg&&o6.vRem;
 //    ça lui met en prod une SST du DN ») : 2 points SST par conduite (départ chaufferie + fin SST), fiche à une étape, validation avec photo → prod « SST DN 100 », rien en soudures
 const o7=await page.evaluate(()=>{const T=window.TRACE;const l=T.lines['L1'];const cd=l.cond.A;const S=cd.joints.map((j,i)=>({i,j})).filter(x=>x.j.sst);const sstEnd=S.find(x=>cd.els[x.j.idx]&&cd.els[x.j.idx].kind==='bend')||S[S.length-1];
   T.state.userId='karim';T.role&&T.role('soudeur');T.openJoint('L1','A',sstEnd.i);const sh=document.getElementById('sheet');const txt=sh.textContent.replace(/[\s  ]+/g,' ');
-  const before={shStat:(document.getElementById('shStat')||{}).textContent||'',steps:sh.querySelectorAll('.dstep').length,sstTitle:/Point SST — raccordement à l'intérieur/.test(txt),noMan:!/Manchon — 4 sous-étapes/.test(txt),btn:!!sh.querySelector('[data-gostep="1"]')&&/Prendre le point SST/.test(txt),chip:/point SST — pas une soudure comptée/.test(txt),noDh:!sh.querySelector('[data-act="dh-here"]')};
+  const before={shStat:(document.getElementById('shStat')||{}).textContent||'',steps:sh.querySelectorAll('.dstep').length,sstTitle:/Point de bout de ligne — Point SST/.test(txt),noMan:!/Manchon — 4 sous-étapes/.test(txt),btn:!!sh.querySelector('[data-gostep="1"]')&&/Prendre le point : Point SST/.test(txt),chip:/Point SST — pas une soudure comptée/.test(txt),noDh:!sh.querySelector('[data-act="dh-here"]')};
   const j=sstEnd.j;j.steps={1:{photos:['data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==']}};T.renderAll();
   const ok=sh.querySelector('[data-stepok="1"]');if(ok)ok.click();
   const today=new Date().toISOString().slice(0,10);T.state.act={from:today,to:today,who:''};const st=T.act.stats();const ops=T.act.ops(j,l).map(o=>o.kind);
   const needs=T.fourniture.needs();const sl=Object.entries(needs.need||{}).filter(([k])=>k.startsWith('sleeve:')).reduce((a,[,v])=>a+v,0);
   const D=T.doe.data();const w=D.welds.find(x=>x.id===j.weldId);const shw=D.sheets[0];const g=(T.doe.world(D,shw.id,{s:.2,fond:false,wires:false})||{}).svg||'';const v=T.doe.viewer(D,{fond:false});
-  const after={status:j.status,shStat:(document.getElementById('shStat')||{}).textContent||'',pris:/Point SST pris/.test(document.getElementById('sheet').textContent),ops,byKind:st.byKind,dnSst:st.dn.sst,dnSoud:st.dn.soud,prog:T.ts.counts(l).soud,sleeves:sl,doeLabel:w&&w.statusLabel,doeSst:D.welds.filter(x=>x.sst).length,diam:(g.match(/<polygon class="w"/g)||[]).length,vLeg:/point SST/.test(v)};
+  const after={status:j.status,shStat:(document.getElementById('shStat')||{}).textContent||'',pris:/Point SST : point pris/.test(document.getElementById('sheet').textContent),ops,byKind:st.byKind,dnSst:st.dn.sst,dnSoud:st.dn.soud,prog:T.ts.counts(l).soud,sleeves:sl,doeLabel:w&&w.statusLabel,doeSst:D.welds.filter(x=>x.sst).length,diam:(g.match(/<polygon class="w"/g)||[]).length,vLeg:/point de bout de ligne/.test(v)};
   T.state.act=null;return {nS:S.length,before,after};});
 console.log('c5c) point SST appli :',JSON.stringify(o7));
 if(SHOTS){await page.evaluate(()=>{const T=window.TRACE;const l=T.lines['L1'];const cd=l.cond.A;const i=cd.joints.findIndex(j=>j.sst&&cd.els[j.idx]&&cd.els[j.idx].kind==='bend');T.openJoint('L1','A',i);const q=T.slide.pos('L1','A',cd.joints[i].idx);if(q)T.centerOn(q.x,q.y,40);});await wait(600);await shot('7_point_sst');}
 C.c5c=o7.nS===2&&o7.before.steps===1&&o7.before.sstTitle&&o7.before.noMan&&o7.before.btn&&o7.before.chip&&o7.before.noDh&&/^0\/12 soudures$/.test(o7.before.shStat)&&o7.after.status==='soudee'&&o7.after.shStat===o7.before.shStat&&o7.after.pris
-  &&o7.after.ops.join()==='sst'&&o7.after.byKind.sst===1&&!o7.after.byKind.soud&&o7.after.dnSst&&o7.after.dnSst.DN100===1&&!Object.keys(o7.after.dnSoud||{}).length&&o7.after.prog===12&&o7.after.sleeves===12&&o7.after.doeLabel==='Point SST pris'&&o7.after.doeSst===4&&o7.after.diam===4&&o7.after.vLeg;
+  &&o7.after.ops.join()==='sst'&&o7.after.byKind.sst===1&&!o7.after.byKind.soud&&o7.after.dnSst&&o7.after.dnSst.DN100===1&&!Object.keys(o7.after.dnSoud||{}).length&&o7.after.prog===12&&o7.after.sleeves===12&&o7.after.doeLabel==='Point SST : pris'&&o7.after.doeSst===4&&o7.after.diam===4&&o7.after.vLeg;
 // ── c6
 C.c6=logs.length===0;console.log('c6) console :',JSON.stringify(logs.slice(0,5)));
 await browser.close();

@@ -19,8 +19,9 @@ await page.evaluate(()=>{const S=window.MAQ.state;S.supplier='AXIOM';S.lines=[{i
 const X=await page.evaluate(()=>{const B=window.MAQ.state.built;const out={tubes:{},welds:{},old:{},pieces:[]};
   Object.entries(B).forEach(([lid,b])=>['A','R'].forEach(c=>{const cd=b&&b[c];if(!cd)return;
     cd.pieces.forEach(p=>{if(p.kind!=='tube')return;out.pieces.push([lid,c,p.dn,+p.L.toFixed(3),!!p.manchette,!!p.nue]);if(!p.nue)(out.tubes[p.dn]=out.tubes[p.dn]||[]).push(p.L);if(!p.manchette&&!p.nue)out.old['pipe:'+p.dn]=(out.old['pipe:'+p.dn]||0)+1;});
-    const seen=new Set();cd.welds.forEach(w=>{if(w.sleeve){if(seen.has(w.sleeve))return;seen.add(w.sleeve);}out.welds[w.dn]=(out.welds[w.dn]||0)+1;
-      const pc=cd.pieces[w.i];const dOld=pc?(pc.dn||b.dn):0;out.old['sleeve:'+dOld]=(out.old['sleeve:'+dOld]||0)+1;out.old['pu:'+dOld]=(out.old['pu:'+dOld]||0)+1;});}));return out;});
+    const seen=new Set();cd.welds.forEach(w=>{if(w.sleeve){if(seen.has(w.sleeve))return;seen.add(w.sleeve);}
+      const pc=cd.pieces[w.i];const dOld=pc?(pc.dn||b.dn):0;out.old['sleeve:'+dOld]=(out.old['sleeve:'+dOld]||0)+1;out.old['pu:'+dOld]=(out.old['pu:'+dOld]||0)+1; /* l'ancien comptage (avant le 28/10) comptait aussi les bouts de ligne */
+      if(w.sst)return; /* 28/10 : point de bout de ligne (raccordement, kit) : ni manchon ni mousse */out.welds[w.dn]=(out.welds[w.dn]||0)+1;});}));return out;});
 const pack=(lens,bar)=>{let n=0;const cut=[];lens.forEach(L=>{if(L>=bar-0.005)n+=Math.ceil(L/bar-0.005);else cut.push(L);});cut.sort((a,b)=>b-a);const rest=[];cut.forEach(L=>{let k=-1;for(let i=0;i<rest.length;i++)if(rest[i]>=L-0.005&&(k<0||rest[i]<rest[k]))k=i;if(k<0){rest.push(bar-L);n++;}else rest[k]-=L;});return n;};
 const EXP={};Object.entries(X.tubes).forEach(([dn,L])=>{EXP['pipe:'+dn]=pack(L,12);});Object.entries(X.welds).forEach(([dn,n])=>{EXP['sleeve:'+dn]=n;EXP['pu:'+dn]=n;});
 console.log('pièces du traceur :',JSON.stringify(X.pieces));console.log('attendu :',JSON.stringify(EXP),'· ancien comptage :',JSON.stringify(X.old));
@@ -31,7 +32,7 @@ let n1=await NEED();const keys=Object.keys(EXP);
 C.c1=keys.every(k=>n1[k]===EXP[k])&&Object.keys(n1).filter(k=>/^pipe:/.test(k)).every(k=>k in EXP)&&n1['pipe:150']<=X.old['pipe:150']&&n1['pipe:80']<X.old['pipe:80'];
 console.log('1) besoin Fourniture :',JSON.stringify(n1));
 // ── 2) réduction : manchons de chaque côté au bon DN (le traceur dit le DN à la soudure)
-C.c2=(n1['sleeve:100']||0)===EXP['sleeve:100']&&(n1['sleeve:150']||0)===EXP['sleeve:150']&&EXP['sleeve:100']>0&&X.old['sleeve:150']-EXP['sleeve:150']===2;
+C.c2=(n1['sleeve:100']||0)===EXP['sleeve:100']&&(n1['sleeve:150']||0)===EXP['sleeve:150']&&EXP['sleeve:100']>0&&X.old['sleeve:150']-EXP['sleeve:150']===4; /* 28/10 : −2 (réduction : 1 manchon de chaque DN) −2 (raccordement au départ : point de bout de ligne) */
 console.log('2) manchons : DN150',n1['sleeve:150'],'(ancien',X.old['sleeve:150'],') · DN100',n1['sleeve:100'],'(ancien',X.old['sleeve:100']||0,')');
 // ── 3) tracé initial figé avant le 21/10 (ancien comptage, sans v) → converti : pas de fausses modifs
 let r3=await page.evaluate(async(old)=>{const T=window.TRACE;document.querySelector('#facets [data-facet=tech]').click();await new Promise(r=>setTimeout(r,200));document.querySelector('#tabbar [data-tab="fourniture"]').click();await new Promise(r=>setTimeout(r,400));
