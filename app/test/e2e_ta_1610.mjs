@@ -56,7 +56,7 @@ async function op(name,fn,re,o={}){const s0=o.snap?await o.snap():await SNAP();c
   OPS.push(ok?{op:name,ok,lab:h1.lab}:{op:name,ok,lab:h1.lab,chg:s1!==s0,n:[h0.n,h1.n],undo:s2===s0,redo:s3===s1,u,r});if(o.after)await o.after();return ok;}
 const fondTab=async()=>{await page.click('.tabs button[data-tab="fond"]');await wait(150);};
 const plId=n=>page.evaluate(n=>{const p=window.MAQ.bg.plans().find(x=>x.name===n);return p&&p.id;},n);
-await page.goto(BASE+'/traceur.html');await wait(400);await page.evaluate(()=>{localStorage.clear();localStorage.setItem('trace:wide','1');});await page.evaluate(()=>new Promise(r=>{const q=indexedDB.deleteDatabase('trace-kv');q.onsuccess=q.onerror=q.onblocked=()=>r();}));
+await page.goto(BASE+'/traceur.html');await wait(400);await page.evaluate(()=>{localStorage.clear();localStorage.setItem('trace:wide','1');localStorage.setItem('trace:traceurTab','same'); /* 28/10 (lot 2810g) : ce test suit le traceur dans la même page */});await page.evaluate(()=>new Promise(r=>{const q=indexedDB.deleteDatabase('trace-kv');q.onsuccess=q.onerror=q.onblocked=()=>r();}));
 await page.goto(BASE+'/traceur.html?site=new');await wait(900);
 // ════ c1 · K1 — les opérations du traceur une à une
 await page.evaluate(()=>{const M=window.MAQ;M.state.view={k:4,tx:120,ty:320};M.setMode('trace');M.rebuild();});await wait(150);

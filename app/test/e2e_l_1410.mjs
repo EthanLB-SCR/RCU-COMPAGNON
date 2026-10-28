@@ -68,7 +68,7 @@ const chips=()=>page.evaluate(()=>[...document.querySelectorAll('#eq-app .cm-qtc
 /* écran Tracé « visible » = l'appli a démarré (écran neutre déjà apparu ou TRACE défini) et aucun écran (neutre, accueil, connexion) ne le recouvre */
 const screens=async()=>{const L=await page.evaluate(()=>window.__scr||[]);let started=false;const out=[];L.forEach(s=>{if(s.ov||s.site!==null)started=true;if(!started)return;const w=s.ov?'neutre':s.login?'connexion':s.home?(s.fiche&&s.tab==='commerce'?'affaire':'accueil:'+s.tab):'TRACÉ';if(!out.length||out[out.length-1].w!==w)out.push({w,t:s.t});});return out;};
 // ── 0) connexion (serveur simulé), affaire en devis (fictive)
-await page.goto(BASE+'/index.html');await wait(500);await page.evaluate(()=>{localStorage.clear();localStorage.setItem('trace:wide','1');});
+await page.goto(BASE+'/index.html');await wait(500);await page.evaluate(()=>{localStorage.clear();localStorage.setItem('trace:wide','1');localStorage.setItem('trace:traceurTab','same'); /* 28/10 (lot 2810g) : ce test suit le traceur dans la même page */});
 await page.evaluate(()=>new Promise(r=>{try{const q=indexedDB.deleteDatabase('trace-kv');q.onsuccess=q.onerror=q.onblocked=()=>r();}catch(e){r();}}));
 await page.reload();await wait(900);
 await page.fill('#loginEmail',EMAIL);await page.fill('#loginPwd','Mot-de-passe-fictif-1');await page.click('#loginGo');await wait(1800);

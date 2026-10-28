@@ -105,8 +105,12 @@ export function lzLinkSite(num,id){if(!A||isDemo(id))return;const n=siteOf(id);c
 export function lzTraceurUrl(id,num){const a=num?regGet('affaire',num):null;const cv=(a&&+a.chiffrageV)||1;return './traceur.html?site='+encodeURIComponent(id||'new')+(num?'&aff='+encodeURIComponent(num)+'&cv='+cv:'');} /* C6 */
 export function lzTraceurNew(num){location.href=lzTraceurUrl('new',num);}
 /* 28/10 (lot 2810e) : recompter une étude avec le moteur du jour — le traceur s'ouvre sur l'étude et propose tout de suite l'enregistrement (mise à jour) qui recompte */
-export function lzRecountEtude(id,num){if(!A||!id||!num)return;const n=siteOf(id);lg('traceur',{id,aff:num,recount:1});A.toast('« '+((n&&n.name)||id)+' » : ouverture dans le traceur pour la recompter…');setTimeout(()=>{location.href=lzTraceurUrl(id,num)+'&recount=1';},300);}
-export function lzOpenEtude(id,num){if(!A)return;const n=siteOf(id);lg('traceur',{id,aff:num});A.toast('Étude « '+((n&&n.name)||id)+' » : ouverture dans le traceur de l\'affaire '+num+'…');setTimeout(()=>{location.href=lzTraceurUrl(id,num);},300);}
+export function lzRecountEtude(id,num){if(!A||!id||!num)return;const n=siteOf(id);lg('traceur',{id,aff:num,recount:1});A.toast('« '+((n&&n.name)||id)+' » : ouverture dans le traceur pour la recompter…');goTraceur(lzTraceurUrl(id,num)+'&recount=1');}
+/* 28/10 (lot 2810g) — « ça charge pas mal quand on rentre et ferme le traceur » : le traceur d'une étude s'ouvre dans SON onglet (le même à chaque fois) ; au retour il se ferme
+   et l'affaire est toujours là, à jour (message du traceur), sans rechargement. Téléphone / tablette (ou trace:traceurTab = same, ou onglet refusé) : comme avant, dans la page. */
+const tabMode=()=>{let m='';try{m=localStorage.getItem('trace:traceurTab')||'';}catch(e){}if(m==='same'||m==='new')return m;try{return matchMedia('(pointer:fine)').matches&&innerWidth>=900?'new':'same';}catch(e){return 'same';}};
+function goTraceur(url){if(tabMode()==='new'){let w=null;try{w=window.open(url,'trace-traceur');}catch(e){w=null;}if(w){try{w.focus();}catch(e){}return;}}setTimeout(()=>{location.href=url;},300);}
+export function lzOpenEtude(id,num){if(!A)return;const n=siteOf(id);lg('traceur',{id,aff:num});A.toast('Étude « '+((n&&n.name)||id)+' » : ouverture dans le traceur de l\'affaire '+num+'…');goTraceur(lzTraceurUrl(id,num));}
 /* openSiteFromHome (carte, liste, notifications, liens, « ↗ Ouvrir le tracé »…) : une étude n'ouvre JAMAIS l'écran Tracé → son traceur */
 export function lzGuardOpen(id){if(!A||!id||id==='__vide')return false;if(mutuGuardOpen(id))return true; /* lot MU : étude versée → son chantier */let et=false;try{et=!!A.etudeOf(id);}catch(e){}if(!et)return false;const num=etudeAffOf(id);
   if(!num){const n=siteOf(id);A.toast('« '+((n&&n.name)||id)+' » est une étude (dossier commercial) : elle s\'ouvre depuis son affaire, dans le traceur');return true;}

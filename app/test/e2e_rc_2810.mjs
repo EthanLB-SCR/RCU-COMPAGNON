@@ -44,12 +44,18 @@ const q2=await page.evaluate(([id,n])=>{const chip=document.querySelector(`#eq-a
   return {chip:chip?chip.textContent.replace(/\s+/g,' '):'',box:!!box,boxBtn:!!(box&&box.querySelector(`[data-v="etrecount|${id}"]`)),ref:a&&a.quantites?(a.quantites.rows||[]).reduce((s,r)=>s+(+r.soud||0),0):null};},[sid,N1]);
 console.log('2) Quantités :',J(q2));C.c2=new RegExp(nOld+' soudures').test(q2.chip)&&/★ référence/.test(q2.chip)&&!/à reprendre/.test(q2.chip)&&/⚠ à recompter/.test(q2.chip)&&q2.box&&q2.boxBtn&&(q2.ref===null||q2.ref===nOld);
 // ── ⟳ Recompter → le traceur
-await Promise.all([page.waitForURL(/traceur\.html/,{timeout:15000}),page.evaluate(id=>document.querySelector(`#eq-app [data-v="etrecount|${id}"]`).click(),sid)]);await wait(2200);
-const t3=await page.evaluate(()=>{const m=document.getElementById('modal');const n=document.getElementById('svRecount');return {show:!!(m&&m.classList.contains('show')),note:n?n.textContent.replace(/\s+/g,' '):'',mode:(document.getElementById('svMode')||{}).value||'',name:(document.getElementById('svName')||{}).value||'',lines:window.MAQ.state.lines.length,ref:window.MAQ.state.siteRef&&window.MAQ.state.siteRef.id};});
-console.log('3) traceur :',J(t3));C.c3=t3.show&&new RegExp('Recompté avec le moteur du 28/10 : '+nOk+' soudures \\('+nOld+' au dernier enregistrement\\)').test(t3.note)&&t3.mode==='update'&&t3.name==='Étude recompte'&&t3.lines===1&&t3.ref===sid;
+/* 28/10 (lot 2810g) : sur PC, le traceur s'ouvre dans SON onglet ; l'appli reste ouverte derrière (pas rechargée) */
+await page.evaluate(()=>{window.__garde=1;});
+const [pop]=await Promise.all([page.waitForEvent('popup',{timeout:15000}),page.evaluate(id=>document.querySelector(`#eq-app [data-v="etrecount|${id}"]`).click(),sid)]);
+pop.on('pageerror',e=>logs.push('PAGEERROR (traceur): '+e.message.slice(0,300)));pop.on('dialog',d=>d.accept().catch(()=>{}));await pop.waitForLoadState('load');await pop.waitForTimeout(2200);
+const t3=await pop.evaluate(()=>{const m=document.getElementById('modal');const n=document.getElementById('svRecount');return {show:!!(m&&m.classList.contains('show')),note:n?n.textContent.replace(/\s+/g,' '):'',mode:(document.getElementById('svMode')||{}).value||'',name:(document.getElementById('svName')||{}).value||'',lines:window.MAQ.state.lines.length,ref:window.MAQ.state.siteRef&&window.MAQ.state.siteRef.id};});
+console.log('3) traceur (onglet) :',J(t3));C.c3=/traceur\.html/.test(pop.url())&&/index\.html/.test(page.url())&&t3.show&&new RegExp('Recompté avec le moteur du 28/10 : '+nOk+' soudures \\('+nOld+' au dernier enregistrement\\)').test(t3.note)&&t3.mode==='update'&&t3.name==='Étude recompte'&&t3.lines===1&&t3.ref===sid;
 // ── Enregistrer → retour à l'affaire
-await page.click('#svOk');await wait(1500);const saved=await kvGet('trace:handoff:'+sid);
-await Promise.all([page.waitForURL(/index\.html/,{timeout:15000}),page.click('#svGo')]);await wait(1800);await skipLogin();
+await pop.click('#svOk');await pop.waitForTimeout(1500);const saved=await kvGet('trace:handoff:'+sid);
+const goTxt=await pop.evaluate(()=>(document.getElementById('svGo')||{}).textContent||'');
+await Promise.all([pop.waitForEvent('close',{timeout:10000}),pop.click('#svGo')]);await wait(800);
+const back=await page.evaluate(()=>({garde:window.__garde===1,url:location.href,vis:document.visibilityState}));console.log('retour :',J({goTxt,back}));
+C.c3b=/Retour à l'affaire/.test(goTxt)&&back.garde; /* fermé, l'appli n'a pas été rechargée */
 await openAff('sites');const r4=await page.evaluate(id=>{const r=document.querySelector(`#eq-app .lz-row[data-lzsite="${id}"]`);return r?{rc:!!r.querySelector('[data-v^="etrecount|"]'),txt:r.textContent.replace(/\s+/g,' ').slice(0,140)}:null;},sid);
 await openAff('quantites');await page.evaluate(id=>{const b=document.querySelector(`#eq-app [data-v="qssel|trace:${id}"]`);if(b)b.click();},sid);await wait(400);
 const q4=await page.evaluate(id=>{const chip=document.querySelector(`#eq-app [data-v="qssel|trace:${id}"]`);const take=document.querySelector(`#eq-app [data-v="qstake|trace:${id}"]`);return {chip:chip?chip.textContent.replace(/\s+/g,' '):'',take:take?take.textContent:'',box:[...document.querySelectorAll('#eq-app .warnbox')].some(b=>/moteur d'avant/.test(b.textContent))};},sid);
@@ -58,6 +64,13 @@ const q4b=await page.evaluate(([id,n])=>{const chip=document.querySelector(`#eq-
 console.log('4) après :',J({moteur:saved&&saved.traceur&&saved.traceur.moteur,nSaved:saved&&countOf(saved),r4,q4,q4b}));
 C.c4=!!saved&&saved.traceur.moteur==='2810c'&&countOf(saved)===nOk&&!!r4&&!r4.rc&&new RegExp(nOk+' soudures').test(r4.txt)&&new RegExp(nOk+' soudures').test(q4.chip)&&/à reprendre/.test(q4.chip)&&!/à recompter/.test(q4.chip)&&!q4.box&&/Reprendre la référence/.test(q4.take)
   &&!/à reprendre/.test(q4b.chip)&&/★ référence/.test(q4b.chip)&&q4b.tag&&(q4b.ref===null||q4b.ref===nOk);
+// ── c7 · 28/10 (lot 2810g, Ethan : « allez, ça marche ») : le même ⟳ Recompter sur un CHANTIER (onglet Plan, chef / bureau) → le traceur sur ce chantier, l'enregistrement proposé
+{const ch=JSON.parse(JSON.stringify(old));ch.id='trc_chrc01';ch.name='Chantier recompte';delete ch.fiche;delete ch.traceur.ctx;await kvSet('trace:handoff:'+ch.id,ch);
+ await page.evaluate(c=>{window.TRACE.etude.addSite(c);},ch);await page.evaluate(async id=>{const T=window.TRACE;T.state.userId='ethan';await T.openSiteFromHome(id);},ch.id);await wait(1500);
+ const b7=await page.evaluate(()=>{const b=document.getElementById('btnRecount');return b?b.textContent:null;});
+ if(b7){await Promise.all([page.waitForURL(/traceur\.html/,{timeout:15000}),page.evaluate(()=>document.getElementById('btnRecount').click())]);await wait(2200);} /* le bouton est dans le menu ☰ du plan */
+ const t7=b7?await page.evaluate(()=>({note:(document.getElementById('svRecount')||{}).textContent||'',ref:window.MAQ&&window.MAQ.state.siteRef&&window.MAQ.state.siteRef.id})):null;
+ console.log('7) chantier :',J({b7,t7}));C.c7=!!b7&&/Recompter/.test(b7)&&!!t7&&new RegExp('Recompté avec le moteur du 28/10 : '+nOk+' soudures \\('+nOld+' au dernier').test(t7.note)&&t7.ref===ch.id;}
 console.log('erreurs console :',J(logs));C.c6=logs.length===0;
 const ko=Object.entries(C).filter(([k,v])=>!v).map(([k])=>k);console.log(J(C));console.log(ko.length?'RESULTAT: KO '+ko.join(','):'RESULTAT: TOUT VERT');
 await browser.close();
