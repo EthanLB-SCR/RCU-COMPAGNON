@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Plan interactif</title>
+<!-- 28/10 (lot 2810d) — PLAN INTERACTIF PARTAGÉ PAR LIEN. Ethan : « même en zip ça fait complètement bugger ma boîte mail ». L'appli dépose le plan interactif (le même .html que
+     l'export DOE) dans le stockage du serveur et donne un lien vers cette page : plan.html#p=<chemin>&t=<jeton>. La page le lit (adresse signée, valable 1 an) et l'affiche dans un
+     cadre ISOLÉ (sandbox sans allow-same-origin : le plan ne voit rien de l'appli, ni session ni données). Seul le stockage de l'appli est lu (chemin …/partages/….html, jamais une autre
+     adresse). Le fragment (#…) n'est jamais envoyé au serveur qui sert cette page. -->
+<style>
+html,body{margin:0;height:100%;background:#f4f3ee;color:#24221f;font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#msg{max-width:560px;margin:12vh auto 0;padding:24px 16px;text-align:center}
+#msg b{display:block;font-size:18px;margin-bottom:6px}
+#msg .dim{color:#6f6b63;font-size:13px}
+#v{position:fixed;inset:0;width:100%;height:100%;border:0;display:none;background:#fff}
+</style>
+</head>
+<body>
+<div id="msg" role="status"><b>Plan interactif</b>Chargement…</div>
+<iframe id="v" title="Plan interactif" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads"></iframe>
+<script>
+(function(){
+  var SB='https://pghftlepduvfazbiavhq.supabase.co'; /* même serveur que l'appli (src/sync.js) */
+  var msg=document.getElementById('msg'),frame=document.getElementById('v');
+  function say(title,txt){msg.innerHTML='';var b=document.createElement('b');b.textContent=title;msg.appendChild(b);var d=document.createElement('div');d.className='dim';d.textContent=txt;msg.appendChild(d);msg.style.display='';}
+  var h=new URLSearchParams(String(location.hash||'').replace(/^#/,''));var p=h.get('p')||'',t=h.get('t')||'';
+  if(!/^[^\/]{1,120}\/partages\/[^\/]{1,160}\.html$/.test(p)||p.indexOf('..')>=0||!/^[\w.\-]{20,4000}$/.test(t)){say('Lien incomplet','Le lien a été coupé en route : demande à l’expéditeur de te le renvoyer (ou copie-le en entier dans la barre d’adresse).');return;}
+  var url=SB+'/storage/v1/object/sign/photos/'+p.split('/').map(encodeURIComponent).join('/')+'?token='+encodeURIComponent(t);
+  fetch(url,{cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer'}).then(function(r){
+    if(!r.ok){if(r.status===400||r.status===401||r.status===403)say('Lien expiré','Ce lien n’est plus valable : demande un nouveau lien à l’expéditeur.');else if(r.status===404)say('Plan introuvable','Ce plan a été retiré : demande un nouveau lien à l’expéditeur.');else say('Plan indisponible','Le serveur ne répond pas ('+r.status+') : réessaie dans un instant.');return null;}
+    return r.text();
+  }).then(function(html){
+    if(html==null)return;
+    if(!/<html[\s>]/i.test(html)||!/Plan interactif/.test(html)){say('Plan illisible','Le fichier reçu n’est pas un plan interactif.');return;}
+    var m=html.match(/<title>([^<]{1,200})<\/title>/i);if(m){var tmp=document.createElement('textarea');tmp.innerHTML=m[1];document.title=tmp.value;}
+    frame.srcdoc=html;frame.style.display='block';msg.style.display='none';
+  }).catch(function(){if(navigator.onLine===false)say('Pas de connexion','Le plan interactif s’ouvre en ligne : vérifie la connexion internet puis recharge la page.');else say('Plan inaccessible','Le serveur n’a pas répondu ou a refusé la lecture : recharge la page dans un instant ; si ça persiste, demande à l’expéditeur de t’envoyer le fichier.');});
+})();
+</script>
+</body>
+</html>

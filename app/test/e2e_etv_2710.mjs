@@ -30,10 +30,10 @@ await page.evaluate(([s1,s2,n])=>{const T=window.TRACE;T.etude.addSite(s1);T.etu
 const st0=await page.evaluate(()=>({screen:window.TRACE.state.screen,site:window.TRACE.state.siteId,nL:Object.keys(window.TRACE.state.lines||{}).length,net:(window.TRACE.net||{}).id||null}));
 // ── c1 · onglet Tracé & chantiers : le bouton sur l'étude tracée, pas sur l'étude vide
 await openAff(N1,'sites');await wait(500);
-let o=await page.evaluate(()=>{const R=[...document.querySelectorAll('#eq-app .lz-row')].map(r=>({id:r.dataset.lzsite,et:!!r.querySelector('.lz-tag.et'),open:!!r.querySelector('[data-v^="etopen|"]'),viewer:!!r.querySelector('[data-v^="etviewer|"]'),mail:!!r.querySelector('[data-v^="etmail|"]'),txt:r.textContent.replace(/\s+/g,' ').trim().slice(0,120)}));return R;});
+let o=await page.evaluate(()=>{const R=[...document.querySelectorAll('#eq-app .lz-row')].map(r=>({id:r.dataset.lzsite,et:!!r.querySelector('.lz-tag.et'),open:!!r.querySelector('[data-v^="etopen|"]'),viewer:!!r.querySelector('[data-v^="etviewer|"]'),mail:!!r.querySelector('[data-v^="etmail|"]'),link:!!r.querySelector('[data-v^="etlink|"]'),txt:r.textContent.replace(/\s+/g,' ').trim().slice(0,120)}));return R;});
 console.log('1) lignes :',J(o));
 const r1=o.find(x=>x.id==='trc_e1')||{},r2=o.find(x=>x.id==='trc_e2')||{};
-C.c1=r1.et&&r1.open&&r1.viewer&&r1.mail&&r2.et&&r2.open&&!r2.viewer&&!r2.mail;
+C.c1=r1.et&&r1.open&&r1.viewer&&r1.mail&&r1.link&&r2.et&&r2.open&&!r2.viewer&&!r2.mail&&!r2.link;
 // ── c2 · le téléchargement
 const [dl]=await Promise.all([page.waitForEvent('download',{timeout:15000}),click('etviewer|trc_e1')]);
 const path=await dl.path();const fs=await import('fs');const html=fs.readFileSync(path,'utf8');
@@ -45,7 +45,15 @@ const [dz]=await Promise.all([page.waitForEvent('download',{timeout:15000}),clic
 const files=unzipSync(new Uint8Array(fs.readFileSync(pz)));const inner=strFromU8(files['Plan_interactif_Reseau_etude_E.html']||new Uint8Array());await wait(300);
 const o2b={name:dz.suggestedFilename(),n:fs.statSync(pz).size,names:Object.keys(files),innerOk:/<title>Plan interactif — Réseau étude E<\/title>/.test(inner)&&Math.abs(inner.length-html.length)<200,lisez:/Extraire tout/.test(strFromU8(files['Lisez-moi.txt']||new Uint8Array())),toast:await page.evaluate(()=>(document.querySelector('#toast,.toast')||{}).textContent||'')};
 console.log('2b) pour mail :',J(o2b));
-C.c2b=o2b.name==='Plan_interactif_Reseau_etude_E.zip'&&o2b.n<html.length/2&&o2b.names.length===2&&o2b.innerOk&&o2b.lisez&&/pour mail/.test(o2b.toast);
+C.c2b=o2b.name==='Plan_interactif_Reseau_etude_E.zip'&&o2b.n<html.length/2&&o2b.names.length===2&&o2b.innerOk&&o2b.lisez&&/zippé/.test(o2b.toast);
+// ── c2c · 28/10 (lot 2810d, Ethan : « même en zip ça fait bugger ma boîte mail ») : 🔗 Lien à envoyer → la maquette de l'étude mise en ligne (serveur simulé), la fenêtre du lien ;
+//    l'appli n'a pas bougé pendant ce temps (vérifié en c3)
+await page.evaluate(()=>{window.__UP=null;window.TRACE.doe.shareHook(async(id,name,html)=>{window.__UP={id,name,n:html.length,t:/<title>Plan interactif — Réseau étude E<\/title>/.test(html)};return {path:id+'/partages/1_'+name+'.html',url:'https://pghftlepduvfazbiavhq.supabase.co/storage/v1/object/sign/photos/'+id+'/partages/1_'+name+'.html?token=eyJhbGciOiJIUzI1NiJ9.e30.c2lnbmF0dXJlX2ZpY3RpdmU'};});});
+await click('etlink|trc_e1');await wait(800);
+const o2c=await page.evaluate(()=>({up:window.__UP,link:(document.querySelector('#modal.show #shLink')||{}).value||'',h:(document.querySelector('#modal.show h3')||{}).textContent||''}));
+await page.evaluate(()=>{const c=document.querySelector('#shClose');if(c)c.click();window.TRACE.doe.shareHook(null);});await wait(200);
+console.log('2c) lien :',J({up:o2c.up,h:o2c.h,link:o2c.link.slice(0,110)}));
+C.c2c=!!o2c.up&&o2c.up.id==='trc_e1'&&o2c.up.name==='Plan_interactif_Reseau_etude_E'&&o2c.up.t&&/Lien du plan interactif/.test(o2c.h)&&/\/plan\.html#p=trc_e1%2Fpartages%2F1_Plan_interactif_Reseau_etude_E\.html&t=eyJ/.test(o2c.link);
 // ── c3 · l'appli n'a pas bougé
 const st1=await page.evaluate(()=>({screen:window.TRACE.state.screen,site:window.TRACE.state.siteId,nL:Object.keys(window.TRACE.state.lines||{}).length,net:(window.TRACE.net||{}).id||null,tab:window.TRACE.affaires.state().tab,cur:window.TRACE.affaires.state().cur,toast:(document.querySelector('#toast,.toast')||{}).textContent||''}));
 console.log('3) avant / après :',J(st0),J(st1));
