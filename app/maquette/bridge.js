@@ -2,6 +2,7 @@
 // Les numéros de soudure sont stables d'un enregistrement à l'autre (appariement ligne / conduite / PK avec la version précédente) pour que les statuts et photos survivent aux retouches.
 const KIND={tube:'pipe',bend:'bend',tee:'tee',valve:'valve',reducer:'reducer',endcap:'endcap',endpoint:'endpoint',bypassEnd:'bypass',teeBranch:'teeout'};
 const KLABEL={pipe:'barre',bend:'coude',tee:'té',valve:'vanne',reducer:'réduction',endcap:'fin de ligne',endpoint:'raccordement',bypass:'by-pass',teeout:'sortie de té'};
+import {MOTEUR_V} from '../src/moteur.js'; // 28/10 (lot 2810e) : la version du moteur de comptage part avec chaque enregistrement
 import {reduceDrawing} from '../src/dxfimport.js';
 import {marcheSnapshot} from '../src/marche.js';
 import {fuseDxfPlans,legacyImageOfPlan,tfNorm,planMeta} from '../src/plans.js'; // 14/10 (multi-plans) ; planMeta : 14/10 soir (T2), PDF / échelle 1/N
@@ -64,7 +65,7 @@ export function siteFromTraceur({id,name,supplier,serie,lines,built,rules,bg,pre
   const site={id,name,supplier,serie,source:'traceur',method:'Réseau tracé à la main dans le traceur (sommets → pièces catalogue selon les règles)',crs:bgName?('repère du plan '+bgName):'repère libre (m)',
     sheetType:drawing?'vector':'plain',drawing,image,plans:sitePlans,w:Math.ceil(x1+20),h:Math.ceil(y1+20),bbox:[x0,y0,x1,y1],nbox:lx0<=lx1?[r3(lx0),r3(ly0),r3(lx1),r3(ly1)]:null,
     lines:outLines,warnings:[],report:{source:'traceur',lines:outLines.length,welds:nW,length:r3(totL),lost:lost.map(w=>w.weldId)},
-    traceur:{v:1,lines:JSON.parse(JSON.stringify(lines)),rules,bgName,bgOpacity,bgOrigin,bgLayers,profondeur:prof!=null&&isFinite(+prof)?+prof:undefined,savedAt:new Date().toISOString()},created:new Date().toISOString()}; // 14/10 : profondeur — variable des règles de dilatation à venir
+    traceur:{v:1,moteur:MOTEUR_V,lines:JSON.parse(JSON.stringify(lines)),rules,bgName,bgOpacity,bgOrigin,bgLayers,profondeur:prof!=null&&isFinite(+prof)?+prof:undefined,savedAt:new Date().toISOString()},created:new Date().toISOString()}; // 14/10 : profondeur — variable des règles de dilatation à venir
   Object.assign(site.traceur,{ctx:etude?'etude':'chantier',cv:Math.max(1,parseInt(cv,10)||1),zones:zonesOut(zones,outLines)}); // 14/10 soir (lot T1) : contexte (C5), version du chiffrage (C3), zones de chiffrage (C4)
   if(etude){if(Array.isArray(ghosts)&&ghosts.length)site.traceur.ghosts=ghosts;if(vref&&Array.isArray(vref.lines))site.traceur.vref=vref;} // 16/10 soir (lot TB, K3) : lignes supprimées (fantômes, grisées dans le traceur) et tracé au début de la version en cours — JAMAIS dans site.lines (ni pièces, ni soudures, ni quantités) ; morceaux supprimés d'une ligne : traceur.lines[].del
   if(bg&&bg.geo&&bg.geo.crs&&bg.geo.aff)site.geo=bg.geo;else if(prev&&prev.geo)site.geo=prev.geo; // 14/10 soir (T2) : le géoréférencement du traceur (vue aérienne) FAIT FOI ; sans lui, le calage à la main fait dans l'appli est conservé d'une version du tracé à l'autre (même repère de plan)

@@ -171,6 +171,31 @@ console.log('8) après rechargement (hors ligne : l\'avancement des soudures vit
  C.c8c=!!up&&up.id&&up.title&&up.noTs&&!!m&&/Lien du plan interactif/.test(m.h)&&new RegExp('^'+BASE.replace(/[.]/g,'\\.')+'/plan\\.html#p=[^&]+%2Fpartages%2F1793180000000_Plan_interactif_DOE_test\\.html&t=eyJ').test(m.link)&&m.open===m.link&&/^mailto:\?subject=Plan%20interactif/.test(m.mail)&&m.mail.includes(encodeURIComponent(m.link))&&m.copy
    &&v.shown&&v.msg==='none'&&v.sb==='allow-scripts allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads'&&v.title==='Plan interactif — DOE test'&&inside&&inside.svg>0&&inside.ls==='fermé'
    &&/Lien incomplet/.test(bad1)&&/Lien incomplet/.test(bad2)&&/Lien expiré/.test(bad3)&&/Lien impossible : pas connecté/.test(t4)&&!modal4&&!plogs.length;}
+// 8d) 28/10 (lot 2810f, Ethan : « le lien sera-t-il le même à l'avancée du chantier ? » ; « possible de largement raccourcir ? ») : lien COURT et PERMANENT plan.html#k=<code>
+//     (table partages, serveur simulé) : 1re publication → « Lien permanent », 2e → « Plan mis à jour », le MÊME lien ; plan.html#k= → partage_url (clé publique, code) → le plan ;
+//     code coupé / inconnu → « Lien coupé ou expiré » ; une adresse hors du stockage de l'appli → refusée ; ✂ Couper le lien
+{const SB='https://pghftlepduvfazbiavhq.supabase.co';const CODE='Ab3dEf7hJk';
+ await page.evaluate(code=>{window.__N=0;window.__RV=null;window.TRACE.doe.shareHook(async(id,name,html)=>{window.__N++;window.__H=html;return {code,url:'https://pghftlepduvfazbiavhq.supabase.co/storage/v1/object/sign/photos/'+id+'/partages/'+window.__N+'_'+name+'.html?token=eyJhbGciOiJIUzI1NiJ9.e30.c2lnbmF0dXJlX2ZpY3RpdmU',created:window.__N===1};},async id=>{window.__RV=id;return {n:1};});},CODE);
+ const pub=async()=>{await page.click('#doeLink');await page.waitForTimeout(700);return page.evaluate(()=>{const b=document.querySelector('#modal.show .box');return b?{txt:b.querySelector('.muted').textContent.replace(/\s+/g,' '),link:b.querySelector('#shLink').value,cut:!!b.querySelector('#shCut'),mail:(b.querySelector('#shMail')||{}).href||''}:null;});};
+ const m1=await pub();await page.evaluate(()=>{const c=document.querySelector('#shClose');if(c)c.click();});const m2=await pub();
+ let rpcBody=null,rpcKey=null;
+ await ctx.route(SB+'/rest/v1/rpc/partage_url',async r=>{const req=r.request();const H={'access-control-allow-origin':'*','access-control-allow-headers':'apikey, content-type, accept, authorization','access-control-allow-methods':'POST, OPTIONS'};
+   if(req.method()==='OPTIONS'){r.fulfill({status:204,headers:H});return;}rpcBody=rpcBody||req.postData();rpcKey=rpcKey||req.headers()['apikey']||null;const body0=req.postData();const code=(JSON.parse(body0||'{}')||{}).p_code;
+   r.fulfill({status:200,contentType:'application/json',headers:H,body:code===CODE?JSON.stringify(SB+'/storage/v1/object/sign/photos/x/partages/2_Plan.html?token=eyJhbGciOiJIUzI1NiJ9.e30.c2lnbmF0dXJlX2ZpY3RpdmU'):code==='Evil123456'?JSON.stringify('https://evil.example/x.html'):'null'});});
+ const P=await ctx.newPage();const plogs=[];P.on('pageerror',e=>plogs.push(e.message.slice(0,200)));
+ await P.goto(m1.link);await P.waitForTimeout(1500);
+ const v=await P.evaluate(()=>({title:document.title,shown:document.getElementById('v').style.display==='block'}));
+ const fr=P.frames().find(f=>f!==P.mainFrame());const inside=fr?await fr.evaluate(()=>document.querySelectorAll('svg').length).catch(()=>0):0;
+ await P.goto('about:blank');await P.goto(BASE+'/plan.html#k=Zz9Zz9Zz9Z');await P.waitForTimeout(600);const gone=await P.evaluate(()=>document.getElementById('msg').textContent);
+ await P.goto('about:blank');await P.goto(BASE+'/plan.html#k=Evil123456');await P.waitForTimeout(600);const evil=await P.evaluate(()=>document.getElementById('msg').textContent);
+ await P.goto('about:blank');await P.goto(BASE+'/plan.html#k=abc');await P.waitForTimeout(300);const short=await P.evaluate(()=>document.getElementById('msg').textContent);
+ await P.close();
+ await page.evaluate(()=>{const c=document.querySelector('#shCut');if(c)c.click();});await page.waitForTimeout(600);
+ const rv=await page.evaluate(()=>({rv:window.__RV,modal:!!document.querySelector('#modal.show'),toast:(document.querySelector('#toast,.toast')||{}).textContent||''}));
+ await page.evaluate(()=>window.TRACE.doe.shareHook(null));
+ out={m1:m1&&{txt:m1.txt.slice(0,100),link:m1.link,cut:m1.cut},m2:m2&&{txt:m2.txt.slice(0,100),link:m2.link},rpcBody,rpcKey:!!rpcKey,v,inside,gone,evil,short,rv,plogs};console.log('8d) lien court et permanent :',JSON.stringify(out));
+ C.c8d=!!m1&&m1.link===BASE+'/plan.html#k='+CODE&&/Lien permanent de « DOE test »/.test(m1.txt)&&m1.cut&&/même pendant tout le chantier/.test(decodeURIComponent(m1.mail))&&!!m2&&m2.link===m1.link&&/Plan mis à jour/.test(m2.txt)
+   &&rpcBody===JSON.stringify({p_code:CODE})&&!!rpcKey&&v.shown&&v.title==='Plan interactif — DOE test'&&inside>0&&/Lien coupé ou expiré/.test(gone)&&/Lien coupé/.test(evil)&&/Lien incomplet/.test(short)&&rv.rv&&!rv.modal&&/Lien coupé/.test(rv.toast)&&!plogs.length;}
 const bad=Object.entries(C).filter(([k,v])=>!v).map(([k])=>k);console.log(bad.length?'RESULTAT: ECHEC '+bad.join(','):'RESULTAT: TOUT VERT');console.log(logs.length?logs:'[]');
 /* (plus de fichier à retirer dans /tmp/site) */
 await browser.close();

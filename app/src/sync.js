@@ -1,6 +1,7 @@
 // Synchronisation avec Supabase (base en Europe) : connexion par e-mail, chantiers importés, statuts/fiches de soudure, état des lignes, photos.
 // bac à sable (10/10) : un chantier « demo_… » ne touche JAMAIS le serveur (ni données, ni fichiers) — tout reste sur l'appareil
 const isSandbox = id => typeof id === 'string' && id.startsWith('demo_');
+const randCode = n => { const L = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'; const b = new Uint8Array(n); crypto.getRandomValues(b); return Array.from(b, x => L[x % L.length]).join('') }; // 28/10 (lot 2810f) : code des liens courts (sans 0/O, 1/l/I)
 import { createClient } from '@supabase/supabase-js'
 export const SUPABASE_URL = 'https://pghftlepduvfazbiavhq.supabase.co'
 export const SUPABASE_KEY = 'sb_publishable_uK_JK38eKQ9s-s8LbXRzCA_hwg2PdxT'
@@ -123,5 +124,23 @@ export const sync = {
      (photos/<chantier>/partages/), en text/plain (jamais exécuté sur le domaine du serveur), avec une adresse signée valable 1 an ; plan.html (la page publique de l'appli) le lit et
      l'affiche dans un cadre isolé. Rien à installer chez le destinataire, rien en pièce jointe. */
   async uploadShare(siteId, name, html) { if (isSandbox(siteId)) return { err: 'chantier de démonstration' }; if (!(await ok())) return { err: 'pas connecté (ou hors ligne)' }; try { const safe = String(name || 'Plan_interactif').replace(/[^\w.\-]+/g, '_').slice(-60); const path = `${siteId}/partages/${Date.now()}_${safe}.html`; const blob = new Blob([html], { type: 'text/plain;charset=utf-8' }); const { error } = await sb.storage.from('photos').upload(path, blob, { contentType: 'text/plain;charset=utf-8' }); if (error) { console.warn(error); return { err: error.message || String(error) } } const { data, error: e2 } = await sb.storage.from('photos').createSignedUrl(path, 60 * 60 * 24 * 365); if (e2 || !data || !data.signedUrl) return { err: (e2 && e2.message) || 'adresse refusée par le serveur' }; return { path, url: data.signedUrl } } catch (e) { console.warn(e); return { err: (e && e.message) || String(e) } } },
+  /* 28/10 (lot 2810f) — Ethan : « le lien sera-t-il le même à l'avancée du chantier ? » ; « possible de largement raccourcir ? » : LIEN COURT ET PERMANENT. Table partages
+     (sql/retours_28-10.sql) : un code de 10 caractères par chantier → le dernier plan publié. Publier : le plan part dans le stockage (uploadShare) et le code du chantier pointe dessus
+     (créé la 1re fois) — le lien plan.html#k=<code> ne change plus. Sans la table (script pas encore passé) : repli sur le lien long, rien ne casse. */
+  async sharePut(siteId, name, html) { if (isSandbox(siteId)) return { err: 'chantier de démonstration' }; if (!(await ok())) return { err: 'pas connecté (ou hors ligne)' };
+    try { const cur0 = await sb.from('partages').select('code,path').eq('site_id', siteId).is('revoked_at', null).maybeSingle();
+      if (cur0.error) { if (/PGRST20\d|42P01|schema cache|does not exist|Could not find/i.test((cur0.error.message || '') + ' ' + (cur0.error.code || ''))) { const r = await this.uploadShare(siteId, name, html); return Object.assign({ legacy: true }, r) } return { err: cur0.error.message || String(cur0.error) } }
+      const up = await this.uploadShare(siteId, name, html); if (up.err) return up;
+      const exp = new Date(Date.now() + 365 * 864e5).toISOString();
+      const upd = async code => { const { error } = await sb.from('partages').update({ path: up.path, url: up.url, nom: name, updated_at: new Date().toISOString(), expires_at: exp }).eq('code', code); return error };
+      let cur = cur0.data;
+      if (!cur) { const code = randCode(10); const { error } = await sb.from('partages').insert({ code, site_id: siteId, path: up.path, url: up.url, nom: name, expires_at: exp });
+        if (!error) return { code, url: up.url, path: up.path, created: true };
+        if (!/23505|duplicate/i.test((error.message || '') + ' ' + (error.code || ''))) return { err: error.message || String(error) };
+        const again = await sb.from('partages').select('code,path').eq('site_id', siteId).is('revoked_at', null).maybeSingle(); cur = again.data; if (!cur) return { err: 'lien du chantier introuvable' } } /* créé en même temps par un autre appareil : on le reprend */
+      const e2 = await upd(cur.code); if (e2) return { err: e2.message || String(e2) };
+      if (cur.path && cur.path !== up.path) { try { await sb.storage.from('photos').remove([cur.path]) } catch (e) {} } /* l'ancien plan : plus servi par le lien (s'il ne part pas, il reste dans le stockage, sans risque) */
+      return { code: cur.code, url: up.url, path: up.path, created: false } } catch (e) { console.warn(e); return { err: (e && e.message) || String(e) } } },
+  async shareRevoke(siteId) { if (!(await ok())) return { err: 'pas connecté (ou hors ligne)' }; try { const { data, error } = await sb.from('partages').update({ revoked_at: new Date().toISOString() }).eq('site_id', siteId).is('revoked_at', null).select('code,path'); if (error) return { err: error.message || String(error) }; (data || []).forEach(r => { if (r.path) sb.storage.from('photos').remove([r.path]).catch(() => {}) }); return { n: (data || []).length } } catch (e) { return { err: (e && e.message) || String(e) } } },
   async uploadPhoto(siteId, weldId, dataUrl) { if (isSandbox(siteId)) return null; if (!(await ok())) return null; try { const blob = await (await fetch(dataUrl)).blob(); const path = `${siteId}/${weldId}/${Date.now()}.jpg`; const { error } = await sb.storage.from('photos').upload(path, blob, { contentType: blob.type || 'image/jpeg' }); if (error) { console.warn(error); return null } const { data } = await sb.storage.from('photos').createSignedUrl(path, 60 * 60 * 24 * 365); return data ? data.signedUrl : path } catch (e) { console.warn(e); return null } },
 }

@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
 <title>Plan interactif</title>
-<!-- 28/10 (lot 2810d) — PLAN INTERACTIF PARTAGÉ PAR LIEN. Ethan : « même en zip ça fait complètement bugger ma boîte mail ». L'appli dépose le plan interactif (le même .html que
+<!-- 28/10 (lot 2810d, 2810f : lien court et permanent #k=<code>) — PLAN INTERACTIF PARTAGÉ PAR LIEN. Ethan : « même en zip ça fait complètement bugger ma boîte mail ». L'appli dépose le plan interactif (le même .html que
      l'export DOE) dans le stockage du serveur et donne un lien vers cette page : plan.html#p=<chemin>&t=<jeton>. La page le lit (adresse signée, valable 1 an) et l'affiche dans un
      cadre ISOLÉ (sandbox sans allow-same-origin : le plan ne voit rien de l'appli, ni session ni données). Seul le stockage de l'appli est lu (chemin …/partages/….html, jamais une autre
      adresse). Le fragment (#…) n'est jamais envoyé au serveur qui sert cette page. -->
@@ -24,20 +24,34 @@ html,body{margin:0;height:100%;background:#f4f3ee;color:#24221f;font:15px/1.45 s
 <script>
 (function(){
   var SB='https://pghftlepduvfazbiavhq.supabase.co'; /* même serveur que l'appli (src/sync.js) */
+  var KEY='sb_publishable_uK_JK38eKQ9s-s8LbXRzCA_hwg2PdxT'; /* clé PUBLIQUE de l'appli (la même que dans index.html) : ne donne accès qu'à ce que les règles du serveur ouvrent à tous — ici, partage_url(code) */
+  var PFX=SB+'/storage/v1/object/sign/photos/';
   var msg=document.getElementById('msg'),frame=document.getElementById('v');
-  function say(title,txt){msg.innerHTML='';var b=document.createElement('b');b.textContent=title;msg.appendChild(b);var d=document.createElement('div');d.className='dim';d.textContent=txt;msg.appendChild(d);msg.style.display='';}
-  var h=new URLSearchParams(String(location.hash||'').replace(/^#/,''));var p=h.get('p')||'',t=h.get('t')||'';
+  function say(title,txt){msg.innerHTML='';var b=document.createElement('b');b.textContent=title;msg.appendChild(b);var d=document.createElement('div');d.className='dim';d.textContent=txt;msg.appendChild(d);msg.style.display='';frame.style.display='none';}
+  function fail(){if(navigator.onLine===false)say('Pas de connexion','Le plan interactif s’ouvre en ligne : vérifie la connexion internet puis recharge la page.');else say('Plan inaccessible','Le serveur n’a pas répondu ou a refusé la lecture : recharge la page dans un instant ; si ça persiste, demande à l’expéditeur de t’envoyer le fichier.');}
+  function show(url){ /* le plan (adresse signée du stockage de l'appli, jamais une autre) → cadre isolé */
+    if(String(url).indexOf(PFX)!==0){say('Lien coupé','Ce lien n’est plus valable : demande un nouveau lien à l’expéditeur.');return;}
+    fetch(url,{cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer'}).then(function(r){
+      if(!r.ok){if(r.status===400||r.status===401||r.status===403)say('Lien expiré','Ce lien n’est plus valable : demande un nouveau lien à l’expéditeur.');else if(r.status===404)say('Plan introuvable','Ce plan a été retiré : demande un nouveau lien à l’expéditeur.');else say('Plan indisponible','Le serveur ne répond pas ('+r.status+') : réessaie dans un instant.');return null;}
+      return r.text();
+    }).then(function(html){
+      if(html==null)return;
+      if(!/<html[\s>]/i.test(html)||!/Plan interactif/.test(html)){say('Plan illisible','Le fichier reçu n’est pas un plan interactif.');return;}
+      var m=html.match(/<title>([^<]{1,200})<\/title>/i);if(m){var tmp=document.createElement('textarea');tmp.innerHTML=m[1];document.title=tmp.value;}
+      frame.srcdoc=html;frame.style.display='block';msg.style.display='none';
+    }).catch(fail);}
+  var h=new URLSearchParams(String(location.hash||'').replace(/^#/,''));
+  var k=h.get('k');
+  if(k!=null){ /* 28/10 (lot 2810f) : lien court et permanent #k=<code> → l'adresse du dernier plan publié (fonction partage_url du serveur) */
+    if(!/^[A-Za-z0-9]{10}$/.test(k)){say('Lien incomplet','Le lien a été coupé en route : demande à l’expéditeur de te le renvoyer (ou copie-le en entier dans la barre d’adresse).');return;}
+    fetch(SB+'/rest/v1/rpc/partage_url',{method:'POST',headers:{'apikey':KEY,'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({p_code:k}),cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer'})
+      .then(function(r){if(!r.ok)throw new Error('rpc '+r.status);return r.json();})
+      .then(function(u){if(typeof u!=='string'||!u){say('Lien coupé ou expiré','Ce lien n’est plus valable : demande un nouveau lien à l’expéditeur.');return;}show(u);})
+      .catch(fail);
+    return;}
+  var p=h.get('p')||'',t=h.get('t')||''; /* lien long (28/10, lot 2810d) : #p=<chemin>&t=<jeton> */
   if(!/^[^\/]{1,120}\/partages\/[^\/]{1,160}\.html$/.test(p)||p.indexOf('..')>=0||!/^[\w.\-]{20,4000}$/.test(t)){say('Lien incomplet','Le lien a été coupé en route : demande à l’expéditeur de te le renvoyer (ou copie-le en entier dans la barre d’adresse).');return;}
-  var url=SB+'/storage/v1/object/sign/photos/'+p.split('/').map(encodeURIComponent).join('/')+'?token='+encodeURIComponent(t);
-  fetch(url,{cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer'}).then(function(r){
-    if(!r.ok){if(r.status===400||r.status===401||r.status===403)say('Lien expiré','Ce lien n’est plus valable : demande un nouveau lien à l’expéditeur.');else if(r.status===404)say('Plan introuvable','Ce plan a été retiré : demande un nouveau lien à l’expéditeur.');else say('Plan indisponible','Le serveur ne répond pas ('+r.status+') : réessaie dans un instant.');return null;}
-    return r.text();
-  }).then(function(html){
-    if(html==null)return;
-    if(!/<html[\s>]/i.test(html)||!/Plan interactif/.test(html)){say('Plan illisible','Le fichier reçu n’est pas un plan interactif.');return;}
-    var m=html.match(/<title>([^<]{1,200})<\/title>/i);if(m){var tmp=document.createElement('textarea');tmp.innerHTML=m[1];document.title=tmp.value;}
-    frame.srcdoc=html;frame.style.display='block';msg.style.display='none';
-  }).catch(function(){if(navigator.onLine===false)say('Pas de connexion','Le plan interactif s’ouvre en ligne : vérifie la connexion internet puis recharge la page.');else say('Plan inaccessible','Le serveur n’a pas répondu ou a refusé la lecture : recharge la page dans un instant ; si ça persiste, demande à l’expéditeur de t’envoyer le fichier.');});
+  show(PFX+p.split('/').map(encodeURIComponent).join('/')+'?token='+encodeURIComponent(t));
 })();
 </script>
 </body>
