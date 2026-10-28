@@ -79,7 +79,7 @@ export function fournNeeds(inc,legacy,rule){const need={},lab={},posed={};const 
   Object.values((A.lines&&A.lines())||{}).filter(l=>mvLineIn('fourniture',l)).forEach(l=>{['A','R'].forEach(c=>{const cd=l&&l.cond&&l.cond[c];if(!cd||!Array.isArray(cd.els))return;
     cd.els.forEach((e,i)=>{if(!legacy&&e&&e.kind==='pipe'){if(e.nue)return;if(inc&&!inc.el(l,c,i,e))return;if(inc&&inc.mark)inc.mark(l.id+'|'+c+'|'+i);tube(P,l,e);return;}
       const o=pieceOfEl(l,e);if(!o)return;if(inc&&!inc.el(l,c,i,e))return;if(inc&&inc.mark)inc.mark(l.id+'|'+c+'|'+i);add(need,o);});
-    const seen=new Set();(cd.joints||[]).forEach(j=>{const e=cd.els[j.idx];if(!e)return;if(j.nu)return; /* 27/10 soir : soudure nue (remontée) : ni manchon ni mousse */if(inc&&!inc.j(l,c,j,e))return;
+    const seen=new Set();(cd.joints||[]).forEach(j=>{const e=cd.els[j.idx];if(!e)return;if(j.nu||j.sst)return; /* 27/10 soir : soudure nue / point SST (remontée) : ni manchon ni mousse */if(inc&&!inc.j(l,c,j,e))return;
       const done=!(j.status==='a_souder'||j.status==='a_reprendre');if(done){if(!legacy&&e.kind==='pipe'){if(!e.nue)tube(Q,l,e);}else{const o=pieceOfEl(l,e);if(o)add(posed,o);}}
       if(j.sleeveWith&&seen.has(j.weldId))return;if(j.sleeveWith)seen.add(j.sleeveWith);const sl=legacy?sleeveOf(l,e):sleeveAt(l,cd,j);add(need,sl);add(need,{kind:'pu',dn:sl.dn,gaine:sl.gaine});
       if(j.status==='manchonnee'){add(posed,sl);add(posed,{kind:'pu',dn:sl.dn,gaine:sl.gaine});}});});});

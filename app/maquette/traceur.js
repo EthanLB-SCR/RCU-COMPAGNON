@@ -30,8 +30,9 @@ export function splitBars(G,bar,chuteMin){if(G<=1e-6)return [];const n=Math.max(
      · 'bypass_extrusion' 'bypass_regard' (= ancien 'bypass') ; toutes possibles aux deux bouts (by-pass au départ : arc symétrique) — voir extremites.js
    riserStart / riserEnd : 27/10 (Ethan : « en SST pouvoir choisir si c'est des coudes de remontée pour bien compter une paire de coudes du DN » ; 27/10 soir : « deux soudures
      en plus pré-isolé puis le point de la SST, comme avant » ; pas de vanne) — vrai / faux : REMONTÉE au bout « raccordement » (sous-station, chaufferie…) : par conduite, un coude
-     90° pré-isolé du DN (catalogue, compté et commandé comme les autres) soudé au bout du tube — la conduite monte dans le local — puis le raccordement comme avant :
-     tube → coude (soudure de plus, manchonnée) et coude → raccordement (la soudure d'avant). Une paire de coudes = un par conduite (aller + retour).
+     90° pré-isolé du DN (catalogue, compté et commandé comme les autres) soudé au bout du tube — la conduite monte dans le local — puis le raccordement :
+     tube → coude = soudure enterrée (manchonnée, comptée) ; coude → raccordement = POINT SST (sst:true — 27/10 soir, Ethan : « à l'intérieur : ne compte ni soudure ni
+     manchon, c'est dans le chiffrage de la SST (by-pass, vannes…) ; juste le point à prendre en photo, en production une SST du DN »). Une paire de coudes = un par conduite.
      Dessinée « dépliée » dans l'axe au-delà du bout : PK < 0 (départ) ou > Ltot (fin), pièces riser:true.
    → {pieces:[{kind, id, L, m0, m1, mc, angle, turn, legIn, legOut, long, R, x, y, th, path:[[x,y]...], ref, dn, dn2, note, err, key}], welds:[{i, m, x, y, dev, between}], notes:[{kind,txt,m}], length} */
 export function buildConduit(o){
@@ -107,7 +108,7 @@ export function buildConduit(o){
   for(let k=0;k<rigid.length;k++){const nd=rigid[k];
     if(nd.kind==='bend'&&nd.plane){const m0=nd.m-nd.legIn,m1=nd.m+nd.legOut;const path=[];const a=pAt(Math.max(0,m0));const bq=pAt(Math.min(Lu,m1));path.push([a.x,a.y]);for(let i=a.i;i<bq.i;i++)path.push(pts[i].slice());path.push([bq.x,bq.y]); // coude hors du plan (altimétrie, remontée) : suit l'axe en plan
       const Bl=nd.B||B,dl=nd.dn||dn;const ref=nd.riser?Bl.ref+(nd.cut?' · jambes recoupées':''):Bl.ref.replace(/90/,String(nd.angle))+' · en altimétrie (jeu de coudes'+(nd.dz?(nd.dz>0?', monte':', descend'):'')+')'+(nd.cut?' · jambes recoupées':''); // remontée : même référence qu'un coude 90° ordinaire (nomenclature, fourniture : une paire de coudes du DN) ; le rôle est dans riserTxt
-      pushPiece({kind:'bend',plane:nd.plane,jeu:nd.jeu,riser:nd.riser||undefined,riserTxt:nd.riser?'coude de remontée (la conduite monte dans le local, raccordement au bout de la jambe)':undefined,id:idOf('C'),m0,m1,mc:nd.m,angle:nd.angle,angleReal:nd.angle,resid:0,turn:nd.turn,legIn:nd.legIn,legOut:nd.legOut,cut:!!nd.cut,R:Bl.R,path,x:a.x,y:a.y,th:a.th,dn:dl,casing:cat.casing(dl),ref,std:Bl.std.includes(nd.angle),vertex:null,L:nd.legIn+nd.legOut,sid:nd.sid});carry=null;}
+      pushPiece({kind:'bend',plane:nd.plane,jeu:nd.jeu,riser:nd.riser||undefined,riserTxt:nd.riser?'coude de remontée (la conduite monte dans le local ; au bout de la jambe : le point SST, à photographier, sans soudure ni manchon comptées)':undefined,id:idOf('C'),m0,m1,mc:nd.m,angle:nd.angle,angleReal:nd.angle,resid:0,turn:nd.turn,legIn:nd.legIn,legOut:nd.legOut,cut:!!nd.cut,R:Bl.R,path,x:a.x,y:a.y,th:a.th,dn:dl,casing:cat.casing(dl),ref,std:Bl.std.includes(nd.angle),vertex:null,L:nd.legIn+nd.legOut,sid:nd.sid});carry=null;}
     else if(nd.kind==='bend'){const m0=nd.m-nd.legIn,m1=nd.m+nd.legOut;const a=pAt(Math.max(0,m0)),c=pAt(nd.m);const B=nd.B||cat.bend(dn),dl=nd.dn||dn;
       const A=nd.angle,r=nd.resid||0;const R=Math.min(B.R,Math.max(.05,Math.min(nd.legIn,nd.legOut)/Math.tan(rad(A)/2)-1e-3));const T=R*Math.tan(rad(A)/2);
       const hIn0=Math.atan2(pts[nd.vertex][1]-pts[nd.vertex-1][1],pts[nd.vertex][0]-pts[nd.vertex-1][0]);
@@ -150,7 +151,7 @@ export function buildConduit(o){
   pieces.forEach((p,i)=>{if(!p.nue)return;welds.forEach(w=>{if(w.i===i-1||w.i===i)w.sleeve=p.id;});});
   // 27/10 : remontée au départ → PK rendus en plan (u − sh) : les pièces de la remontée ont des PK < 0, tout le reste retrouve son chaînage ; soudures dans la remontée : riser (l'appli les étiquette)
   if(sh){pieces.forEach(p=>{if(p.fixedId)return;p.m0-=sh;p.m1-=sh;if(p.mc!=null)p.mc-=sh;});welds.forEach(w=>{w.m-=sh;});notes.forEach(n=>{if(n.m!=null)n.m-=sh;});}
-  if(hS||hE)welds.forEach(w=>{const p=pieces[w.i],q=pieces[w.i+1];if((p&&p.riser)||(q&&q.riser))w.riser=true;}); /* soudures de la remontée (tube → coude, coude → raccordement) : manchonnées comme les autres */
+  if(hS||hE)welds.forEach(w=>{const p=pieces[w.i],q=pieces[w.i+1];if((p&&p.riser)||(q&&q.riser))w.riser=true;if((p&&p.kind==='endpoint'&&p.riser)||(q&&q.kind==='endpoint'&&q.riser))w.sst=true;}); /* soudures de la remontée : tube → coude = soudure enterrée, manchonnée comme les autres ; coude → raccordement = POINT SST (27/10 soir, Ethan : « à l'intérieur : ni soudure ni manchon comptées, juste le point à prendre en photo ») */
   return {pieces,welds,notes,length:Ltot,casing,dn,riser:(hS||hE)?{start:hS,end:hE}:undefined};
 }
 // nomenclature : comptage par référence (les raccordements et sorties de té ne sont pas des pièces à commander)

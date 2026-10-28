@@ -39,7 +39,7 @@ export function siteFromTraceur({id,name,supplier,serie,lines,built,rules,bg,pre
       const welds=[];let shift=0; // 14/10 soir (lot T1) : by-pass au départ → jonction insérée AVANT le coude (les pièces suivantes décalées d'un rang)
       cd.welds.forEach(w=>{let idx=w.i+shift;if(w.bypass){const atS=w.bypassAt==='start';const U=cd.pieces.findIndex(p=>p.kind==='bypassEnd'&&(atS?p.sid==='end:start':p.sid!=='end:start'));if(U<0)return;const ap=cd.pieces[U].apex||[w.x,w.y];const Ue=U+shift;const mJ=atS?els[Ue].m0:els[Ue].m1;
           els.splice(atS?Ue:Ue+1,0,{id:atS?'U-liaison-depart':'U-liaison',kind:'bypass',kindLabel:'jonction du by-pass (aller ↔ retour)',dn:w.dn,casing:els[Ue].casing,len:0,m0:mJ,m1:mJ,axis:[[[r3(ap[0]),r3(ap[1])],[r3(ap[0]),r3(ap[1])]]],from:[r3(ap[0]),r3(ap[1])],to:[r3(ap[0]),r3(ap[1])],link:true});idx=Ue;if(atS)shift++;}
-        welds.push({idx,weldId:idFor(l.id,c,w.m),m:r3(w.m),x:r3(w.x),y:r3(w.y),dev:+(w.dev||0).toFixed(2),fc:!!w.fc,dn:w.dn,teeOut:!!w.teeOut,bypass:!!w.bypass,between:w.between,sleeve:w.sleeve||undefined,riser:w.riser?true:undefined,nu:w.nu?true:undefined});});
+        welds.push({idx,weldId:idFor(l.id,c,w.m),m:r3(w.m),x:r3(w.x),y:r3(w.y),dev:+(w.dev||0).toFixed(2),fc:!!w.fc,dn:w.dn,teeOut:!!w.teeOut,bypass:!!w.bypass,between:w.between,sleeve:w.sleeve||undefined,riser:w.riser?true:undefined,nu:w.nu?true:undefined,sst:w.sst?true:undefined});}); /* 27/10 soir : sst = point SST (bout de remontée, à l'intérieur) */
       welds.forEach(w=>{if(!w.sleeve)return;const o=welds.find(x=>x!==w&&x.sleeve===w.sleeve);if(o)w.sleeveWith=o.weldId;}); // deux soudures dans le même manchon
       cond[c]={els,welds,length:r3(cd.length),notes:cd.notes.map(n=>({kind:n.kind,txt:n.txt,m:r3(n.m||0)}))};});
     const profL=l.prof!=null&&isFinite(+l.prof)?+l.prof:(prof!=null&&isFinite(+prof)?+prof:undefined); // 14/10 : profondeur en vigueur sur la ligne (surcharge, sinon défaut du tracé)
@@ -60,7 +60,7 @@ export function siteFromTraceur({id,name,supplier,serie,lines,built,rules,bg,pre
   const bgName=plans.length?((firstDxf||plans[0]).name||null):(bg&&bg.name?bg.name:null);const bgOrigin=plans.length?(bg.origin||(firstDxf&&firstDxf.origin)||null):(bg&&bg.origin?bg.origin:null);
   const bgLayers=plans.length?(firstDxf?(firstDxf.netLayers||[]):null):(bg&&bg.netLayers?bg.netLayers:null);const bgOpacity=plans.length?(firstDxf||plans[0]).opacity:(bg?bg.opacity:undefined);
   let x0=lx0,y0=ly0,x1=lx1,y1=ly1;if(drawing&&drawing.length){drawing.forEach(d=>{if(d.pts)d.pts.forEach(p=>{x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);});});}if(x0>x1){x0=0;y0=0;x1=100;y1=100;}
-  const nW=outLines.reduce((s,L)=>s+L.cond.A.welds.length+L.cond.R.welds.length,0);const totL=outLines.reduce((s,L)=>s+L.cond.A.length,0);
+  const nW=outLines.reduce((s,L)=>s+L.cond.A.welds.filter(w=>!w.sst).length+L.cond.R.welds.filter(w=>!w.sst).length,0); /* 27/10 soir : les points SST ne sont pas des soudures */const totL=outLines.reduce((s,L)=>s+L.cond.A.length,0);
   const site={id,name,supplier,serie,source:'traceur',method:'Réseau tracé à la main dans le traceur (sommets → pièces catalogue selon les règles)',crs:bgName?('repère du plan '+bgName):'repère libre (m)',
     sheetType:drawing?'vector':'plain',drawing,image,plans:sitePlans,w:Math.ceil(x1+20),h:Math.ceil(y1+20),bbox:[x0,y0,x1,y1],nbox:lx0<=lx1?[r3(lx0),r3(ly0),r3(lx1),r3(ly1)]:null,
     lines:outLines,warnings:[],report:{source:'traceur',lines:outLines.length,welds:nW,length:r3(totL),lost:lost.map(w=>w.weldId)},

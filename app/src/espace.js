@@ -141,14 +141,14 @@ export const espaceState=()=>({people:PEOPLE,pointages:POINTAGES,pending:PENDING
 export function espaceInvalidate(){DATA=null;} /* 13/10 soir : la liste des comptes arrive (annuaire, invités) → noms et équipes recalculés au prochain affichage (Bureau du chantier compris) */
 /* ── PRODUCTION RÉELLE (refonte ②, 09/10 nuit) : lue dans les fiches de soudure des chantiers chargés sur l'appareil — étape 1 faite par X = 1 soudure (DN du joint),
    étape 2 = DH / fils, étape 3 = 1 manchon (DN tube / enveloppe) ; par personne (nom signé = nom du compte) et par jour. Rien à saisir. ── */
-const jointsOf=net=>{const out=[];const L=net&&net._lines?Object.values(net._lines):[];L.forEach(l=>{if(!l||!l.cond)return;['A','R'].forEach(c=>{const C=l.cond[c];if(!C||!Array.isArray(C.joints))return;C.joints.forEach(j=>{const e=Array.isArray(C.els)?C.els[j.idx]:null;out.push({j,l,dn:String(j.dn||(e&&e.dn)||l.dn||'?')});});});});return out;};
+const jointsOf=net=>{const out=[];const L=net&&net._lines?Object.values(net._lines):[];L.forEach(l=>{if(!l||!l.cond)return;['A','R'].forEach(c=>{const C=l.cond[c];if(!C||!Array.isArray(C.joints))return;C.joints.forEach(j=>{const e=Array.isArray(C.els)?C.els[j.idx]:null;out.push({j,l,dn:String(j.dn||(e&&e.dn)||l.dn||'?')});});});});return out;}; /* les points SST (j.sst) y sont : production « SST » (jointOpsOf), jamais dans les soudures (dashOf) */
 /* qui a fait quoi sur un joint : étapes (soudure / DH / manchon) puis, sans étape, les événements (soudee / controle / manchonnee) — même règle que jointOps de l'appli */
-const jointOpsOf=(j,dn)=>{const out=[];const st=j.steps||{};[1,2,3].forEach(n=>{const s2=st[n];if(s2&&s2.done&&s2.at&&!s2.rep /* 21/10 : reprise (déjà posé) hors production */)out.push({k:n,at:String(s2.at),by:s2.by,dn});});(j.events||[]).forEach(ev=>{if(!ev||!ev.at)return;const at=ev.at instanceof Date?ev.at.toISOString():String(ev.at);if(ev.type==='soudee'&&!(st[1]&&st[1].done))out.push({k:1,at,by:ev.by,dn});else if(ev.type==='controle')out.push({k:2,at,by:ev.by,dn});else if(ev.type==='manchonnee'&&!(st[3]&&st[3].done))out.push({k:3,at,by:ev.by,dn});});return out;};
+const jointOpsOf=(j,dn)=>{const out=[];const st=j.steps||{};const k1=j.sst?'sst':1; /* 27/10 soir : étape 1 d'un point SST = une SST du DN (pas une soudure) */[1,2,3].forEach(n=>{const s2=st[n];if(s2&&s2.done&&s2.at&&!s2.rep /* 21/10 : reprise (déjà posé) hors production */)out.push({k:n===1?k1:n,at:String(s2.at),by:s2.by,dn});});(j.events||[]).forEach(ev=>{if(!ev||!ev.at)return;const at=ev.at instanceof Date?ev.at.toISOString():String(ev.at);if(ev.type==='soudee'&&!(st[1]&&st[1].done))out.push({k:k1,at,by:ev.by,dn});else if(ev.type==='controle')out.push({k:2,at,by:ev.by,dn});else if(ev.type==='manchonnee'&&!(st[3]&&st[3].done))out.push({k:3,at,by:ev.by,dn});});return out;};
 function prodFromNets(personnes){const out={};let nets=[];try{nets=(A.nets&&A.nets())||[];}catch(e){}if(!nets.length)return out;
   const byName={};personnes.forEach(p=>{[p._acc&&p._acc.name,p.prenom+' '+p.nom,p.prenom+' '+(p.nom||'').slice(0,1)+'.',p._acc&&p._acc.local&&String(p._acc.id||'').replace(/^l:/,'')].filter(Boolean).forEach(n=>{byName[String(n).trim().toLowerCase()]=p.id;});});
   const gaine=dn=>{try{const g=A.gaine?A.gaine(dn):null;return g?'/'+g:'';}catch(e){return '';}};
   nets.forEach(net=>jointsOf(net).forEach(({j,dn})=>jointOpsOf(j,dn).forEach(op=>{if(!op.by)return;const key=byName[String(op.by).trim().toLowerCase()];if(!key)return;const d=op.at.slice(0,10);const t=((out[key]=out[key]||{})[d]=out[key][d]||{});
-    if(op.k===1){t.soudures=(t.soudures||0)+1;t.dn=t.dn||{};t.dn[dn]=(t.dn[dn]||0)+1;}else if(op.k===2){t.fils=(t.fils||0)+1;}else{t.retractions=(t.retractions||0)+1;t.mdn=t.mdn||{};const k=dn+gaine(dn);t.mdn[k]=(t.mdn[k]||0)+1;}})));
+    if(op.k==='sst'){t.sst=(t.sst||0)+1;t.sdn=t.sdn||{};t.sdn[dn]=(t.sdn[dn]||0)+1;}else if(op.k===1){t.soudures=(t.soudures||0)+1;t.dn=t.dn||{};t.dn[dn]=(t.dn[dn]||0)+1;}else if(op.k===2){t.fils=(t.fils||0)+1;}else{t.retractions=(t.retractions||0)+1;t.mdn=t.mdn||{};const k=dn+gaine(dn);t.mdn[k]=(t.mdn[k]||0)+1;}})));
   return out;}
 /* ── PLANNING DES ÉQUIPES (09/10 soir) : une ligne serveur par semaine ISO, fusion par personne ; les gars n'ouvrent que les chantiers de leur semaine et de la précédente ── */
 export const SECTEURS={ouest:'Ouest',idf:'Île-de-France',sudouest:'Sud-Ouest',sudest:'Sud-Est'};
@@ -283,7 +283,7 @@ function siteActuel(p){const ids=planDe(p.id,DATA.today),x=ptDe(p.id,DATA.today)
 function avecMoi(me,siteId,d){const c=site(siteId);
   return DATA.personnes.filter(p=>p.id!==me.id&&p.id!==c.chef&&p.id!==c.conducteur&&(p.active||p.invite)&&planDe(p.id,d).includes(siteId))}
 /* Productions */
-const PROD={soudures:['soudure','soudures'],retractions:['manchon','manchons'],fils:['DH','DH'],bouchons:['bouchon','bouchons'],heures:["h d'engin","h d'engin"]}; /* plus de pouces à l'écran (Ethan 09/10) : soudures par DN, manchons par DN tube / enveloppe */
+const PROD={soudures:['soudure','soudures'],sst:['SST','SST'],retractions:['manchon','manchons'],fils:['DH','DH'],bouchons:['bouchon','bouchons'],heures:["h d'engin","h d'engin"]}; /* 27/10 soir : sst = points SST pris (raccordement à l'intérieur, photo) — une SST du DN, pas une soudure */ /* plus de pouces à l'écran (Ethan 09/10) : soudures par DN, manchons par DN tube / enveloppe */
 const OPERATEURS=['soudeur','tuyauteur','manchonneur','chauffeur_engin'];
 const ENCADRE=['chef','conducteur']; // ils voient la production de leur équipe, pas la leur
 function prodIds(me){ // de qui je vois la production : la mienne (opérateur) ou celle de mon équipe (chef de chantier)
@@ -292,7 +292,7 @@ function prodIds(me){ // de qui je vois la production : la mienne (opérateur) o
   return null;
 }
 function addProd(t,o){ // additionne deux productions, détail par DN compris
-  for(const k in o){if(k==='dn'||k==='mdn'){t[k]=t[k]||{};for(const n in o[k])t[k][n]=(t[k][n]||0)+o[k][n]}else t[k]=(t[k]||0)+o[k]}
+  for(const k in o){if(k==='dn'||k==='mdn'||k==='sdn'){t[k]=t[k]||{};for(const n in o[k])t[k][n]=(t[k][n]||0)+o[k][n]}else t[k]=(t[k]||0)+o[k]}
   return t}
 function prodJour(ids,d){const t={};
   ids.forEach(id=>{addProd(t,(DATA.productions[id]||{})[d]||{});
@@ -301,7 +301,7 @@ function prodJour(ids,d){const t={};
 const dnListe=dn=>Object.keys(dn||{}).filter(k=>dn[k]).sort((a,b)=>parseFloat(a)-parseFloat(b)); /* clés « 100 » (soudure) ou « 100/200 » (manchon : DN tube / enveloppe) */
 const dnTxt=dn=>dnListe(dn).map(k=>'DN '+k+' × '+dn[k]).join(' · ');
 const dnChips=dn=>dnListe(dn).length?`<div class="eq-dn">${dnListe(dn).map(k=>`<span>DN ${k} · <b>${dn[k]}</b></span>`).join('')}</div>`:'';
-const prodTxt=o=>Object.keys(PROD).filter(k=>o&&o[k]).map(k=>nb(o[k])+' '+PROD[k][o[k]>1?1:0]+(k==='soudures'&&o.dn?' ('+dnTxt(o.dn)+')':'')+(k==='retractions'&&o.mdn?' ('+dnTxt(o.mdn)+')':'')).join(' · ');
+const prodTxt=o=>Object.keys(PROD).filter(k=>o&&o[k]).map(k=>nb(o[k])+' '+PROD[k][o[k]>1?1:0]+(k==='soudures'&&o.dn?' ('+dnTxt(o.dn)+')':'')+(k==='sst'&&o.sdn?' ('+dnTxt(o.sdn)+')':'')+(k==='retractions'&&o.mdn?' ('+dnTxt(o.mdn)+')':'')).join(' · ');
 /* Météo : pictogramme, libellé, aplat de fond de la scène */
 const METEO={chaud:['☀️','Chaud','#FBEBCB'],frais:['⛅','Frais','#E4EEF6'],froid:['❄️','Froid','#E9ECF3'],pluie:['🌧️','Pluie','#DCE5EA']};
 function meteoDe(siteId,d){const c=site(siteId);if(!c)return null;const m=(DATA.meteo[c.id]&&DATA.meteo[c.id][d])||(DATA.meteo[c.ville]&&DATA.meteo[c.ville][d]);return m?{k:m[0],t:m[1],mm:m[2]}:null}
@@ -1394,7 +1394,7 @@ const fJourLong=s=>{const d=D(s);return ['dimanche','lundi','mardi','mercredi','
 /* ── TABLEAU DE BORD DU CHANTIER (refonte ⑤) : l'état de CHAQUE module, lu dans la copie de l'appareil — ✓ complet · ! il manque un truc · ✗ bloquant · ○ pas commencé ── */
 const DASH_DEF=[['plan','Plan d\'ensemble','📐','plan','Plan'],['soud','Soudures & contrôles','🎖','liste','Soudures'],['act','Activité de la semaine','🚩','plan','Activité'],['hydro','Hydraulique · épreuves','🌊','hydro','Hydraulique'],['phas','Phasage','📅','phasage','Phasage'],['stock','Stock & livraisons','🚚','stock','Stock & livr.'],['ts','Travaux supplémentaires','📄','ts','TS'],['doe','DOE · photos','📷','export','DOE · photos'],['conv','Conversation & tâches','💬','conv','Conversation'],['qse','QSE · accueils','⛑️','qse','QSE'],['admin','Dossier administratif','🗂','admin','Dossier admin'],['eq','Équipe & planning','👥',null,'Équipe'],['pt','Pointages','⏱',null,'Pointages'],['undo','Annulations','↩','conv','Annulations'],['meteo','Météo','🌦',null,'Météo'],['vers','Versions & synchro','🔄','plan','Synchro'],['pts','Points de contrôle · photos','📍','points','Points']]; /* [clé, libellé, icône, onglet du chantier, libellé court (tuile)] */ /* 20/10 (lot PA) : pts */
 function dashOf(net,me){const R={};const today=todayIso();const js=semaineDe(0);const name=A.userName?A.userName():nomC(me);const key=A.userKey?A.userKey():null;
-  const JJ=jointsOf(net);const J=JJ.map(x=>x.j);const charge=!!net._lines;const c0=site(net.id);
+  const JJ=jointsOf(net);const J=JJ.map(x=>x.j).filter(j=>!j.sst); /* 27/10 soir : les points SST ne sont pas des soudures */const charge=!!net._lines;const c0=site(net.id);
   const st={};J.forEach(j=>{st[j.status||'a_souder']=(st[j.status||'a_souder']||0)+1;});const n=charge?J.length:(c0.soudures||0),soud=charge?(st.soudee||0)+(st.controlee||0)+(st.manchonnee||0):(c0.faites||0),ctrl=(st.controlee||0)+(st.manchonnee||0),manch=st.manchonnee||0,rep=st.a_reprendre||0;
   const ops=[];JJ.forEach(x=>jointOpsOf(x.j,x.dn).forEach(o=>ops.push(o)));const sem=ops.filter(o=>o.k===1&&js.includes(o.at.slice(0,10))).length,semM=ops.filter(o=>o.k===3&&js.includes(o.at.slice(0,10))).length;
   const upd=net.updated_at||(net.traceur&&net.traceur.savedAt)||null;

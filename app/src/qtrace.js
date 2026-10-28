@@ -27,7 +27,7 @@ function norm(l,sess,m){let els=Array.isArray(l.els)?l.els:[];let cond=null,jc=f
   if(sess){if(l.cond){cond=l.cond;jc=true;}}
   else if(l.traceur&&l.cond&&typeof l.cond==='object'&&!els.length){ /* remise du traceur jamais ouverte sur l'appareil : comme setupTraceurLine (app.js) — conduite A (sinon R), soudures de chaque conduite */
     const c0=l.cond.A||l.cond.R;els=c0&&Array.isArray(c0.els)?c0.els:[];cond={};
-    ['A','R'].forEach(c=>{const cd=l.cond[c];if(!cd)return;const E=Array.isArray(cd.els)?cd.els:[];cond[c]={els:E,joints:(cd.welds||[]).map((w,k)=>({idx:w.idx!==undefined?w.idx:k,dn:w.dn})).filter(j=>j.idx>=0&&j.idx<E.length)};});jc=true;}
+    ['A','R'].forEach(c=>{const cd=l.cond[c];if(!cd)return;const E=Array.isArray(cd.els)?cd.els:[];cond[c]={els:E,joints:(cd.welds||[]).map((w,k)=>({idx:w.idx!==undefined?w.idx:k,dn:w.dn,sst:w.sst?true:undefined})).filter(j=>j.idx>=0&&j.idx<E.length)};});jc=true;}
   const meta=m||l;return {id:l.id,l,els,cond,jc,nC:l.single?1:2,meta,tr:trancheOf(meta)};}
 /* les quantités d'un ensemble de lignes (ids = toutes les lignes du chantier : un piquage compte si l'antenne part d'une ligne du chantier) */
 function qtyLines(L,ids){const by={};const g=dn=>by[dn]||(by[dn]={dn,soud:0,mlTr:0,mlTube:0,mlPipe:0,coudes:0,tes:0,piq:0,red:0,vannes:0,kits:0,purges:0,vidanges:0,runs:[]});const ext={};
@@ -51,7 +51,7 @@ function qtyLines(L,ids){const by={};const g=dn=>by[dn]||(by[dn]={dn,soud:0,mlTr
         if(e.kind==='pipe'&&dn){if(run&&run.dn===dn)run.len+=len;else{endRun();run={dn,len};}}else endRun();});endRun();} /* tronçons continus de tube (barres entamées) */
     if(!els.length&&+l.dn&&+l.length){const r=g(+l.dn);r.mlTr+=+l.length;r.mlTube+=(+l.length)*nC;r.mlPipe+=(+l.length)*nC;addRun(+l.dn,+l.length,l.bar,nC);}
     if(l.parent&&ids.has(l.parent)){const d0=dnOf(0);if(d0)g(d0).piq+=nC;}
-    if(x.jc){['A','R'].forEach(c=>{const C=x.cond[c];if(!C||!Array.isArray(C.joints))return;C.joints.forEach(j=>{const e=Array.isArray(C.els)?C.els[j.idx]:null;const dn=+(j.dn||(e&&e.dn)||dnOf(j.idx||0))||0;if(dn)g(dn).soud++;});});}
+    if(x.jc){['A','R'].forEach(c=>{const C=x.cond[c];if(!C||!Array.isArray(C.joints))return;C.joints.forEach(j=>{if(j.sst)return; /* 27/10 soir : point SST, pas une soudure */const e=Array.isArray(C.els)?C.els[j.idx]:null;const dn=+(j.dn||(e&&e.dn)||dnOf(j.idx||0))||0;if(dn)g(dn).soud++;});});}
     else if(Array.isArray(l.joints))l.joints.forEach(j=>{const dn=dnOf(+j.idx||0);if(dn)g(dn).soud+=nC;});
     /* C1 : extrémités — ends {start:{type,dn}|null, end:{type,dn}} ; ancien tracé : startType / endType + DN du premier / dernier élément (une antenne n'a pas de départ) */
     const m=x.meta||{};const last=Math.max(0,els.length-1);
