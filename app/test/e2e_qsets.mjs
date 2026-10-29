@@ -31,8 +31,8 @@ await page.evaluate(()=>document.getElementById('qi-ok').click());await wait(400
 out.set=await A().then(a=>({n:a.qsets.length,nom:a.qsets[0].nom,kind:a.qsets[0].kind,lignes:a.qsets[0].lignes.length}));
 out.tab=await page.evaluate(()=>[...document.querySelectorAll('#eq-app .cm-qst tr')].slice(1).map(r=>[...r.cells].map(c=>c.textContent.trim()).join('|')));
 console.log('1) import collé :',JSON.stringify(out));
-C.c1=out.order.rep>=0&&out.order.rep<out.order.qs&&out.order.pt===-1&&out.order.bub&&out.order.flow&&/7 lignes lues/.test(out.modal.info)&&/1 refusée/.test(out.modal.info)&&/ligne 9 : type « Truc » inconnu/.test(out.modal.bad)&&out.modal.rows.includes('DN 200|20|240|120|30|6|2|·|·|·|·')&&out.modal.rows.includes('DN 80|10|120|60|13 ≈|·|·|2|·|2|·')&&out.modal.ok&&out.modal.nom==='Fournisseur A'
-  &&out.set.n===1&&out.set.nom==='Fournisseur A'&&out.set.kind==='fournisseur'&&out.set.lignes===7&&out.tab[0]==='DN 200|20|240|120|30|6|2|0|0|0|0'&&out.tab[1]==='DN 80|10|120|60|13 ≈|0|0|2|0|2|0';
+C.c1=out.order.rep>=0&&out.order.rep<out.order.qs&&out.order.pt===-1&&out.order.bub&&out.order.flow&&/7 lignes lues/.test(out.modal.info)&&/1 refusée/.test(out.modal.info)&&/ligne 9 : type « Truc » inconnu/.test(out.modal.bad)&&out.modal.rows.includes('DN 200|20|240|14|127|30|6|2|·|·|·|·')&&out.modal.rows.includes('DN 80|10|120|3|61,5|13 ≈|·|·|2|·|2|·') /* 29/10 (lot 2910a) : + ml de pièces (6 coudes × 2 + 2 tés × 1 ; 2 vannes × 1,5) ; tranchée = (tubes + pièces) ÷ 2 */&&out.modal.ok&&out.modal.nom==='Fournisseur A'
+  &&out.set.n===1&&out.set.nom==='Fournisseur A'&&out.set.kind==='fournisseur'&&out.set.lignes===7&&out.tab[0]==='DN 200|20|240|14|127|30|6|2|0|0|0|0'&&out.tab[1]==='DN 80|10|120|3|61,5|13 ≈|0|0|2|0|2|0';
 // ── 2) 2e étude par FICHIER (CSV de la trame) → comparatif ; « → Prendre » A puis B : quantités repérées remplies, « dont antennes » gardé
 const TB=[H,'Barre;200;;;12;22;u;;;Tube DN200','Manchon;200;;;;34;u;;;Joint','Barre;80;;;6;84;ml;;;Tube DN80 au mètre','Manchon;80;;;;16;u;;;Joint'].map(l=>l.includes('\t')?l:l).join('\n').replace(/^Type de pièce\t.*$/m,H.split('\t').join(';'));
 await click('qsimp|');await wait(200);await page.evaluate(()=>{document.getElementById('qi-nom').value='Fournisseur B';});await wait(100);
@@ -44,8 +44,8 @@ out.q1=await A().then(a=>a.quantites);await chg('#eq-app [data-afqr="0|nAnt"]','
 await click('qssel|'+(await A()).qsets[1].id);await click('qstake|'+(await A()).qsets[1].id);await wait(300);out.q2=await A().then(a=>a.quantites);
 out.off=await page.evaluate(()=>document.querySelectorAll('#eq-app .cm-qcmp td.cm-off').length);
 console.log('2) 2e étude + prendre :',JSON.stringify(out));
-C.c2=out.b.n===2&&out.b.f==='trame_B.csv'&&out.b.l.join()==='pipe200:22,sleeve200:34,pipe80:14/84ml,sleeve80:16'&&out.cmp.th.join()==='DN,★ Référence,Fournisseur A,Fournisseur B'&&out.cmp.rows[0]==='DN 200|—|30 / 120 ml|34 / 132 ml'&&out.cmp.rows[1]==='DN 80|—|13 / 60 ml|16 / 42 ml'
-  &&out.q1.rows.map(r=>r.dn+':'+r.soud+'/'+r.ml).join()==='200:30/120,80:13/60'&&out.q1.src.nom==='Fournisseur A'&&out.q1.coudes===6&&out.q1.tes===2&&out.q1.vannes===2&&out.q1.ml===180
+C.c2=out.b.n===2&&out.b.f==='trame_B.csv'&&out.b.l.join()==='pipe200:22,sleeve200:34,pipe80:14/84ml,sleeve80:16'&&out.cmp.th.join()==='DN,★ Référence,Fournisseur A,Fournisseur B'&&out.cmp.rows[0]==='DN 200|—|30 / 127 ml|34 / 132 ml'&&out.cmp.rows[1]==='DN 80|—|13 / 61,5 ml|16 / 42 ml'
+  &&out.q1.rows.map(r=>r.dn+':'+r.soud+'/'+r.ml).join()==='200:30/127,80:13/61.5'&&out.q1.src.nom==='Fournisseur A'&&out.q1.coudes===6&&out.q1.tes===2&&out.q1.vannes===2&&out.q1.ml===188.5
   &&out.q2.rows.map(r=>r.dn+':'+r.soud+'/'+r.ml+(r.nAnt!==undefined?'/'+r.nAnt:'')).join()==='200:34/132/10,80:16/42'&&out.q2.src.nom==='Fournisseur B'&&out.off>=2;
 // ── 3) saisie à la main : une ligne, unité ml → barres, ＋ ligne (manchons) ; retrait d'une étude
 await click('qsnew|');await wait(300);const sid=(await A()).qsets[2].id;
@@ -55,7 +55,7 @@ await chg(`#eq-app [data-afx="qs§${sid}§nom"]`,'Saisie bureau');
 out={s:await A().then(a=>{const s=a.qsets[2];return {nom:s.nom,kind:s.kind,l:s.lignes.map(x=>x.kind+x.dn+':'+x.qty+(x.ml?'/'+x.ml+'ml':'')+x.unit)};}),tab:await page.evaluate(()=>[...document.querySelectorAll('#eq-app .cm-qst tr')].slice(1,2).map(r=>[...r.cells].map(c=>c.textContent.trim()).join('|'))[0])};
 await click('qssel|'+(await A()).qsets[0].id);await click('qsrm|'+(await A()).qsets[0].id);await wait(300);out.after=await A().then(a=>a.qsets.map(s=>s.nom));
 console.log('3) saisie + retrait :',JSON.stringify(out));
-C.c3=out.s.nom==='Saisie bureau'&&out.s.kind==='saisie'&&out.s.l.join()==='pipe100:5/60mlml,sleeve100:7u'&&out.tab==='DN 100|5|60|30|7|0|0|0|0|0|0'&&out.after.join()==='Fournisseur B,Saisie bureau';
+C.c3=out.s.nom==='Saisie bureau'&&out.s.kind==='saisie'&&out.s.l.join()==='pipe100:5/60mlml,sleeve100:7u'&&out.tab==='DN 100|5|60|0|30|7|0|0|0|0|0|0'&&out.after.join()==='Fournisseur B,Saisie bureau';
 // ── 4) LECTURE AUTOMATIQUE d'un devis PDF au format INPAL (FICTIF) : sections DN, kit de jonction + manchette, kit réduit (réduction dans le manchon),
 //      kit fin de ligne, une pièce inconnue à classer, transport ignoré, option (cales) non comptée sauf choix ; synthèse avec RÉDUCTIONS et KITS FIN DE LIGNE
 const P4=makePdf([pdfLines([[[38,'Code Art.'],[199,'DESIGNATION'],[400,'QUANTITE'],[442,'UNITAIRE'],[521,'TOTAL']],[[176,'POLYURETUB 130'],[402,'1']],[[90,'DN80 - Ø88,9x180 Isolation+'],[397,'120'],[416,'m']],
@@ -78,7 +78,7 @@ C.c4=/Lecture automatique/.test(out.a.info)&&/INPAL/.test(out.a.info)&&out.a.nom
   &&r80(out.a).split('|')[col(out.a,'Barres')]==='8'&&r80(out.a).split('|')[col(out.a,'Soudures')]==='16'&&r80(out.a).split('|')[col(out.a,'Réductions')]==='2'&&r80(out.a).split('|')[col(out.a,'Kits fin de ligne')]==='2'
   &&out.a.rows.some(r=>/^DN 50\|.*\|2 ≈\|/.test(r))&&out.a.unk===1&&/1 ligne en OPTION/.test(out.a.opt)&&/non comptée/.test(out.a.opt)&&/transport/.test(out.a.ign)
   &&out.b.unk===0&&r80(out.b).split('|')[col(out.b,'Vannes')]==='1'&&/\(8 lignes\)/.test(out.b.ok)&&/\(9 lignes\)/.test(out.c.ok)&&/comptées/.test(out.c.opt)
-  &&out.set.nom==='INPAL — devis_inpal'&&out.set.n===9&&out.set.red===1&&out.set.kit===1&&out.set.fichier==='devis_inpal.pdf'&&/^DN 80\|8\|96\|48\|16\|6\|0\|0\|2\|1\|2$/.test(out.card||'');
+  &&out.set.nom==='INPAL — devis_inpal'&&out.set.n===9&&out.set.red===1&&out.set.kit===1&&out.set.fichier==='devis_inpal.pdf'&&/^DN 80\|8\|96\|13,5\|54,8\|16\|6\|0\|0\|2\|1\|2$/.test(out.card||'') /* 29/10 : + ml de pièces INPAL (6 coudes × 2 + 1 vanne × 1,5 ; réductions dans manchon : 0) */;
 // ── 5) classeur du fournisseur (format AXIOM FICTIF : une feuille par DN, colonne TOTAL) + une trame remplie à moitié par Claude (1 type vide) :
 //      la lecture automatique passe devant (la trame a des lignes refusées) ; la trame reste proposée (↔) et l'échange marche dans les deux sens
 const X5=await makeXlsx([{name:'DN200',rows:[[],['','PIECE/TRONCON','T1','T2','TOTAL'],['','LONGUEUR TRANCHEE',100,50,150],['','R-200/355-12',9,4,13],['','K-200-355/75',2,'',2],['','NT-200/355',20,10,30],['','NK-200/355',2,'',2],['','Z-200-355/150-280',2,'',2]]},
@@ -88,7 +88,7 @@ const s5=()=>page.evaluate(()=>{const M=document.getElementById('modal');return 
 out={a:await s5()};await page.evaluate(()=>document.querySelector('#modal [data-iqalt]').click());await wait(250);out.b=await s5();
 await page.evaluate(()=>document.querySelector('#modal [data-iqalt]').click());await wait(250);out.c=await s5();await page.evaluate(()=>document.querySelector('#modal [data-close]').click());await wait(150);
 console.log('5) classeur + trame à moitié :',JSON.stringify(out));
-C.c5=/Lecture automatique/.test(out.a.info)&&/AXIOM/.test(out.a.info)&&/trame SCR remplie/.test(out.a.alt)&&/1 refusée/.test(out.a.alt)&&/\(5 lignes\)/.test(out.a.ok)&&/tranchée du fournisseur : DN200 150 m \(lu 78\)/.test(out.a.ctl)
+C.c5=/Lecture automatique/.test(out.a.info)&&/AXIOM/.test(out.a.info)&&/trame SCR remplie/.test(out.a.alt)&&/1 refusée/.test(out.a.alt)&&/\(5 lignes\)/.test(out.a.ok)&&/tranchée du fournisseur, prise pour le ml de tranchée : DN200 150 m \(tubes \+ pièces : 80,5\)/.test(out.a.ctl)
   &&/Trame SCR/.test(out.b.info)&&out.b.bad===1&&/\(3 lignes\)/.test(out.b.ok)&&/Lecture automatique du tableau/.test(out.b.alt)&&/Lecture automatique/.test(out.c.info)&&/\(5 lignes\)/.test(out.c.ok);
 const bad=Object.entries(C).filter(([k,v])=>!v).map(([k])=>k);console.log(bad.length?'RESULTAT: ECHEC '+bad.join(','):'RESULTAT: TOUT VERT');console.log(logs.length?logs:'[]');
 await browser.close();

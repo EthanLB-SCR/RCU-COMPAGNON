@@ -9,7 +9,7 @@
 // Pur (Node / navigateur) — testé dans test/unit_qcompare.mjs.
 import {qsynth} from './qcalc.js';
 const num=v=>v===''||v===null||v===undefined?0:(isFinite(+v)?+v:0);const r1=x=>Math.round(x*10)/10;
-export const QC_ROWS=[['barres','Barres',''],['mlTube','ml de tube','ml'],['mlTr','ml de tranchée','ml'],['soud','Soudures · manchons',''],['coudes','Coudes',''],['tes','Tés',''],['piq','Piquages',''],['red','Réductions',''],['vannes','Vannes',''],['kits','Kits fin de ligne',''],['bypass','By-pass',''],['purges','Purges',''],['vidanges','Vidanges',''],['dhec','DHEC',''],['murs','Passages de mur','']];
+export const QC_ROWS=[['barres','Barres',''],['mlTube','ml de conduite (tubes + pièces)','ml'],['mlTr','ml de tranchée','ml'],['soud','Soudures · manchons',''],['coudes','Coudes',''],['tes','Tés',''],['piq','Piquages',''],['red','Réductions',''],['vannes','Vannes',''],['kits','Kits fin de ligne',''],['bypass','By-pass',''],['purges','Purges',''],['vidanges','Vidanges',''],['dhec','DHEC',''],['murs','Passages de mur','']];
 const TOL5=new Set(['barres','mlTube','mlTr','soud']); /* 5 % de tolérance (et 1 unité) ; les pièces : une de différence suffit */
 const VAR={coudes:['bend','steelbend'],tes:['tee'],red:['reducer'],kits:['kit']}; /* les natures qui se détaillent par variante */
 /* les pièces du fournisseur, variante par variante (mêmes clés que les pcs du tracé) */
@@ -40,11 +40,12 @@ function rowsFor(dn,tr,sy,tp,sp){const out=[];const T=(o,k)=>o?num(o[k]):0;
     else if(k==='purges'||k==='vidanges'){t=T(tr,k);f=null;} /* le fournisseur les livre en tés et vannes : pas de ligne « purge » chez lui */
     else if(k==='dhec'||k==='murs'){t=null;f=T(sy,k);} /* rien de tel dans le tracé */
     else if(k==='piq'){t=T(tr,k)+tp.filter(p=>p.kind==='tee'&&p.pv&&(dn===null||p.dn2===dn)).reduce((s,p)=>s+num(p.n),0);f=T(sy,k);} /* le fournisseur compte la branche d'un té de purge / vidange comme un piquage à son DN : le tracé aussi, ici */
+    else if(k==='mlTube'){t=T(tr,k);f=sy?T(sy,'mlTube')+T(sy,'mlPc'):0;} /* 29/10 (lot 2910a) : le tracé compte tout l'axe (tubes + pièces) × 2 conduites ; le fournisseur : ses tubes + la longueur de ses pièces */
     else{t=T(tr,k);f=T(sy,k);}
     const sub=variants(k,dn,tp,sp);if(!num(t)&&!num(f)&&!sub.length)return;
     const est=k==='soud'&&!!(sy&&sy.src==='estimées'&&num(sy.soud));const r=mkRow(k,lab,unit,t,f,{est});if(est&&dn!==null)r.off=false; /* soudures estimées par les bouts des pièces (pas de manchon à ce DN) : pas un écart — le total (en partie estimé) garde son écart */r.sub=sub;out.push(r);});
   return out;}
-export function qCompare(T,S){const trows=(T&&T.rows)||[];const tp=(T&&T.pcs)||[];const Y=qsynth(S||[]);const sp=supplierPieces(S||[]);
+export function qCompare(T,S,opts){const trows=(T&&T.rows)||[];const tp=(T&&T.pcs)||[];const Y=qsynth(S||[],opts); /* 29/10 (lot 2910a) : opts = longueurs des pièces (catalogue) et longueur de tranchée du fournisseur (qlen.js) */const sp=supplierPieces(S||[]);
   const dns=[...new Set(trows.map(r=>r.dn).concat(Y.rows.map(r=>r.dn)).concat(tp.map(p=>p.dn)).concat(sp.map(p=>p.dn)))].filter(Boolean).sort((a,b)=>b-a);
   const sumRows=(rows,k)=>rows.reduce((o,r)=>{Object.keys(r).forEach(x=>{if(typeof r[x]==='number')o[x]=(o[x]||0)+r[x];});if(r.src==='estimées')o.src='estimées';return o;},{dn:null});
   const all=rowsFor(null,trows.length?sumRows(trows):null,Y.rows.length?sumRows(Y.rows):null,tp,sp);

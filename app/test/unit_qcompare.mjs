@@ -32,7 +32,7 @@ console.log('n',J(R.n),'extra',J(R.extra));
 const A=R.all;const a=k=>row(A,k);
 C.c2=a('barres').t===Q.tot.barres&&a('barres').f===16&&a('soud').t===Q.tot.soud&&a('soud').f===28&&a('soud').d===28-Q.tot.soud&&a('coudes').t===4&&a('coudes').f===3&&a('coudes').d===-1&&a('coudes').off
   &&a('tes').t===6&&a('tes').f===6&&a('tes').d===0&&!a('tes').off&&a('red').t===2&&a('red').f===3&&a('red').d===1&&a('red').off&&a('vannes').d===0&&a('kits').t===2&&a('kits').f===2&&a('kits').d===0&&a('bypass').t===2&&a('bypass').f===2
-  &&a('piq').t===6&&a('piq').f===6&&a('piq').d===0&&a('mlTube').t===Q.tot.mlTube&&a('mlTube').f===192&&a('mlTr').f===96;
+  &&a('piq').t===6&&a('piq').f===6&&a('piq').d===0&&a('mlTube').t===Q.tot.mlTube&&a('mlTube').f===210&&a('mlTr').f===105.1; /* 29/10 (lot 2910a) : le fournisseur compte ses tubes (16 × 12 = 192) + ses pièces (6 tés × 1 + 3 réductions × 1 + 2 vannes × 1,5 + 3 coudes × 2 = 18) ; tranchée = par DN, (tubes + pièces) ÷ 2 */
 const sub=(k,key)=>(a(k).sub.find(s=>s.key===key)||{});
 C.c3=J(a('coudes').sub.map(s=>s.key))===J(['coude:90','coude:45'])&&sub('coudes','coude:45').t===2&&sub('coudes','coude:45').f===1&&sub('coudes','coude:45').d===-1&&sub('coudes','coude:45').off&&sub('coudes','coude:90').d===0
   &&J(a('tes').sub.map(s=>s.lab))===J(['Té → DN 80','Té → DN 25 (purge)'])&&sub('tes','25').t===4&&sub('tes','25').f===4&&sub('red','100').lab==='Réduction → DN 100'&&sub('red','100').d===1

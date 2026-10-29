@@ -167,7 +167,7 @@ out.prev=await page.evaluate(()=>[...document.querySelectorAll('#modal #qz-prev 
 await page.evaluate(()=>document.getElementById('qz-ok').click());await wait(400);
 a=await A(N2);out.z=a.chiffrage.etudes.filter(z=>/^Rue/.test(z.nom)).map(z=>({nom:z.nom,dn:z.dn.map(r=>r.dn+':'+r.soud+'/'+r.ml),cle:(z.rep||{}).cle}));out.n=a.chiffrage.etudes.length;
 console.log('5b) clé ml par DN :',J(out));
-C.c5b=out.inputs===4&&J(out.prev.slice(0,2))===J(['Rue 1|21|100','Rue 2|23|116'])&&J(out.z)===J([{nom:'Rue 1',dn:['200:21/100'],cle:'ml'},{nom:'Rue 2',dn:['80:13/66','200:10/50'],cle:'ml'}])&&out.n===5;
+C.c5b=out.inputs===4&&J(out.prev.slice(0,2))===J(['Rue 1|21|102,7','Rue 2|23|117,3'])&&J(out.z)===J([{nom:'Rue 1',dn:['200:21/102.7'],cle:'ml'},{nom:'Rue 2',dn:['80:13/66','200:10/51.3'],cle:'ml'}])&&out.n===5; /* 29/10 (lot 2910a) : la référence DN 200 de l'étude compte maintenant ses pièces (154 ml au lieu de 150) — la clé « ml » répartit 100 / 50 au prorata de 154 */
 // ══ c6 · panier « BY-PASS DERRIÈRE VANNES SST » ══
 await page.evaluate(n=>{const T=window.TRACE;const a=T.affaires.get(n);const ch=JSON.parse(JSON.stringify(a.chiffrage));ch.etudes[0].sst=[{dn:50,type:'sst_vannes_bs_pn25',paires:2,bypass:true}];T.affaires.set(n,{chiffrage:ch});},N2);
 const BPZ=()=>page.evaluate(n=>{const T=window.TRACE;const C=T.affaires.calc(T.affaires.get(n));const r=C.etudes[0].r;const s=r.detail.sst.rows[0];return {pu:Math.round(s.pu*100)/100,bypass:Math.round(s.bypass*100)/100,miss:(s.missing||[]).map(m=>m.label),pS:Math.round(r.detail.prix.soud(50)*100)/100};},N2);
