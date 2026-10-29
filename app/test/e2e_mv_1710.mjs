@@ -202,11 +202,11 @@ C.c4=c4s.part&&!c4s.sep.length&&!c4s.com.length&&c4s.plan&&c4s.ts&&c4s.doe&&c4s.
 // ── c5 · Modifs / TS
 out={};await tab(page,'ts');await pick(page,'ts',A26);await wait(300);
 out.m26=await T(()=>{const M=window.TRACE.ts.marche();return {aff:M&&M.aff,n:M&&M.lines.length};});
-out.it=await T(L=>{const T=window.TRACE;const it=T.ts.markRange(L,1,6,{etat:'propose',ts:'DEV-FICTIF-26',desig:'Coude supplémentaire fictif'});T.renderAll();const x=T.ts.of().items.find(i=>i.ts==='DEV-FICTIF-26');return x?{aff:x.aff,line:x.line}:null;},L26id);await wait(300);
+out.it=await T(L=>{const T=window.TRACE;const Mo=T.mod.of()||(T.net.modifs={v:1,seq:1,items:[],seen:{},vers:[]});const it={id:'mMV26',n:1,nom:'Coude supplémentaire fictif',devis:'DEV-FICTIF-26',els:[],q:{},at:new Date().toISOString(),by:'test',aff:T.mutu.scope()||undefined};Mo.items.push(it);T.mod.save();T.renderAll();const x=Mo.items.find(i=>i.devis==='DEV-FICTIF-26');return x?{aff:x.aff,line:L}:null;},L26id);await wait(300); /* 29/10 (lot 2910b) : une MODIF (éléments attribués) porte l'affaire de la puce active, comme les anciennes marques */
 out.see26=await T(()=>/DEV-FICTIF-26|Coude supplémentaire fictif/.test(document.getElementById('tsview').textContent));await shot(page,'pc_8_modifs_affaire_2026');
 await pick(page,'ts',A25);await wait(300);out.m25=await T(()=>{const M=window.TRACE.ts.marche();return {aff:M&&M.aff||'origine',n:M&&M.lines.length};});out.see25=await T(()=>/DEV-FICTIF-26|Coude supplémentaire fictif/.test(document.getElementById('tsview').textContent));
-/* l'envoi au serveur part 1,2 s après la dernière modification (file d'écriture) */for(let i=0;i<25&&!((SITES[CID].data.ts||{}).items||[]).some(i=>i.ts==='DEV-FICTIF-26');i++)await wait(200);
-out.srv=((SITES[CID].data.ts||{}).items||[]).filter(i=>i.ts==='DEV-FICTIF-26').map(i=>i.aff);
+/* l'envoi au serveur part 1,2 s après la dernière modification (file d'écriture) */for(let i=0;i<25&&!((SITES[CID].data.modifs||{}).items||[]).some(i=>i.devis==='DEV-FICTIF-26');i++)await wait(200);
+out.srv=((SITES[CID].data.modifs||{}).items||[]).filter(i=>i.devis==='DEV-FICTIF-26').map(i=>i.aff); /* 29/10 : partie « modifs » (éléments attribués), plus « ts » */
 console.log('c5) Modifs / TS :',JSON.stringify(out));
 C.c5=out.m26.aff===A26&&out.m26.n===2&&out.m25.aff==='origine'&&out.m25.n===2&&!!out.it&&out.it.aff===A26&&out.see26&&!out.see25&&out.srv.join()===A26;
 // ── c6 · fourniture
@@ -278,7 +278,7 @@ await openAff(page,A26,'sites');await wait(1200);await page.evaluate(id=>{const 
 out.fromAff=await T(()=>!!document.getElementById('mvPart'));await shot(page,'pc_15_reglage_depuis_trace_et_chantiers');
 await page.evaluate(()=>{['liste|separe','conv|commun'].forEach(k=>{const b=document.querySelector('#mvPart [data-mvp="'+k+'"]');if(b)b.click();});const g=document.getElementById('mvPartGo');if(g)g.click();});await page.waitForFunction(()=>!document.querySelector('#modal.show'),null,{timeout:15000}).catch(()=>{});await wait(800);
 out.srv2=SITES[CID].data.mutu&&('partage' in SITES[CID].data.mutu);await openSite(page,CID);await tab(page,'liste');out.bl2=await bar(page,'liste');
-out.affKept=await T(A26=>({ts:(window.TRACE.ts.of().items||[]).filter(i=>i.ts==='DEV-FICTIF-26').map(i=>i.aff).join(),fx:(window.TRACE.net.fourniture.extra||[]).map(x=>x.aff).join(),msg:(window.TRACE.net.conv.msgs||[]).filter(m=>m.text==='Message fictif affaire 2026').map(m=>m.aff).join()}),A26);
+out.affKept=await T(A26=>({ts:((window.TRACE.mod.of()||{}).items||[]).filter(i=>i.devis==='DEV-FICTIF-26').map(i=>i.aff).join(),fx:(window.TRACE.net.fourniture.extra||[]).map(x=>x.aff).join(),msg:(window.TRACE.net.conv.msgs||[]).filter(m=>m.text==='Message fictif affaire 2026').map(m=>m.aff).join()}),A26);
 console.log('c11) réglage :',JSON.stringify({modal:out.modal,srv:out.srv,bl:!!out.bl,lAll:out.lAll,bc:out.bc&&out.bc.btns,msgs:out.msgs,in26:[/Message fictif affaire 2026/.test(out.c26),/Message fictif d'avant/.test(out.c26)],in25:[/Message fictif affaire 2026/.test(out.c25),/Message fictif d'avant/.test(out.c25)],fromAff:out.fromAff,srv2:out.srv2,bl2:!!out.bl2,affKept:out.affKept}));
 C.c11=!!out.modal&&out.modal.rows===MV_PARTS.length&&!out.modal.ro&&out.modal.h.every(h=>h>=40)&&JSON.stringify(out.srv)===JSON.stringify({conv:'separe',liste:'commun'})&&!out.bl&&out.lAll===net.length&&!!out.bc&&out.bc.btns.join()==='2025,2026'
   &&out.msgs.find(m=>m.t==='Message fictif affaire 2026').aff===A26&&/Message fictif affaire 2026/.test(out.c26)&&!/Message fictif d'avant/.test(out.c26)&&!/Message fictif affaire 2026/.test(out.c25)&&/Message fictif d'avant/.test(out.c25)

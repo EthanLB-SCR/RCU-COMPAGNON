@@ -210,10 +210,10 @@ C.c4=out.q25&&out.q26&&out.q27&&out.qAll&&out.q25.soud===nW25&&out.q26.soud===s2
 out=await T(([A26,L26])=>{const T=window.TRACE;const r={};const chip=i=>{const b=document.querySelector('#muChips [data-muchip="'+i+'"]');if(b)b.click();};
   chip(-1);r.mAll={id:(T.ts.marche()||{}).aff||'origine',lines:(T.ts.marche()||{lines:[]}).lines.length,changed:T.ts.diff().changed.length,cands:T.ts.candidates().length};
   chip(1);r.m26={aff:(T.ts.marche()||{}).aff,lines:(T.ts.marche()||{lines:[]}).lines.length,changed:T.ts.diff().changed.length,cands:T.ts.candidates().length};
-  const TS=T.ts.of();TS.items.push({id:'tsmu1',kind:'line',line:L26,label:'Prolongement Nord 2026 — ligne entière',desig:'Coude supplémentaire fictif',etat:'propose',ts:'DEV-FICTIF-26',qty:{},by:'test',at:new Date().toISOString(),photos:[]});
+  const Mo=T.mod.of()||(T.net.modifs={v:1,seq:1,items:[],seen:{},vers:[]});Mo.items.push({id:'tsmu1',n:1,nom:'Coude supplémentaire fictif',devis:'DEV-FICTIF-26',els:[],q:{},by:'test',at:new Date().toISOString(),aff:A26}); /* 29/10 (lot 2910b) : une modif de l'affaire 2026 */
   T.state.tab='ts';T.renderAll();r.ts26=/Coude supplémentaire fictif/.test(document.getElementById('tsview').textContent);r.ban26=(document.getElementById('muTsBanner')||{}).textContent||'';
   chip(0);r.ts25=/Coude supplémentaire fictif/.test(document.getElementById('tsview').textContent);r.ban25=(document.getElementById('muTsBanner')||{}).textContent||'';
-  chip(-1);r.tsAll=/Coude supplémentaire fictif/.test(document.getElementById('tsview').textContent);TS.items=TS.items.filter(x=>x.id!=='tsmu1');T.state.tab='plan';T.renderAll();return r;},[A26,L26id]);
+  chip(-1);r.tsAll=/Coude supplémentaire fictif/.test(document.getElementById('tsview').textContent);Mo.items=Mo.items.filter(x=>x.id!=='tsmu1');T.state.tab='plan';T.renderAll();return r;},[A26,L26id]);
 await page.evaluate(()=>{const T=window.TRACE;T.state.tab='ts';T.renderAll();});await wait(300);await shot(page,'pc_7_modifs_bandeau');await page.evaluate(()=>{const T=window.TRACE;T.state.tab='plan';T.renderAll();});
 /* traceur sur le chantier partagé : aucun écart au marché (chaque ligne comparée au sien), ré-enregistrement → affaires, marchés et n° de soudure gardés */
 await page.goto(BASE+'/traceur.html?site='+encodeURIComponent(CID));await page.waitForFunction(id=>window.MAQ&&window.MAQ.state.siteRef&&window.MAQ.state.siteRef.id===id,CID,{timeout:15000}).catch(()=>{});await wait(1200);

@@ -75,7 +75,7 @@ await page.evaluate(()=>document.querySelector('#planPills [data-pill=recenter]'
 const ok=await page.evaluate(()=>!window.TRACE.rebase.far());
 const after=await page.evaluate(()=>{const T=window.TRACE;const N=T.net;if(N.id!=='demo_far')return {ok:false,id:N.id};const l=T.state.lines.L1;const j=l.cond.A.joints[0];const p=l.cond.A.els[0].to;const v=T.state.view;const g=T.siteGeo();
   const box=N.lines.reduce((b,L)=>{(L.axis||[]).forEach(q=>{b[0]=Math.min(b[0],q[0]);b[1]=Math.min(b[1],q[1]);b[2]=Math.max(b[2],q[0]);b[3]=Math.max(b[3],q[1]);});return b;},[1e12,1e12,-1e12,-1e12]);
-  const cands=(T.ts.candidates()||[]).map(c=>c.kind);
+  const cands=(T.mod.elements()||[]).map(c=>c.kind==='tube'?'geo':c.kind); /* 29/10 (lot 2910b) : éléments — un tube dévié vaudrait 'geo' */
   return {ok:true,home:T.rebase.homeLL('demo_far'),pts:N.geo&&N.geo.pts&&N.geo.pts[0]&&N.geo.pts[0].plan,weld:j.weldId,status:j.status,scr:[p.x*v.k+v.tx,p.y*v.k+v.ty],ll:T.geo.planToLonLat(g,[p.x,p.y]),box,stock:[N.stock.zones[0].x,N.stock.zones[0].y],conv:N.conv.msgs[0].pos,fz:N.fourniture.zones[0].poly[0],water:[N.hydro.water[0].x,N.hydro.water[0].y],marche:N.marche&&N.marche.lines[0].axis[0],cands,pill:!!document.querySelector('#planPills [data-pill=recenter]'),rebased:(N.rebased||[]).length,nWelds:N.lines.reduce((s,L)=>s+L.cond.A.welds.length+L.cond.R.welds.length,0)};});
 await view(120);after.p120=await pix();await view(19.6);after.p196=await pix();
 after.toast=await page.evaluate(()=>(document.getElementById('toast')||{}).textContent||'');console.log('3) après :',JSON.stringify({ok,sbId,before2,after}));

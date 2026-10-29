@@ -69,6 +69,7 @@ export function mvSetSel(aff){const net=curNet();if(!net||!isMutu(net)||!net.aff
 const labOf=(net,aff)=>{let L=[];try{L=H.labelsOf(net);}catch(e){L=[];}const i=net.affaires.indexOf(aff);return (i>=0&&L[i])||aff||'origine';};
 /* ═════════ 3 · FILTRES DES DOSSIERS (une ligne, un enregistrement) ═════════ */
 const lineAff=(net,id)=>{try{return H.affOfId(net,id);}catch(e){return origOf(net);}};
+export function mvLineAffOf(id){const net=curNet();if(!net||!isMutu(net))return null;return lineAff(net,id);} /* 29/10 (lot 2910b) : l'affaire d'une ligne (modifs par éléments : une modif porte l'affaire de ses éléments) */
 export function mvLineIdIn(tab,id){const net=curNet();if(!mvSep(tab,net))return true;return lineAff(net,id)===mvSel(net);}
 export function mvLineIn(tab,l){return !l||mvLineIdIn(tab,l.id);}
 export function mvRecAff(rec,lineIds,net){net=net===undefined?curNet():net;if(!net||!isMutu(net))return '';return recAff(rec,lineIds,id=>lineAff(net,id),origOf(net));}
