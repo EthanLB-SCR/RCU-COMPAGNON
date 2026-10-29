@@ -41,7 +41,7 @@ export function alignPieces(marPcs,reelPcs,opt){opt=opt||{};const TOL=opt.tol||3
   ['A','R'].forEach(c=>{const M=(marPcs||[]).filter(p=>(p.c||'A')===c).slice().sort((a,b)=>a.m-b.m);const R=(reelPcs||[]).filter(p=>(p.c||'A')===c).slice().sort((a,b)=>a.m-b.m);
     /* les fins de ligne (bouchon, sous-station…) sont la MÊME pièce même si la ligne s'est allongée : appariées d'office (première avec première, dernière avec dernière), hors DP */
     const fixed=[];const endsM=M.map((q,i)=>q.k==='endcap'?i:-1).filter(i=>i>=0),endsR=R.map((p,j)=>p.k==='endcap'?j:-1).filter(j=>j>=0);
-    if(endsM.length&&endsR.length){const lastM=endsM[endsM.length-1],lastR=endsR[endsR.length-1];if(lastM>=M.length/2&&lastR>=R.length/2)fixed.push([lastM,lastR]);if(endsM[0]!==lastM&&endsR[0]!==lastR&&endsM[0]<M.length/2&&endsR[0]<R.length/2)fixed.push([endsM[0],endsR[0]]);}
+    if(endsM.length&&endsR.length){const lastM=endsM[endsM.length-1],lastR=endsR[endsR.length-1];if(lastM>=(M.length-1)/2&&lastR>=(R.length-1)/2)fixed.push([lastM,lastR]); /* 28/10 (lot 2810h) : (n−1)/2 — une conduite à UNE seule pièce (sa fin de ligne : antenne prolongée) n'était jamais appariée (0 ≥ 0,5 faux) → « +1 fin de ligne · −1 fin de ligne » à chaque prolongement */if(endsM[0]!==lastM&&endsR[0]!==lastR&&endsM[0]<M.length/2&&endsR[0]<R.length/2)fixed.push([endsM[0],endsR[0]]);}
     const fM=new Set(fixed.map(f=>f[0])),fR=new Set(fixed.map(f=>f[1]));
     const P=[];M.forEach((q,i)=>R.forEach((p,j)=>{if(fM.has(i)||fR.has(j))return;if(q.k===p.k&&Math.abs(p.m-q.m)<=DMAX)P.push({i,j,d:p.m-q.m,near:near(q,p)});}));P.sort((a,b)=>a.i-b.i||a.j-b.j);
     const best=new Array(P.length).fill(0),prev=new Array(P.length).fill(-1);let bi=-1,bs=0;
