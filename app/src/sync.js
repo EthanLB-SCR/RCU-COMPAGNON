@@ -10,7 +10,28 @@ let sb = null; try { sb = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { per
 // Blocage ≠ déconnecté : dans ce cas on retombe sur la DERNIÈRE session connue (poussée par les événements d'auth) au lieu de répondre « pas de session »
 // — c'est ce faux « déconnecté » transitoire qui faisait croire à l'appli que la liste serveur était vide (bug « je n'ai plus mes chantiers », 20/08).
 const withTimeout = (p, ms, fallback) => Promise.race([p, new Promise(r => setTimeout(() => r(fallback), ms))])
-let lastSession = null; try { if (sb) sb.auth.onAuthStateChange((_e, s) => { lastSession = s || null }) } catch (e) { }
+let lastSession = null; const AUTH_LOG = []; try { if (sb) sb.auth.onAuthStateChange((_e, s) => { lastSession = s || null; AUTH_LOG.push({ t: Date.now(), e: _e, exp: s && s.expires_at ? s.expires_at : null }); if (AUTH_LOG.length > 20) AUTH_LOG.shift() }) } catch (e) { } // 30/10 soir (2910j) : journal des événements de connexion (diagnostic)
+/* 30/10 soir (lot 2910j) — CONNEXION AU SERVEUR. Ethan : « Hors serveur · Personnes 0 », comptes et fiches qui ne chargent plus, alors que l'appli affichait son compte (profil gardé
+   sur l'appareil) : rien ne disait que le serveur ne répondait plus à sa session. probe() = contrôle léger (réseau, session, une vraie lecture) ; health() = diagnostic complet lisible
+   (aucun jeton dans le résultat) ; reconnect() = renouvellement forcé de la session ; forceLogout() = déconnexion même serveur injoignable (signOut seul garde la session si le réseau échoue). */
+const storedSession = () => { try { const k = sb && sb.auth && sb.auth.storageKey; if (!k || typeof localStorage === 'undefined') return null; const v = JSON.parse(localStorage.getItem(k) || 'null'); return v && v.access_token ? v : null } catch (e) { return null } }
+const jwtPayload = t => { try { const b = String(t).split('.')[1].replace(/-/g, '+').replace(/_/g, '/'); return JSON.parse(atob(b + '='.repeat((4 - b.length % 4) % 4))) } catch (e) { return null } }
+async function ping(path, token, ms) { const lim = ms || 8000; const ac = typeof AbortController !== 'undefined' ? new AbortController() : null; const tm = setTimeout(() => { try { if (ac) ac.abort() } catch (e) { } }, lim); const t0 = Date.now()
+  try { const h = { apikey: SUPABASE_KEY }; if (token) h.Authorization = 'Bearer ' + token; const r = await fetch(SUPABASE_URL + path, { headers: h, signal: ac ? ac.signal : undefined, cache: 'no-store' }); let body = ''; try { body = (await r.text()).slice(0, 240) } catch (e) { } return { status: r.status, ms: Date.now() - t0, body } }
+  catch (e) { return { status: 0, ms: Date.now() - t0, err: e && e.name === 'AbortError' ? 'pas de réponse en ' + Math.round(lim / 1000) + ' s' : String(e && e.message || e) } } finally { clearTimeout(tm) } }
+const srvWhy = st => st === 0 ? 'net' : st === 401 || st === 403 ? 'jwt' : st === 402 || st >= 500 ? 'srv' : null
+function verdictOf(H) {
+  if (H.online === false) return { k: 'offline', t: 'Cet appareil n\'a pas de réseau : ça repartira tout seul au retour du réseau.' }
+  if (H.auth.status === 0) return { k: 'net', t: 'Le navigateur n\'arrive pas à joindre le serveur (' + (H.auth.err || 'réseau') + ') : réseau de l\'entreprise, pare-feu, antivirus ou bloqueur de publicité qui bloque « supabase.co » ? Essaie en 4G (partage de connexion) pour trancher.' }
+  if (H.auth.status === 402 || H.auth.status >= 500) return { k: 'srv', t: 'Le serveur répond en erreur (' + H.auth.status + ') : panne chez Supabase, ou projet en pause / limité (quota). Rien à faire sur l\'appareil : vérifier le tableau de bord Supabase.' }
+  if (!H.stored) return { k: 'nosession', t: 'Plus de session sur cet appareil : « Se reconnecter ».' }
+  if (!H.getSession.ok) return { k: 'session', t: 'Ta session a expiré et ne se renouvelle pas' + (H.refresh ? ' (' + H.refresh.err + (H.refresh.status ? ', ' + H.refresh.status : '') + ')' : H.getSession.err ? ' (' + H.getSession.err + ')' : '') + ' : « Réessayer », sinon « Se reconnecter ».' }
+  const w = srvWhy(H.rest.status)
+  if (w === 'jwt') return { k: 'jwt', t: 'Le serveur refuse ta session (' + H.rest.status + (H.rest.body ? ' : ' + H.rest.body.slice(0, 120) : '') + ') : « Se reconnecter ».' }
+  if (w === 'srv' || w === 'net') return { k: w, t: 'La lecture des données échoue (' + (H.rest.status || H.rest.err) + (H.rest.body ? ' : ' + H.rest.body.slice(0, 120) : '') + ') : panne ou limite du serveur.' }
+  if (H.stored && H.stored.skew != null && Math.abs(H.stored.skew) > 300) return { k: 'clock', t: 'Serveur joignable, mais l\'horloge de l\'appareil est décalée (' + Math.round(H.stored.skew / 60) + ' min) : remettre l\'appareil à l\'heure automatique.' }
+  return { k: 'ok', t: 'Serveur joignable, session valide, lecture des données OK.' }
+}
 const LOCKED = { locked: true }
 const freshLast = () => (lastSession && (!lastSession.expires_at || lastSession.expires_at * 1000 > Date.now() - 60000)) ? lastSession : null
 const session = async () => { if (!sb) return null; try { const r = await withTimeout(sb.auth.getSession(), 4000, LOCKED); if (r === LOCKED) return freshLast(); return r && r.data ? r.data.session : null } catch (e) { console.warn('session', e); return freshLast() } }
@@ -24,6 +45,27 @@ export const SHARED_PARTS = ['conv', 'stock', 'qse', 'pointage', 'undoLog', 'dhD
 export function mergeServerParts(local, srv) { const out = { ...local }; SHARED_PARTS.forEach(k => { if (srv && srv[k] !== undefined) out[k] = srv[k] }); const lp = local && local.elPos && typeof local.elPos === 'object' ? local.elPos : {}; const sp = srv && srv.elPos && typeof srv.elPos === 'object' ? srv.elPos : {}; if (Object.keys(lp).length || Object.keys(sp).length) out.elPos = { ...lp, ...sp }; return out }
 export const sync = {
   available: () => !!sb,
+  // 30/10 soir (2910j) : contrôle léger de la connexion — { ok } ou { ok:false, why: offline | nosession | session | net | jwt | srv, status, msg }
+  async probe() { if (!sb) return { ok: false, why: 'client' }; if (typeof navigator !== 'undefined' && navigator.onLine === false) return { ok: false, why: 'offline' }
+    const s = await session(); if (!s) return { ok: false, why: storedSession() ? 'session' : 'nosession' }
+    const r = await ping('/rest/v1/profiles?select=id&limit=1', s.access_token, 8000); const w = srvWhy(r.status); if (!w) return { ok: true, ms: r.ms }
+    return { ok: false, why: w, status: r.status, msg: (r.err || r.body || '').slice(0, 160) } },
+  // diagnostic complet (écran 🩺) : rien de secret dedans (ni jeton, ni mot de passe) — il peut être copié et envoyé tel quel
+  async health() { const H = { at: new Date().toISOString(), online: typeof navigator !== 'undefined' ? navigator.onLine : null, ua: typeof navigator !== 'undefined' ? String(navigator.userAgent || '').slice(0, 140) : '' }
+    if (!sb) { H.auth = { status: 0, err: 'module serveur indisponible' }; H.rest = H.auth; H.getSession = { ok: false }; H.verdict = { k: 'client', t: 'Module serveur indisponible sur cette page.' }; return H }
+    const st = storedSession(); const now = Date.now() / 1000
+    if (st) { const p = jwtPayload(st.access_token) || {}; H.stored = { email: (st.user && st.user.email) || p.email || '', expiresIn: Math.round((st.expires_at || 0) - now), refresh: !!st.refresh_token, skew: p.exp && st.expires_at ? Math.round(p.exp - st.expires_at) : null } } else H.stored = null
+    const t0 = Date.now(); H.getSession = await withTimeout(sb.auth.getSession().then(r => ({ ok: !!(r && r.data && r.data.session), err: r && r.error ? (r.error.message || String(r.error)) : '' }), e => ({ ok: false, err: String(e && e.message || e) })), 8000, { ok: false, err: 'bloquée plus de 8 s' }); H.getSession.ms = Date.now() - t0
+    try { const lf = sb.auth.lastRefreshFailure; const er = lf && lf.result && lf.result.error; H.refresh = er ? { err: String(er.message || er.name || er).slice(0, 160), status: er.status || null } : null } catch (e) { H.refresh = null }
+    H.auth = await ping('/auth/v1/health', null, 8000)
+    const s2 = storedSession(); H.rest = await ping('/rest/v1/profiles?select=id&limit=1', s2 ? s2.access_token : null, 8000); if (H.rest.status >= 200 && H.rest.status < 300) H.rest.body = ''
+    H.events = AUTH_LOG.slice(-10).map(x => ({ t: x.t, e: x.e, exp: x.exp }))
+    H.verdict = verdictOf(H); return H },
+  // renouvellement forcé de la session (bouton « Réessayer ») : on oublie l'échec récent mis en cache par le module d'authentification
+  async reconnect() { if (!sb) return { ok: false, err: 'module serveur indisponible' }; try { sb.auth.lastRefreshFailure = null } catch (e) { }
+    return await withTimeout(sb.auth.refreshSession().then(x => ({ ok: !!(x && x.data && x.data.session), err: x && x.error ? String(x.error.message || x.error).slice(0, 160) : '' }), e => ({ ok: false, err: String(e && e.message || e).slice(0, 160) })), 15000, { ok: false, err: 'pas de réponse en 15 s' }) },
+  // déconnexion même quand le serveur ne répond pas (signOut garde la session sur l'appareil si l'appel réseau échoue)
+  async forceLogout() { if (!sb) return; try { await withTimeout(sb.auth.signOut({ scope: 'local' }), 5000, null) } catch (e) { } try { const k = sb.auth.storageKey; if (k && typeof localStorage !== 'undefined') { localStorage.removeItem(k); localStorage.removeItem(k + '-user'); localStorage.removeItem(k + '-code-verifier') } } catch (e) { } lastSession = null },
   async user() { const s = await session(); return s ? s.user : null },
   // le callback est sorti du dispatch (setTimeout 0) : appeler Supabase DANS onAuthStateChange bloque tout derrière le verrou d'auth (deadlock connu de supabase-js) — c'est ce qui rendait la liste des chantiers aléatoire
   onAuth(cb) { if (sb) sb.auth.onAuthStateChange((_e, s) => { setTimeout(() => cb(s ? s.user : null), 0) }) },

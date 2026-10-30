@@ -44,7 +44,7 @@ function norm(v){const o=v&&typeof v==='object'&&!Array.isArray(v)?v:{};const fe
 export const paliersCfg=()=>CFG||(CFG=norm(null));
 export async function loadPaliers(){if(!A||!A.sync||!A.sync.getSetting||!A.state.cloudUser)return false;try{const v=await A.sync.getSetting('paliers');if(v&&typeof v==='object'){CFG=norm(v);try{localStorage.setItem(KEY,JSON.stringify(CFG));}catch(e){}return true;}}catch(e){console.warn(e);}return false;}
 export async function savePaliers(patch){const next=norm(Object.assign({},paliersCfg(),patch,{at:new Date().toISOString(),by:(A&&A.userName&&A.userName())||''}));let where='appareil';
-  if(A&&A.state.cloudUser&&A.sync&&A.sync.setSetting){const err=await A.sync.setSetting('paliers',next);if(err)return {error:err};where='serveur';}
+  if(A&&A.state.cloudUser&&A.sync&&A.sync.setSetting){const err=await A.sync.setSetting('paliers',next);if(err)return {error:err==='hors ligne'?'connexion au serveur perdue — rien n\'a changé (🩺 Diagnostic)':err};where='serveur';}
   CFG=next;try{localStorage.setItem(KEY,JSON.stringify(CFG));}catch(e){}return {ok:true,where};}
 /* ── lecture ── */
 export const palierOf=k=>{const c=paliersCfg();if(c.feat[k])return c.feat[k];const d=featDef(k);return d?d[3]:'socle';};

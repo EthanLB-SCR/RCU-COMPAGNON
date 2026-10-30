@@ -279,6 +279,11 @@
   .admFams{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}.admFamT{font-size:11px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:5px;margin-bottom:3px}.famDot{width:9px;height:9px;border-radius:50%;display:inline-block}
   .admChips{display:flex;flex-wrap:wrap;gap:4px}.pchip{border:1.5px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 10px;font-size:12px;color:var(--ink);display:inline-flex;align-items:center;gap:4px}.pchip b{background:#f1f0eb;border-radius:999px;padding:0 6px;font-size:11px}.pchip i{color:#eb6834;font-style:normal;font-size:9px}.pchip.on{border-color:var(--c);background:var(--c);color:#fff}.pchip.on b{background:rgba(255,255,255,.25)}.pchip.on i{color:#fff}
   .admPoste{border:1.5px solid var(--line);border-radius:12px;padding:10px}.admPosteH{display:flex;gap:10px;align-items:center;margin-bottom:4px}.admPosteH h3{font-size:16px}.admGrp{font-weight:700;font-size:12.5px;margin:10px 0 2px;color:var(--ink2)}
+  .srvBanner{margin:0 14px 8px;background:#fde8e6;border:1px solid #f1b2ad;color:#8c1d18;border-radius:10px;padding:8px 10px;font-size:12.5px;line-height:1.35;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .srvBanner.site{margin:0;border-radius:0;border-width:0 0 1px;position:relative;z-index:4} .srvBanner .srvTx{flex:1;min-width:220px} .srvBanner .srvActs{display:flex;gap:6px;flex-wrap:wrap} .srvBanner .btn{min-height:40px;background:#fff}
+  .srvVerdict{border-radius:10px;padding:9px 11px;font-size:13.5px;font-weight:600;margin:4px 0 8px} .srvVerdict.ok{background:#e6f5ec;color:#1b6b36;border:1px solid #9fd5b1} .srvVerdict.ko{background:#fde8e6;color:#8c1d18;border:1px solid #f1b2ad}
+  .srvRows{display:flex;flex-direction:column;gap:4px} .srvRow{display:flex;gap:8px;align-items:flex-start;padding:5px 2px;border-bottom:1px solid #eeebe3;font-size:13px} .srvRow .srvI{width:18px;font-weight:800;text-align:center} .srvRow.ok .srvI{color:#1d7a3a} .srvRow.ko .srvI{color:#b3261e} .srvRow .dim{word-break:break-word}
+  .admSrvKo{border:2px solid #f1b2ad;background:#fde8e6;color:#8c1d18}
   .admPalBan{border-width:2px} .admPalBan.off{background:#fff4e5;border-color:#f0b35a} .admPalBan.on{background:#e9f7ee;border-color:#8fcfa5} .admPalBan input[type=checkbox]{width:18px;height:18px;vertical-align:-3px;margin-right:4px}
 .admOpt{display:flex;gap:10px;align-items:center;padding:7px 2px;border-bottom:1px solid #eee;font-size:13px;line-height:1.3;flex-wrap:wrap}.admOpt .admOptT{flex:1 1 220px;min-width:0}.admOpt .admOptS{display:flex;gap:4px;align-items:center;flex-wrap:wrap}.admOpt .btn.on{background:#1c3d6b;color:#fff;border-color:#1c3d6b}
   .admPerm{display:flex;gap:8px;align-items:flex-start;padding:5px 2px;border-bottom:1px solid #eee;font-size:13px;line-height:1.3}.admPerm input{margin-top:2px;width:17px;height:17px;flex:none}.admPerm span{flex:1}
@@ -982,6 +987,7 @@ body.cm-win{margin:0;background:#ecebe5;height:100vh;display:flex;flex-direction
   </div>
   <div class="screen" id="homeView">
     <div class="homeHead"><span id="homeLogo"></span><b>TRACÉ</b><div class="who" id="homeWho"></div><button class="iconbtn wideonly" id="homeWide" title="Affichage large (ordinateur)">⤢</button><button class="ava" id="homeAva">?</button></div>
+    <div id="srvBannerHome" class="srvBanner" style="display:none"></div>
     <div class="homeSub"><div class="t">Mes chantiers</div><div class="s" id="homeCount"></div></div>
     <div id="homeBanner" class="homeBanner" style="display:none"></div>
     <div id="homeAsBar" class="homeAsBar" style="display:none"></div>
@@ -997,6 +1003,7 @@ body.cm-win{margin:0;background:#ecebe5;height:100vh;display:flex;flex-direction
     <div class="rolebox"><select id="roleSel"></select><button class="iconbtn wideonly" id="btnWide" title="Affichage large">⤢</button><button class="iconbtn wideonly" id="btnHelp" title="Aide">?</button><button class="iconbtn" id="btnSearch" title="Rechercher une soudure">🔍</button><button class="iconbtn" id="btnMenu" title="Menu">☰</button></div>
   </header>
   <div class="siteHead" id="siteHead" style="display:none"><div class="l1"><h2 id="shName"></h2><span class="mt" id="shMeteo" style="display:none"></span></div><div class="l2"><span id="shStat"></span><span class="bar"><i id="shBar"></i></span><span id="shPct"></span><span id="shChef"></span></div><div class="seg" id="facets"><button data-facet="plan">📐 Plan</button><button data-facet="vie">🏕 Vie du chantier</button><button data-facet="tech">🔧 Technique</button></div></div>
+  <div id="srvBannerSite" class="srvBanner site" style="display:none"></div>
   <button class="syncWarn" id="syncWarn" title="des enregistrements ont été refusés par le serveur — touche pour voir">⚠️ Pas enregistré sur le serveur — touche pour voir</button>
   <div id="menu" class="menu"><div class="menuBox">
     <div class="menuHead"><b>Menu</b><span class="dim" id="menuSite"></span><button class="iconbtn" id="menuClose" title="Fermer">✕</button></div>
