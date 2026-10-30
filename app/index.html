@@ -3,10 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>TRACÉ — TRACÉ v0.6 — rendu C validé (gaine noire, bouts nus, manchons cliquables)</title>
+<title>Tracé</title>
+<!-- 30/10/2026 (charte « Tracé ») : icône de l'appli, favicon, icône iPhone, manifest — fichiers servis à côté de la page (public/ → racine et docs/) -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="theme-color" content="#FFFFFF">
+<meta name="application-name" content="Tracé">
+<meta name="apple-mobile-web-app-title" content="Tracé">
+<meta name="mobile-web-app-capable" content="yes">
 <style>
   :root{--page:#f9f9f7;--surface:#fcfcfb;--plane:#e8e7e2;--ink:#0b0b0b;--ink2:#52514e;--muted:#898781;--line:#e1e0d9;
     --st-a_souder:#898781;--st-soudee:#eb6834;--st-controlee:#2a78d6;--st-manchonnee:#0ca30c;--st-a_reprendre:#d03b3b;--ok:#0ca30c;--warn:#fab219;--bad:#d03b3b}
+  @font-face{font-family:'Barlow Semi Condensed';font-style:normal;font-weight:500;font-display:swap;src:url(./assets/fonts/barlow-sc-500.woff2) format('woff2')} /* 30/10 : charte « Tracé » — Barlow Semi Condensed (licence OFL, assets/fonts) */
+  @font-face{font-family:'Barlow Semi Condensed';font-style:normal;font-weight:700;font-display:swap;src:url(./assets/fonts/barlow-sc-700.woff2) format('woff2')}
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;background:#e3e2dc;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);font-size:15px;line-height:1.35}
   button,input,select,textarea{font:inherit;color:inherit} button{cursor:pointer}
@@ -157,7 +168,7 @@
   .screen.show{display:flex}
   #loginView{align-items:center;justify-content:center;padding:22px}
   .loginBox{width:100%;max-width:340px;display:flex;flex-direction:column;align-items:center;gap:10px}
-  .loginBox .word{font-size:33px;font-weight:800;letter-spacing:.14em}
+  .loginBox .word{font-family:'Barlow Semi Condensed',system-ui,sans-serif;font-size:46px;font-weight:700;letter-spacing:0;color:#2B1B5A;line-height:1} /* 30/10 : charte « Tracé » */
   .loginBox .base{font-size:12.5px;color:var(--ink2);text-align:center;line-height:1.4}
   .loginCard{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 4px 18px rgba(10,14,20,.08);margin-top:10px}
   .loginCard label{font-size:11.5px;color:var(--ink2);font-weight:600;letter-spacing:.05em}
@@ -968,7 +979,7 @@ body.cm-win{margin:0;background:#ecebe5;height:100vh;display:flex;flex-direction
   <div class="screen" id="loginView">
     <div class="loginBox">
       <span id="loginLogo"></span>
-      <div class="word">TRACÉ</div>
+      <div class="word">Tracé</div>
       <div class="base">Suivi de soudage & manchonnage<br>des réseaux de chaleur</div>
       <div class="loginCard">
         <div id="loginMain">

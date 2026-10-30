@@ -1,0 +1,19 @@
+{
+  "name": "Tracé",
+  "short_name": "Tracé",
+  "description": "Tracé — suivi de soudage et de manchonnage des réseaux de chaleur",
+  "lang": "fr",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#2B1B5A",
+  "theme_color": "#FFFFFF",
+  "icons": [
+    { "src": "icons/trace-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/trace-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/trace-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/trace-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
