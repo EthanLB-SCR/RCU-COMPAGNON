@@ -6,8 +6,8 @@
 //  c4  « Agir comme » Karim (soudeur, Socle) : liste utilisable, Karim ne voit pas Hydro ; retour « Moi »
 //  c5  rechargement : le réglage revient du serveur (allumé), appliqué dès le démarrage ; extinction → RPC, tout revient
 //  c6  (2910j) serveur MUET (503 sur les données, la santé et le renouvellement) alors que la session est valide sur l'appareil — le cas d'Ethan le 30/10 au soir :
-//      bandeau rouge « Connexion au serveur perdue » à l'accueil, Administrateur → carte « Liste des comptes non lue » (pas de « Créer un accès »), « Agir comme » : comptes
-//      indisponibles, 🩺 Diagnostic → verdict « serveur en erreur (503) », allumer les paliers / créer un accès → refus clair (rien de créé sur l'appareil)
+//      bandeau rouge « Connexion au serveur perdue » à l'accueil, Administrateur → carte « Liste des comptes non lue » (pas de « Créer un accès »), « Agir comme » garde
+//      la dernière liste connue (2910k), 🩺 Diagnostic → verdict « serveur en erreur (503) », allumer les paliers / créer un accès → refus clair (rien de créé sur l'appareil)
 //  c7  le serveur revient : « ↻ Réessayer » du bandeau → session renouvelée, bandeau retiré, comptes relus (Personnes 4, Agir comme rempli)
 //  c8  console propre
 import { chromium } from 'playwright';
@@ -99,7 +99,7 @@ const diagTxt=o.diag?o.diag.txt:'';if(o.diag)delete o.diag.txt;
 await page.evaluate(()=>{const m=document.getElementById('modal');if(m)m.classList.remove('show');});
 console.log('c6) serveur muet :',J(o));
 C.c6=o.check&&o.check.ok===false&&o.check.why==='srv'&&o.check.status===503&&o.home.shown&&/Connexion au serveur perdue/.test(o.home.txt)&&o.home.btns.join()==='retry,diag'
-  &&o.admin.card&&o.admin.muet&&!o.admin.aucun&&!o.admin.newBtn&&o.admin.retry&&o.as&&o.as.some(t=>/comptes indisponibles/.test(t))
+  &&o.admin.card&&o.admin.muet&&!o.admin.aucun&&!o.admin.newBtn&&o.admin.retry&&o.as&&o.as.length===4/* 2910k : la dernière liste connue est GARDÉE pendant la coupure (Moi + 3 personnes) */
   &&/rien n'a changé|Service Unavailable/.test(o.pal.err)&&o.pal.on===false&&/pas créé/.test(o.create.err)&&!o.create.ok&&o.create.loc===0
   &&o.diag&&/ko/.test(o.diag.verdict)&&/503/.test(o.diag.verdict)&&o.diag.ko.includes('Serveur (connexion)')&&o.diag.ko.includes('Lecture des données')&&o.diag.ok.includes('Session utilisable')&&o.diag.btns.join()==='retry,copy,relog'&&!/eyJ/.test(diagTxt)/* aucun jeton dans le diagnostic */;
 /* ── c7 : le serveur revient, « Réessayer » */

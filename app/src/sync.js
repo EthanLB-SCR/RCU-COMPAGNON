@@ -14,6 +14,7 @@ let lastSession = null; const AUTH_LOG = []; try { if (sb) sb.auth.onAuthStateCh
 /* 30/10 soir (lot 2910j) — CONNEXION AU SERVEUR. Ethan : « Hors serveur · Personnes 0 », comptes et fiches qui ne chargent plus, alors que l'appli affichait son compte (profil gardé
    sur l'appareil) : rien ne disait que le serveur ne répondait plus à sa session. probe() = contrôle léger (réseau, session, une vraie lecture) ; health() = diagnostic complet lisible
    (aucun jeton dans le résultat) ; reconnect() = renouvellement forcé de la session ; forceLogout() = déconnexion même serveur injoignable (signOut seul garde la session si le réseau échoue). */
+let META_COL = null; const RT_STATE = {} // 2910k : colonne sites.meta présente ? (null = pas encore essayé) ; état des abonnements temps réel par chantier
 const storedSession = () => { try { const k = sb && sb.auth && sb.auth.storageKey; if (!k || typeof localStorage === 'undefined') return null; const v = JSON.parse(localStorage.getItem(k) || 'null'); return v && v.access_token ? v : null } catch (e) { return null } }
 const jwtPayload = t => { try { const b = String(t).split('.')[1].replace(/-/g, '+').replace(/_/g, '/'); return JSON.parse(atob(b + '='.repeat((4 - b.length % 4) % 4))) } catch (e) { return null } }
 async function ping(path, token, ms) { const lim = ms || 8000; const ac = typeof AbortController !== 'undefined' ? new AbortController() : null; const tm = setTimeout(() => { try { if (ac) ac.abort() } catch (e) { } }, lim); const t0 = Date.now()
@@ -45,6 +46,7 @@ export const SHARED_PARTS = ['conv', 'stock', 'qse', 'pointage', 'undoLog', 'dhD
 export function mergeServerParts(local, srv) { const out = { ...local }; SHARED_PARTS.forEach(k => { if (srv && srv[k] !== undefined) out[k] = srv[k] }); const lp = local && local.elPos && typeof local.elPos === 'object' ? local.elPos : {}; const sp = srv && srv.elPos && typeof srv.elPos === 'object' ? srv.elPos : {}; if (Object.keys(lp).length || Object.keys(sp).length) out.elPos = { ...lp, ...sp }; return out }
 export const sync = {
   available: () => !!sb,
+  rtOk: siteId => RT_STATE[siteId] === 'SUBSCRIBED',
   // 30/10 soir (2910j) : contrôle léger de la connexion — { ok } ou { ok:false, why: offline | nosession | session | net | jwt | srv, status, msg }
   async probe() { if (!sb) return { ok: false, why: 'client' }; if (typeof navigator !== 'undefined' && navigator.onLine === false) return { ok: false, why: 'offline' }
     const s = await session(); if (!s) return { ok: false, why: storedSession() ? 'session' : 'nosession' }
@@ -68,7 +70,7 @@ export const sync = {
   async forceLogout() { if (!sb) return; try { await withTimeout(sb.auth.signOut({ scope: 'local' }), 5000, null) } catch (e) { } try { const k = sb.auth.storageKey; if (k && typeof localStorage !== 'undefined') { localStorage.removeItem(k); localStorage.removeItem(k + '-user'); localStorage.removeItem(k + '-code-verifier') } } catch (e) { } lastSession = null },
   async user() { const s = await session(); return s ? s.user : null },
   // le callback est sorti du dispatch (setTimeout 0) : appeler Supabase DANS onAuthStateChange bloque tout derrière le verrou d'auth (deadlock connu de supabase-js) — c'est ce qui rendait la liste des chantiers aléatoire
-  onAuth(cb) { if (sb) sb.auth.onAuthStateChange((_e, s) => { setTimeout(() => cb(s ? s.user : null), 0) }) },
+  onAuth(cb) { if (sb) sb.auth.onAuthStateChange((_e, s) => { setTimeout(() => cb(s ? s.user : null, _e), 0) }) }, // 30/10 soir (2910k) : + l'événement (TOKEN_REFRESHED → pas de relecture complète)
   async login(email) { if (!sb) throw new Error('hors ligne'); const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.href.split('#')[0] } }); if (error) throw error; return true },
   async logout() { if (sb) await sb.auth.signOut() },
   // mot de passe (comptes et accès, 08/10) : connexion e-mail + mot de passe, première connexion = création du mot de passe (le profil est pré-créé par l'invitation côté serveur)
@@ -102,6 +104,8 @@ export const sync = {
       if (data && typeof data === 'object' && !Array.isArray(data) && 'at' in data) return { ok: true, at: data.at || new Date().toISOString(), value: data.value }; /* SQL v4 : la fonction renvoie la partie FUSIONNÉE (conversation, QSE, orientations, journal) → l'appli la reprend */
       return { ok: true, at: typeof data === 'string' ? data : new Date().toISOString() } } catch (e) { console.warn(e); return { ok: false, fallback: true } } },
   async ensureSite(net) { if (isSandbox(net && net.id)) return false; if (!(await ok())) return false; const { error } = await sb.from('sites').upsert({ id: net.id, name: net.name, supplier: net.supplier || null, serie: net.serie || null, data: { builtin: true, name: net.name } }, { onConflict: 'id', ignoreDuplicates: true }); if (error) { console.warn(error); return false } return true },
+  // 30/10 soir (2910k) : date du SEUL chantier ouvert (contrôle « plus récent sur le serveur ? » toutes les 90 s) — avant : la liste complète des chantiers à chaque fois
+  async siteUpdatedAt(id) { if (isSandbox(id)) return null; if (!(await ok())) return null; try { const { data, error } = await withTimeout(sb.from('sites').select('id,updated_at').eq('id', id).maybeSingle(), 15000, { error: new Error('délai') }); if (error) { console.warn('siteUpdatedAt', error); return null } return data ? { id: data.id || id, updated_at: data.updated_at || null } : { id, missing: true } } catch (e) { console.warn(e); return null } },
   async loadSite(id) { if (isSandbox(id)) return null; if (!(await ok())) return null; const { data, error } = await sb.from('sites').select('id,name,supplier,serie,data,updated_at').eq('id', id).maybeSingle(); if (error || !data) { if (error) console.warn(error); return null } return { ...data.data, id: data.id, name: data.name, updated_at: data.updated_at } },
   // suppression d'un chantier : soudures, états de lignes, événements puis la fiche (les photos du stockage restent, sans effet) — refusé par la base si les droits (RLS) ne le permettent pas
   // suppression = pierre tombale sur le serveur (la ligne « sites » reste, avec data.deleted) : tous les appareils la voient et masquent le chantier ; on ne renvoie plus jamais une copie locale d'un chantier supprimé. Les soudures / états / événements sont effacés.
@@ -116,6 +120,12 @@ export const sync = {
   // sélection complète (avec emprise réseau + nb de soudures pour la carte d'accueil), et REPLI automatique sur la sélection simple si le serveur la refuse : la liste des chantiers ne doit jamais mourir pour un champ bonus
   async listSiteMeta() {
     if (!(await ok())) return null
+    // 30/10 soir (2910k) : colonne sites.meta (sql/retours_30-10.sql) — la petite fiche du chantier tenue à jour par le serveur ; sans elle (SQL pas passé, ou un
+    // chantier sans fiche) : l'ancienne lecture, qui déballe chaque plan complet une fois par champ (c'est elle qui a vidé le budget disque le 30/10)
+    if (META_COL !== false) { try { const { data, error } = await withTimeout(sb.from('sites').select('id,name,supplier,updated_at,meta'), 15000, { error: new Error('délai') })
+        if (!error && Array.isArray(data) && data.length && data.every(r => r && r.meta && typeof r.meta === 'object')) { META_COL = true; /* liste vide : pas concluant → ancienne lecture (sans chantier, elle ne coûte rien) */ return data.map(r => ({ ...r.meta, id: r.id, name: r.name, supplier: r.supplier, updated_at: r.updated_at })) }
+        if (error && /meta|42703|PGRST204|PGRST100|column/i.test(String(error.message || '') + ' ' + String(error.code || ''))) META_COL = false
+      } catch (e) { console.warn(e) } }
     const SELS = ['id,name,supplier,updated_at,geo:data->geo,origin:data->origin,bgo:data->traceur->bgOrigin,sat:data->traceur->>savedAt,w:data->w,h:data->h,bbox:data->bbox,nbox:data->nbox,nw:data->report->welds,deleted:data->deleted,deletedAt:data->>deletedAt,builtin:data->builtin,ville:data->fiche->>ville,chef:data->fiche->>chef,conducteur:data->fiche->>conducteur,secteur:data->fiche->>secteur,etude:data->fiche->etude,manuel:data->manuel,createdAt:data->>createdAt,createdBy:data->>createdBy,l0:data->lines->0->>id', /* 20/10 (lot NC) : chantier créé à la main (manuel, créé le / par) et id de la première ligne (« sans tracé » quand absent) — repli sur la sélection simple comme avant si le serveur refuse */
       'id,name,supplier,updated_at,geo:data->geo,origin:data->origin,bgo:data->traceur->bgOrigin,sat:data->traceur->>savedAt,w:data->w,h:data->h,deleted:data->deleted,deletedAt:data->>deletedAt,builtin:data->builtin']
     for (const sel of SELS) { try { const { data, error } = await withTimeout(sb.from('sites').select(sel), 15000, { error: new Error('délai') }); if (error) { console.warn('listSiteMeta' + (sel === SELS[0] ? '' : ' (repli)'), error); continue } return data || [] } catch (e) { console.warn(e) } }
@@ -128,8 +138,8 @@ export const sync = {
       const ch = sb.channel('rt:' + siteId)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'welds', filter: 'site_id=eq.' + siteId }, p => { try { onWeld && onWeld(p.new && p.new.weld_id ? p.new : p.old, p.eventType) } catch (e) { console.warn(e) } })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'sites', filter: 'id=eq.' + siteId }, p => { try { onSite && onSite(p.new, p.eventType) } catch (e) { console.warn(e) } })
-        .subscribe();
-      return () => { try { sb.removeChannel(ch) } catch (e) { } };
+        .subscribe(st => { RT_STATE[siteId] = st }); // 30/10 soir (2910k) : abonné → le filet de 90 s ne relit plus toutes les soudures à chaque tour
+      return () => { try { delete RT_STATE[siteId]; sb.removeChannel(ch) } catch (e) { } };
     } catch (e) { console.warn('realtime', e); return null } },
   // profils (comptes réels) : absents tant que tools/supabase_setup.sql n'a pas été exécuté → l'appli reste en mode démo
   async profile() { const s = await session(); if (!s) return null; try { const { data, error } = await sb.from('profiles').select('*').eq('id', s.user.id).maybeSingle(); if (error) { return null } return data || null } catch (e) { return null } },
