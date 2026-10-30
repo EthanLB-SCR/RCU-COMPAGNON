@@ -26,7 +26,7 @@ export const fmtFR=n=>Number(n).toLocaleString('fr-FR',{maximumFractionDigits:1}
 /* étiquette courte d'un élément, pour le plan (30/10) : « coude DN 32 », « té DN 65/32 ×2 », « tube DN 32 · 35 m », « soudure », « extrudé »… (le signe est ajouté par l'appelant) */
 export function shortLab(e){if(!e)return '';const dn=e.dn?' DN '+e.dn+(e.dn2&&e.dn2!==e.dn?'/'+e.dn2:''):'';const q=e.q||{};
   if(e.kind==='tube')return 'tube'+dn+' · '+fmtFR(num(q.ml))+' m';if(e.kind==='piece')return (PK_WORD[e.k]||e.k)+dn+(e.n>1?' ×'+e.n:'')+(e.unloc?' (où ?)':'');
-  if(e.kind==='extru')return 'manchon extrudé';if(e.kind==='fc')return 'fausse coupe';if(e.kind==='extra')return 'soudure ajoutée';if(e.kind==='adj')return q.soud?'ajustement '+fmtFR(num(q.soud))+' soud.':'ajustement '+fmtFR(num(q.ml))+' m';return e.lab||'';}
+  if(e.kind==='extru')return 'manchon extrudé';if(e.kind==='fc')return 'fausse coupe';if(e.kind==='extra')return 'soudure ajoutée';if(e.kind==='adj')return q.soud?'ajustement '+fmtFR(num(q.soud))+' soud.':q.fc?'ajustement '+fmtFR(num(q.fc))+' fausse'+(num(q.fc)>1?'s coupes':' coupe'):'ajustement '+fmtFR(num(q.ml))+' m';return e.lab||'';}
 export function qtyTxt(q){return MOD_Q.filter(([k])=>q&&num(q[k])).map(([k])=>{const v=num(q[k]);return (k==='ml'?fmtFR(v)+' m':fmtFR(v)+' '+W[k][v>1?1:0]);}).join(' · ');}
 /* ── géométrie ── */
 function distToAxis(ax,q){let best=1e18,pk=0,acc=0,bx=q[0],by=q[1];for(let i=1;i<ax.length;i++){const a=ax[i-1],b=ax[i];const dx=b[0]-a[0],dy=b[1]-a[1];const L2=dx*dx+dy*dy||1e-12;let t=((q[0]-a[0])*dx+(q[1]-a[1])*dy)/L2;t=Math.max(0,Math.min(1,t));const px=a[0]+dx*t,py=a[1]+dy*t;const d=Math.hypot(q[0]-px,q[1]-py);const seg=Math.sqrt(L2);if(d<best){best=d;pk=acc+seg*t;bx=px;by=py;}acc+=seg;}return {d:best,pk,p:[bx,by]};}
@@ -44,7 +44,8 @@ function marcheInfo(x){const ax=x.axis||[];const L=polyLen(ax);const dnpEnd=x.dn
   const prof=(x.dnp||[]).map(s=>({m0:s.m0*k,m1:s.m1*k,dn:s.dn}));return {ax,L,k,welds,prof,hasWk:!!(x.wk&&(x.wk.A||x.wk.R)),hasPcs:!!x.pcs,hasDnp:!!(x.dnp&&x.dnp.length)};}
 const cnt=(W,a,b,f)=>W.filter(w=>w.m>=a-0.05&&w.m<=b+0.05&&(!f||f(w))).length;
 /* le plus gros tube d'une ligne entière (supprimée / nouvelle) absorbe l'écart de soudures que les morceaux n'expliquent pas (la ligne reste exacte) */
-function fixSoud(out,target){const tubes=out.filter(e=>e.kind==='tube');if(!tubes.length)return;const sum=out.reduce((s,e)=>s+e.s*num(e.q.soud),0);const d=Math.round(target-sum);if(!d)return;const big=tubes.slice().sort((a,b)=>num(b.q.ml)-num(a.q.ml))[0];const v=num(big.q.soud)+big.s*d;if(v>=0){big.q.soud=v;big.est=true;}}
+function fixQ(out,k,target){const tubes=out.filter(e=>e.kind==='tube');if(!tubes.length)return;const sum=out.reduce((s,e)=>s+e.s*num(e.q[k]),0);const d=Math.round(target-sum);if(!d)return;const big=tubes.slice().sort((a,b)=>num(b.q.ml)-num(a.q.ml))[0];const v=num(big.q[k])+big.s*d;if(v>=0){big.q[k]=v;if(k==='soud')big.est=true;}}
+const fixSoud=(out,target)=>fixQ(out,'soud',target);
 /* ── les éléments d'une ligne ── */
 function lineElements(r,l,x,o){const out=[];const lid=r.id,name=r.name||lid;const add=e=>{e.line=lid;e.lineName=name;if(out.some(z=>z.id===e.id)){let i=2;while(out.some(z=>z.id===e.id+'|'+i))i++;e.id=e.id+'|'+i;} /* 30/10 : deux pièces de même nature au même PK marché (lyre perpendiculaire à l'axe…) : clés distinctes */out.push(e);return e;};
   const R=l?reelInfo(l):null;const M=x&&x.axis&&x.axis.length>1?marcheInfo(x):null;if(l&&!R)return out;
@@ -56,18 +57,18 @@ function lineElements(r,l,x,o){const out=[];const lid=r.id,name=r.name||lid;cons
   const qOf=(k,n)=>{const q={};const key=PIECE_KEY[k]||(k==='purge'?'purges':k==='vidange'?'vidanges':null);if(key)q[key]=n;return q;};
   if(r.gone&&M){ /* ligne du marché supprimée : tout ce qu'elle contenait est retiré */
     const prof=M.prof.length?M.prof:[{m0:0,m1:M.L,dn:num(x.dn)}];
-    prof.forEach(s=>{const a=Math.max(0,s.m0),b=Math.min(M.L,s.m1);if(b-a<0.3)return;const soud=M.hasWk?cnt(M.welds,a,b):Math.round(2*(b-a)/12);
-      add({id:`${lid}|-|tube|${s.dn}|${Math.round(a)}-${Math.round(b)}`,s:-1,kind:'tube',dn:s.dn,q:{ml:r1(b-a),soud},lab:`Tube DN ${s.dn} · ${name} (ligne supprimée, PK ${fmtFR(a)} → ${fmtFR(b)})`,path:subAxis(M.ax,a,b),m0:a,m1:b,mid:(a+b)/2,est:!M.hasWk,gone:true});});
+    prof.forEach(s=>{const a=Math.max(0,s.m0),b=Math.min(M.L,s.m1);if(b-a<0.3)return;const soud=M.hasWk?cnt(M.welds,a,b):Math.round(2*(b-a)/12);const fc=M.hasWk?cnt(M.welds,a,b,w=>w.fc):0;
+      add({id:`${lid}|-|tube|${s.dn}|${Math.round(a)}-${Math.round(b)}`,s:-1,kind:'tube',dn:s.dn,q:Object.assign({ml:r1(b-a),soud},fc?{fc}:{}),lab:`Tube DN ${s.dn} · ${name} (ligne supprimée, PK ${fmtFR(a)} → ${fmtFR(b)})`,path:subAxis(M.ax,a,b),m0:a,m1:b,mid:(a+b)/2,est:!M.hasWk,gone:true});});
     groupPcs(x.pcs||[],'m').forEach(g=>{const mm=g.m*M.k;const dn=M.prof.length?dnAtP(M.prof,mm):num(x.dn);add({id:`${lid}|-|${g.k}|${Math.round(mm)}`,s:-1,kind:'piece',k:g.k,dn,n:g.n,q:qOf(g.k,g.n),lab:`${pcLab(g.k,dn,0,g.n)} · ${name} (ligne supprimée, PK ${fmtFR(mm)})`,at:[atOnAxis(M.ax,mm)],m0:mm,m1:mm,mid:mm,inTube:true,gone:true});});
-    fixSoud(out,-num(x.c&&x.c.soud)); /* 30/10 : le total de soudures de la ligne = son compte marché (les pièces en ajoutent : l'estimation « 2 par barre » ne suffit pas) */
+    fixSoud(out,-num(x.c&&x.c.soud));fixQ(out,'fc',-num(x.c&&x.c.fc)); /* 30/10 : le total de soudures (et de fausses coupes) de la ligne = son compte marché (les pièces en ajoutent : l'estimation « 2 par barre » ne suffit pas) */
     out.forEach(e=>{e.spot=lid+':gone';});return out;}
   if(!M||!R){ /* ligne nouvelle (absente du marché) : tout son contenu est ajouté */
     if(!R)return out;const prof=R.prof.length?R.prof:[{m0:0,m1:R.L,dn:num(l.dn)}];
-    prof.forEach(s=>{const a=Math.max(0,s.m0),b=Math.min(R.L,s.m1);if(b-a<0.3)return;const soud=cnt(R.welds,a,b,w=>!w.extra);
-      add({id:`${lid}|+|tube|${s.dn}|${Math.round(a)}-${Math.round(b)}`,s:1,kind:'tube',dn:s.dn,q:{ml:r1(b-a),soud},lab:`Tube DN ${s.dn} · ${name} (ligne nouvelle, PK ${fmtFR(a)} → ${fmtFR(b)})`,path:subAxis(R.ax,a,b),m0:a,m1:b,mid:(a+b)/2,isNew:true});});
+    prof.forEach(s=>{const a=Math.max(0,s.m0),b=Math.min(R.L,s.m1);if(b-a<0.3)return;const soud=cnt(R.welds,a,b,w=>!w.extra);const fc=cnt(R.welds,a,b,w=>w.fc); /* 30/10 : les fausses coupes d'une ligne nouvelle font partie de son tube (pas une pastille par soudure) */
+      add({id:`${lid}|+|tube|${s.dn}|${Math.round(a)}-${Math.round(b)}`,s:1,kind:'tube',dn:s.dn,q:Object.assign({ml:r1(b-a),soud},fc?{fc}:{}),lab:`Tube DN ${s.dn} · ${name} (ligne nouvelle, PK ${fmtFR(a)} → ${fmtFR(b)})`,path:subAxis(R.ax,a,b),m0:a,m1:b,mid:(a+b)/2,isNew:true});});
     groupPcs(linePieces(l),'m').forEach(g=>{const mm=g.m*R.k;const e0=reelEl(g.src[0]);const dn=num(e0&&e0.dn)||dnAtP(R.prof,mm)||num(l.dn);const dn2=e0?num(g.k==='reducer'?e0.dn2:e0.dnb):0;add({id:`${lid}|+|${g.k}|${Math.round(mm)}`,s:1,kind:'piece',k:g.k,dn,dn2:dn2||undefined,n:g.n,q:qOf(g.k,g.n),lab:`${pcLab(g.k,dn,dn2,g.n)} · ${name} (ligne nouvelle, PK ${fmtFR(mm)})`,at:[posA(g.m)].filter(Boolean),m0:mm,m1:mm,mid:mm,inTube:true,isNew:true});});
-    R.welds.forEach(w=>{if(w.extru)add(extruEl(l,w,name,o));if(w.fc)add(fcEl(l,w,name,o));});
-    fixSoud(out,num((r.d||{}).soud)); /* 30/10 : total = l'écart de la ligne (soudures comptées par l'appli) */
+    R.welds.forEach(w=>{if(w.extru)add(extruEl(l,w,name,o));});
+    fixSoud(out,num((r.d||{}).soud));fixQ(out,'fc',num((r.d||{}).fc)); /* 30/10 : total = l'écart de la ligne (soudures comptées par l'appli) */
     out.forEach(e=>{e.spot=lid+':new';});return out;}
   /* ligne présente des deux côtés : correspondance des axes, échantillonnée (0,25 à 1 m) */
   const TOL=0.6;const step=Math.max(0.25,Math.min(1,Math.max(R.L,M.L)/400));
@@ -103,7 +104,7 @@ function lineElements(r,l,x,o){const out=[];const lid=r.id,name=r.name||lid;cons
     {const reelPcs=linePieces(l);const RP=[],MV=[];const MOVED=2.5;(r.pairs||[]).forEach(pr=>{const pm=(x.pcs||[]).find(p=>(p.c||'A')===pr.c&&pcKind(p.k)===pcKind(pr.k)&&Math.abs(num(p.m)-num(pr.m))<0.06);const pe=reelPcs.find(p=>(p.c||'A')===pr.c&&pcKind(p.k)===pcKind(pr.k)&&Math.abs(num(p.m)-num(pr.r))<0.06);if(!pm||!pe)return;const e=reelEl(pe);
         const k=pcKind(pr.k);const dnMv=num(pm.dn)||dnM(num(pm.m)*M.k),dnRv=num(e&&e.dn)||dnR(num(pe.m)*R.k);const d2M=num(pm.dn2),d2R=e?num(k==='reducer'?e.dn2:e.dnb):0;if(!dnMv||!dnRv)return;
         if(dnMv!==dnRv||(d2M&&d2R&&d2M!==d2R)){RP.push({k,c:pr.c,m:num(pm.m),r:num(pe.m),dnM:dnMv,dnR:dnRv,d2M,d2R});return;}
-        if(k==='endcap'||pr.end)return;const a=atOnAxis(M.ax,num(pm.m)*M.k),b=posA(num(pe.m));const dist=a&&b?Math.hypot(a[0]-b[0],a[1]-b[1]):0;if(dist>MOVED)MV.push({k,c:pr.c,m:num(pm.m),r:num(pe.m),dn:dnRv,d2:d2R||d2M,dist});});
+        if(k==='endcap'||pr.end)return;const a=atOnAxis(M.ax,num(pm.m)*M.k),b=posA(num(pe.m));const dist=a&&b?Math.hypot(a[0]-b[0],a[1]-b[1]):0;if(dist>MOVED&&dist<1e5)MV.push({k,c:pr.c,m:num(pm.m),r:num(pe.m),dn:dnRv,d2:d2R||d2M,dist});}); /* dist aberrante (géométrie cassée) : on ne conclut rien */
       const grp=L=>{const G=[];L.sort((a,b)=>a.m-b.m).forEach(p=>{const g=G.find(g=>g.k===p.k&&Math.abs(g.m-p.m)<=1.5&&!g.c.includes(p.c));if(g){g.n++;g.c.push(p.c);}else G.push(Object.assign({},p,{n:1,c:[p.c]}));});return G;};
       grp(RP).forEach(g=>{const mm=g.m*M.k,mr=g.r*R.k;const p0=posA(g.r);const minus=add({id:`${lid}|-|${g.k}|${Math.round(mm)}|r`,s:-1,kind:'piece',k:g.k,dn:g.dnM,dn2:g.d2M||undefined,n:g.n,q:qOf(g.k,g.n),lab:`${pcLab(g.k,g.dnM,g.d2M,g.n)} · ${name} · PK marché ${fmtFR(mm)} (remplacé${g.n>1?'s':''} : DN ${g.dnM}${g.d2M?'/'+g.d2M:''} → ${g.dnR}${g.d2R?'/'+g.d2R:''})`,at:[atOnAxis(M.ax,mm)],m0:mr,m1:mr,mid:mr,inTube:inTube(-1,mr)});
         const plus=add({id:`${lid}|+|${g.k}|${Math.round(mm)}|r`,s:1,kind:'piece',k:g.k,dn:g.dnR,dn2:g.d2R||undefined,n:g.n,q:qOf(g.k,g.n),lab:`${pcLab(g.k,g.dnR,g.d2R,g.n)} · ${name} · PK ${fmtFR(mr)} (remplace le DN ${g.dnM}${g.d2M?'/'+g.d2M:''})`,at:[p0].filter(Boolean),m0:mr,m1:mr,mid:mr,inTube:inTube(1,mr)});
@@ -114,11 +115,15 @@ function lineElements(r,l,x,o){const out=[];const lid=r.id,name=r.name||lid;cons
   }
   else{ /* marché figé sans la position de ses pièces : par nature, non localisable */
     Object.keys(PIECE_KEY).concat(['purge','vidange']).forEach(k=>{const key=PIECE_KEY[k]||(k==='purge'?'purges':'vidanges');const d=num((r.d||{})[key]);if(!d||(k==='tee'&&false))return;const n=Math.abs(d);const mid=R.L/2;add({id:`${lid}|${d>0?'+':'-'}|${k}|?`,s:d>0?1:-1,kind:'piece',k,dn:num(l.dn),n,q:{[key]:n},lab:`${pcLab(k,num(l.dn),0,0)} ×${n} · ${name} (position inconnue : marché figé sans la place de ses pièces)`,at:[atOnAxis(R.ax,mid)],m0:0,m1:R.L,mid,est:true,unloc:true});});}
-  /* terrain : manchons extrudés, fausses coupes ; soudures ajoutées sur place (hors d'un tronçon ajouté, qui les compte déjà… non : exclues partout → un élément chacune) */
-  R.welds.forEach(w=>{if(w.extru)add(extruEl(l,w,name,o));if(w.fc)add(fcEl(l,w,name,o));if(w.extra){const q=o.jointPos(l,w.idx,w.c);add({id:`${lid}|+|extra|${w.id}`,s:1,kind:'extra',dn:w.dn,q:{soud:1},lab:`Soudure ajoutée sur place ${w.id} · ${name} (${w.c==='A'?'aller':'retour'})`,at:[q?[q.x,q.y]:atOnAxis(R.ax,w.m)],m0:w.m,m1:w.m,mid:w.m});}});
+  /* terrain : manchons extrudés, fausses coupes ; soudures ajoutées sur place (hors d'un tronçon ajouté, qui les compte déjà… non : exclues partout → un élément chacune)
+     30/10 (Ethan : « chantier neuf et des + partout ») : une fausse coupe (angle résiduel d'un coude, décidée par le traceur) ou une extrusion que le MARCHÉ avait déjà au même
+     endroit (wk : [PK, fc, ex]) n'est pas une modification ; marché sans wk : les fausses coupes ne se localisent pas → un ajustement par ligne (ci-dessous) */
+  const inMarche=(w,flag)=>{if(!M.hasWk)return false;const P=onM(w.m);if(P.d>TOL)return false;return M.welds.some(x=>x.c===w.c&&x[flag]&&Math.abs(x.m-P.pk)<=1);};
+  R.welds.forEach(w=>{if(w.extru&&!inMarche(w,'ex'))add(extruEl(l,w,name,o));if(w.fc&&M.hasWk&&!inMarche(w,'fc'))add(fcEl(l,w,name,o));if(w.extra){const q=o.jointPos(l,w.idx,w.c);add({id:`${lid}|+|extra|${w.id}`,s:1,kind:'extra',dn:w.dn,q:{soud:1},lab:`Soudure ajoutée sur place ${w.id} · ${name} (${w.c==='A'?'aller':'retour'})`,at:[q?[q.x,q.y]:atOnAxis(R.ax,w.m)],m0:w.m,m1:w.m,mid:w.m});}});
   /* ajustements : ce que les éléments n'expliquent pas (soudures : barres recalées ; linéaire : arrondis) — la ligne reste exacte */
   const sum=k=>out.reduce((s,e)=>s+e.s*num(e.q[k]),0);const dS=Math.round(num((r.d||{}).soud)-sum('soud'));
   if(dS){const mid=R.L/2;add({id:`${lid}|${dS>0?'+':'-'}|adj|soud`,s:dS>0?1:-1,kind:'adj',dn:num(l.dn),q:{soud:Math.abs(dS)},lab:`Soudures : ajustement de ${dS>0?'+':'−'}${Math.abs(dS)} · ${name} (${M.hasWk?'barres recalées ou soudures déplacées, hors des morceaux ci-dessus':'le marché n\'a pas mémorisé la place de ses soudures : estimation'})`,at:[atOnAxis(R.ax,mid)],m0:0,m1:R.L,mid,est:true,adj:true});}
+  const dF=Math.round(num((r.d||{}).fc)-sum('fc'));if(dF){const mid=R.L/2;add({id:`${lid}|${dF>0?'+':'-'}|adj|fc`,s:dF>0?1:-1,kind:'adj',dn:num(l.dn),q:{fc:Math.abs(dF)},lab:`Fausses coupes : ${dF>0?'+':'−'}${Math.abs(dF)} · ${name} (${M.hasWk?'hors des morceaux ci-dessus':'le marché n\'a pas mémorisé la place de ses soudures : non localisées'})`,at:[atOnAxis(R.ax,mid)],m0:0,m1:R.L,mid,est:true,adj:true});}
   const dM=r1(num((r.d||{}).ml)-sum('ml'));if(Math.abs(dM)>=1){const big=tubes.slice().sort((a,b)=>num(b.q.ml)-num(a.q.ml))[0];if(big&&Math.sign(dM)===big.s){big.q.ml=r1(num(big.q.ml)+Math.abs(dM));big.est=true;}else{const mid=R.L/2;add({id:`${lid}|${dM>0?'+':'-'}|adj|ml`,s:dM>0?1:-1,kind:'adj',dn:num(l.dn),q:{ml:Math.abs(dM)},lab:`Linéaire : ajustement de ${dM>0?'+':'−'}${fmtFR(Math.abs(dM))} m · ${name} (écart de longueur non localisé)`,at:[atOnAxis(R.ax,mid)],m0:0,m1:R.L,mid,est:true,adj:true});}}
   /* repères (« vont ensemble ») : par paquet le long de la ligne (GAP 20 m sur le PK réel) + les paires de DN */
   const GAP=20;const sorted=out.filter(e=>!e.adj&&!e.unloc).sort((a,b)=>a.m0-b.m0);let sp=null,spMax=-1e9,spN=0;sorted.forEach(e=>{if(!sp||e.m0>spMax+GAP){sp=lid+':'+(++spN);spMax=e.m1;}else spMax=Math.max(spMax,e.m1);e.spot=sp;});
