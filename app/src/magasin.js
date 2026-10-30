@@ -476,7 +476,7 @@ function tasks(me,ctx){ensure(ctx);const L=[];const D=dems();
 // vers Parc → 📦 Magasin → Demandes (le segment « magasin » de l'onglet Parc)
 function goGestion(ctx){S.seg='dem';S.mcur=null;S.art=null;const A=ctx.api;try{if(A&&A.homeTab)A.homeTab('parc');}catch(e){}const b=document.querySelector('#eq-app [data-act=parcseg][data-v=magasin]');if(b&&!b.classList.contains('active'))b.click();}
 
-export default {id:'mag',kinds:KINDS,
+export default {id:'mag',feat:'magasin',kinds:KINDS,
   moiSubs:(me,ctx)=>{if(!canAsk(me))return [];const n=dems().filter(d=>d.byKey===me.id&&d.statut==='prete').length;return [['mag','Magasin',n,false]];},
   view:(sub,me,ctx)=>sub==='mag'?vDem(me,ctx):null,
   parcSeg:(seg,me,ctx,bar)=>seg==='magasin'?vGestion(me,ctx,bar):null,

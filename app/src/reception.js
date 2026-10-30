@@ -415,7 +415,7 @@ const CSS=`.veh-wiz{max-width:640px;margin:0 auto}.veh-kick{font-size:12px;color
 .veh-ent{margin-top:6px;font-size:13px}.veh-ent summary{cursor:pointer;color:var(--ink2);min-height:32px}`;
 export function ensureCss(){if(typeof document==='undefined'||document.getElementById(ID+'-css'))return;const s=document.createElement('style');s.id=ID+'-css';s.textContent=CSS;document.head.appendChild(s);}
 /* ── le module branché ── */
-export default {id:ID,kinds:['vcfg','vrec'],hub:'parc',
+export default {id:ID,feat:'parc',kinds:['vcfg','vrec'],hub:'parc',
   pack:{key:'vehicule',label:'Véhicules : réception et restitution (état des lieux, inventaires, cartes, chartes)',import:packImport}, /* pack SCR : partie « vehicule » = {reception, entretien, textes} */
   gate(me,ctx){cap(ctx);ensureLoad(ctx);return null;}, /* rien de bloquant : sert à garder l'API et à relire le serveur après la connexion */
   moiSubs(me,ctx){cap(ctx);ensureLoad(ctx);return R2.moiSubs(me,ctx);}, /* 19/10 VH : « Véhicule laissé » (à prendre) ; l'écran ouvert du conducteur (remise seul, validation…) */

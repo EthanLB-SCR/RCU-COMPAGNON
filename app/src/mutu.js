@@ -145,10 +145,11 @@ const maxWeld=rows=>(rows||[]).reduce((m,r)=>Math.max(m,parseInt(String((r&&(r.w
 function origNum(C,aff){if(isMutu(C))return origOf(C);if(Array.isArray(C.affaires)&&C.affaires.length)return String(C.affaires[0]||'');const L=regAll('affaire').filter(x=>x&&!x.deleted&&x.num!==aff&&Array.isArray(x.sites)&&x.sites.includes(C.id));const w=L.find(x=>WON.includes(x.etat))||L[0];return w?w.num:'';}
 const canWrite=ctx=>{if(!ctx||!ctx.canEdit){A.toast('Réservé au droit « affaires » (comme gagner une affaire)');return false;}let st=null;try{st=A.affState&&A.affState();}catch(e){}if(st&&st.vview){A.toast('Version consultée : rien ne s\'écrit (reviens à la version en cours)');return false;}return true;};
 const online=()=>!(A.state.cloudUser&&typeof navigator!=='undefined'&&navigator.onLine===false);
+const featMutu=()=>!(A&&A.feat)||A.feat('mutu'); /* 30/10 (2910h) : option « chantier partagé par affaire » (palier Labo) — sans elle, le gain fait toujours un nouveau chantier et le bouton ➕ n'apparaît pas ; un chantier déjà partagé reste lisible */
 /* ═════════ 4 · AU GAIN (7 · Offre → 🏆 Gagnée) : « Nouveau chantier » ou « ➕ Ajouter au chantier en cours » ═════════ */
 let goNew=false;
 /* commerce.js, case 'ogagne' : true = la fenêtre du choix a pris la main ; again() rejoue le chemin d'avant (« Nouveau chantier », sans 2e confirmation) */
-export function mutuGainAsk(a,ctx,again){if(goNew||!A||!a||!ctx||!ctx.canEdit)return false;let E=[],C=[];try{E=etudesOf(a);C=E.length?candidates(a):[];}catch(e){console.warn(e);return false;}if(!E.length||!C.length)return false;
+export function mutuGainAsk(a,ctx,again){if(goNew||!A||!a||!ctx||!ctx.canEdit||!featMutu())return false;let E=[],C=[];try{E=etudesOf(a);C=E.length?candidates(a):[];}catch(e){console.warn(e);return false;}if(!E.length||!C.length)return false;
   choiceModal(a,ctx,{gain:true,E,C,again});return true;}
 export function mutuGainGo(){return goNew;}
 function choiceModal(a,ctx,o){const E=o.E||etudesOf(a),C=o.C||candidates(a);if(!E.length){A.toast('Pas d\'étude tracée dans cette affaire : rien à rattacher');return;}if(!C.length){A.toast('Aucun chantier en cours où ajouter ce tracé');return;}
@@ -253,14 +254,14 @@ export function mutuRowHTML(a,s,canEdit,ctx){try{if(!A||!a||!s)return null;const
 /* affaires.js (onglet sites) : étude versée, « ➕ Ajouter au chantier en cours » (affaire gagnée), retour d'un calage */
 export function mutuTabHTML(a,canEdit,ctx,consult){try{if(!A||!a)return '';let h='';const M=a.mutu;
   if(M&&M.site){h+=`<div class="ac-row lz-row mu-row" data-mu="etude" style="min-height:52px;margin-bottom:6px"><span class="ic" style="background:#e8f0fb">📐</span><span class="tx"><b>${esc(M.etudeNom||nameOf(M.etude))}</b><small><span class="lz-tag et">étude versée</span>dans le chantier « ${esc(nameOf(M.site))} » le ${dFR(M.at)}${M.by?' par '+esc(M.by):''} — lecture seule : ses ${M.lignes||''} ligne${M.lignes>1?'s':''} vivent maintenant dans le chantier (plan, soudures, quantités de cette affaire)</small></span></div>`;}
-  else if(canEdit&&!consult&&WON.includes(a.etat)){let E=[],C=[];try{E=etudesOf(a);C=E.length?candidates(a):[];}catch(e){}if(E.length&&C.length)h+=`<div class="eq-acts" style="margin-top:8px"><button class="btn" data-act="af" data-v="muadd|" style="min-height:44px" title="les lignes de l'étude rejoignent un chantier en cours (un seul chantier pour les gars)">➕ Ajouter au chantier en cours…</button></div><div class="hint" style="margin-top:4px">🔗 Un tracé qui prolonge un chantier en cours peut le rejoindre : un seul chantier pour les gars (même plan, même accueil), chaque ligne garde son affaire.</div>`;}
+  else if(canEdit&&!consult&&featMutu()&&WON.includes(a.etat)){let E=[],C=[];try{E=etudesOf(a);C=E.length?candidates(a):[];}catch(e){}if(E.length&&C.length)h+=`<div class="eq-acts" style="margin-top:8px"><button class="btn" data-act="af" data-v="muadd|" style="min-height:44px" title="les lignes de l'étude rejoignent un chantier en cours (un seul chantier pour les gars)">➕ Ajouter au chantier en cours…</button></div><div class="hint" style="margin-top:4px">🔗 Un tracé qui prolonge un chantier en cours peut le rejoindre : un seul chantier pour les gars (même plan, même accueil), chaque ligne garde son affaire.</div>`;}
   const c=lsGet(CAL);if(c&&c.aff===a.num)setTimeout(calPoll,50);return h;}catch(e){console.warn(e);return '';}}
 /* affaires.js (onglet Facturation) : avancement de CETTE affaire sur un chantier partagé */
 export function mutuFactHTML(a){try{if(!A||!a)return '';const L=(a.sites||[]).map(id=>siteOf(id)).filter(n=>isMutu(n)&&n.affaires.includes(a.num));if(!L.length)return '';
   return L.map(n=>{const av=avOf(n.id,a.num);const others=n.affaires.filter(x=>x!==a.num);return `<div class="okbox mu-fact">🔗 Chantier partagé « ${esc(n.name)} » (avec ${esc(others.join(', ')||'l\'origine')}) : l'avancement de l'affaire ${esc(a.num)} ne compte que SES lignes${av&&!av.wait?' — '+av.done+'/'+av.tot+' soudures faites ('+av.pct+' %)':''} ; ses situations se font ici, à part.</div>`;}).join('');}catch(e){return '';}}
 /* affaires.js, affAct : actions « mu… » */
 export function mutuAct(k,arg,arg2,a,ctx){if(!/^mu/.test(k))return false;if(!a)return true;
-  if(k==='muadd'){if(!canWrite(ctx))return true;choiceModal(a,ctx,{gain:false});return true;}
+  if(k==='muadd'){if(!canWrite(ctx))return true;if(!featMutu()){A.toast('Option « chantier partagé » pas ouverte pour toi');return true;}choiceModal(a,ctx,{gain:false});return true;}
   if(k==='muundo'){undoFlow(a.num,arg,ctx).catch(e=>console.warn(e));return true;}
   if(k==='mupart'){let st=null;try{st=A.affState&&A.affState();}catch(e){}mvOpenPartage(arg,{consult:!!(st&&st.vview)});return true;} /* lot MV : ⚙ Commun / séparé par dossier (version consultée : lecture seule) */
   return false;}
