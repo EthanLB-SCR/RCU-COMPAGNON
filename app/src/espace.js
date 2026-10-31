@@ -2091,7 +2091,7 @@ function vSub(me){const x=S.xsub;if(!x)return null;const back=t=>`<button class=
   if(x==='flotte')return (can(me,'flotte.manage')?back('')+flotteView(flCtx(me)):back('Flotte')+'<div class="card"><div class="eq-s">Pas d\'accès à la flotte.</div></div>');
   if(x==='gd')return back('Grands déplacements')+vGD(me);
   if(x==='agenda'){if(!S.agWho)agAutoSync(me);return back('')+vAgenda(me);} /* 12/10 : composer ma semaine ; synchro Outlook en arrière-plan si reliée */
-  if(x==='aff')return (can(me,'affaires.view')?back('')+affView(me,affCtx(me)):back('Affaires')+'<div class="card"><div class="eq-s">Pas d\'accès aux affaires.</div></div>');
+  if(x==='aff')return (can(me,'affaires.view')?back('')+affView(me,affCtx(me)):back('Commerce')+'<div class="card"><div class="eq-s">Pas d\'accès aux affaires.</div></div>');
   if(x==='cmd'||x==='comptes'||x==='frais'){const cs=cmdState();const lab=cs.tab==='db'?'Notes de frais à valider':cs.tab==='comptes'?'Comptes chantier':'Bons de commande';return back(lab)+cmdView(cmdCtx(me));} /* 12/10 soir : achats & comptes dans Chantiers — une seule vue à trois volets (bons · notes de frais · comptes) ; la ligne du hub choisit le volet (goX), les volets se changent dedans */
   if(x==='accident')return back('')+vAccidents(me); /* 12/10 soir : déclarer un accident (v1, champs à confirmer avec la RH) */
   if(x==='info')return back('Communication interne')+vInfos(me);

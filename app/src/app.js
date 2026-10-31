@@ -3466,8 +3466,9 @@ function renderBand(){const wide=$('#app').classList.contains('wide');const mod=
   try{const hh=$('#tbHomeHelp');if(hh)hh.style.display='none';tuHelpInject();if(TUTOS_OK())tutoArrive2(tutoWhere());}catch(e){}}
 /* 31/10 (Ethan : « la pastille, que ce soit l'avatar de la personne ») : pastille du compte = son avatar (kit avatar SCR) s'il existe, sinon ses initiales */
 function paintAva(){const wide=$('#app').classList.contains('wide');const ava=$('#homeAva'),sa=$('#tbSiteAva');if(!ava)return;
-  if(!ava.querySelector('svg'))ava.dataset.ini=ava.textContent;const ini=ava.dataset.ini||'?';let h=null;if(ini!=='…')try{h=espaceAvatarHTML(wide?40:34);}catch(e){h=null;}
-  [ava,sa].forEach(b=>{if(!b)return;if(h){if(b.dataset.av!==h||!b.querySelector('svg')){b.innerHTML=h;b.dataset.av=h;}b.classList.add('hasAv');b.setAttribute('aria-label','Mon compte');}else{if(b.dataset.av||b.textContent!==ini){b.textContent=ini;delete b.dataset.av;}b.classList.remove('hasAv');}});
+  if(!ava.querySelector('svg'))ava.dataset.ini=ava.textContent;const ini=ava.dataset.ini||'?';
+  const szOf=b=>{let s=0;try{s=Math.round(parseFloat(getComputedStyle(b).width));}catch(e){}return s>=20&&s<=80?s:(wide?40:34);}; /* 31/10 (Ethan : « la pastille n'est pas centrée ») : médaillon dessiné à la taille réelle de chaque pastille */
+  [ava,sa].forEach(b=>{if(!b)return;let h=null;if(ini!=='…')try{h=espaceAvatarHTML(szOf(b));}catch(e){h=null;}if(h){if(b.dataset.av!==h||!b.querySelector('svg')){b.innerHTML=h;b.dataset.av=h;}b.classList.add('hasAv');b.setAttribute('aria-label','Mon compte');}else{if(b.dataset.av||b.textContent!==ini){b.textContent=ini;delete b.dataset.av;}b.classList.remove('hasAv');}});
   if(sa)sa.style.display='';}
 {['homeLogo','tbSiteLogo'].forEach(id=>{const L=document.getElementById(id);if(L){L.style.cursor='pointer';L.title='Accueil';L.setAttribute('role','button');L.addEventListener('click',()=>homeGo('htHome'));}});} /* 31/10 : plus de ruban → toucher le logo = Aujourd'hui */
 /* 31/10 (lot MO) : écran courant → clé de tuto (tuto.js) */
