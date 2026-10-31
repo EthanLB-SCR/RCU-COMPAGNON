@@ -1982,6 +1982,17 @@ const objOnPlan=m=>!!(m&&((Array.isArray(m.tr)&&m.tr.length)||(Array.isArray(m.w
 const objPlanTxt=m=>{if(!objOnPlan(m))return '';const pr=A.objProgress?A.objProgress(m._site||S.objSite,m):null;const n=pr&&pr.n?pr.n:(Array.isArray(m.welds)?m.welds.length:0);const lab=m.type==='manch'?'manchon':'soudure';const dn=pr&&pr.byDn&&pr.byDn.length?' · '+pr.byDn.map(x=>'DN '+(x.dn||'?')+' × '+x.n+(x.done?' ('+x.done+' ✓)':'')).join(' · '):'';return (m.tr&&m.tr.length?'📐 '+(m.trName||'tronçon sur le plan'):'')+(n?(m.tr&&m.tr.length?' · ':'')+'🔧 '+n+' '+lab+(n>1?'s':'')+(pr&&pr.n?' ('+pr.done+'/'+pr.n+' ✓)':'')+dn:'');}; /* 11/10 : le nombre de soudures que le tronçon induit, et l'avancement (manchonnage : manchons posés) */
 /* à qui s'adresse une mission : personnes ciblées, sinon l'équipe (lettre du planning ce jour-là), sinon tout le chantier */
 /* équipes placées sur un chantier un jour donné (pour « ＋ Poser » → objectif, depuis le plan) : [{t:'A', members:[{id,prenom}]}] + les sans équipe */
+/* 01/11 soir (Ethan : « déclarer la soudure au nom de quelqu'un d'autre : le tuyauteur, le manchonneur ou le pelleur de l'équipe prennent la photo et disent
+   c'est XX qui a soudé ») : qui a pu souder ici — l'équipe placée sur ce chantier aujourd'hui (sinon cette semaine), soudeurs d'abord, puis les autres soudeurs
+   de l'annuaire. name = nom signé dans les fiches (celui du compte), comme les étapes faites par la personne elle-même → sa production le compte. */
+const SOUD_POSTES=new Set(['soudeur','tuyauteur','activites_specifiques']);
+export function espaceWelders(siteId,day){try{if(!DATA)DATA=buildData();day=day||todayIso();
+  const nm=p=>String((p._acc&&p._acc.name)||nomC(p)).trim();const on=d=>DATA.personnes.filter(p=>p.active&&planDe(p.id,d).includes(siteId));
+  let eq=on(day),when='jour';if(!eq.length){when='semaine';const seen=new Set();eq=[];semaineDe(0).forEach(d=>on(d).forEach(p=>{if(!seen.has(p.id)){seen.add(p.id);eq.push(p);}}));}
+  const row=p=>({key:p.id,name:nm(p),poste:p.poste,soud:SOUD_POSTES.has(p.poste)});const byN=(a,b)=>a.name.localeCompare(b.name,'fr');
+  const team=eq.map(row).sort((a,b)=>(b.soud-a.soud)||byN(a,b));
+  const others=DATA.personnes.filter(p=>p.active&&SOUD_POSTES.has(p.poste)&&!eq.includes(p)).map(row).sort(byN);
+  return {team,others,when};}catch(e){console.warn(e);return {team:[],others:[],when:''};}}
 export function espaceTeamsOn(siteId,day){if(!DATA)DATA=buildData();day=day||todayIso();const wk=weekKey(day);const aff=(PLANNING[wk]||{}).aff||{};const eq=DATA.personnes.filter(p=>planDe(p.id,day).includes(siteId));const out={};eq.forEach(p=>{const t=teamOf(aff,p.id,siteId)||'';(out[t]=out[t]||[]).push({id:p.id,prenom:p.prenom,nom:p.nom,poste:p.poste});});return Object.keys(out).sort().map(t=>({t,members:out[t]}));}
 export function espaceMissionFor(m,key,siteId,day){if(!m)return false;if(Array.isArray(m.who)&&m.who.length)return m.who.includes(key);if(m.team){const aff=(PLANNING[weekKey(day)]||{}).aff||{};return teamOf(aff,key,siteId)===m.team;}return true;}
 /* 11/10 (Ethan) : « les conducteurs de travaux et chefs de chantier ne doivent voir que leur propre équipe ou chantier » — périmètre de la vue :

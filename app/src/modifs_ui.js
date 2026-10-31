@@ -9,6 +9,7 @@ import {dnProfile as mDnProf,linePieces as mPieces,weldPks as mWelds,PIECE_KEY} 
 import {NAT_N,PC_2DN,elementsOf,compareEls,lectureOf,modifsOf,versionOf,markSeen,ownerOf,nextN,newId,modColor,recapOf,qtyTxt,rowLab,rowUnit,shortLab,MOD_Q,MOD_ET,MOD_ET_LONG,MOD_ORDER,MOD_COL,isTS,fmtFR,DECL_NAT,DECL_PC,isDecl,declNorm,declLineErr,declLineTxt,declKey,declRecap,declProps} from './modifs.js'; /* 31/10 (lot MD) : + modifs déclarées */
 let A=null;const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const MU={on:false,sel:[],qual:{},edit:null,lasso:null,undo:[],vf:0,note:'',panel:false,fold:{},sure:null,adv:false};
+try{document.addEventListener('toggle',e=>{const t=e.target;if(t&&t.matches&&t.matches('details.mdList'))MU.listOpen=!!t.open;},true);}catch(e){} /* 01/11 soir : la liste des modifs garde son état ouvert / fermé */
 export const DC={draft:null,pick:false,pickFirst:false,pickLine:null,ptsBak:null,note:'',msg:'',pinOpen:null,allProps:false}; /* 31/10 (lot MD) : fenêtre « Déclarer une modif » (brouillon) et mode « 📍 pointer sur le plan » */
 const SHORT={forfait:'Compris',propose:'TS prop.',commande:'TS cmd.',note:'Mémoire',corr:'Oubli'};
 const dFR=s=>{if(!s)return '';const d=new Date(s);return isNaN(d)?'':d.toLocaleDateString('fr-FR')+' · '+String(d.getHours()).padStart(2,'0')+' h '+String(d.getMinutes()).padStart(2,'0');};
@@ -140,7 +141,7 @@ export function tabHTML(){const M=A.marche();const canEd=A.can('ts.qualify');con
     ${M?`<div class="mdEc">${ec?'Écarts marché → réel : '+ec:'Le réel est conforme au marché : aucun écart.'}</div>`:''}${warn}</div>`;
   const cards=L.length?L.map(m=>isDecl(m)?declCardHTML(m):cardHTML(m)).join(''):`<div class="hint">Aucune modif déclarée : tout est compris dans le marché.${canEd?' « ＋ Déclarer une modif » pour ressortir un TS ou une modif pour mémoire.':''}</div>`;
   return `${head}${M?A.compareTable():''}
-   <h3 style="margin:14px 0 4px">Modifs déclarées <span class="muted" style="font-weight:400;font-size:12px">(${L.length})</span></h3>${cards}
+   <h3 style="margin:14px 0 4px">Modifs déclarées <span class="muted" style="font-weight:400;font-size:12px">(${L.length})</span></h3>${declImpactHTML()}${nD?`<details class="mdList" data-mod-list="1" ${MU.listOpen===false||(MU.listOpen==null&&L.length>5)?'':'open'}><summary>Le détail, modif par modif (${L.length})</summary>${cards}</details>`:cards}
    ${declRecapHTML()}${undeclHTML()}${nO?recapHTML():''}
    ${M?advHTML():''}`;}
 /* AVANCÉ : l'ancien mode « attribuer par éléments » (lots 2910b → g), replié — calculé seulement quand on l'ouvre */
@@ -205,7 +206,7 @@ export function exportHTML(){const net=A.net();const M=A.marche();const L=items(
 const DN_LIST=[20,25,32,40,50,65,80,100,125,150,200,250,300,350,400,450,500,600,700,800];
 const r2=v=>Math.round(v*100)/100;
 const ET_FORM=['propose','commande','note','forfait','corr']; /* TS proposé d'abord (état par défaut d'une modif déclarée) */
-function newDraft(){return {edit:null,nom:'',devis:'',etat:'propose',lignes:[],pts:[],note:'',photos:[]};}
+function newDraft(){return {edit:null,nom:'',devis:'',etat:'propose',lignes:[],pts:[],tr:[],note:'',photos:[]};} /* 01/11 soir : tr = tronçons comptés sur le plan (surlignés) */
 const hasDraft=()=>!!(DC.draft&&(DC.draft.lignes.length||DC.draft.pts.length||DC.draft.nom||DC.draft.note||DC.draft.photos.length));
 /* ligne de la fenêtre (saisie) ↔ ligne du modèle : la quantité est saisie sans signe + un bouton « en plus / en moins » */
 const parseN=v=>{const x=parseFloat(String(v==null?'':v).replace(/\s/g,'').replace(',','.'));return isFinite(x)?x:0;};
@@ -217,7 +218,7 @@ let PROPS={key:null,list:[]};
 function propsOf(){if(!A.marche())return [];let els=[];try{els=elements();}catch(e){els=[];}if(PROPS.key===els)return PROPS.list;let list=[];try{list=declProps(els);}catch(e){console.warn('modifs',e);}PROPS={key:els,list};return list;}
 /* ── fenêtre « Déclarer une modif » ── */
 export function declOpen(o){o=o||{};if(!A.can('ts.qualify')){A.toast('Réservé au chef / bureau');return false;}if(MU.on)end(true);if(DC.pick){DC.pick=false;pickBar();}
-  if(o.edit){const m=items().find(x=>x.id===o.edit&&isDecl(x));if(!m){A.toast('Modif introuvable');return false;}DC.draft={edit:m.id,nom:m.nom||'',devis:m.devis||'',etat:m.etat||'propose',lignes:((m.decl&&m.decl.lignes)||[]).map(toDraftLine),pts:((m.decl&&m.decl.pts)||[]).map(p=>Object.assign({},p)),note:m.note||'',photos:(m.photos||[]).slice()};}
+  if(o.edit){const m=items().find(x=>x.id===o.edit&&isDecl(x));if(!m){A.toast('Modif introuvable');return false;}DC.draft={edit:m.id,nom:m.nom||'',devis:m.devis||'',etat:m.etat||'propose',lignes:((m.decl&&m.decl.lignes)||[]).map(toDraftLine),pts:((m.decl&&m.decl.pts)||[]).map(p=>Object.assign({},p)),tr:((m.decl&&m.decl.tr)||[]).map(t=>Object.assign({},t)),note:m.note||'',photos:(m.photos||[]).slice()};}
   else if(o.fresh||!hasDraft()||(DC.draft&&DC.draft.edit))DC.draft=newDraft();
   if(o.pts)o.pts.forEach(p=>{if(p&&isFinite(+p.x)&&isFinite(+p.y)&&!DC.draft.pts.some(q=>Math.hypot(q.x-p.x,q.y-p.y)<0.5))DC.draft.pts.push(Object.assign({},p));});
   if(o.line)DC.draft.lignes.push(toDraftLine(o.line));
@@ -259,7 +260,7 @@ function formHTML(){const d=DC.draft;const Mo=modifsOf(A.net());const ed=d.edit?
    <div class="dclMsg" id="dclMsg">${esc(DC.msg||'')}</div>
    <div class="actions dclAct"><button type="button" class="btn" data-mod="dcl-cancel">Annuler</button><button type="button" class="btn primary" data-mod="dcl-save">${ed?'Enregistrer la modif n°'+n:'Déclarer la modif n°'+n}</button></div></div>`;}
 function renderForm(){if(!DC.draft)return;const prev=document.querySelector('#modal .box');const y=prev&&prev.querySelector('.dclForm')?prev.scrollTop:0;A.openModal(formHTML());DC.msg='';const box=document.querySelector('#modal .box');if(!box)return;box.classList.add('dclBox');box.scrollTop=y;
-  const onIn=e=>{const t=e.target;if(!t||!t.dataset)return;if(t.dataset.dcf){DC.draft[t.dataset.dcf]=t.value;return;}if(t.dataset.dcfPhoto){const f=t.files&&t.files[0];if(f)addPhoto(f);return;}
+  const onIn=e=>{const t=e.target;if(!t||!t.dataset||!DC.draft)return; /* 01/11 soir : un « change » tardif (champ quitté après l'enregistrement) ne casse plus rien */if(t.dataset.dcf){DC.draft[t.dataset.dcf]=t.value;return;}if(t.dataset.dcfPhoto){const f=t.files&&t.files[0];if(f)addPhoto(f);return;}
     if(t.dataset.dcl){const [i,f]=t.dataset.dcl.split(':');const d=DC.draft.lignes[+i];if(!d)return;d[f]=t.value;if(f==='nature'){if(d.nature==='dn')d.sg=1;renderForm();return;}if(f==='k'&&e.type==='change'){renderForm();return;}const pv=box.querySelector(`[data-dclprev="${i}"]`);if(pv)pv.textContent=declLineTxt(toLine(d));}};
   box.addEventListener('input',onIn);box.addEventListener('change',onIn);}
 async function addPhoto(f){try{const d=await A.compressPhoto(f);let u=null;try{u=await A.uploadPhoto('modif',d);}catch(e){u=null;}if(!DC.draft)return;DC.draft.photos.push(u||d);renderForm();}catch(e){A.toast('Photo illisible');}}
@@ -268,10 +269,11 @@ function declSave(){const d=DC.draft;if(!d)return null;const Mo=modifsOf(A.net()
   const bad=lignes.findIndex(l=>declLineErr(l));if(bad>=0){say(`Ligne ${bad+1} : ${declLineErr(lignes[bad])}`);return null;}
   const devis=String(d.devis||'').trim().slice(0,40);if(d.etat==='commande'&&!devis){say('TS commandé : indique le n° de devis');return null;}
   const now=new Date().toISOString(),by=A.userName();const pts=d.pts.map(p=>{const o={x:r2(+p.x),y:r2(+p.y)};if(p.line){o.line=p.line;o.m=p.m==null?null:Math.round(+p.m*10)/10;o.lineName=p.lineName||p.line;}return o;});
+  const ptsAll=pts.concat(...lignes.map(l=>l.pts||[]));const tr=(d.tr||[]).filter(t=>t&&t.line&&ptsAll.some(p=>p.line===t.line&&p.m!=null&&Math.abs(+p.m-(t.m0+t.m1)/2)<0.6)).slice(0,40).map(t=>({line:t.line,m0:+t.m0,m1:+t.m1,sg:t.sg<0?-1:1,name:t.name||t.line})); /* 01/11 soir : tronçon compté = surligné sur le plan, tant que son point est gardé */
   const note=String(d.note||'').trim().slice(0,600);let m=d.edit?Mo.items.find(x=>x.id===d.edit):null;const n=m?m.n:nextN(Mo);const nom=String(d.nom||'').trim().slice(0,90)||('Modif n°'+n);
   if(m){const ch=[];if(m.etat!==d.etat)ch.push('état : '+(MOD_ET[m.etat]||m.etat)+' → '+MOD_ET[d.etat]);if((m.devis||'')!==devis)ch.push('devis '+(devis||'retiré'));const L0=((m.decl&&m.decl.lignes)||[]).map(declLineTxt).join(' · '),L1=lignes.map(declLineTxt).join(' · ');if(L0!==L1)ch.push('lignes : '+L1);const P0=((m.decl&&m.decl.pts)||[]).length;if(P0!==pts.length)ch.push(pts.length+' point'+(pts.length>1?'s':''));
-    Object.assign(m,{nom,devis,etat:d.etat,decl:{lignes,pts},note,photos:d.photos.slice()});(m.log=m.log||[]).push({at:now,by,txt:ch.join(' · ')||'modifiée'});}
-  else{m={id:newId(Mo),n,kind:'decl',nom,devis,etat:d.etat,decl:{lignes,pts},note,photos:d.photos.slice(),at:now,by,v:versionOf(Mo,A.marche(),A.savedAt()),log:[{at:now,by,txt:'déclarée : '+lignes.map(declLineTxt).join(' · ')}]};Mo.items.push(m);}
+    Object.assign(m,{nom,devis,etat:d.etat,decl:Object.assign({lignes,pts},tr.length?{tr}:{}),note,photos:d.photos.slice()});(m.log=m.log||[]).push({at:now,by,txt:ch.join(' · ')||'modifiée'});}
+  else{m={id:newId(Mo),n,kind:'decl',nom,devis,etat:d.etat,decl:Object.assign({lignes,pts},tr.length?{tr}:{}),note,photos:d.photos.slice(),at:now,by,v:versionOf(Mo,A.marche(),A.savedAt()),log:[{at:now,by,txt:'déclarée : '+lignes.map(declLineTxt).join(' · ')}]};Mo.items.push(m);}
   const allP=pts.concat(...lignes.map(l=>l.pts||[]));const ln=allP.find(p=>p.line);if(ln){m.line=ln.line;const a=A.affOf(ln.line);if(a!=null&&a!=='')m.aff=a;else delete m.aff;}else{delete m.line;let s='';try{s=A.scopeAff?A.scopeAff():'';}catch(e){s='';}if(s)m.aff=s;else delete m.aff;}
   A.save();const edit=!!d.edit;DC.draft=null;DC.msg='';A.closeModal();A.renderAll();A.toast(`Modif n°${m.n} ${edit?'enregistrée':'déclarée'} · ${MOD_ET[m.etat]}${allP.length?'':' — pas pointée sur le plan'}`);return m;}
 /* ── pointer sur le plan ── */
@@ -369,10 +371,16 @@ function countTap(x,y){const k=A.k();const R=refLines(CT.sg<0?'av':'ap');let bes
   else{const m0=Math.min(CT.a.m,m),m1=Math.max(CT.a.m,m);if(m1-m0<0.3){CT.note='Tronçon trop court';}else{CT.tr.push({line:best.line,m0,m1,name:best.name,a:{x:CT.a.x,y:CT.a.y},b:{x:best.x,y:best.y}});CT.note=`✓ Tronçon ${CT.tr.length} : ${esc(best.name)} PK ${fmtFR(m0)} → ${fmtFR(m1)} m`;}CT.a=null;}
   countBar();A.renderPlan();}
 export function countEnd(silent){if(!CT.on)return;CT.on=false;CT.a=null;CT.note='';countBar();A.renderPlan();if(!silent&&DC.draft)renderForm();}
-function countAdd(){const C=ctCount();if(!C.rows.length){A.toast('Rien à ajouter : sélectionne au moins un tronçon');return;}const t0=CT.tr[0];const pts=t0?[t0.a,t0.b].map(q=>({x:Math.round(q.x*100)/100,y:Math.round(q.y*100)/100,line:t0.line,lineName:t0.name})):[];
+/* 01/11 soir (Ethan : « quand c'est compté sur le plan, ça doit automatiquement être pointé sur le plan ») : chaque tronçon compté donne un point à la modif (son milieu,
+   sur la ligne, avec son PK) et reste surligné sur le plan ; les lignes ajoutées sont pointées au même endroit */
+function ptOn(P,m){let acc=0;for(let i=1;i<P.length;i++){const a=P[i-1],b=P[i];const L=Math.hypot(b[0]-a[0],b[1]-a[1]);if(acc+L>=m||i===P.length-1){const t=L?Math.max(0,Math.min(1,(m-acc)/L)):0;return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];}acc+=L;}return P[0];}
+function countAdd(){const C=ctCount();if(!C.rows.length){A.toast('Rien à ajouter : sélectionne au moins un tronçon');return;}const R=refLines(CT.sg<0?'av':'ap');
+  const pts=CT.tr.map(t=>{const L=R.find(l=>l.id===t.line);const mm=(t.m0+t.m1)/2;const q=L?ptOn(L.P,mm):[(t.a.x+t.b.x)/2,(t.a.y+t.b.y)/2];return {x:Math.round(q[0]*100)/100,y:Math.round(q[1]*100)/100,line:t.line,lineName:t.name,m:Math.round(mm*10)/10};});
+  pts.forEach(p=>{if(!DC.draft.pts.some(q=>Math.hypot(q.x-p.x,q.y-p.y)<0.5))DC.draft.pts.push(Object.assign({},p));});
+  DC.draft.tr=(DC.draft.tr||[]).concat(CT.tr.map(t=>({line:t.line,m0:Math.round(t.m0*10)/10,m1:Math.round(t.m1*10)/10,sg:CT.sg,name:t.name})));
   const from=CT.tr.map(t=>`${t.name} PK ${fmtFR(Math.round(t.m0))} → ${fmtFR(Math.round(t.m1))}`).join(', ').slice(0,40);
-  C.rows.forEach(r=>{const b=CT_NAT[r.k];if(!b)return;const ln=Object.assign({},b,{qte:CT.sg*Math.abs(r.q),dn:r.dn||'',from:'compté : '+from,pts});if(r.dn2&&(r.k==='tes'||r.k==='reduc'))ln.dn2=r.dn2;DC.draft.lignes.push(toDraftLine(ln));});
-  const n=C.rows.length;CT.on=false;CT.a=null;CT.note='';countBar();A.renderPlan();DC.msg='';renderForm();A.toast(`${n} ligne${n>1?'s':''} ajoutée${n>1?'s':''} à la modif`);}
+  C.rows.forEach(r=>{const b=CT_NAT[r.k];if(!b)return;const ln=Object.assign({},b,{qte:CT.sg*Math.abs(r.q),dn:r.dn||'',from:'compté : '+from,pts:pts.map(p=>Object.assign({},p))});if(r.dn2&&(r.k==='tes'||r.k==='reduc'))ln.dn2=r.dn2;DC.draft.lignes.push(toDraftLine(ln));});
+  const n=C.rows.length;CT.on=false;CT.a=null;CT.note='';countBar();A.renderPlan();DC.msg='';renderForm();A.toast(`${n} ligne${n>1?'s':''} ajoutée${n>1?'s':''} à la modif — pointée sur le plan (${pts.length} tronçon${pts.length>1?'s':''})`);}
 function countBar(){let el=document.getElementById('modPickBar');if(!CT.on){if(!DC.pick&&!MS.on&&!FO.on){if(el)el.style.display='none';document.body.classList.remove('mod-pick');}return;}document.body.classList.add('mod-pick');
   if(!el){const host=document.getElementById('canvas')||document.body;el=document.createElement('div');el.id='modPickBar';host.appendChild(el);['pointerdown','touchstart','wheel'].forEach(ev=>el.addEventListener(ev,e=>e.stopPropagation(),{passive:true}));}
   el.style.display='flex';const C=ctCount();
@@ -421,9 +429,10 @@ function pickBar(){let el=document.getElementById('modPickBar');if(!DC.pick){if(
   const P0=pickPts()||[];const n=P0.length;el.style.display='flex';const lnT=DC.pickLine!=null&&DC.draft&&DC.draft.lignes[DC.pickLine]?declLineTxt(toLine(DC.draft.lignes[DC.pickLine])):'';
   el.innerHTML=`<div class="mbH"><b>📍 ${lnT?'Pointer : '+esc(lnT.length>34?lnT.slice(0,33)+'…':lnT):'Pointer la modif'}</b><span class="mbLeg"><i class="y"></i>écart <i class="v"></i>DN changé <i class="g"></i>marché</span><button class="mbEnd" data-mod="pick-cancel">Annuler</button></div>${DC.note?`<div class="mbNote">${DC.note}</div>`:''}<div class="mbMsg">Touche l'endroit de la modif (plusieurs points possibles ; re-touche un point pour l'enlever).</div><div class="mbTools">${n?'<button class="mbT" data-mod="pick-undo" title="enlever le dernier point">↶</button><button class="mbT" data-mod="pick-clear">Vider</button>':''}<span class="mbCnt"><b>${n}</b> point${n>1?'s':''}</span><button class="mbGo" data-mod="pick-ok">✓ ${DC.pickFirst&&!DC.draft.lignes.length?'Suite : ce que je ressors':'Terminé'}</button></div>`;}
 /* ── repères sur le plan ── */
-function pinPts(m){if(isDecl(m))return ((m.decl&&m.decl.pts)||[]).concat(...(((m.decl&&m.decl.lignes)||[]).map(l=>l.pts||[]))).map(p=>[+p.x,+p.y]).filter(p=>isFinite(p[0])&&isFinite(p[1]));const els=(m.els||[]).map(byId).filter(Boolean);if(!els.length)return [];const e=els[0];const an=anchors(e);const a=e.at&&e.at.length?e.at[0]:an[Math.floor(an.length/2)];return a?[a]:[];}
+function pinPts(m){if(isDecl(m)){const out=[];((m.decl&&m.decl.pts)||[]).concat(...(((m.decl&&m.decl.lignes)||[]).map(l=>l.pts||[]))).forEach(p=>{const q=[+p.x,+p.y];if(!isFinite(q[0])||!isFinite(q[1]))return;if(!out.some(o=>Math.hypot(o[0]-q[0],o[1]-q[1])<0.5))out.push(q);});return out;} /* 01/11 soir : un repère par endroit (les lignes comptées sont pointées au même endroit que la modif) */const els=(m.els||[]).map(byId).filter(Boolean);if(!els.length)return [];const e=els[0];const an=anchors(e);const a=e.at&&e.at.length?e.at[0]:an[Math.floor(an.length/2)];return a?[a]:[];}
 const pinCol=m=>isDecl(m)?(MOD_COL[m.etat]||'#b88d12'):modColor(m);
-function pinsOverlay(k){const Mo=modifsOf(A.net());if(!Mo||!Mo.items.length)return '';let s='';const lab=k>=0.9;
+function pinsOverlay(k){const Mo=modifsOf(A.net());if(!Mo||!Mo.items.length)return '';let s='';const lab=k>=0.9;let RAV=null,RAP=null;const refOf=sg=>sg<0?(RAV||(RAV=refLines('av'))):(RAP||(RAP=refLines('ap')));
+  items().forEach(m=>{if(!isDecl(m))return;const T=(m.decl&&m.decl.tr)||[];if(!T.length)return;const col=pinCol(m);T.forEach(t=>{const L=refOf(t.sg).find(l=>l.id===t.line);if(!L)return;const P=subPath(L.P,+t.m0,+t.m1);if(P.length<2)return;s+=`<polyline class="mdTr" data-modtr="${esc(m.id)}" points="${P.map(p=>p[0]+','+p[1]).join(' ')}" fill="none" stroke="${col}" stroke-opacity=".42" stroke-width="${12/k}" stroke-linecap="round" stroke-linejoin="round"${t.sg<0?` stroke-dasharray="${14/k} ${9/k}"`:''} style="pointer-events:none"/>`;});}); /* 01/11 soir : tronçons comptés (pointillé = ancien tracé) */
   items().forEach(m=>{if(!isDecl(m)&&MU.on)return; /* en mode « attribuer », l'ancienne modif est dessinée par ses éléments */const P=pinPts(m);if(!P.length)return;const col=pinCol(m);const t=isDecl(m)?(MOD_ET[m.etat]||''):'';const nm=String(m.nom||'');
     P.forEach((a,i)=>{s+=`<g data-modpin="${esc(m.id)}" transform="translate(${a[0]} ${a[1]}) scale(${1/k})" style="cursor:pointer"><circle r="23" fill="#fff" fill-opacity=".01"/><circle r="15" fill="${col}" stroke="#fff" stroke-width="3"/><text y="5" font-size="${m.n>99?11:13}" font-weight="900" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif" style="pointer-events:none">${m.n}</text>${lab&&i===0?`<text x="20" y="-9" font-size="11.5" font-weight="800" fill="${col}" stroke="#fff" stroke-width="3.2" paint-order="stroke" font-family="system-ui,sans-serif" style="pointer-events:none">n°${m.n}${t?' · '+esc(t):''}${k>=2.5&&nm?' · '+esc(nm.length>28?nm.slice(0,27)+'…':nm):''}</text>`:''}</g>`;});});
   return s;}
@@ -443,6 +452,35 @@ function declCardHTML(m,o){o=o||{};const canEd=A.can('ts.qualify');const col=MOD
    <div class="mdMeta">déclarée le ${esc(dFR(m.at))} par ${esc(m.by||'')}${last?' · dernière modification : '+esc(dFR(last.at))+' ('+esc(last.by||'')+')':''}</div>
    ${log.length>1?`<details class="dclLog"><summary>Journal (${log.length})</summary>${log.map(x=>`<div>${esc(dFR(x.at))} · ${esc(x.by||'')} · ${esc(x.txt||'')}</div>`).join('')}</details>`:''}
    <div class="row" style="gap:6px;flex-wrap:wrap;display:flex;margin-top:6px">${canEd?`<button class="btn sm" data-mod="dcl-edit:${esc(m.id)}">✎ Modifier</button>`:''}${P.length&&!o.noGo?`<button class="btn sm" data-mod="dcl-go:${esc(m.id)}">🗺 Voir sur le plan</button>`:''}${canEd?(MU.sure===m.id?`<button class="btn sm" data-mod="del:${esc(m.id)}" style="color:#fff;background:#c2362c;border-color:#c2362c">Confirmer : retirer la modif n°${m.n}</button>`:`<button class="btn sm" data-mod="del:${esc(m.id)}" style="color:#c2362c">🗑 Retirer</button>`):''}</div>`:''}</div>`;}
+/* ══ 01/11 soir (Ethan : « fais un récap dans les modifs quand elles sont validées, pas juste une grande liste : un récap des ml par DN avant et après — induit par
+   la modif — et pour les pièces, etc. ») — RÉCAP DES MODIFS DÉCLARÉES : par quantité et par DN, le marché (avant), ce que disent les modifs déclarées (lignes
+   additionnées ; un changement de DN retire la longueur à l'ancien DN et l'ajoute au nouveau) et le résultat (après). Filtre : toutes / TS (proposé + commandé).
+   Mêmes conventions que le récap marché / réel : linéaire d'axe, soudures et pièces comptées aller + retour. ══ */
+const IMP_K=[['ml','Linéaire','m',1],['soud','Soudures','',1],['coudes','Coudes','',1],['tes','Tés','',1],['reduc','Réductions','',1],['vannes','Vannes','',1],['purges','Purges','',1],['vidanges','Vidanges','',1],['bouchons','Fins de ligne','',1],['extru','Manchons extrudés','',0],['fc','Fausses coupes','',0],['sst','Sous-stations','',0],['attente','Attentes','',0]]; /* 4e : le marché sait le compter (avant connu) */
+const rnd1=v=>Math.round(v*10)/10;
+function marcheByDn(){const M=A.marche();const out={};const add=(k,dn,v)=>{const o=out[k]||(out[k]={});const key=dn?String(dn):'?';o[key]=rnd1((o[key]||0)+v);};
+  ((M&&M.lines)||[]).forEach(x=>{const S={dn:+x.dn||0,dnp:x.dnp||[],pcs:x.pcs||[],w:x.wk?[...(x.wk.A||[]),...(x.wk.R||[])]:[]};const ml=+(x.c&&x.c.ml)||0;
+    const tot=S.dnp.reduce((t,q)=>t+Math.max(0,(+q.m1||0)-(+q.m0||0)),0);if(tot>0.01&&ml>0)S.dnp.forEach(q=>add('ml',q.dn,ml*Math.max(0,(+q.m1||0)-(+q.m0||0))/tot));else if(ml>0)add('ml',S.dn,ml); /* le linéaire d'axe du marché, réparti par DN */
+    S.w.forEach(w=>add('soud',dnAt(S,+w[0]),1));S.pcs.forEach(q=>{const k=PIECE_KEY[q.k];if(k)add(k,+q.dn||dnAt(S,+q.m),1);});});
+  return out;}
+function declImpact(f){const d={},oth=[];let n=0;const add=(k,dn,v)=>{const o=d[k]||(d[k]={});const key=dn?String(dn):'?';o[key]=rnd1((o[key]||0)+v);};
+  decls().filter(m=>f==='ts'?isTS(m.etat):true).forEach(m=>{n++;((m.decl&&m.decl.lignes)||[]).forEach(l0=>{const l=declNorm(l0);const q=+l.qte||0;
+    if(l.nature==='dn'){const L=Math.abs(q);if(L){add('ml',l.dnA,-L);add('ml',l.dnB,L);}return;}
+    const key=l.nature==='piece'?(l.k!=='autre'?l.k:null):['ml','soud','extru','sst','attente'].includes(l.nature)?l.nature:null;
+    if(key&&q){add(key,l.dn,q);return;}if(q||l.txt)oth.push({n:m.n,l});});});
+  return {d,oth,n};}
+function declImpactHTML(){const D0=decls();if(!D0.length)return '';const F=MU.impF==='ts'?'ts':'all';const nTS=D0.filter(m=>isTS(m.etat)).length;const I=declImpact(F);const hasM=!!A.marche();const B=hasM?marcheByDn():{};
+  const cls=v=>v>0?'mdP':v<0?'mdM':'dim';const nb=v=>fmtFR(rnd1(v));let body='';
+  IMP_K.forEach(([k,lab,u,known])=>{const dd=I.d[k]||{};const tol=k==='ml'?0.05:0.5;const ch=Object.keys(dd).filter(x=>Math.abs(dd[x])>=tol);if(!ch.length)return;
+    const b=B[k]||{};const kn=hasM&&known;const dns=new Set(ch);if(k==='ml'&&kn)Object.keys(b).forEach(x=>{if(b[x]>=0.05)dns.add(x);});
+    const L=[...dns].sort((x,y)=>(parseFloat(y)||0)-(parseFloat(x)||0));let ta=0,td=0;
+    body+=`<tr class="impG"><td colspan="4">${esc(lab)}${u?' ('+u+')':''}</td></tr>`;
+    L.forEach(dn=>{const a=b[dn]||0,v=dd[dn]||0;ta+=a;td+=v;body+=`<tr${Math.abs(v)<tol?' class="impSame"':''}><td>${dn==='?'?'DN ?':'DN '+esc(dn)}</td><td>${kn?nb(a):'—'}</td><td class="${cls(Math.abs(v)<tol?0:v)}">${Math.abs(v)<tol?'=':sgn(v)}</td><td><b>${kn?nb(a+v):'—'}</b></td></tr>`;});
+    if(L.length>1)body+=`<tr class="impTot"><td>Total</td><td>${kn?nb(ta):'—'}</td><td class="${cls(td)}">${Math.abs(td)<tol?'=':sgn(td)}</td><td><b>${kn?nb(ta+td):'—'}</b></td></tr>`;});
+  const oth=I.oth.length?`<div class="impOth"><b>Autres</b> ${I.oth.map(o=>`<span>${esc(declLineTxt(o.l))} <span class="dim">· n°${o.n}</span></span>`).join('')}</div>`:'';
+  const chips=`<div class="row impF" style="gap:6px;flex-wrap:wrap;margin:0 0 6px"><span class="dim">Modifs :</span><button type="button" class="chip ${F==='all'?'on':''}" data-mod="imp-f:all">Toutes (${D0.length})</button><button type="button" class="chip ${F==='ts'?'on':''}" data-mod="imp-f:ts" title="TS proposés et commandés">TS (${nTS})</button></div>`;
+  return `<div class="card impCard">${chips}${body?`<div style="overflow:auto"><table class="rc impT"><tr><th>DN</th><th>${hasM?'Marché (avant)':'Avant'}</th><th>Modifs</th><th>Après</th></tr>${body}</table></div>`:`<div class="dim">${F==='ts'?'Aucune modif en TS pour l\'instant.':'Les modifs déclarées n\'ont pas de quantité chiffrée (texte libre).'}</div>`}${oth}
+    <p class="hint" style="margin:4px 0 0">Avant = le marché figé${hasM?'':' (pas encore figé : seul l\'écart est connu)'} · Modifs = ce que disent les ${I.n} modif${I.n>1?'s':''} ${F==='ts'?'en TS':'déclarée'+(I.n>1?'s':'')}, lignes additionnées · Après = avant + modifs. Soudures et pièces : aller + retour.</p></div>`;}
 /* récap des modifs déclarées, par état */
 function declRecapHTML(){const R=declRecap(decls());const ets=MOD_ORDER.filter(et=>R[et]&&R[et].length);if(!ets.length)return '';
   return `<h3 style="margin:14px 0 4px">Récap par état <span class="muted" style="font-weight:400;font-size:12px">— modifs déclarées, lignes additionnées</span></h3><div class="dclRecap">${ets.map(et=>`<div class="dclRc"><div class="dclRcH">${chip(et)}</div><ul>${R[et].map(r=>`<li>${esc(r.lab)} <span class="dim">· n°${r.mods.join(', n°')}</span></li>`).join('')}</ul></div>`).join('')}</div>`;}
@@ -463,6 +501,7 @@ export function handleClick(e){const t=e.target.closest('[data-mod]');if(!t)retu
     case 'qall':compareEls(MU.sel.map(byId).filter(Boolean)).forEach(r=>{MU.qual[r.key]=arg;});panel();return true;
     case 'create':commit();return true;case 'cancel':MU.undo.push(MU.sel.slice());MU.sel=[];MU.qual={};MU.edit=null;MU._fresh=true;refresh();return true;
     case 'panel':MU.panel=true;panel();return true;case 'panelclose':MU.panel=false;panel();return true;
+    case 'imp-f':MU.impF=arg==='ts'?'ts':'all';A.renderAll();return true; /* 01/11 soir : récap des modifs, toutes / TS */
     case 'vf':MU.vf=+arg===MU.vf?0:+arg;refresh();return true;case 'fold':MU.fold[arg]=MU.fold[arg]===false;A.renderAll();return true;
     case 'edit':start({edit:arg});return true;
     case 'del':if(MU.sure===arg){removeModif(arg);if(DC.pinOpen===arg){DC.pinOpen=null;A.closeModal();}A.renderAll();}else{MU.sure=arg;A.renderAll();if(DC.pinOpen===arg)openPin(arg);}return true;

@@ -51,6 +51,7 @@ export const famColor=p=>FAM_COLOR[POSTE_FAM[p]]||FAM_COLOR.exterieur;
 // [clé, libellé, groupe]
 export const PERMS=[
  ['weld.step1','Étape ① soudure','Terrain'],
+ ['weld.step1.for','Étape ① pour le compte du soudeur : prendre la photo de la soudure et la valider au nom du soudeur de l\'équipe','Terrain'], // 01/11 soir (Ethan : « le tuyauteur, le manchonneur ou le pelleur de l'équipe peuvent prendre la photo de la soudure et dire c'est XX qui a soudé »)
  ['weld.step2','Étape ② fils raccordés + DH','Terrain'],
  ['weld.step3','Étape ③ manchon posé','Terrain'],
  ['weld.step4','Étape ④ moussage + finition','Terrain'],
@@ -104,15 +105,15 @@ export const DEFAULT_RIGHTS={
  gerant:{...ALL,...NOPT},dir_adjointe:{...ALL,...NOPT},dir_technique:{...ALL,...NOPT},
  resp_exploitation:{...ALL,...NOPT},resp_operations:{...ALL,...NOPT},
  conducteur:ENC,chef:CHEF,
- soudeur:pick(...SOCLE,...PT,...OPS,'weld.step1','weld.extra','weld.transfer','dh.measure'),
- tuyauteur:pick(...SOCLE,...PT,...OPS,'weld.step1','weld.transfer'),
- manchonneur:pick(...SOCLE,...PT,...OPS,'weld.step2','weld.step3','weld.step4','weld.transfer','dh.measure'),
- activites_specifiques:pick(...SOCLE,...PT,...OPS,...STEP_PERMS,'weld.extra','weld.transfer','dh.measure'), // équipe Activités spécifiques RCU (Ethan 08/10) : tous les droits opérationnels du terrain
- chauffeur_engin:pick(...SOCLE,...PT,...OPS),autre:pick(...SOCLE,...PT,...OPS),
+ soudeur:pick(...SOCLE,...PT,...OPS,'weld.step1','weld.step1.for','weld.extra','weld.transfer','dh.measure'),
+ tuyauteur:pick(...SOCLE,...PT,...OPS,'weld.step1','weld.step1.for','weld.transfer'),
+ manchonneur:pick(...SOCLE,...PT,...OPS,'weld.step1.for','weld.step2','weld.step3','weld.step4','weld.transfer','dh.measure'),
+ activites_specifiques:pick(...SOCLE,...PT,...OPS,...STEP_PERMS,'weld.step1.for','weld.extra','weld.transfer','dh.measure'), // équipe Activités spécifiques RCU (Ethan 08/10) : tous les droits opérationnels du terrain
+ chauffeur_engin:pick(...SOCLE,...PT,...OPS,'weld.step1.for'),autre:pick(...SOCLE,...PT,...OPS,'weld.step1.for'), // 01/11 soir : le pelleur, l'aide prennent la photo pour le soudeur
  resp_rh:pick(...SOCLE,'pointage.validate','qse.manage','dossier.edit'),assist_rh:pick(...SOCLE,'pointage.validate','qse.manage','dossier.edit'),charge_dev_rh:pick(...SOCLE,'pointage.validate','qse.manage'),
  resp_admin_fin:pick(...SOCLE,'pointage.validate','export.doe','dossier.edit','site.versions','affaires.view','affaires.edit'), // facturation, situations
  resp_commercial:pick(...SOCLE,'ts.qualify','export.doe','dossier.edit','phasage.edit','affaires.view','affaires.edit'),
- charge_affaires:{...ALL,'pointage.self':false,'weld.step1':false,'weld.step2':false,'weld.step3':false,'weld.step4':false,'undo.own':false},
+ charge_affaires:{...ALL,'pointage.self':false,'weld.step1':false,'weld.step1.for':false,'weld.step2':false,'weld.step3':false,'weld.step4':false,'undo.own':false},
  resp_flotte:pick(...SOCLE,'stock.edit','flotte.manage'),referent_magasin:pick(...SOCLE,'stock.edit'),
  visiteur:pick('plan.view'),
 };
@@ -123,7 +124,7 @@ Object.keys(DEFAULT_RIGHTS).forEach(k=>{DEFAULT_RIGHTS[k]={...DEFAULT_RIGHTS[k],
 // plafond par type de compte : un intérimaire garde le pur opérationnel, un visiteur regarde
 export const TYPE_CAP={
  salarie:null,
- interim:pick('plan.view',...STEP_PERMS,'weld.extra','weld.transfer','dh.measure','conv.post','pointage.self','qse.sign','undo.own'), // undo.own avec 0 crédit = toujours une demande au chef
+ interim:pick('plan.view',...STEP_PERMS,'weld.step1.for','weld.extra','weld.transfer','dh.measure','conv.post','pointage.self','qse.sign','undo.own'), // undo.own avec 0 crédit = toujours une demande au chef
  visiteur:pick('plan.view','export.doe'), // un visiteur regarde (plan, export) : il ne touche à rien, pas même la conversation (Ethan 08/10)
 };
 export const ADMIN_SEED=['elebihan@scr-soudure.fr']; // Ethan : administrateur d'office, quoi qu'il arrive côté serveur

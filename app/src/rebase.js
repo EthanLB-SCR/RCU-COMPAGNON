@@ -52,6 +52,7 @@ export function rebaseSite(net0,dx,dy){const net=JSON.parse(JSON.stringify(net0|
   if(net.hydro&&typeof net.hydro==='object')['water','fills','skids'].forEach(k=>(net.hydro[k]||[]).forEach(XY));
   if(net.ts&&Array.isArray(net.ts.items))net.ts.items.forEach(it=>{if(it&&Array.isArray(it.geo))it.geo=it.geo.map(PL);});
   (net.ann||[]).forEach(a=>{if(a&&a.p)a.p=P(a.p);});
+  if(net.fiche&&typeof net.fiche==='object'&&net.fiche.chauf)XY(net.fiche.chauf); /* 01/11 soir : repère 🏭 chaufferie (sens aller / retour) */
   // feuille : de 0 à l'emprise (+ 20 m), comme à l'enregistrement du traceur
   const b=siteNetBox(net);const bb=Array.isArray(net.bbox)?net.bbox:null;const X1=Math.max(b?b[2]:0,bb?bb[2]:-Infinity),Y1=Math.max(b?b[3]:0,bb?bb[3]:-Infinity);
   if(isFinite(X1)&&isFinite(Y1)){net.w=Math.max(100,Math.ceil(X1+20));net.h=Math.max(100,Math.ceil(Y1+20));}

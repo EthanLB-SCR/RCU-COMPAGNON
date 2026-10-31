@@ -149,7 +149,7 @@ await Mg.page.evaluate(()=>document.getElementById('htParc').click());await W(Mg
 await Mg.page.setInputFiles('#eq-app input[data-xin="mag|pack"]',{name:'pack-fictif.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(PACK))});await W(Mg.page,1800);
 await Mg.page.evaluate(()=>document.getElementById('htHome').click());await W(Mg.page,400);
 out={cat:!!REG['magcat|catalogue']};
-await Cp.page.evaluate(async()=>{document.getElementById('htEspace').click();await new Promise(r=>setTimeout(r,300));const c=[...document.querySelectorAll('#eq-app .eq-subs .chip')].find(x=>/Magasin/.test(x.textContent));if(c)c.click();});await W(Cp.page,800);
+await Cp.page.evaluate(async()=>{document.getElementById('htEspace').click();await new Promise(r=>setTimeout(r,300));const c=[...document.querySelectorAll('#eq-app .eq-subs .chip')].find(x=>/Magasin|Mes demandes/.test(x.textContent));if(c)c.click();});await W(Cp.page,800);
 await xclick(Cp.page,'mag|new');await xclick(Cp.page,'mag|inc|T-01');await xclick(Cp.page,'mag|inc|T-01');await xclick(Cp.page,'mag|step|2');await xclick(Cp.page,'mag|imp|depot');await xclick(Cp.page,'mag|send');await W(Cp.page,1500);
 const D1=Object.values(REG).find(r=>r.kind==="magdem");out.dem=D1&&D1.data.statut;if(!D1){console.log("4-partiel",JSON.stringify(out),(await Cp.page.evaluate(()=>(document.getElementById("eq-app")||{textContent:""}).textContent.replace(/\s+/g," ").slice(0,600))),await Cp.page.evaluate(()=>document.getElementById("toast").textContent),logs);}
 await W(Mg.page,5000);out.seenMag=(await notifs(Mg.page)).find(t=>/demande.*à préparer/.test(t))||'';

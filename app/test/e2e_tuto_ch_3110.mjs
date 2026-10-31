@@ -29,7 +29,7 @@ const shot=async n=>{if(!SHOTS)return;try{fs.mkdirSync(SHOTS,{recursive:true});a
 // cibles légitimement absentes : `${personnage}|${clé}|${titre}` → raison (vide : le scénario fabrique toutes les cibles)
 const ABSENT={};
 /* ── droits et options du personnage, lus dans l'appli → api des `si` rejouée ici ── */
-const RIGHTS=['pointage.validate','planning.edit','qse.manage','qse.sign','site.tracer','conv.post','conv.task','dossier.edit','export.doe','dh.measure','hydro','stock.edit','phasage.edit','ts.qualify','affaires.edit'];
+const RIGHTS=['weld.step1.for','pointage.validate','planning.edit','qse.manage','qse.sign','site.tracer','conv.post','conv.task','dossier.edit','export.doe','dh.measure','hydro','stock.edit','phasage.edit','ts.qualify','affaires.edit'];
 const FEATS=['conv','dossier','qse','export','bouclage','hydro','stock','fourniture','phasage','modifs','points','plansexe','comptechantier'];
 async function apiOf(){const o=await page.evaluate(([R,F])=>{const T=window.TRACE;return {r:R.filter(k=>T.acces.can(k)),f:F.filter(k=>T.paliers.feat(k))};},[RIGHTS,FEATS]);const r=new Set(o.r),f=new Set(o.f);
   return {can:k=>{if(!RIGHTS.includes(k))throw new Error('droit non suivi par le test : '+k);return r.has(k);},feat:k=>{if(!FEATS.includes(k))throw new Error('option non suivie par le test : '+k);return f.has(k);}};}
@@ -109,7 +109,7 @@ o.where=await where();o.px=await page.evaluate(()=>{const b=document.getElementB
 o.karim=await run('chantier:plan','karim',{shotAt:'Les couleurs des soudures',shot:'tu_ch_plan_390'});
 await page.evaluate(()=>document.getElementById('btnTuto').click());await wait(350);o.help=await page.evaluate(()=>window.TRACE.tuto.open());await page.evaluate(()=>window.TRACE.tuto.close(null));
 console.log('c3) chantier:plan — where',o.where,'· Mes plans affiché',o.px);report('Karim',o.karim);console.log('   ? de la 2e ligne →',J(o.help));
-C.c3=o.where==='chantier:plan'&&o.px&&o.karim.ok&&o.karim.n===8&&o.help&&o.help.k==='chantier:plan';
+C.c3=o.where==='chantier:plan'&&o.px&&o.karim.ok&&o.karim.n===9 /* 01/11 soir : + « 👥 Pour le compte du soudeur » */&&o.help&&o.help.k==='chantier:plan';
 
 /* ── c4 : Vie du chantier — Bureau, Conversation, Dossier, QSE ── */
 o={};const R4={};
