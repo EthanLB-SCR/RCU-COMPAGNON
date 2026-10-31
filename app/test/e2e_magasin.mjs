@@ -75,12 +75,12 @@ const reg=(k,id)=>(REG[k+'|'+id]||{}).data;
 const dems=()=>Object.values(REG).filter(r=>r.kind==='magdem').map(r=>Object.assign({id:r.id},r.data));
 const mvts=()=>Object.values(REG).filter(r=>r.kind==='magmvt').map(r=>Object.assign({id:r.id},r.data));
 const goMoiMag=async pg=>{await pg.evaluate(async()=>{document.getElementById('htEspace').click();await new Promise(r=>setTimeout(r,250));const c=[...document.querySelectorAll('#eq-app .eq-subs .chip')].find(x=>/Magasin/.test(x.textContent));if(!c)throw new Error('sous-onglet Magasin absent');c.click();});await W(pg,300);};
-const goParc=async pg=>{await pg.evaluate(()=>document.getElementById('htParc').click());await W(pg,350);};
+const goParc=async pg=>{await pg.evaluate(()=>{const m=document.getElementById('htMag');(m&&m.style.display!=='none'?m:document.getElementById('htParc')).click();});await W(pg,350);}; /* 31/10 (un onglet = un module) : le Magasin a son onglet quand on y a accès (sinon Parc → puce Magasin, comme avant) */
 const ddemain=(()=>{const d=new Date();d.setDate(d.getDate()+1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
 
 // ── 1) la référente : onglet Parc visible, arrive sur Magasin ; import du pack fictif
 const R=await mkCtx(MAG,{width:1100,height:900});await login(R.page,MAG.email);
-let out={parc:await R.page.evaluate(()=>{const b=document.getElementById('htParc');return !!b&&b.style.display!=='none';})};
+let out={parc:await R.page.evaluate(()=>{const b=document.getElementById('htMag')||document.getElementById('htParc');return !!b&&b.style.display!=='none';})}; /* 31/10 (un onglet = un module) : la référente a l'onglet Magasin */
 await goParc(R.page);
 out.seg=await R.page.evaluate(()=>({h2:(document.querySelector('#eq-app h2.vt')||{}).textContent||'',active:(document.querySelector('#eq-app [data-act=parcseg].active')||{dataset:{}}).dataset.v,cadrer:/à cadrer/.test(document.getElementById('eq-app').textContent)}));
 await xclick(R.page,'mag|mseg|cat');
@@ -88,7 +88,7 @@ await R.page.setInputFiles('#eq-app input[data-xin="mag|pack"]',{name:'pack-fict
 out.toast=await toast(R.page);out.cat=Object.keys(reg('magcat','catalogue')||{}).length;out.listes=((reg('magcat','config')||{}).listes||[]).length;out.dot=((reg('magcat','config')||{}).dotations||[]).length;
 out.t01=(reg('magcat','catalogue')||{})['T-01'];out.card=(await txt(R.page)).slice(0,400);
 console.log('1) référente + import du pack :',JSON.stringify({...out,t01:out.t01&&[out.t01.label,out.t01.stockInit,out.t01.tampon,out.t01.prix,out.t01.fournisseur]}));
-C.c1=out.parc&&/Magasin/.test(out.seg.h2)&&out.seg.active==='magasin'&&!out.seg.cadrer&&/10 articles, 3 listes/.test(out.toast)&&out.cat===10&&out.listes===3&&out.dot===1&&out.t01&&out.t01.label==='Disque fictif A'&&out.t01.stockInit===10&&out.t01.tampon===12&&out.t01.prix===1.5&&!!out.t01.stockAt&&/10 articles · 3 listes/.test(out.card);
+C.c1=out.parc&&/Magasin/.test(out.seg.h2)&&(out.seg.active==='magasin'||out.seg.active===undefined) /* onglet Magasin : plus de puces Flotte / Magasin */&&!out.seg.cadrer&&/10 articles, 3 listes/.test(out.toast)&&out.cat===10&&out.listes===3&&out.dot===1&&out.t01&&out.t01.label==='Disque fictif A'&&out.t01.stockInit===10&&out.t01.tampon===12&&out.t01.prix===1.5&&!!out.t01.stockAt&&/10 articles · 3 listes/.test(out.card);
 
 // ── 2) le soudeur, au téléphone (390 px) : nouvelle demande
 const Sd=await mkCtx(SOUD,{width:390,height:844},true);await login(Sd.page,SOUD.email);
@@ -139,7 +139,7 @@ d=reg('magdem',ID1);out.st3=d.statut;out.remis=d.lignes.map(l=>l.remis).join();o
 const M1=mvts().filter(m=>m.demande===ID1);out.mv=M1.map(m=>m.type+':'+m.ref+':'+m.qte+':'+m.imputation.id+':'+m.qui+':'+m.pourName).sort();
 out.ui=await txt(R.page);out.toast=await toast(R.page);
 console.log('3) préparation partielle + remise :',JSON.stringify({...out,ui:out.ui.slice(0,300)}));
-C.c3=/1 demande à préparer/.test(out.notif)&&out.landed.tab==='parc'&&out.landed.seg==='magasin'&&/Bruno TESTSOUDEUR/.test(out.landed.row)&&out.st1==='preparation'&&out.inputs.join()==='3,2,1'&&out.st2==='prete'&&out.prep==='2,2,1'&&/partielle — reliquat 1/.test(out.h2||'')
+C.c3=/1 demande à préparer/.test(out.notif)&&((out.landed.tab==='parc'&&out.landed.seg==='magasin')||(out.landed.tab==='magasin'&&!out.landed.seg)) /* 31/10 (un onglet = un module) : le Magasin a son onglet (plus de puce « Magasin » dans Flotte) */&&/Bruno TESTSOUDEUR/.test(out.landed.row)&&out.st1==='preparation'&&out.inputs.join()==='3,2,1'&&out.st2==='prete'&&out.prep==='2,2,1'&&/partielle — reliquat 1/.test(out.h2||'')
   &&out.qui===SOUD.email&&out.st3==='remise'&&out.remis==='2,2,1'&&out.retire==='Bruno TESTSOUDEUR'&&out.mv.join()==='sortie:T-01:2:SRV_B:Bruno TESTSOUDEUR:Bruno TESTSOUDEUR,sortie:T-02:1:SRV_B:Bruno TESTSOUDEUR:Bruno TESTSOUDEUR,sortie:T-04:2:SRV_B:Bruno TESTSOUDEUR:Bruno TESTSOUDEUR'
   &&/Retirée · reliquat à venir/.test(out.ui)&&/reliquat 1/.test(out.ui)&&/3 sorties de stock/.test(out.toast);
 

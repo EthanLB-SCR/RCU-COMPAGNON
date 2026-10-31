@@ -161,7 +161,7 @@ out.seenComp=(await notifs(Cp.page)).find(t=>/prête/.test(t))||'';
 out.link2=await clickNotif(Cp.page,/prête/);await W(Cp.page,600);out.landed2=await Cp.page.evaluate(()=>({tab:window.TRACE.state.homeTab,txt:(document.getElementById('eq-app')||{textContent:''}).textContent.replace(/\s+/g,' ').slice(0,200)}));
 out.ov=await noOverflow(Cp.page);
 console.log('4) magasin :',JSON.stringify(out));
-C.c4_magasin=out.cat&&out.dem==='envoyee'&&/1 demande à préparer/.test(out.seenMag)&&out.link&&out.landed.tab==='parc'&&out.st==='prete'&&/prête/.test(out.seenComp)&&out.link2&&out.landed2.tab==='espace'&&/Prête|prête/.test(out.landed2.txt)&&out.ov;
+C.c4_magasin=out.cat&&out.dem==='envoyee'&&/1 demande à préparer/.test(out.seenMag)&&out.link&&out.landed.tab==='magasin' /* 31/10 (un onglet = un module) : le référent magasin arrive sur son onglet Magasin */&&out.st==='prete'&&/prête/.test(out.seenComp)&&out.link2&&out.landed2.tab==='espace'&&/Prête|prête/.test(out.landed2.txt)&&out.ov;
 // rafraîchissement léger : requêtes « depuis » (updated_at=gt.) et jamais le catalogue magasin / la bibliothèque du mémoire / la base de prix dans le rafraîchissement
 const light=calls.filter(c=>/\/rest\/v1\/registre/.test(c)&&/updated_at=gt\./.test(c));R.light=light.length;R.lightSample=light[0]||'';
 C.c5_leger=light.length>=3&&light.every(c=>!/"prix"/.test(c)&&/id=neq\.memlib/.test(c)); /* 14/10 nuit : le catalogue magasin est dans le rafraîchissement léger (incrémental) ; base de prix et bibliothèque du mémoire restent exclues */

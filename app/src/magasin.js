@@ -58,7 +58,7 @@ function stocks(C){const s={};Object.values(C).forEach(a=>{s[a.ref]=+a.stockInit
   regAll(KMVT).forEach(m=>{const a=C[m.ref];if(!a||!m.at)return;if(a.stockAt&&String(m.at)<String(a.stockAt))return;const q=+m.qte||0;s[m.ref]=(s[m.ref]||0)+(m.type==='entree'?q:m.type==='sortie'?-q:m.type==='ajust'?q:0);});
   Object.keys(s).forEach(k=>{s[k]=r3(s[k]);});return s;}
 const aCmd=(a,st)=>a&&a.actif!==false&&+a.tampon>0?Math.max(0,r3(+a.tampon-(+st||0))):0;
-const dems=()=>regAll('magdem').filter(d=>d&&d.byKey&&d.statut);
+const dems=()=>regAll('magdem').filter(d=>d&&d.byKey&&d.statut&&d.circuit!=='achat'); /* 31/10 (lot CC) : les demandes « sans magasin » (demandes.js, circuit achat) ne passent pas par le dépôt */
 const servi=l=>+l.remis||0;
 const reste=l=>Math.max(0,r3((+l.qte||0)-servi(l)));            // pas encore remis
 const relq=d=>r3((d.lignes||[]).reduce((x,l)=>x+reste(l),0));
@@ -258,7 +258,7 @@ async function cancel(id,me,ctx){let d=regGet('magdem',id);if(!d||d.byKey!==me.i
 
 /* ══════════ RÉFÉRENT : Parc → 📦 Magasin ══════════ */
 function vGestion(me,ctx,bar){css();ensure(ctx);
-  if(!isMgr(ctx)){S.seg='fiches';return wrap(`<div class="mag-head"><h2 class="vt">Magasin <span class="hint">· dépôt</span></h2>${refreshBtn}</div>${bar||''}<div class="eq-filtres"><button class="chip active" data-act="x" data-v="mag|mseg|fiches">🧰 Fiches type</button></div>${vFiches(me,ctx,{})}<p class="hint">La gestion du magasin (demandes, stock, réceptions) est réservée au droit « Magasin » (référent magasin, administrateur). Tes demandes au dépôt sont dans Moi → Magasin.</p>`);} /* 19/10 : les fiches type se lisent sans le droit « Magasin » (chef, conducteur…) */
+  if(!isMgr(ctx)){S.seg='fiches';return wrap(`<div class="mag-head"><h2 class="vt">Magasin <span class="hint">· dépôt</span></h2>${refreshBtn}</div>${bar||''}<div class="eq-filtres"><button class="chip active" data-act="x" data-v="mag|mseg|fiches">🧰 Fiches type</button></div>${vFiches(me,ctx,{})}<p class="hint">La gestion du magasin (demandes, stock, réceptions) est réservée au droit « Magasin » (référent magasin, administrateur). Tes demandes au dépôt sont dans Compagnon → Magasin.</p>`);} /* 19/10 : les fiches type se lisent sans le droit « Magasin » (chef, conducteur…) */
   const D=dems();const C=cat();const st=stocks(C);const nT=D.filter(d=>d.statut==='envoyee'||d.statut==='preparation').length+D.filter(d=>d.statut==='remise'&&relq(d)>0).length;const nC=Object.values(C).filter(a=>aCmd(a,st[a.ref])>0).length+reliquats(D).length;
   const segs=[['dem','📋 Demandes',nT],['fiches','🧰 Fiches type',0],['stock','📦 Stock',0],['cmd','🛒 À commander',nC],['mvt','↕ Mouvements',0],['cat','⚙ Catalogue',0]];
   let body='';if(S.seg==='fiches')body=vFiches(me,ctx,{});else if(S.seg==='stock')body=S2.newArt?vNewArt(me,ctx):S.art&&C[S.art]?vArt(me,ctx,C[S.art],st):vStock(C,st);else if(S.seg==='cmd')body=S.art&&C[S.art]?vArt(me,ctx,C[S.art],st):vCmd(C,st,D);else if(S.seg==='mvt')body=S2.lot?vLot(me,ctx):S2.lotId?vLotDetail(S2.lotId,me,ctx):vMvt(C);else if(S.seg==='cat')body=vCat(C);
@@ -274,7 +274,7 @@ function vFile(D){const by=s=>D.filter(d=>d.statut===s).sort(byAt);const env=by(
   return `<div class="eq-kpis mag-kp"><div class="eq-kpi ${env.length?'warn':'ok'}"><b>${env.length}</b><small>à préparer</small></div><div class="eq-kpi"><b>${prep.length}</b><small>en préparation</small></div><div class="eq-kpi ${pret.length?'ok':''}"><b>${pret.length}</b><small>prêtes à remettre</small></div><div class="eq-kpi"><b>${rel.length}</b><small>reliquats</small></div></div>
     ${sec('À préparer',env,'Rien de nouveau.')}${prep.length?sec('En préparation',prep,''):''}${sec('Prêtes à remettre',pret,'Aucune.')}${rel.length?sec('Reliquats à servir',rel,''):''}
     ${fin.length?`<details class="mag-det"${S.fini?' open':''}><summary>Terminées · annulées · refusées (${fin.length})</summary>${fin.slice(0,40).map(d=>rowDem(d,true)).join('')}</details>`:''}
-    <p class="hint">Les demandes arrivent des téléphones (Moi → Magasin). Une préparation partielle laisse le reliquat sur la même demande ; la remise enregistre les sorties de stock.</p>`;}
+    <p class="hint">Les demandes arrivent des téléphones (Compagnon → Magasin). Une préparation partielle laisse le reliquat sur la même demande ; la remise enregistre les sorties de stock.</p>`;}
 function prepOf(d){if(!S.prep[d.id])S.prep[d.id]=(d.lignes||[]).map(l=>d.statut==='prete'?Math.max(0,r3((+l.prep||0)-servi(l))):reste(l));return S.prep[d.id];}
 function vDemGest(me,ctx,d,C,st){const edit=d.statut==='preparation';const P=edit?prepOf(d):null;const people=(ctx.people||[]).filter(p=>p.active!==false).slice().sort((a,b)=>nom(a,ctx).localeCompare(nom(b,ctx),'fr'));const qui=S.qui[d.id]||d.byKey;
   const lignes=(d.lignes||[]).map((l,i)=>{const a=C[l.ref]||{};const s=st[l.ref];const pr=Math.max(0,r3((+l.prep||0)-servi(l)));const warn=edit&&s!==undefined&&(+P[i]||0)>s;

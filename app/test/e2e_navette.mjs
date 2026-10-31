@@ -65,7 +65,7 @@ const wb=X1?await openXlsx(new Uint8Array(fs.readFileSync(X1.file)).buffer):null
 const g=a=>sh?sh.get(a):null,f=a=>sh?sh.f(a):null;const rowOf=(col,re)=>{if(!sh)return -1;for(let r=1;r<=sh.maxR;r++){const v=sh.get(col+r);if(typeof v==='string'&&re.test(v))return r;}return -1;};
 out={name:X1&&X1.name,sheet:wb&&wb.sheets.map(s=>s.name),nom:g('H2'),mois:g('J2'),adr:g('H4'),head:['A6','B6','E6','F6','G6','H6','I6','J6'].map(g),
   l7:['C7','D7','E7','G7'].map(g),l8:['A8','B8','C8','D8','E8','G8','H8','I8','J8'].map(g),l9:['H9','I9','J9'].map(g),l12:['B12','G12','I12'],tot36:[g('H13'),f('I13'),g('J13')],hs:[g('H14'),f('I14'),g('H15'),f('I15')],
-  regul:rowOf('H',/^Régul\. HS et dépla\. sur octobre$/),last:rowOf('H',/^TOTAL SEMAINE - 39$/),sum:[f('E43'),f('G43')],ind:[g('A47'),f('C47')],box:rowOf('H',/^COMPTEUR FIN DE MOIS$/),rep:f('J15'),repBox:rowOf('H',/^HEURES À REPORTER \(> 48 h \/ semaine\)$/),note:g('A'+(rowOf('A',/^Pré-rempli par TRACÉ/)))};
+  regul:rowOf('H',/^Régul\. HS et dépla\. sur octobre$/),last:rowOf('H',/^TOTAL SEMAINE - 39$/),sum:[f('E43'),f('G43')],ind:[g('A47'),f('C47')],box:rowOf('H',/^COMPTEUR FIN DE MOIS$/),rep:f('J15'),repBox:rowOf('H',/^HEURES À REPORTER \(> 48 h \/ semaine\)$/),note:g('A'+(rowOf('A',/^Pré-rempli par Tracé/)))}; /* 31/10 : nom de l'appli « Tracé » */
 out.l12=['B12','G12','I12'].map(g);
 console.log('2) navette (Excel) :',JSON.stringify(out));
 C.c2=/^Navette_.*Julien.*_2026-09\.xlsx$/i.test(out.name||'')&&/^NOM : /.test(out.nom||'')&&out.mois==='MOIS DE : SEPTEMBRE'&&/^ADRESSE : 4 RUE DES ESSAIS - 35000 RENNES$/.test(out.adr||'')
@@ -73,7 +73,7 @@ C.c2=/^Navette_.*Julien.*_2026-09\.xlsx$/i.test(out.name||'')&&/^NOM : /.test(ou
   &&JSON.stringify(out.l7)===JSON.stringify(['D',30,1,1])&&out.l8[0]==='CAS 2'&&out.l8[1]===0.5&&out.l8[2]==='L'&&out.l8[3]===31&&out.l8[4]===1&&out.l8[5]===2&&/^CAEN/.test(out.l8[6])&&out.l8[7]===8.5&&/^\d+ KM\/GD$/.test(out.l8[8])
   &&/^BAYEUX/.test(out.l9[0])&&out.l9[1]===8.5&&/^\d+ KM$/.test(out.l9[2])&&JSON.stringify(out.l12)===JSON.stringify([0.5,1,9.5])
   &&out.tot36[0]==='TOTAL SEMAINE - 36'&&out.tot36[1]==='SUM(I8:I12)'&&out.tot36[2]==='CONTRAT 35H'&&out.hs[0]==='HEURES SUP - 125%'&&out.hs[1]==='MAX(MIN(I13,43)-35,0)'/* 13/10 (f) : rang absolu (36e → 125 %, 44e → 150 %) */&&out.hs[2]==='HEURES SUP - 150%'&&out.hs[3]==='MAX(MIN(I13,48)-43,0)'&&out.rep==='MAX(I13-48,0)'&&out.repBox>0
-  &&out.regul===40&&out.last===37&&out.sum[0]==='SUM(E7:E42)'&&out.sum[1]==='SUM(G7:G42)'&&out.ind[0]==='INDEM TRAJET 15€'&&out.ind[1]==='SUMIF(K7:K42,2,B7:B42)'&&out.box>0&&/^Pré-rempli par TRACÉ le 13\/10\/2026/.test(out.note||'');
+  &&out.regul===40&&out.last===37&&out.sum[0]==='SUM(E7:E42)'&&out.sum[1]==='SUM(G7:G42)'&&out.ind[0]==='INDEM TRAJET 15€'&&out.ind[1]==='SUMIF(K7:K42,2,B7:B42)'&&out.box>0&&/^Pré-rempli par Tracé le 13\/10\/2026/.test(out.note||'');
 // ── 3) formules recalculées (LibreOffice, comme Excel à l'ouverture) : totaux, trajets, heures sup, compteurs
 const R=X1?calc(X1.file):null;const lo=!!R;const S0=R&&R[0];const cell=(r,c)=>S0&&S0[r-1]?S0[r-1][c.charCodeAt(0)-65]:undefined;const lab=(re)=>S0?S0.findIndex(l=>re.test(l[7]||'')):-1;
 out=lo?{sem:[13,21,29,37].map(r=>cell(r,'I')),hs125:[14,22,30,38].map(r=>cell(r,'I')),hs150:[15,23,31,39].map(r=>cell(r,'I')),tot:['E','F','G'].map(c=>cell(43,c)),ind:[cell(47,'C'),cell(48,'C'),cell(49,'C')],

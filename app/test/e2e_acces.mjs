@@ -48,7 +48,7 @@ await page.evaluate(()=>{window.TRACE.showScreen('home');window.TRACE.renderHome
 out=await page.evaluate(()=>({tab:document.querySelector('#htAdmin').style.display==='none'&&window.TRACE.acces.isAdmin()})); /* 12/10 : plus d'onglet, l'administration vit dans Entreprise → Outils (admin seulement) */
 await page.evaluate(()=>document.getElementById('htAdmin').click()); /* 12/10 : l'onglet Administration est caché (Entreprise → Outils), le bouton reste un raccourci */await page.waitForTimeout(600);
 out.view=await page.evaluate(()=>({title:/Administrateur/.test(body()),nav:document.querySelectorAll('#homeBody .admNav button').length,newBtn:!!document.querySelector('#admNew'),bulk:!!document.querySelector('#admBulk'),q:!!document.querySelector('#admQ'),hors:/Hors serveur/.test(body()),nextHidden:!document.querySelector('#homeNext')||document.querySelector('#homeNext').style.display==='none'}));
-console.log('3a) onglet ⚙ :',JSON.stringify(out));C.c3a=out.tab&&out.view.title&&out.view.nav===5/* Personnes, Postes, Qui peut quoi, Bac à sable (10/10), 🧪 Options (30/10) */&&out.view.newBtn&&out.view.bulk&&out.view.q&&out.view.hors&&out.view.nextHidden;
+console.log('3a) onglet ⚙ :',JSON.stringify(out));C.c3a=out.tab&&out.view.title&&out.view.nav===6/* Personnes, Postes, Qui peut quoi, Bac à sable (10/10), 🧪 Options, 🏢 Entreprise (30/10) */&&out.view.newBtn&&out.view.bulk&&out.view.q&&out.view.hors&&out.view.nextHidden;
 await page.click('#admNew');await page.waitForTimeout(300);
 await page.fill('#an-prenom','Mehdi');await page.fill('#an-nom','Interim');await page.fill('#an-email','mehdi.interim@gmail.com');await page.selectOption('#an-poste','soudeur');await page.selectOption('#an-type','interim');await page.waitForTimeout(150);
 out=await page.evaluate(()=>{const sites=document.querySelector('#an-sites');const cb=document.querySelector('[data-ansite]');if(cb)cb.click();return {sitesShown:sites&&sites.style.display!=='none',hasSite:!!cb,grouped:document.querySelectorAll('#an-poste optgroup').length};});
@@ -139,13 +139,13 @@ console.log('8) écran de connexion :',JSON.stringify(out));C.c8=out.pwd&&/Se co
 // ── 9) affichage large depuis l'accueil : bouton ⤢, mémorisé, liste en grille ; retour
 await page.evaluate(()=>{window.TRACE.showScreen('home');window.TRACE.renderHome();});await page.waitForTimeout(200);
 out=await page.evaluate(()=>({btn:!!document.querySelector('#homeWide'),wide0:document.querySelector('#app').classList.contains('wide')}));
-await page.click('#homeWide');await page.waitForTimeout(300);
+await page.click('#tbHomeMod');await page.waitForTimeout(250);await page.click('#modal [data-mod=wide]');await page.waitForTimeout(300); /* 30/10 (bandeau) : ⤢ est dans le menu des modules / du compte */
 out.on=await page.evaluate(()=>({wide:document.querySelector('#app').classList.contains('wide'),saved:localStorage.getItem('trace:wide'),w:document.querySelector('#app').getBoundingClientRect().width}));
 await page.selectOption('#roleSel','ethan');await page.waitForTimeout(200);await page.evaluate(()=>window.TRACE.renderHome());await page.waitForTimeout(200);await page.evaluate(()=>document.getElementById('htAdmin').click()); /* 12/10 : l'onglet Administration est caché (Entreprise → Outils), le bouton reste un raccourci */await page.waitForTimeout(600);
 out.grid=await page.evaluate(()=>getComputedStyle(document.querySelector('#admList')).display);
 await page.reload();await page.waitForTimeout(1500);
 out.reload=await page.evaluate(()=>document.querySelector('#app').classList.contains('wide'));
-await page.evaluate(()=>{window.TRACE.showScreen('home');window.TRACE.renderHome();});await page.waitForTimeout(200);await page.click('#homeWide');await page.waitForTimeout(200);
+await page.evaluate(()=>{window.TRACE.showScreen('home');window.TRACE.renderHome();});await page.waitForTimeout(200);await page.click('#tbHomeMod');await page.waitForTimeout(250);await page.click('#modal [data-mod=wide]');await page.waitForTimeout(200);
 out.off=await page.evaluate(()=>({wide:document.querySelector('#app').classList.contains('wide'),saved:localStorage.getItem('trace:wide')}));
 console.log('9) affichage large depuis l\'accueil :',JSON.stringify(out));C.c9=out.btn&&!out.wide0&&out.on.wide&&out.on.saved==='1'&&out.on.w>900&&out.grid==='grid'&&out.reload&&!out.off.wide&&out.off.saved==='0';
 // ── 10) tout est gardé sur l'appareil après rechargement (démo) : comptes, ajustements, ★

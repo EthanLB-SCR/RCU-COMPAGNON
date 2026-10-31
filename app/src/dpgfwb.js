@@ -148,7 +148,7 @@ function openPopup(a,ctx){if(popupLive()){try{DW.popup.w.focus();}catch(e){}refr
   if(!w){if(A().toast)A().toast('Fenêtre bloquée par le navigateur : autorise les fenêtres surgissantes (pop-up) pour ce site');return;}
   const doc=w.document;doc.open();doc.write('<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DPGF</title></head><body class="cm-win"></body></html>');doc.close();
   document.querySelectorAll('style,link[rel="stylesheet"]').forEach(s=>{try{doc.head.appendChild(doc.importNode(s,true));}catch(e){}});
-  doc.body.innerHTML=`<div class="cm-wbar"><b>TRACÉ · DPGF</b><span class="hint cm-whint" id="dwp-hint"></span><button class="btn sm" data-w="back" title="Fermer cette fenêtre">↩ Ramener dans l'appli</button></div><div class="cm-whost cm-dw" id="dwp-host" style="overflow:auto;padding:8px"></div>`;
+  doc.body.innerHTML=`<div class="cm-wbar"><b>Tracé · DPGF</b><span class="hint cm-whint" id="dwp-hint"></span><button class="btn sm" data-w="back" title="Fermer cette fenêtre">↩ Ramener dans l'appli</button></div><div class="cm-whost cm-dw" id="dwp-host" style="overflow:auto;padding:8px"></div>`;
   DW.popup={w,num:a.num,ctx};
   doc.querySelector('[data-w="back"]').onclick=()=>{try{w.close();}catch(e){}};
   doc.getElementById('dwp-host').addEventListener('click',e=>{const t=e.target.closest&&e.target.closest('[data-v]');if(!t)return;const [k,x,y]=String(t.dataset.v).split('|');const a2=H.affGet(DW.popup.num);if(!a2)return;

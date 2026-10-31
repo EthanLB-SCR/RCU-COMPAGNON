@@ -22,7 +22,7 @@ import path from 'path';
 import {traceQtyOf} from '../src/qtrace.js';
 const BASE=process.env.BASE||'http://localhost:8765';const SHOTS=process.env.SHOTS||'';
 const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
-const ctx=await browser.newContext({viewport:{width:1366,height:800}});const page=await ctx.newPage();
+const ctx=await browser.newContext({viewport:{width:1366,height:864}});const page=await ctx.newPage(); /* 31/10 : bandeau « Tracé Concepteur » en haut du traceur → fenêtre plus haute d'autant (même surface de dessin qu'avant, les clics du test visent les mêmes points) */
 const logs=[];const watch=p=>{p.on('pageerror',e=>logs.push('PAGEERROR: '+e.message.slice(0,300)));p.on('console',m=>{if(m.type()==='error'&&!/supabase|Failed to fetch|net::ERR|404|WebSocket|pdf\.worker|cdnjs/i.test(m.text()))logs.push(m.text().slice(0,200));});};watch(page);
 await ctx.route(u=>!/^(localhost|127\.0\.0\.1)$/.test(new URL(u).hostname),r=>r.fulfill({status:200,contentType:'application/json',body:'{}'})); // aucun réseau extérieur
 page.on('dialog',d=>{d.accept().catch(()=>{});});

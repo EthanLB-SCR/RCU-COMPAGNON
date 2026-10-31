@@ -8,4 +8,6 @@ import veh from './reception.js'; MODS.push(veh); /* 14/10 nuit : réception / r
 import magasin from './magasin.js'; MODS.push(magasin); // 14/10 nuit : magasin du dépôt (demandes, préparation, stock)
 import packScr from './packscr.js'; MODS.push(packScr); // 14/10 nuit : import du pack SCR (données privées) — Entreprise, administrateur
 import docsOblig from './docsoblig.js'; MODS.push(docsOblig); // 14/10 après-midi (lot D) : documents de l'entreprise (assurances, Kbis, URSSAF…) — SCR, alerte avant échéance
+import demandes from './demandes.js'; MODS.push(demandes); // 31/10 (lot CC) : commandes V1 sans magasin — demandes de matériel (Compagnon → Mes demandes) et suivi des remises (Pilotage)
+import compteCh from './comptech.js'; MODS.push(compteCh); // 31/10 (lot CC) : compte chantier — bons, dépenses, heures par poste (Pilotage, Bureau du chantier)
 export function initModules(){MODS.forEach(m=>{try{espaceExt(m);}catch(e){console.warn('module',m&&m.id,e);}});}

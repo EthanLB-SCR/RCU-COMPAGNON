@@ -332,7 +332,7 @@ function openPopup(d){if(popupLive()){popupShow(d);try{LV.popup.w.focus();}catch
   if(!w){A.toast('Fenêtre bloquée par le navigateur : autorise les fenêtres surgissantes (pop-up) pour ce site');return;}
   const D=w.document;D.open();D.write('<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lecture</title></head><body class="cm-win"></body></html>');D.close();
   document.querySelectorAll('style,link[rel="stylesheet"]').forEach(s=>{try{D.head.appendChild(D.importNode(s,true));}catch(e){}});
-  D.body.innerHTML=`<div class="cm-wbar"><b>TRACÉ · Lecture</b><select class="f cm-wdoc" title="Changer de pièce"></select><span class="hint cm-whint">Surligne ou ▭ encadre : la note arrive dans l'appli.</span><button class="btn sm" data-w="back" title="Fermer cette fenêtre et rouvrir la pièce dans l'appli">↩ Ramener dans l'appli</button></div><div class="cm-whost"></div>`;
+  D.body.innerHTML=`<div class="cm-wbar"><b>Tracé · Lecture</b><select class="f cm-wdoc" title="Changer de pièce"></select><span class="hint cm-whint">Surligne ou ▭ encadre : la note arrive dans l'appli.</span><button class="btn sm" data-w="back" title="Fermer cette fenêtre et rouvrir la pièce dans l'appli">↩ Ramener dans l'appli</button></div><div class="cm-whost"></div>`;
   LV.popup={w,v:null,docId:null};
   D.querySelector('[data-w="back"]').onclick=()=>{try{w.close();}catch(e){}};
   D.querySelector('.cm-wdoc').onchange=e=>{const nd=docNow(e.target.value);if(nd){DS.doc=nd.id;popupShow(nd);if(LV.ctx&&LV.ctx.render)LV.ctx.render();}};

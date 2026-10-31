@@ -123,7 +123,7 @@ export function navetteSheet(N,name){const cells={};const merges=[];const height
   const rPrev=box('Compteur à reporter fin de mois précédent',nv(K.report),'bin');const rMois=box('Heures du mois au-delà de '+HEBDO_MAX+' h',null,'bv',hs150Rows.length?'SUM('+hs150Rows.map(x=>'J'+x).join(',')+')':'0');
   const rEnt=box('Entrées majorées (× 1,5)',null,'bv',KREP+'*I'+rMois);
   const rPrime=box('Payées en prime ce mois',nv(K.prime)||0,'bin');const rRepl=box('Replacées sur une semaine plus légère',nv(K.repl)||0,'bin');const rFin=box('Compteur à reporter fin de mois',null,'bvB','I'+rPrev+'+I'+rEnt+'-I'+rPrime+'-I'+rRepl);
-  r++;S('A'+r,'Pré-rempli par TRACÉ'+(N.today?' le '+N.today:'')+' (planning, pointage, grands déplacements, compteurs) — à vérifier, compléter et signer. Cases vertes : à remplir par les RH.'+(K.reconstitue?' Compteur reconstitué depuis le pointage (pas de solde de départ importé).':''),'note');merges.push('A'+r+':J'+r);
+  r++;S('A'+r,'Pré-rempli par Tracé'+(N.today?' le '+N.today:'')+' (planning, pointage, grands déplacements, compteurs) — à vérifier, compléter et signer. Cases vertes : à remplir par les RH.'+(K.reconstitue?' Compteur reconstitué depuis le pointage (pas de solde de départ importé).':''),'note');merges.push('A'+r+':J'+r);
   return {name:name||(up(N.nom)+' '+up(N.prenom)).trim()||'Navette',cells,merges,heights,widths:[9,9,3,4,7,8,7,30,11,15,4],hidden:[11],fit:true,rows:r,
     refs:{first,lastRow,totRow,ind0,cPrev,cRec,cTot,h125,h150,hTot,gTot,p125,p150,pTot,cEnt,cFin,rPrev,rMois,rEnt,rPrime,rRepl,rFin,satRow,hs125Rows,hs150Rows,dayRows}};}
 /* styles du modèle (orange = colonnes RH, gris = fins de semaine, bleu = cas / trajet, vert = à remplir) */

@@ -132,7 +132,7 @@ await page.waitForFunction(()=>{const T=window.TRACE;return T&&T.state.homeTab==
 out.scr=await screens();out.sites=(await aff(N1)).sites;out.row=await rowOf(E1);out.nW2=nW2;
 console.log('3) étude ouverte dans le traceur :',JSON.stringify(out));
 C.c3=new RegExp('traceur\\.html\\?site='+E1+'&aff=O2610-91&cv=2$').test(urlEt)&&out.tr.ref===E1&&out.tr.lines===1&&/étude O2610-91/.test(out.tr.badge)&&/Affaire/.test(out.tr.top)&&out.tr.ctx==='aff:O2610-91'
-  &&out.mode==='update'&&out.ref2===E1&&/↩ Retour à l'affaire O2610-91/.test(out.go)&&!/Ouvrir dans TRACÉ/.test(out.go)&&out.scr[out.scr.length-1].w==='affaire'&&!out.scr.some(s=>s.w==='TRACÉ')
+  &&out.mode==='update'&&out.ref2===E1&&/↩ Retour à l'affaire O2610-91/.test(out.go)&&!/Ouvrir dans Trac[ÉéEe]/i.test(out.go) /* 31/10 : nom de l'appli « Tracé » */&&out.scr[out.scr.length-1].w==='affaire'&&!out.scr.some(s=>s.w==='TRACÉ')
   &&out.sites.join()===E1&&out.row&&new RegExp(nW2+' soudures').test(out.row.txt)&&nW2>nW1;
 // ── 4) ouverture directe d'une étude dans l'écran Tracé → redirigée
 await page.evaluate(id=>{window.TRACE.openSiteFromHome(id);},E1);

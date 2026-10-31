@@ -208,7 +208,7 @@ function docDef(M,IM){const T=M.T,V=M.V,a=M.a;const mg=T.margins;const ML=MM(mg[
   /* titres jamais seuls en bas de page : place qu'il faut sous le titre (début de ce qui suit, titres en chaîne compris) */
   const keepAt=i=>{const n=flow[i];if(!n)return 0;if(HEAD.has(n))return hOf(n)+keepAt(i+1); /* titre suivant : sa marge haute comprise */if(GLUE.has(n))return hOf(n)+keepAt(i+1);const e=EST.get(n);return e?e.keep:lineH(bs,blh)*2;};
   flow.forEach((n,i)=>{if(HEAD.has(n)&&n.id)KEEP.set(n.id,{h:HEAD.get(n),need:Math.min(keepAt(i+1)+4,HC*0.6)});}); /* + 4 pt : marge d'erreur de l'estimation */
-  const dd={pageSize:'A4',pageMargins:[ML,MT,MR,MB],info:{title:'Mémoire technique — '+(a.num||'')+' '+(a.nom||''),creator:'TRACÉ',producer:'TRACÉ (pdfmake '+VER+')',subject:'Mémoire technique'},language:'fr-FR',displayTitle:true,compress:true,
+  const dd={pageSize:'A4',pageMargins:[ML,MT,MR,MB],info:{title:'Mémoire technique — '+(a.num||'')+' '+(a.nom||''),creator:'Tracé',producer:'Tracé (pdfmake '+VER+')',subject:'Mémoire technique'},language:'fr-FR',displayTitle:true,compress:true,
     defaultStyle:{font:'Carlito',fontSize:bs,lineHeight:blh,color:TXT},background:p=>p===1?cover():null,header,footer,content:toc.concat(flow),
     pageBreakBefore:(node)=>{const K=node.id&&KEEP.get(node.id);if(!K)return false;const p=node.startPosition;if(!p||p.pageNumber<2)return false;const b=BOT-p.top-K.h<K.need-0.5;if(b)BRK++;return b;}}; /* vrai → pdfmake refait la mise en page avec un saut avant ce titre */
   return {dd,ital,pages:()=>NP,breaks:()=>BRK};}

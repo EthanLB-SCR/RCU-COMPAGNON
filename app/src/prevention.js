@@ -99,7 +99,7 @@ export const ACCUEIL_ENTREPRISE_Q=[
  'Les consignes générales de sécurité m’ont été expliquées : droit d’alerte et de retrait, interdiction alcool / stupéfiants, téléphone au poste, interdiction de fumer près des produits inflammables.',
  'Je sais quoi faire en cas d’accident ou d’incident (SST, 18 / 112, prévenir le conducteur de travaux, déclaration sous 24 h).',
  'Les règles d’utilisation du véhicule de service m’ont été présentées (permis, documents de bord, contrôle visuel, trousse de secours, extincteur, kit anti-pollution, usage strictement professionnel).',
- 'L’application TRACÉ m’a été présentée : pointage, fiches de soudure, accueil chantier, documents à signer, mon espace.',
+ 'L’application Tracé m’a été présentée : pointage, fiches de soudure, accueil chantier, documents à signer, mon espace.',
  'Je sais à qui m’adresser : chef de chantier, conducteur de travaux, responsable d’exploitation, service RH.'];
 // trame « Contrôle chantier SCR » (enjeux : moyens pour travailler en sécurité, moyens pour l'avancement, respect des consignes et bonnes pratiques)
 export const CONTROLE_DEF=[

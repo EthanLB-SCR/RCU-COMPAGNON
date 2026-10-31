@@ -58,7 +58,7 @@ const more1=await page.evaluate(()=>{const d=document.querySelector('#disp detai
 await shot(page,'4_pc_plus_de_reglages');
 console.log('4) préréglages / plus de réglages :',JSON.stringify({ep,al,more0,more1}));
 C.c4=/vue épurée/.test(ep.head)&&/\bon\b/.test(ep.ep)&&ep.fils===true&&ep.cotes===false&&ep.dot&&/tout affiché/.test(al.head)&&/\bon\b/.test(al.all)&&al.pieces===true&&al.marche===true
-  &&more0&&more0.open===false&&/Plus de réglages \(\d\/7 affichés\)/.test(more0.txt)&&more1.open===true&&more1.marche===true&&more1.labs===4;
+  &&more0&&more0.open===false&&/Plus de réglages \(\d\/8 affichés\)/.test(more0.txt) /* 31/10 (lot MD) : + calque « Écarts détaillés − / + » dans « Plus de réglages » */&&more1.open===true&&more1.marche===true&&more1.labs===4;
 
 // ── 5) n° de soudure grisé tant que les pastilles sont décochées
 await page.click('#disp [data-def="1"]');await page.waitForTimeout(150);await page.click('#disp input[data-k="soud"]');await page.waitForTimeout(200);

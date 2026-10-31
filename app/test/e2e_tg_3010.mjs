@@ -28,7 +28,7 @@ const legs=await page.evaluate(()=>{const c=window.MAQ.cat();return {l300:c.bend
 await page.evaluate(()=>{const S=window.MAQ.state;const l=S.lines[0];l.specials=[{id:'R1',type:'reducer',m:30,dn2:150}];window.MAQ.rebuild();window.MAQ.resumeLine(l.id);});await wait(300);
 const lineId=await page.evaluate(()=>window.MAQ.state.lines[0].id);
 // souris : continuer tout droit vers le bas (direction +y), à 20 m du dernier sommet → aimants calculés
-const pt=await page.evaluate(()=>{const S=window.MAQ.state;const r=document.querySelector('svg').getBoundingClientRect();const v=S.view;const w=[0,80];return {x:r.left+v.tx+w[0]*v.k,y:r.top+v.ty+w[1]*v.k};});
+const pt=await page.evaluate(()=>{const S=window.MAQ.state;const r=document.getElementById('svg').getBoundingClientRect() /* 31/10 : le 1er <svg> de la page est maintenant le logo du bandeau */;const v=S.view;const w=[0,80];return {x:r.left+v.tx+w[0]*v.k,y:r.top+v.ty+w[1]*v.k};});
 await page.mouse.move(pt.x,pt.y);await wait(150);await page.mouse.move(pt.x+1,pt.y+1);await wait(200);
 o=await page.evaluate(()=>{const t=window.MAQ.state.tracing;const f=document.getElementById('traceForm');return {form:f?f.textContent.slice(0,200):'',mags:(t&&t.magnets||[]).map(m=>+m.d.toFixed(2)),dn:t&&t.dn};});
 console.log('c2) reprise :',J({...o,legs}));

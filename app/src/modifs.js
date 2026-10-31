@@ -166,3 +166,43 @@ export const modColor=m=>MOD_PALETTE[((+m.n||1)-1)%MOD_PALETTE.length];
 export function recapOf(Mo,els){const by={};const put=(et,key,v)=>{if(!v)return;const o=by[et]||(by[et]={});o[key]=r1((o[key]||0)+v);};const owned=new Set();
   (Mo.items||[]).forEach(m=>{const mine=(m.els||[]).map(id=>els.find(e=>e.id===id)).filter(Boolean);mine.forEach(e=>owned.add(e.id));compareEls(mine).forEach(r=>{put(m.q&&m.q[r.key]||'libre',r.key,r.d);});});
   compareEls(els.filter(e=>!owned.has(e.id))).forEach(r=>put('libre',r.key,r.d));return by;}
+/* ══ 31/10 (lot MD) — MODIF DÉCLARÉE. Ethan : « par défaut on va juste avoir la comparaison avant / après modif, et comme il n'y a pas de pastille par défaut à classer, tout est
+   compris ; on va juste créer la possibilité de « déclarer une modif », où là on dit ce qu'on veut ressortir — le changement de DN, le nombre de soudures, les pièces ou autre — et
+   pointé sur plan, pour déclarer ça en TS ou autre ». Une modif déclarée = {id, n, nom, devis, kind:'decl', etat (forfait | propose | commande | note | corr), decl:{lignes, pts},
+   note, photos, at, by, v, log, aff, line}. Ligne : {nature:'dn'|'ml'|'soud'|'piece'|'autre', dn, dnA, dnB, k (pièce), qte (signée : + en plus / − en moins ; dn : longueur),
+   unite, txt}. Point : {x, y, line, m, lineName} (repère du plan + conduite la plus proche). Les anciennes modifs (par éléments, els) restent telles quelles. ══ */
+export const DECL_NAT=[['dn','Changement de DN'],['ml','Linéaire (ml)'],['soud','Soudures'],['piece','Pièces'],['autre','Autre']];
+export const DECL_PC=[['coudes','coude','coudes'],['tes','té','tés'],['reduc','réduction','réductions'],['vannes','vanne','vannes'],['purges','purge','purges'],['vidanges','vidange','vidanges'],['bouchons','fin de ligne','fins de ligne'],['extru','manchon extrudé','manchons extrudés'],['fc','fausse coupe','fausses coupes'],['autre','autre pièce','autres pièces']];
+export const isDecl=m=>!!(m&&m.kind==='decl');
+const clip=(s,n)=>String(s==null?'':s).replace(/\s+/g,' ').trim().slice(0,n);
+export function declNorm(l){l=l||{};const nat=DECL_NAT.some(x=>x[0]===l.nature)?l.nature:'autre';const o={nature:nat};const q=r1(num(l.qte));
+  if(nat==='dn'){o.dnA=Math.max(0,Math.round(num(l.dnA)));o.dnB=Math.max(0,Math.round(num(l.dnB)));o.qte=Math.abs(q);o.unite='m';}
+  else if(nat==='ml'){o.dn=Math.max(0,Math.round(num(l.dn)));o.qte=q;o.unite='m';}
+  else if(nat==='soud'){o.dn=Math.max(0,Math.round(num(l.dn)));o.qte=Math.round(num(l.qte));o.unite='';}
+  else if(nat==='piece'){o.k=DECL_PC.some(x=>x[0]===l.k)?l.k:'coudes';o.dn=Math.max(0,Math.round(num(l.dn)));o.qte=Math.round(num(l.qte));o.unite='';if(o.k==='autre')o.txt=clip(l.txt,80);}
+  else {o.txt=clip(l.txt,120);o.qte=q;o.unite=clip(l.unite,12);}
+  if(l.line)o.line=String(l.line);if(l.from)o.from=clip(l.from,40);return o;}
+/* une ligne est-elle complète ? '' si oui, sinon ce qui manque (en clair) */
+export function declLineErr(l){l=declNorm(l);if(l.nature==='dn')return !l.dnA||!l.dnB?'indique le DN avant et le DN après':l.dnA===l.dnB?'le DN avant et le DN après sont les mêmes':'';
+  if(l.nature==='ml')return l.qte?'':'indique la longueur (en plus ou en moins)';if(l.nature==='soud'||l.nature==='piece')return l.qte?'':'indique le nombre (en plus ou en moins)';return l.txt?'':'décris ce que c\'est';}
+const sg=v=>v>0?'+':v<0?'−':'';const PCW=k=>DECL_PC.find(x=>x[0]===k)||['autre','pièce','pièces'];
+export function declLineTxt(l){l=declNorm(l);const dn=l.dn?' DN '+l.dn:'';const n=Math.abs(l.qte);
+  if(l.nature==='dn')return `Changement de DN : DN ${l.dnA||'?'} → DN ${l.dnB||'?'}${l.qte?' sur '+fmtFR(l.qte)+' m':''}`;
+  if(l.nature==='ml')return `${sg(l.qte)}${fmtFR(n)} m${dn}`;
+  if(l.nature==='soud')return `${sg(l.qte)}${fmtFR(n)} soudure${n>1?'s':''}${dn}`;
+  if(l.nature==='piece'){const w=PCW(l.k);return `${sg(l.qte)}${fmtFR(n)} ${l.k==='autre'&&l.txt?l.txt:w[n>1?2:1]}${dn}`;}
+  return `${l.txt||'autre'}${l.qte?' : '+sg(l.qte)+fmtFR(n)+(l.unite?' '+l.unite:''):''}`;}
+/* clé de regroupement du récap (mêmes nature / pièce / DN / unité → on additionne) */
+export function declKey(l){l=declNorm(l);return [l.nature,l.k||'',l.dn||0,l.dnA||0,l.dnB||0,l.unite||'',l.nature==='autre'||l.k==='autre'?String(l.txt||'').toLowerCase():''].join('|');}
+/* récap des modifs déclarées par état : {etat: [{lab, l (ligne cumulée), n (nb de modifs)}]} */
+export function declRecap(items){const by={};(items||[]).filter(isDecl).forEach(m=>{const et=m.etat||'propose';const o=by[et]||(by[et]={});((m.decl&&m.decl.lignes)||[]).forEach(l0=>{const l=declNorm(l0);const k=declKey(l);const r=o[k]||(o[k]={l:Object.assign({},l,{qte:0}),mods:new Set()});r.l.qte=r1(r.l.qte+l.qte);r.mods.add(m.n);});});
+  const out={};Object.keys(by).forEach(et=>{out[et]=Object.values(by[et]).map(r=>({l:r.l,lab:declLineTxt(r.l),mods:[...r.mods].sort((a,b)=>a-b)}));});return out;}
+/* PROPOSITIONS tirées des écarts (éléments marché → réel) : changements de DN, linéaire par DN, soudures, pièces — un toucher = une ligne pré-remplie (modifiable) */
+const PC_OF={coudes:'coudes',tes:'tes',reduc:'reduc',vannes:'vannes',purges:'purges',vidanges:'vidanges',bouchons:'bouchons',extru:'extru',fc:'fc'};
+export function declProps(els){const out=[];const seen=new Set();const push=l=>{const k=declKey(l)+'|'+(l.qte||0);if(seen.has(k))return;seen.add(k);out.push(Object.assign(declNorm(l),{lab:declLineTxt(l)}));};
+  (els||[]).filter(e=>e.dnchg&&e.s>0).sort((a,b)=>num(b.dnchg.ml)-num(a.dnchg.ml)).forEach(e=>push({nature:'dn',dnA:e.dnchg.from,dnB:e.dnchg.to,qte:r1(e.dnchg.ml),line:e.line,from:e.lineName||''}));
+  const C=compareEls(els||[]);const big=(a,b)=>Math.abs(b.d)-Math.abs(a.d);
+  C.filter(r=>r.k==='ml'&&Math.abs(r.d)>=0.5).sort(big).forEach(r=>push({nature:'ml',dn:r.dn,qte:r.d}));
+  C.filter(r=>PC_OF[r.k]&&r.d).sort(big).forEach(r=>push({nature:'piece',k:PC_OF[r.k],dn:r.dn,qte:r.d}));
+  C.filter(r=>r.k==='soud'&&r.d).sort(big).forEach(r=>push({nature:'soud',dn:r.dn,qte:r.d})); /* pièces avant soudures : les soudures suivent le linéaire et les pièces */
+  return out;}

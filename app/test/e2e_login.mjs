@@ -50,7 +50,7 @@ console.log('1) connexion :',JSON.stringify({...out,...home1}));
 C.c1=!out.login&&out.home&&out.screen==='home'&&/Connecté/.test(out.hint)&&home1.adminTab&&home1.isAdmin&&home1.poste==='resp_exploitation'&&home1.email===EMAIL&&/Responsable d'exploitation · ★ admin/.test(home1.cloud)&&calls.some(c=>/POST \/auth\/v1\/token\?grant_type=password/.test(c))&&calls.some(c=>/GET \/rest\/v1\/profiles/.test(c));
 // ── 2) menu du compte : « ⚙ Administrateur », puis « Se déconnecter » → écran de connexion
 await page.click('#homeAva');await page.waitForTimeout(300);
-const menu=await page.evaluate(()=>({adm:!!document.querySelector('#accUsers'),out:!!document.querySelector('#accOut'),pwd:!!document.querySelector('#accPwd'),title:(document.querySelector('#modal h3')||{}).textContent||'',ver:/TRACÉ version \d{2}\/\d{2}\/\d{4} · [0-9a-f]{6}/.test(document.querySelector('#modal').textContent)}));
+const menu=await page.evaluate(()=>({adm:!!document.querySelector('#accUsers'),out:!!document.querySelector('#accOut'),pwd:!!document.querySelector('#accPwd'),title:(document.querySelector('#modal h3')||{}).textContent||'',ver:/Tracé version \d{2}\/\d{2}\/\d{4} · [0-9a-f]{6}/.test(document.querySelector('#modal').textContent)}));
 await page.click('#accOut');await page.waitForTimeout(900);
 out=await scr();const after=await page.evaluate(()=>({cloudUser:!!window.TRACE.state.cloudUser,profile:!!window.TRACE.state.profile,modal:document.querySelector('#modal')&&document.querySelector('#modal').classList.contains('show')}));
 console.log('2) menu + déconnexion :',JSON.stringify({...menu,...out,...after,loggedOut}));

@@ -110,7 +110,7 @@ const dems=()=>Object.values(REG).filter(r=>r.kind==='magdem').map(r=>Object.ass
 const mvts=()=>Object.values(REG).filter(r=>r.kind==='magmvt').map(r=>Object.assign({id:r.id},r.data));
 const goMoiMag=async pg=>{await pg.evaluate(async()=>{document.getElementById('htEspace').click();await new Promise(r=>setTimeout(r,250));const c=[...document.querySelectorAll('#eq-app .eq-subs .chip')].find(x=>/Magasin/.test(x.textContent));if(!c)throw new Error('sous-onglet Magasin absent');c.click();});await W(pg,300);};
 const goMoiSub=async(pg,re)=>{await pg.evaluate(async re=>{document.getElementById('htEspace').click();await new Promise(r=>setTimeout(r,250));const c=[...document.querySelectorAll('#eq-app .eq-subs .chip')].find(x=>new RegExp(re).test(x.textContent));if(!c)throw new Error('sous-onglet absent : '+re);c.click();},re);await W(pg,300);};
-const goParc=async pg=>{await pg.evaluate(()=>document.getElementById('htParc').click());await W(pg,350);};
+const goParc=async pg=>{await pg.evaluate(()=>{const m=document.getElementById('htMag');(m&&m.style.display!=='none'?m:document.getElementById('htParc')).click();});await W(pg,350);}; /* 31/10 (un onglet = un module) : le Magasin a son onglet quand on y a accès (sinon Parc → puce Magasin, comme avant) */
 const goHub=async pg=>{await pg.evaluate(()=>document.getElementById('htEq').click());await W(pg,400);};
 const shot=(pg,name)=>pg.screenshot({path:SHOTS+'/'+name+'.png'}).catch(()=>{});
 const shotAt=async(pg,name,sel)=>{await pg.evaluate(s=>{const el=document.querySelector(s);if(el)el.scrollIntoView({block:'center'});},sel);await W(pg,250);await shot(pg,name);}; /* la capture montre l'élément visé */

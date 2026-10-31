@@ -75,7 +75,7 @@ async function route(ctx,P){
     return json([]);});
   await ctx.route(u=>!u.href.startsWith(BASE)&&!u.href.startsWith(SB)&&/^https?:/.test(u.href),rt=>rt.fulfill({status:204,body:''}));}
 const logs=[];const watch=pg=>{pg.on('pageerror',e=>logs.push('PAGEERROR: '+e.message.slice(0,300)));pg.on('console',m=>{if(m.type()==='error'&&!/realtime|websocket|Failed to fetch|net::ERR|404|400|204/i.test(m.text()))logs.push(m.text().slice(0,200));});pg.on('dialog',d=>d.accept().catch(()=>{}));};
-const ctx=await browser.newContext({viewport:{width:1366,height:900}});await route(ctx,CHEF);const page=await ctx.newPage();watch(page);
+const ctx=await browser.newContext({viewport:{width:1366,height:960}});await route(ctx,CHEF); /* 31/10 : bandeau « Tracé » (64 + 48 px au lieu de 51) → +60 px de hauteur pour garder la même surface de plan (c2 compte les repères visibles à 20 px/m) */const page=await ctx.newPage();watch(page);
 const wait=ms=>page.waitForTimeout(ms);const T=(fn,arg)=>page.evaluate(fn,arg);
 const shot=async(pg,name)=>{try{const had=await pg.evaluate(()=>{const t=document.getElementById('toast');if(t&&t.classList.contains('show')){t.classList.remove('show');return true;}return false;}).catch(()=>false);if(had)await pg.waitForTimeout(450); /* le message passager (2,6 s) masquait le bas des captures */await pg.screenshot({path:SHOTS+'/'+name+'.png'});}catch(e){console.log('capture '+name+' : '+e.message);}};
 const idbSet=(pg,k,v)=>pg.evaluate(([k,v])=>new Promise(res=>{const q=indexedDB.open('trace-kv',1);q.onupgradeneeded=()=>q.result.createObjectStore('kv');q.onsuccess=()=>{const tx=q.result.transaction('kv','readwrite');tx.objectStore('kv').put(v,k);tx.oncomplete=()=>res(true);tx.onerror=()=>res(false);};q.onerror=()=>res(false);}),[k,v]);

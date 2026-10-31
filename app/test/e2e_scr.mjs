@@ -30,7 +30,7 @@ console.log('2) facettes :',JSON.stringify(out));
 C.c2=out.facet==='vie'&&out.vis.join()==='bureau,conv,admin,qse,export'&&out.tech.facet==='tech'&&out.tech.vis.join()==='bouclage,hydro,stock,fourniture,phasage,ts,points,__more' /* 13/10 : + Fourniture ; 20/10 (lot PA) : + 📍 Points */&&!out.tech.scroll&&!out.phone.scroll&&out.stock.tab==='stock'&&out.stock.facet==='tech';
 // ── 3) « Nouveautés » : plus d'option pointage / profil (chef)
 await page.evaluate(()=>{window.TRACE.showScreen('home');window.TRACE.state.homeTab='list';window.TRACE.renderHome();});await page.waitForTimeout(400);
-out=await page.evaluate(()=>{const b=document.getElementById('nextBtn');if(!b)return {btn:false};b.click();const m=document.getElementById('modal');return {btn:true,txt:b.textContent,opts:document.querySelectorAll('#modal [data-nextf]').length,moved:/pointage → Moi/.test(m.textContent),backlog:document.querySelectorAll('#modal [style*=dashed]').length};});
+out=await page.evaluate(()=>{const b=document.getElementById('nextBtn');if(!b)return {btn:false};b.click();const m=document.getElementById('modal');return {btn:true,txt:b.textContent,opts:document.querySelectorAll('#modal [data-nextf]').length,moved:/pointage → (Moi|Compagnon)/.test(m.textContent) /* 31/10 : « Moi » s'appelle Compagnon */,backlog:document.querySelectorAll('#modal [style*=dashed]').length};});
 await page.evaluate(()=>document.getElementById('modal').classList.remove('show'));
 console.log('3) Nouveautés :',JSON.stringify(out));
 C.c3=out.btn&&/à concevoir/.test(out.txt)&&out.opts===0&&out.moved&&out.backlog>=1;

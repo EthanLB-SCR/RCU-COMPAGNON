@@ -19,7 +19,7 @@ export const MODULES = {
   pilotage: { label: 'Pilotage', desc: 'Planning, pointage à valider, heures, production, débours, commandes' },
   flotte: { label: 'Flotte', desc: 'Véhicules : remise, états des lieux, cartes' },
   magasin: { label: 'Magasin', desc: 'Demandes de matériel, stock, réception, inventaire' },
-  compagnon: { label: 'Compagnon', desc: 'Moi : pointage, documents à signer, accueil, avatar' },
+  compagnon: { label: 'Compagnon', desc: 'Mon pointage, mes documents à signer, mes demandes, mon véhicule, mon avatar' },
   equipe: { label: 'Équipe', desc: 'Personnes, accueil RH, fiches de poste, droits' }
 };
 // Réglage « entreprise » (logo + nom affichés à droite du bandeau) : réglage partagé app_settings « entreprise » (admin), copie sur l'appareil

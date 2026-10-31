@@ -53,7 +53,7 @@ table.sig{margin-top:22px;border-spacing:10px;border-collapse:separate}table.sig
 export function docHead({kicker='',title='',sub='',meta=[]}={}){
   return `<header class="scrHead"><img class="logo" src="${LOGO_PNG}" alt="SCR"><div class="ttl">${kicker?`<div class="kicker">${esc(kicker)}</div>`:''}<h1>${esc(title)}</h1>${sub?`<div class="sub">${sub}</div>`:''}</div></header>`+
     (meta.length?`<div class="scrMeta">${meta.filter(m=>m&&m[1]!==undefined&&m[1]!==null&&m[1]!=='').map(m=>`<span class="scrChip${m[2]?' '+m[2]:''}"><b>${esc(m[0])}</b><span>${m[1]}</span></span>`).join('')}</div>`:'');}
-export function docFoot(left,right){return `<footer class="scrFoot"><span><b>SCR</b> · Soudure Construction Réseaux${left?' · '+left:''}</span><span>${right||('édité le '+new Date().toLocaleDateString('fr-FR')+' · TRACÉ')}</span></footer>`;}
+export function docFoot(left,right){return `<footer class="scrFoot"><span><b>SCR</b> · Soudure Construction Réseaux${left?' · '+left:''}</span><span>${right||('édité le '+new Date().toLocaleDateString('fr-FR')+' · Tracé')}</span></footer>`;}
 /* 27/10 soir (Ethan : « l'export est parfait mais le lien téléchargé est “user ethan le bihan…”, si je l'envoie à quelqu'un il ne peut pas l'ouvrir ») : la fenêtre d'export n'a pas d'adresse
    partageable (about:blank, ou un fichier local sur l'appareil) → barre d'envoi dans TOUTES les fenêtres d'export : ⬇ le fichier .html autonome (à joindre à un mail), 🖨 PDF, 📤 partager
    (Web Share avec le fichier sur téléphone, sinon téléchargement). Le fichier téléchargé garde la barre : le destinataire peut à son tour imprimer ou renvoyer. */

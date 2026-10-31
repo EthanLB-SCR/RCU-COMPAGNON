@@ -68,7 +68,7 @@ console.log('4b) Karim a émargé au doigt (PDF déposé sur le chantier):',JSON
 const c4b=out.sigs===1&&out.name==='Karim B.'&&out.img;
 const [pop1]=await Promise.all([page.waitForEvent('popup'),page.evaluate(()=>document.getElementById('qse-print').click())]);
 await pop1.waitForLoadState('domcontentloaded');
-out=await pop1.evaluate(()=>({t:/Émargements \(1\)/.test(document.body.textContent),img:!!document.querySelector('img[src^="data:image/png"]')}));
+out=await pop1.evaluate(()=>({t:/Émargements \(1\)/.test(([...document.body.childNodes].filter(n=>n.nodeName!=='SCRIPT').map(n=>n.textContent).join('') /* 31/10 : le gros script est en fin de <body> (écran de chargement) — son texte n'est pas du texte de la page */)),img:!!document.querySelector('img[src^="data:image/png"]')}));
 await pop1.close();
 console.log('4c) feuille d\'émargement imprimable:',JSON.stringify(out));
 const c4c=out.t&&out.img;
@@ -81,7 +81,7 @@ const tabAfter=await page.evaluate(()=>{document.getElementById('doe-go').click(
 await page.waitForTimeout(300);
 const [pop2]=await Promise.all([page.waitForEvent('popup'),page.evaluate(()=>document.getElementById('doeCarnet').click())]);
 await pop2.waitForLoadState('domcontentloaded');
-out=await pop2.evaluate(()=>({t:/Carnet de soudage et manchonnage/.test(document.body.textContent),w:/S-\d{4}/.test(document.body.textContent),soudee:/TIG/.test(document.body.textContent),noImg:!document.querySelector('img:not(.logo)'), /* le logo SCR de l'en-tête (charte 09/10) n'est pas une photo */table:document.querySelectorAll('tbody tr').length>0,planche:/Planche/.test(document.body.textContent)})); // 08/10 : carnet = une table par n°, sans photos (elles sont dans le dossier Photos)
+out=await pop2.evaluate(()=>({t:/Carnet de soudage et manchonnage/.test(([...document.body.childNodes].filter(n=>n.nodeName!=='SCRIPT').map(n=>n.textContent).join('') /* 31/10 : le gros script est en fin de <body> (écran de chargement) — son texte n'est pas du texte de la page */)),w:/S-\d{4}/.test(([...document.body.childNodes].filter(n=>n.nodeName!=='SCRIPT').map(n=>n.textContent).join('') /* 31/10 : le gros script est en fin de <body> (écran de chargement) — son texte n'est pas du texte de la page */)),soudee:/TIG/.test(([...document.body.childNodes].filter(n=>n.nodeName!=='SCRIPT').map(n=>n.textContent).join('') /* 31/10 : le gros script est en fin de <body> (écran de chargement) — son texte n'est pas du texte de la page */)),noImg:!document.querySelector('img:not(.logo)'), /* le logo SCR de l'en-tête (charte 09/10) n'est pas une photo */table:document.querySelectorAll('tbody tr').length>0,planche:/Planche/.test(([...document.body.childNodes].filter(n=>n.nodeName!=='SCRIPT').map(n=>n.textContent).join('') /* 31/10 : le gros script est en fin de <body> (écran de chargement) — son texte n'est pas du texte de la page */))})); // 08/10 : carnet = une table par n°, sans photos (elles sont dans le dossier Photos)
 await pop2.close();out.tabAfter=tabAfter;
 console.log('5) carnet DOE généré depuis l\'onglet Export:',JSON.stringify(out));
 const c5=out.t&&out.w&&out.soudee&&out.noImg&&out.table&&out.planche&&tabAfter==='export';

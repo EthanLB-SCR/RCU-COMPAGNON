@@ -8,7 +8,14 @@
 // · Règle de rigueur : toute nouveauté naît en « labo » ; un onglet ou une tuile sans clé connue n'est jamais caché (on ne casse pas l'existant), mais le test
 //   unit_paliers le signale.
 export const PALIERS={socle:'Socle — tout SCR',labo:'Labo — testeurs (Sud-Ouest)'};
-export const GROUPES={chantier:'Chantier',equipes:'Équipes & heures',secu:'Sécurité',scr:'SCR, Commerce, Parc',moi:'Moi'};
+export const GROUPES={chantier:'Chantier',pilotage:'Pilotage',affaires:'Affaires',flotte:'Flotte',magasin:'Magasin',compagnon:'Compagnon',equipe:'Équipe',transverse:'Sans module',
+  /* anciens groupes (jusqu'au 30/10) : toujours acceptés, rangés dans leur module à l'écran */ equipes:'Pilotage',secu:'Sans module',scr:'Équipe',moi:'Compagnon'};
+/* 31/10 (Ethan : « la réorganisation éventuelle des options par module ») : l'écran 🧪 Options range les options par MODULE (charte « Tracé ») — Chantier, Pilotage,
+   Affaires, Flotte, Magasin, Compagnon, Équipe, puis ce qui n'a pas de module (Conversation… : transverse) ; un groupe inconnu tombe dans « Autres ». */
+export const MOD_ORDER=['chantier','pilotage','affaires','flotte','magasin','compagnon','equipe','transverse','autres'];
+export const MOD_LABEL={chantier:'Tracé Chantier',pilotage:'Tracé Pilotage',affaires:'Tracé Affaires',flotte:'Tracé Flotte',magasin:'Tracé Magasin',compagnon:'Tracé Compagnon',equipe:'Tracé Équipe',transverse:'Sans module (transverse)',autres:'Autres'};
+const GROUPE_MODULE={equipes:'pilotage',secu:'transverse',scr:'equipe',moi:'compagnon'};
+const FEAT_MODULE={commerce:'affaires',parc:'flotte',magasin:'magasin'}; // anciennes options du groupe « SCR, Commerce, Parc »
 // [clé, libellé, groupe, palier par défaut, ce que ça cache]
 export const FEATURES=[
  ['bouclage','Bouclage / DH','chantier','socle','onglet Bouclage : mesures DH, localisation de défaut, bouclages temporaires'],
@@ -23,17 +30,27 @@ export const FEATURES=[
  ['dossier','Dossier administratif','chantier','socle','onglet Dossier : documents obligatoires consultables (DICT…)'],
  ['export','Export / DOE','chantier','socle','onglet Export : carnet, plan, maquette, lien du plan interactif, zip DOE'],
  ['mutu','Chantier partagé par affaire','chantier','labo','rattacher une seconde affaire à un chantier, dossiers séparés par affaire'],
- ['planning','Planning des équipes','equipes','socle','Équipes & heures → Planning de la semaine, Ma semaine'],
- ['objectifs','Objectifs des équipes','equipes','labo','Équipes & heures → Objectifs du jour par équipe'],
- ['production','Production par équipe','equipes','socle','Équipes & heures → heures et production, rapport de semaine'],
- ['accident','Déclaration d\'accident','secu','labo','Sécurité → déclarer un accident / presque-accident'],
- ['commerce','Commerce','scr','labo','onglet Commerce : affaires, DCE, chiffrage, mémoire technique, DPGF, offre, situations'],
+ ['planning','Planning des équipes','pilotage','socle','Pilotage → Planning de la semaine, Ma semaine'],
+ ['objectifs','Objectifs des équipes','pilotage','labo','Pilotage → Objectifs du jour par équipe'],
+ ['production','Production par équipe','pilotage','socle','Pilotage → heures et production, rapport de semaine'],
+ ['tutos','Tutos au premier passage','transverse','labo','guide pas à pas la 1re fois qu\'on entre dans un module (Suivant / Passer), « ❓ Revoir le tuto » dans le menu des modules'], /* 31/10 (lot MO) */
+ ['accident','Déclaration d\'accident','transverse','labo','Sécurité → déclarer un accident / presque-accident'],
+ ['commerce','Affaires (Commerce)','affaires','labo','onglet Affaires : affaires, DCE, chiffrage, mémoire technique, DPGF, offre, situations'],
  ['parc','Parc / véhicules','scr','labo','onglet Parc : flotte, réception et restitution de véhicule, Moi → Mon véhicule'],
  ['magasin','Magasin et matériel','scr','labo','demandes de matériel, préparation, stock du dépôt'],
  ['frais','Notes de frais','moi','labo','Moi → Mes notes de frais, validation des notes'],
+ ['plansexe','Plans d\'exé','chantier','labo','Dossier → plans d\'exé (planches, indices, zones), « 📄 Plan d\'exé » des fiches soudure, « 📄 Mes plans » sur le plan, calque Plans d\'exé'], /* 31/10 (lot DX) */
+ ['planning_simple','Planning simplifié (semaine par chantier)','pilotage','labo','Pilotage → « Planning de la semaine » (qui est où chaque jour, placer en 3 touchers, copier la semaine dernière) ; « Demain : chantier X » dans Compagnon — sans elle : le planning détaillé comme avant'], /* 31/10 (lot PI) */
+ ['prod_tableau','Production : tableau jour / semaine','pilotage','labo','Pilotage → Production par équipe → tableau par équipe (jour / semaine : soudures, manchons, ml, objectif vs réalisé, barres), chantiers comptés, impression A4 — sans elle : l\'écran d\'avant seul'], /* 31/10 (lot PI) */
+ ['demandes','Demandes de matériel (sans magasin)','compagnon','labo','Compagnon → Mes demandes (matériel pour un chantier), Pilotage → Demandes de matériel : commandé, livré / remis, refusé'], /* 31/10 (lot CC) */
+ ['comptechantier','Compte chantier','pilotage','labo','Pilotage → Compte d\'un chantier, Bureau du chantier → 💶 : bons de commande, dépenses, heures par poste (lecture seule)'], /* 31/10 (lot CC) */
 ];
 export const FEAT_KEYS=FEATURES.map(f=>f[0]);
 export const featDef=k=>FEATURES.find(f=>f[0]===k)||null;
+// 31/10 (lot MO) : module d'une option (écran 🧪 Options) : son groupe s'il est un module ; sinon l'ancien groupe traduit ; inconnu → « autres »
+export const featModule=f=>{const d=Array.isArray(f)?f:featDef(f);if(!d)return 'autres';if(FEAT_MODULE[d[0]])return FEAT_MODULE[d[0]];const g=d[2];if(MOD_ORDER.includes(g))return g;return GROUPE_MODULE[g]||'autres';};
+// 31/10 : libellés aux noms des modules pour les options dont la ligne ci-dessus reste telle quelle (fin du registre : les lots parallèles y ajoutent leurs clés)
+[['parc','Flotte (Parc véhicules)','onglet Flotte : véhicules, réception et restitution de véhicule, Compagnon → Mon véhicule'],['frais','Notes de frais','Compagnon → Mes notes de frais, validation des notes (Pilotage)']].forEach(([k,l,d])=>{const f=featDef(k);if(f){f[1]=l;f[4]=d;}});
 /* ── réglage partagé ── */
 const KEY='trace:paliers';let CFG=null;let A=null;
 export function initPaliers(api){A=api;CFG=loadLocal();}
