@@ -55,7 +55,7 @@ await page.click(`#modal [data-mod="dcl-prop:${iDN}"]`);await wait(250);await pa
 await page.click('#modal [data-mod="dcl-add:piece"]');await wait(250);
 await page.selectOption('#modal [data-dcl="2:k"]','coudes');await wait(200);await page.fill('#modal [data-dcl="2:abs"]','2');await page.selectOption('#modal [data-dcl="2:dn"]','100');await wait(150);
 await page.fill('#modal [data-dcf="nom"]','Antenne B prolongée et passée en DN 100');await page.fill('#modal [data-dcf="devis"]','DEV-T-001');await wait(150);
-o.lines=await T(()=>[...document.querySelectorAll('#modal [data-dclprev]')].map(x=>x.textContent.trim()));o.propOn=await T(()=>document.querySelectorAll('#modal .dclP.on').length);
+o.lines=await T(()=>[...document.querySelectorAll('#modal [data-dclprev], #modal .dclMiniT')].map(x=>x.textContent.trim())); /* 01/11 : une proposition arrive repliée (✓) */o.propOn=await T(()=>document.querySelectorAll('#modal .dclP.on').length);
 console.log('c2) fenêtre :',J(o));await shot('2_fenetre');
 C.c2=o.modal.show&&/Déclarer une modif/.test(o.modal.h)&&iDN>=0&&iML>=0&&o.modal.props.some(t=>/\+2 coudes DN 100/.test(t))&&o.modal.props.length<=12&&o.modal.et==='TS proposé'&&o.lines.length===3&&/DN 125 → DN 150 sur 139/.test(o.lines[0])&&/m DN 100/.test(o.lines[1])&&/\+2 coudes DN 100/.test(o.lines[2])&&o.propOn===2;
 /* ── c3 : pointer sur le plan (vrais touchers) puis enregistrer */
@@ -152,11 +152,81 @@ await pm.setViewportSize({width:1366,height:900});
 console.log('c10) téléphone :',J(phone));
 const big=a=>a.length&&a.every(h=>h>=44&&h<=64); /* gros boutons, mais pas des pavés */
 C.c10=[390,360].every(W=>{const p=phone[W];return p&&p.tabOk.sw<=p.tabOk.iw&&p.tabOk.cards===2&&p.form.sw<=p.form.iw&&p.form.boxSw<=p.form.boxCw+1&&!p.form.over.length&&big(p.form.save)&&big(p.form.pick)&&big(p.form.et)&&big(p.form.sg)&&big(p.form.x)&&big(p.form.inp)&&p.bar.l>=0&&p.bar.r<=p.bar.iw&&big(p.bar.ok)&&big(p.bar.cancel)&&p.bar.sw<=p.bar.iw;});
+/* ── c15 (01/11, Ethan : « un outil pour calculer les distances avant / après : ça montre l'ancien tracé, tu mesures, puis le nouveau, comme ça tu as l'écart de ml ») */
+await T(()=>{const X=window.TRACE;X.closeModal&&X.closeModal();X.state.tab='ts';X.renderAll();});await wait(300);
+await page.click('#tsview [data-mod="ms-start"]');await wait(500);
+const ref=await T(()=>{const U=window.TRACE.mod.api();const f=s=>{const L=U.msTest(s).find(l=>l.id==='L3');const P=L.P;let n=0;for(let i=1;i<P.length;i++)n+=Math.hypot(P[i][0]-P[i-1][0],P[i][1]-P[i-1][1]);return {a:{x:P[0][0],y:P[0][1]},b:{x:P[P.length-1][0],y:P[P.length-1][1]},len:n};};return {av:f('av'),ap:f('ap')};});
+o={bar0:await T(()=>(document.getElementById('modPickBar')||{}).textContent||''),orange:await T(()=>(document.getElementById('net').parentNode.innerHTML.match(/#f08a24/g)||[]).length)};
+const tapAt=async p=>{await center(p);await wait(150);await tapW(p);};
+await tapAt(ref.av.a);await tapAt(ref.av.b);o.av=await T(()=>window.TRACE.mod.api().MS.av.map(p=>p.line+'@'+Math.round(p.m)));
+await page.click('#modPickBar [data-mod="ms-next"]');await wait(300);
+await tapAt(ref.ap.a);await tapAt(ref.ap.b);o.ap=await T(()=>window.TRACE.mod.api().MS.ap.map(p=>p.line+'@'+Math.round(p.m)));
+await page.click('#modPickBar [data-mod="ms-res"]');await wait(300);o.res=await T(()=>(document.querySelector('#modPickBar .msRes')||{}).textContent||'');
+const exp=Math.round((ref.ap.len-ref.av.len)*10)/10;o.exp=exp;
+await page.setViewportSize({width:390,height:844});await wait(300);o.phone=await T(()=>{const b=document.getElementById('modPickBar').getBoundingClientRect();const bt=[...document.querySelectorAll('#modPickBar button')].map(x=>Math.round(x.getBoundingClientRect().height));return {l:Math.round(b.left),r:Math.round(b.right),iw:innerWidth,sw:document.documentElement.scrollWidth,minH:Math.min(...bt)};});await page.setViewportSize({width:1366,height:900});await wait(300);
+await page.click('#modPickBar [data-mod="ms-decl"]');await wait(500);
+o.form=await T(()=>({show:document.getElementById('modal').classList.contains('show'),mini:[...document.querySelectorAll('#modal .dclMiniT')].map(x=>x.textContent.trim()),pt:((document.querySelector('#modal .dclMiniPt')||{}).textContent||'')}));
+await page.click('#modal [data-mod="dcl-cancel"]');await wait(300);
+console.log('c15) mesure avant / après :',J(o));
+const fr=v=>String(v).replace('.',',');
+C.c15=/Mesurer avant \/ après/.test(o.bar0)&&o.orange>0&&o.av.length===2&&o.av.every(x=>/^L3@/.test(x))&&o.ap.length===2&&o.ap.every(x=>/^L3@/.test(x))&&exp>0&&o.res.includes('+'+fr(exp)+' m')&&o.form.show&&o.form.mini.some(t=>t.startsWith('+'+fr(exp)+' m'))&&/📍2/.test(o.form.pt)&&o.phone.l>=0&&o.phone.r<=o.phone.iw&&o.phone.sw<=o.phone.iw&&o.phone.minH>=40;
+/* ── c16 (01/11, Ethan : « le filtre marché réel / projeté avec le TS et le compris ; cliquer sur “2 réductions en −” et que ça montre les réductions supprimées, pareil soudures, pièces : le plan avec la version d'avant, en surbrillance ») */
+await T(()=>{const X=window.TRACE;X.closeModal&&X.closeModal();X.state.tab='ts';X.state.tsRecF='all';X.renderAll();});await wait(400);
+const rec=()=>T(()=>{const t=[...document.querySelectorAll('#tsview table.tsMain')].pop();if(!t)return null;const H=[...t.querySelectorAll('tr:first-child th')].map(x=>x.textContent.trim());return {H,rows:[...t.querySelectorAll('tr')].slice(1).map(r=>[...r.querySelectorAll('td')].map(c=>c.textContent.replace(/\s+/g,' ').trim())),chips:[...document.querySelectorAll('#tsview [data-tsrecf]')].map(c=>c.textContent+(c.classList.contains('on')?'*':'')),foc:[...t.querySelectorAll('[data-mod^="foc:"]')].map(c=>c.dataset.mod)};});
+o={all:await rec()};const row=(R,lab)=>R.rows.find(r=>r[0].startsWith(lab))||[];
+await page.click('#tsview [data-tsrecf="ts"]');await wait(300);o.ts=await rec();await page.click('#tsview [data-tsrecf="compris"]');await wait(300);o.co=await rec();await page.click('#tsview [data-tsrecf="all"]');await wait(300);
+const fTes=o.all.foc.find(x=>/^foc:tes:-1/.test(x));o.fTes=fTes||null;
+if(fTes){await page.click(`#tsview [data-mod="${fTes}"]`);await wait(700);}
+o.focus=await T(()=>({tab:window.TRACE.state.tab,on:window.TRACE.mod.api().FO.on,bar:((document.getElementById('modPickBar')||{}).textContent||'').replace(/\s+/g,' ').slice(0,120),items:document.querySelectorAll('#modPickBar [data-mod^="foc-go:"]').length,red:(document.body.innerHTML.match(/stroke="#d93025"/g)||[]).length}));
+await page.click('#modPickBar [data-mod="foc-end"]');await wait(300);o.after=await T(()=>({on:window.TRACE.mod.api().FO.on,red:(document.body.innerHTML.match(/stroke="#d93025"/g)||[]).length,bar:getComputedStyle(document.getElementById('modPickBar')).display}));
+console.log('c16) récap TS / compris + voir sur le plan :',J({H:o.all.H,ml:row(o.all,'Linéaire'),coudes:row(o.all,'Coudes'),tes:row(o.all,'Tés'),ts:o.ts.rows.map(r=>r[0]),co:o.co.rows.map(r=>r[0]),chips:o.all.chips,fTes:o.fTes,focus:o.focus,after:o.after}));
+C.c16=o.all.H.includes('dont TS')&&o.all.H.includes('compris')&&o.all.chips.length===3&&/\+229,5/.test(row(o.all,'Linéaire')[4]||'')&&/\+2/.test(row(o.all,'Coudes')[4]||'')&&o.ts.rows.length===2&&o.ts.rows.every(r=>/^(Linéaire|Coudes)/.test(r[0]))&&o.co.rows.length>=1&&!!o.fTes&&o.focus.tab==='plan'&&o.focus.on&&/Retiré : −2 tés/.test(o.focus.bar)&&o.focus.items>=1&&o.focus.red>0&&!o.after.on&&o.after.red===0&&o.after.bar==='none';
+/* ── c17 (01/11, Ethan : « en dessous des modifs déclarées, le récap de toutes les modifs pas déclarées, avec tous les écarts pas compris dans ce qui a été déclaré ») */
+await T(()=>{const X=window.TRACE;X.closeModal&&X.closeModal();X.state.tab='ts';X.state.tsRecF='all';X.renderAll();});await wait(400);
+o={uc:await T(()=>{const t=document.querySelector('#tsview table.ucT');if(!t)return null;return [...t.querySelectorAll('tr[data-uck]')].map(r=>({k:r.dataset.uck,td:[...r.querySelectorAll('td')].map(c=>c.textContent.replace(/\s+/g,' ').trim())}));}),order:await T(()=>{const h=[...document.querySelectorAll('#tsview h3')].map(x=>x.textContent);return {decl:h.findIndex(t=>/Récap par état/.test(t)),uc:h.findIndex(t=>/Écarts non déclarés/.test(t))};})};
+const ucR=k=>(o.uc||[]).find(r=>r.k===k);
+if(SHOTS){await page.setViewportSize({width:390,height:844});await wait(300);await T(()=>{const t=document.querySelector('#tsview table.tsMain');if(t)t.scrollIntoView({block:'start'});});await wait(200);await shot('16_recap_390');await T(()=>{const t=document.querySelector('#tsview table.ucT');if(t)t.scrollIntoView({block:'start'});});await wait(200);await shot('17_ecarts_390');await page.setViewportSize({width:1366,height:900});await wait(300);}
+await page.click('#tsview tr[data-uck="soud"] [data-mod^="uc-decl:"]');await wait(400);o.form=await T(()=>({show:document.getElementById('modal').classList.contains('show'),mini:[...document.querySelectorAll('#modal .dclMiniT')].map(x=>x.textContent.trim())}));await page.click('#modal [data-mod="dcl-cancel"]');await wait(300);
+await T(()=>{const X=window.TRACE;X.state.tab='ts';X.renderAll();});await wait(300);await page.click('#tsview tr[data-uck="ml"] [data-mod^="foc:"]');await wait(600);o.eye=await T(()=>({on:window.TRACE.mod.api().FO.on,tab:window.TRACE.state.tab}));await T(()=>window.TRACE.mod.api().focusEnd());await wait(200);
+console.log('c17) écarts non déclarés :',J(o));
+const ml=ucR('ml');
+C.c17=!!o.uc&&o.order.uc>o.order.decl&&!!ml&&/−159,5/.test(ml.td[1])&&/DN 100 : −69,5/.test(ml.td[1])&&/DN 65 : −90/.test(ml.td[1])&&/déclaré \+229,5/.test(ml.td[0])&&/écart \+70/.test(ml.td[0])&&!ucR('coudes')&&!!ucR('soud')&&o.form.show&&o.form.mini.some(t=>/soudure/.test(t))&&o.eye.on&&o.eye.tab==='plan';
 /* ── c12 : « 🔒 Re-figer » → « C'est mon tracé de base » : les modifs DÉCLARÉES sont gardées (l'ancienne par éléments part, comme avant) */
 await T(()=>{const X=window.TRACE;X.state.tab='ts';X.renderAll();});await wait(300);await page.click('#tsview [data-tsrefreeze]');await wait(300);
 o={modal:await T(()=>document.getElementById('modal').textContent.replace(/\s+/g,' ').slice(0,600))};await page.click('#tsRfBase');await wait(500);
 o.after=await T(()=>{const X=window.TRACE;const Mo=X.mod.of();return {kinds:Mo.items.map(m=>m.kind||'els'),els:X.mod.elements().length,txt:(document.querySelector('#tsview .mdEc')||{}).textContent||'',cards:document.querySelectorAll('#tsview .mdCard').length};});
 console.log('c12) re-figer :',J(o));
 C.c12=/modif déclarée est gardée/.test(o.modal)&&o.after.kinds.join()==='decl'&&o.after.els===0&&/aucun écart/.test(o.after.txt)&&o.after.cards===1;
+/* ── c13 (01/11, Ethan : « changement de DN, linéaire, pièce, sous-station ou attente… à rajouter ; extrusion ; pour les pièces, DN d'entrée et de sortie pour celles qui en ont plusieurs ») */
+await T(()=>{const X=window.TRACE;X.state.tab='ts';X.renderAll();});await wait(200);await T(()=>window.TRACE.mod.decl({fresh:true}));await wait(300);
+o={adds:await T(()=>[...document.querySelectorAll('#modal [data-mod^="dcl-add:"]')].map(b=>b.dataset.mod.split(':')[1]))};
+for(const [nat,i,q,dn] of [['sst',0,'1','50'],['attente',1,'2','80'],['extru',2,'3','100']]){await page.click(`#modal [data-mod="dcl-add:${nat}"]`);await wait(200);await page.fill(`#modal [data-dcl="${i}:abs"]`,q);await page.selectOption(`#modal [data-dcl="${i}:dn"]`,dn);await wait(150);}
+await page.click('#modal [data-mod="dcl-add:piece"]');await wait(200);await page.selectOption('#modal [data-dcl="3:k"]','reduc');await wait(250);await page.fill('#modal [data-dcl="3:abs"]','1');await page.selectOption('#modal [data-dcl="3:dn"]','150');await page.selectOption('#modal [data-dcl="3:dn2"]','100');await wait(150);
+await page.click('#modal [data-mod="dcl-add:piece"]');await wait(200);await page.selectOption('#modal [data-dcl="4:k"]','tes');await wait(250);await page.fill('#modal [data-dcl="4:abs"]','2');await page.selectOption('#modal [data-dcl="4:dn"]','150');await page.selectOption('#modal [data-dcl="4:dn2"]','80');await wait(150);
+await page.click('#modal [data-mod="dcl-sign:4:-1"]');await wait(200);
+o.prev=await T(()=>[...document.querySelectorAll('#modal [data-dclprev]')].map(x=>x.textContent.trim()));
+await T(()=>{const n=document.querySelector('#modal [data-dcf="nom"]');if(n){n.value='Ajouts sous-station';n.dispatchEvent(new Event('input',{bubbles:true}));}});await page.click('#modal [data-mod="dcl-save"]');await wait(500);
+o.saved=await T(()=>{const Mo=window.TRACE.mod.of();const m=Mo.items.filter(x=>x.kind==='decl').slice(-1)[0];return m?m.decl.lignes.map(l=>l.nature+':'+(l.k||'')+':'+(l.dn||'')+':'+(l.dn2||'')+':'+l.qte):null;});
+console.log('c13) nouveaux types :',J(o));
+C.c13=['sst','attente','extru'].every(k=>o.adds.includes(k))&&o.prev.join('|')==='+1 sous-station DN 50|+2 attentes DN 80|+3 extrusions DN 100|+1 réduction DN 150 → 100|−2 tés DN 150 / 80'&&o.saved&&o.saved.join()==='sst::50::1,attente::80::2,extru::100::3,piece:reduc:150:100:1,piece:tes:150:80:-2';
+/* ── c14 (01/11, Ethan : « que je puisse valider les ajouts ou enlevés et qu'ils soient affichés plus petit une fois cette sous-partie ok ; géoréférencer chaque ajout et enlevé ») */
+await T(()=>window.TRACE.mod.decl({fresh:true}));await wait(300);
+await page.click('#modal [data-mod="dcl-add:ml"]');await wait(200);
+o={full:await T(()=>({ln:document.querySelectorAll('#modal .dclLn:not(.mini)').length,mini:document.querySelectorAll('#modal .dclLn.mini').length,ok:!!document.querySelector('#modal [data-mod="dcl-ok:0"]'),lp:!!document.querySelector('#modal [data-mod="dcl-lpick:0"]')}))};
+await page.click('#modal [data-mod="dcl-ok:0"]');await wait(200);o.err=await T(()=>(document.getElementById('dclMsg')||{}).textContent||'');
+await page.fill('#modal [data-dcl="0:abs"]','12,5');await page.selectOption('#modal [data-dcl="0:dn"]','100');await wait(100);
+await page.click('#modal [data-mod="dcl-lpick:0"]');await wait(500);
+o.bar=await T(()=>document.getElementById('modPickBar').textContent.replace(/\s+/g,' ').slice(0,80));
+{const onL=f=>T(f=>{const P=window.TRACE.lines.L3.pts;let L=0;const seg=[];for(let i=1;i<P.length;i++){const d=Math.hypot(P[i].x-P[i-1].x,P[i].y-P[i-1].y);seg.push(d);L+=d;}let t=L*f;for(let i=1;i<P.length;i++){if(t<=seg[i-1]||i===P.length-1){const u=seg[i-1]?Math.min(1,t/seg[i-1]):0;return {x:P[i-1].x+(P[i].x-P[i-1].x)*u,y:P[i-1].y+(P[i].y-P[i-1].y)*u};}t-=seg[i-1];}},f); /* après re-figer, plus d'éléments − / + : on pointe sur l'axe de l'antenne B */
+  const q1=await onL(0.3),q2=await onL(0.7);await center(q1);await wait(200);await tapW(q1);await tapW(q2);}
+o.lp=await T(()=>{const d=window.TRACE.mod.draft();return {line:(d.lignes[0].pts||[]).length,modif:d.pts.length};});
+await page.click('#modPickBar [data-mod="pick-ok"]');await wait(400);
+await page.click('#modal [data-mod="dcl-ok:0"]');await wait(250);
+o.after=await T(()=>({mini:document.querySelectorAll('#modal .dclLn.mini').length,txt:((document.querySelector('#modal .dclMini')||{}).textContent||'').replace(/\s+/g,' ').trim(),msg:(document.getElementById('dclMsg')||{}).textContent||''}));
+await page.click('#modal .dclMini');await wait(200);o.reopen=await T(()=>!!document.querySelector('#modal [data-dcl="0:abs"]'));await page.click('#modal [data-mod="dcl-ok:0"]');await wait(200);
+await T(()=>{const n=document.querySelector('#modal [data-dcf="nom"]');n.value='Rallonge antenne B';n.dispatchEvent(new Event('input',{bubbles:true}));});await page.click('#modal [data-mod="dcl-save"]');await wait(500);
+o.saved=await T(()=>{const Mo=window.TRACE.mod.of();const m=Mo.items.filter(x=>x.kind==='decl').slice(-1)[0];return m?{n:m.n,lpts:(m.decl.lignes[0].pts||[]).length,line:m.line||null,pins:document.querySelectorAll(`[data-modpin="${m.id}"]`).length}:null;});
+console.log('c14) valider / replier / pointer chaque ligne :',J(o));
+C.c14=o.full.ln===1&&o.full.mini===0&&o.full.ok&&o.full.lp&&/indique la longueur/.test(o.err)&&/Pointer : \+12,5 m DN 100/.test(o.bar)&&o.lp.line===2&&o.lp.modif===0&&o.after.mini===1&&/\+12,5 m DN 100/.test(o.after.txt)&&/📍2/.test(o.after.txt)&&!o.after.msg&&o.reopen&&o.saved&&o.saved.lpts===2&&o.saved.line==='L3'&&o.saved.pins===2;
 C.c11=!logs.length;if(logs.length)console.log('console :',logs);
 console.log('RÉSULTATS',J(C));console.log('RESULTAT:',Object.values(C).every(Boolean)?'TOUT VERT':'ÉCHEC '+Object.keys(C).filter(k=>!C[k]).join(' '));await browser.close();process.exit(Object.values(C).every(Boolean)?0:1);

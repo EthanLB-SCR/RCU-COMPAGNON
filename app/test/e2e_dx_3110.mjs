@@ -137,6 +137,20 @@ await page.evaluate(()=>{const d=document.getElementById('disp');if(d)d.classLis
 await page.evaluate(()=>window.TRACE.dx.man(window.TRACE.dx.list().find(p=>p.no==='2').id));await wait(250);await page.evaluate(()=>document.getElementById('px-focus').click());await wait(700);
 o.focus=await page.evaluate(()=>({tab:window.TRACE.state.tab,f:!!window.TRACE.state.pxFocus,orange:document.querySelectorAll('#pxG rect[stroke="#d6491c"]').length,modal:document.getElementById('modal').classList.contains('show')}));
 console.log('c6) zones + calque :',J(o));
+/* ── c6b (01/11, Ethan : « pour placer un plan d'exé il faut borner comme une phase ; dire à X m est compliqué ») : 📍 Borner sur le plan → début / fin au doigt → zone */
+{await page.evaluate(()=>{const X=window.TRACE;X.state.tab='admin';X.renderAll();});await wait(300);
+  const id1=await page.evaluate(()=>window.TRACE.dx.list().find(p=>p.no==='1').id);await page.evaluate(()=>window.TRACE.dx.man(window.TRACE.dx.list().find(p=>p.no==='1').id));await wait(250);await page.evaluate(()=>document.getElementById('px-zone').click());await wait(250);
+  const ob={btn:await page.evaluate(()=>!!document.getElementById('pxz-bound'))};await page.click('#pxz-bound');await wait(500);
+  ob.bar=await page.evaluate(()=>({show:getComputedStyle(document.getElementById('phBar')).display,msg:document.getElementById('phMsg').textContent.slice(0,80),tab:window.TRACE.state.tab}));
+  const at=f=>page.evaluate(f=>{const P=window.TRACE.lines.L1.pts;let L=0;const seg=[];for(let i=1;i<P.length;i++){const d=Math.hypot(P[i].x-P[i-1].x,P[i].y-P[i-1].y);seg.push(d);L+=d;}let t=L*f;for(let i=1;i<P.length;i++){if(t<=seg[i-1]||i===P.length-1){const u=seg[i-1]?Math.min(1,t/seg[i-1]):0;return {x:P[i-1].x+(P[i].x-P[i-1].x)*u,y:P[i-1].y+(P[i].y-P[i-1].y)*u,L};}t-=seg[i-1];}},f);
+  const tap=async q=>{await page.evaluate(q=>window.TRACE.centerOn(q.x,q.y,2),q);await wait(250);const sc=await page.evaluate(q=>{const c=document.getElementById('canvas').getBoundingClientRect();const v=window.TRACE.state.view;return [c.left+q.x*v.k+v.tx,c.top+q.y*v.k+v.ty];},q);await page.mouse.click(sc[0],sc[1]);await wait(300);};
+  const q1=await at(0.2),q2=await at(0.6);await tap(q1);await tap(q2);ob.ok=await page.evaluate(()=>({txt:document.getElementById('phOk').textContent,vis:getComputedStyle(document.getElementById('phOk')).display}));
+  await page.click('#phOk');await wait(500);
+  ob.after=await page.evaluate(id=>{const p=window.TRACE.dx.list().find(x=>x.id===id);return {tab:window.TRACE.state.tab,zone:(p.zone||[]).map(z=>z.l+':'+z.m0+':'+z.m1),modal:document.getElementById('modal').classList.contains('show'),bar:getComputedStyle(document.getElementById('phBar')).display};},id1);
+  ob.exp=[Math.round(q1.L*0.2),Math.round(q1.L*0.6)];await closeModal();await wait(150);
+  console.log('c6b) borner une planche comme une phase :',J(ob));
+  await setZone('1',[['L1',0,100]]); /* on remet la zone de c6 (c8, c9 s'en servent) — par les cases et PK, toujours là sous « ou par lignes et PK » */
+  const z=(ob.after.zone[0]||'').split(':');C.c6b=ob.btn&&ob.bar.show!=='none'&&/Zone de la planche 1/.test(ob.bar.msg)&&ob.bar.tab==='plan'&&/Valider la zone/.test(ob.ok.txt)&&ob.after.tab==='admin'&&ob.after.zone.length===1&&z[0]==='L1'&&Math.abs(+z[1]-ob.exp[0])<=3&&Math.abs(+z[2]-ob.exp[1])<=3&&ob.after.modal&&ob.after.bar==='none';}
 C.c6=o.focus.tab==='plan'&&o.focus.f&&o.focus.orange===1&&!o.focus.modal&&/L1.*PK 0 → 100/.test(o.z1)&&/L2/.test(o.z2)&&/PK 100 → 200/.test(o.z3)&&o.match.a.join()==='1'&&o.match.b.join()==='3'&&o.match.c.join()==='2'&&o.match.d.join()==='1,3'&&o.def.show===false&&o.def.g===0&&o.chip&&o.on.n===3&&o.on.labs.includes('P1 · ind. A')&&o.on.labs.includes('P3 · ind. A');
 
 /* ── c7 : nouveaux indices (⋯ → ⬆, puis import « même n° ») + historique + persistance ── */

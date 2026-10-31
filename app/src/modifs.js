@@ -171,7 +171,10 @@ export function recapOf(Mo,els){const by={};const put=(et,key,v)=>{if(!v)return;
    pointé sur plan, pour déclarer ça en TS ou autre ». Une modif déclarée = {id, n, nom, devis, kind:'decl', etat (forfait | propose | commande | note | corr), decl:{lignes, pts},
    note, photos, at, by, v, log, aff, line}. Ligne : {nature:'dn'|'ml'|'soud'|'piece'|'autre', dn, dnA, dnB, k (pièce), qte (signée : + en plus / − en moins ; dn : longueur),
    unite, txt}. Point : {x, y, line, m, lineName} (repère du plan + conduite la plus proche). Les anciennes modifs (par éléments, els) restent telles quelles. ══ */
-export const DECL_NAT=[['dn','Changement de DN'],['ml','Linéaire (ml)'],['soud','Soudures'],['piece','Pièces'],['autre','Autre']];
+export const DECL_NAT=[['dn','Changement de DN'],['ml','Linéaire (ml)'],['soud','Soudures'],['piece','Pièces'],['sst','Sous-station'],['attente','Attente'],['extru','Extrusion'],['autre','Autre']]; /* 01/11 (Ethan) : + sous-station, attente, extrusion */
+const NAT_N={sst:['sous-station','sous-stations'],attente:['attente','attentes'],extru:['extrusion','extrusions']}; /* natures comptées à l'unité, avec un DN */
+const PC_2DN={reduc:['DN entrée','DN sortie',' → '],tes:['DN principal','DN piquage',' / ']}; /* 01/11 (Ethan) : pièces à deux DN */
+export {NAT_N,PC_2DN};
 export const DECL_PC=[['coudes','coude','coudes'],['tes','té','tés'],['reduc','réduction','réductions'],['vannes','vanne','vannes'],['purges','purge','purges'],['vidanges','vidange','vidanges'],['bouchons','fin de ligne','fins de ligne'],['extru','manchon extrudé','manchons extrudés'],['fc','fausse coupe','fausses coupes'],['autre','autre pièce','autres pièces']];
 export const isDecl=m=>!!(m&&m.kind==='decl');
 const clip=(s,n)=>String(s==null?'':s).replace(/\s+/g,' ').trim().slice(0,n);
@@ -179,21 +182,25 @@ export function declNorm(l){l=l||{};const nat=DECL_NAT.some(x=>x[0]===l.nature)?
   if(nat==='dn'){o.dnA=Math.max(0,Math.round(num(l.dnA)));o.dnB=Math.max(0,Math.round(num(l.dnB)));o.qte=Math.abs(q);o.unite='m';}
   else if(nat==='ml'){o.dn=Math.max(0,Math.round(num(l.dn)));o.qte=q;o.unite='m';}
   else if(nat==='soud'){o.dn=Math.max(0,Math.round(num(l.dn)));o.qte=Math.round(num(l.qte));o.unite='';}
-  else if(nat==='piece'){o.k=DECL_PC.some(x=>x[0]===l.k)?l.k:'coudes';o.dn=Math.max(0,Math.round(num(l.dn)));o.qte=Math.round(num(l.qte));o.unite='';if(o.k==='autre')o.txt=clip(l.txt,80);}
+  else if(nat==='piece'){o.k=DECL_PC.some(x=>x[0]===l.k)?l.k:'coudes';o.dn=Math.max(0,Math.round(num(l.dn)));o.qte=Math.round(num(l.qte));o.unite='';if(o.k==='autre')o.txt=clip(l.txt,80);if(PC_2DN[o.k]){const d2=Math.max(0,Math.round(num(l.dn2)));if(d2)o.dn2=d2;}}
+  else if(NAT_N[nat]){o.dn=Math.max(0,Math.round(num(l.dn)));o.qte=Math.round(num(l.qte));o.unite='';}
   else {o.txt=clip(l.txt,120);o.qte=q;o.unite=clip(l.unite,12);}
-  if(l.line)o.line=String(l.line);if(l.from)o.from=clip(l.from,40);return o;}
+  if(l.line)o.line=String(l.line);if(l.from)o.from=clip(l.from,40);
+  if(Array.isArray(l.pts)){const P=l.pts.filter(p=>p&&isFinite(+p.x)&&isFinite(+p.y)).slice(0,8).map(p=>{const q={x:Math.round(+p.x*100)/100,y:Math.round(+p.y*100)/100};if(p.line){q.line=String(p.line);q.m=p.m==null?null:Math.round(+p.m*10)/10;q.lineName=clip(p.lineName||p.line,40);}return q;});if(P.length)o.pts=P;} /* 01/11 (Ethan : « géoréférencer chaque ajout et enlevé ») : points de la ligne */
+  return o;}
 /* une ligne est-elle complète ? '' si oui, sinon ce qui manque (en clair) */
 export function declLineErr(l){l=declNorm(l);if(l.nature==='dn')return !l.dnA||!l.dnB?'indique le DN avant et le DN après':l.dnA===l.dnB?'le DN avant et le DN après sont les mêmes':'';
-  if(l.nature==='ml')return l.qte?'':'indique la longueur (en plus ou en moins)';if(l.nature==='soud'||l.nature==='piece')return l.qte?'':'indique le nombre (en plus ou en moins)';return l.txt?'':'décris ce que c\'est';}
+  if(l.nature==='ml')return l.qte?'':'indique la longueur (en plus ou en moins)';if(l.nature==='soud'||l.nature==='piece'||NAT_N[l.nature]){if(!l.qte)return 'indique le nombre (en plus ou en moins)';if(l.nature==='piece'&&l.k==='reduc'&&l.dn&&l.dn2&&l.dn===l.dn2)return 'le DN d\'entrée et le DN de sortie sont les mêmes';return '';}return l.txt?'':'décris ce que c\'est';}
 const sg=v=>v>0?'+':v<0?'−':'';const PCW=k=>DECL_PC.find(x=>x[0]===k)||['autre','pièce','pièces'];
 export function declLineTxt(l){l=declNorm(l);const dn=l.dn?' DN '+l.dn:'';const n=Math.abs(l.qte);
   if(l.nature==='dn')return `Changement de DN : DN ${l.dnA||'?'} → DN ${l.dnB||'?'}${l.qte?' sur '+fmtFR(l.qte)+' m':''}`;
   if(l.nature==='ml')return `${sg(l.qte)}${fmtFR(n)} m${dn}`;
   if(l.nature==='soud')return `${sg(l.qte)}${fmtFR(n)} soudure${n>1?'s':''}${dn}`;
-  if(l.nature==='piece'){const w=PCW(l.k);return `${sg(l.qte)}${fmtFR(n)} ${l.k==='autre'&&l.txt?l.txt:w[n>1?2:1]}${dn}`;}
+  if(l.nature==='piece'){const w=PCW(l.k);const two=PC_2DN[l.k];const dd=two&&l.dn&&l.dn2?' DN '+l.dn+two[2]+l.dn2:(l.dn||l.dn2)?' DN '+(l.dn||l.dn2):'';return `${sg(l.qte)}${fmtFR(n)} ${l.k==='autre'&&l.txt?l.txt:w[n>1?2:1]}${dd}`;}
+  if(NAT_N[l.nature])return `${sg(l.qte)}${fmtFR(n)} ${NAT_N[l.nature][n>1?1:0]}${dn}`;
   return `${l.txt||'autre'}${l.qte?' : '+sg(l.qte)+fmtFR(n)+(l.unite?' '+l.unite:''):''}`;}
 /* clé de regroupement du récap (mêmes nature / pièce / DN / unité → on additionne) */
-export function declKey(l){l=declNorm(l);return [l.nature,l.k||'',l.dn||0,l.dnA||0,l.dnB||0,l.unite||'',l.nature==='autre'||l.k==='autre'?String(l.txt||'').toLowerCase():''].join('|');}
+export function declKey(l){l=declNorm(l);return [l.nature,l.k||'',l.dn||0,l.dn2||0,l.dnA||0,l.dnB||0,l.unite||'',l.nature==='autre'||l.k==='autre'?String(l.txt||'').toLowerCase():''].join('|');}
 /* récap des modifs déclarées par état : {etat: [{lab, l (ligne cumulée), n (nb de modifs)}]} */
 export function declRecap(items){const by={};(items||[]).filter(isDecl).forEach(m=>{const et=m.etat||'propose';const o=by[et]||(by[et]={});((m.decl&&m.decl.lignes)||[]).forEach(l0=>{const l=declNorm(l0);const k=declKey(l);const r=o[k]||(o[k]={l:Object.assign({},l,{qte:0}),mods:new Set()});r.l.qte=r1(r.l.qte+l.qte);r.mods.add(m.n);});});
   const out={};Object.keys(by).forEach(et=>{out[et]=Object.values(by[et]).map(r=>({l:r.l,lab:declLineTxt(r.l),mods:[...r.mods].sort((a,b)=>a-b)}));});return out;}
