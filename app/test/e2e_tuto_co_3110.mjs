@@ -22,7 +22,7 @@ const C={};const logs=[];const J=x=>JSON.stringify(x);
 /* ── s1 : textes ── */
 {const pb=[];const phr=t=>(t.replace(/«\s\?\s»/g,'').match(/[.!?](?=\s|$)/g)||[]).length+(t.match(/…(?=\s+[A-ZÀ-ÝÉ«])/g)||[]).length;
   const KEYS=['accueil','compagnon','compagnon:docs','compagnon:planning','compagnon:chantiers','compagnon:prod','compagnon:frais','compagnon:heures','compagnon:habs','compagnon:avatar','compagnon:dem','compagnon:mag','compagnon:vlaisse','compagnon:vx',
-    'equipe','equipe:annu','equipe:docs','equipe:info','equipe:presentation','equipe:x:acc','equipe:x:dob','equipe:x:pack','reglages'];
+    'equipe','equipe:annu','equipe:docs','equipe:info','equipe:x:acc','equipe:x:dob','equipe:x:pack','reglages'];
   KEYS.forEach(k=>{if(!Array.isArray(DEF[k])||!DEF[k].length)pb.push(k+' : absent');});Object.keys(DEF).forEach(k=>{if(!KEYS.includes(k))pb.push(k+' : clé en trop');});
   Object.entries(DEF).forEach(([k,L])=>{if(k.includes(':')&&!NOMS[k])pb.push(k+' : pas de nom');const T=new Set();
     if(k.includes(':')&&(L.length<3||L.length>8))pb.push(k+' : '+L.length+' étapes');
@@ -101,7 +101,7 @@ ok2=await run('compagnon:frais','karim',()=>espace('frais'))&&ok2;
 ok2=await run('compagnon:heures','karim',()=>espace('heures'),{shot:'tuto_co_heures_390.png',shotAt:2,avec:['Tes derniers pointages']})&&ok2;
 ok2=await run('compagnon:habs','karim',()=>espace('habs'))&&ok2;
 ok2=await run('compagnon:mag','karim',()=>espace('mag'))&&ok2;
-ok2=await run('compagnon:dem','karim',()=>espace('dem'),{sans:['📋 Demandes à traiter']})&&ok2;
+await page.evaluate(()=>window.TRACE.band.setModules(['magasin']));ok2=await run('compagnon:dem','karim',()=>espace('dem'),{sans:['📋 Demandes à traiter']})&&ok2;await page.evaluate(()=>window.TRACE.band.setModules([])); /* 31/10 : « Mes demandes » sans magasin = module Magasin non pris */
 ok2=await run('compagnon:avatar','karim',()=>espace('avatar'))&&ok2;
 ok2=await run('compagnon:vlaisse','karim',()=>espace('vlaisse'))&&ok2;
 ok2=await run('compagnon:vx','karim',async()=>{if(!await espace('vlaisse'))return false;return await page.evaluate(()=>{const b=document.querySelector('#eq-app .veh2-card .veh-big');if(b)b.click();return !!b;});})&&ok2;
@@ -109,12 +109,11 @@ ok2=await run('compagnon:vx','karim',async()=>{if(!await espace('vlaisse'))retur
 const sid=await page.evaluate(()=>{const T=window.TRACE;const id=Object.keys(T.sites).find(k=>k!=='__vide'&&T.sites[k]&&T.sites[k].lines&&k!=='demo_caen');const n=T.sites[id];window.__ficheAvant=n.fiche;n.fiche=Object.assign({},n.fiche||{},{chef:'l:karim'});return id;});
 ok2=await run('compagnon:chantiers','karim',()=>espace('chantiers'))&&ok2;
 await page.evaluate(id=>{window.TRACE.sites[id].fiche=window.__ficheAvant;},sid);
-ok2=await run('equipe','ethan',()=>ent(),{shot:'tuto_co_equipe_390.png',shotAt:6,avec:['Accueil RH','Documents administratifs','Pack SCR','Administration'],sans:["L'équipe de ton chantier"]})&&ok2;
+ok2=await run('equipe','ethan',()=>ent(),{shot:'tuto_co_equipe_390.png',shotAt:6,avec:['Documents administratifs','Pack SCR','Administration'],sans:["L'équipe de ton chantier",'Accueil RH',"Présentation de l'entreprise"]})&&ok2;
 ok2=await run('equipe:annu','ethan',()=>ent('annu'),{avec:['Ancienneté et médailles']})&&ok2;
-ok2=await run('equipe:docs','ethan',()=>ent('docs'),{avec:['➕ Note de service','⚡ Flash info sécurité','À relancer']})&&ok2;
+ok2=await run('equipe:docs','ethan',()=>ent('docs'),{avec:['📗 Accueil RH','➕ Note de service','⚡ Flash info sécurité','À relancer']})&&ok2;
 ok2=await run('equipe:info','ethan',()=>ent('info'),{avec:['📣 Publier une info']})&&ok2;
-ok2=await run('equipe:presentation','ethan',()=>ent('presentation'),{avec:['✏️ Écrire la présentation'],sans:["Qui l'écrit"]})&&ok2;
-ok2=await run('equipe:x:acc','ethan',()=>ent('x:acc:admin'),{avec:['1. Importer le pack','2. Joindre les PDF']})&&ok2;
+ok2=await run('equipe:x:acc','ethan',async()=>{if(!await ent('docs'))return false;return await xgo('x:acc:admin');}, /* 31/10 : Accueil RH dans Documents d'entreprise */{avec:['1. Importer le pack','2. Joindre les PDF']})&&ok2;
 ok2=await run('equipe:x:dob','ethan',()=>ent('x:dob:ent'),{avec:['📎 Déposer','＋ Autre document']})&&ok2;
 ok2=await run('equipe:x:pack','ethan',()=>ent('x:pack:imp'))&&ok2;
 ok2=await run('reglages','ethan',async()=>{await tab('htAdmin');await wait(700);return true;},{shot:'tuto_co_reglages_390.png',shotAt:5,n:DEF.reglages.length})&&ok2;
@@ -125,11 +124,10 @@ ok3=await run('accueil','ethan',async()=>true,{tag:'chef, sans pointage',sans:['
 ok3=await run('compagnon','ethan',()=>espace(),{tag:'chef, sans pointage',avec:['Accueil : ta journée'],sans:['Accueil et pointage','Heures et Productions','Véhicule laissé']})&&ok3;
 ok3=await run('compagnon','julien',()=>espace(),{tag:'opérateur',max:8,avec:['Accueil et pointage','Heures et Productions'],sans:['Véhicule laissé','Chantiers']})&&ok3; /* le véhicule est laissé à Karim, pas à Julien */
 ok3=await run('compagnon:planning','ethan',()=>espace('planning'),{tag:'encadrement',avec:['Composer ma semaine']})&&ok3;
-ok3=await run('equipe','karim',()=>ent(),{tag:'soudeur',n:5,sans:['Accueil RH','Documents administratifs','Pack SCR','Administration']})&&ok3;
-ok3=await run('equipe:docs','karim',()=>ent('docs'),{tag:'soudeur',n:3,sans:['➕ Note de service','À relancer']})&&ok3;
+ok3=await run('equipe','karim',()=>ent(),{tag:'soudeur',n:4, /* 31/10 : plus de Présentation */sans:['Accueil RH','Documents administratifs','Pack SCR','Administration']})&&ok3;
+ok3=await run('equipe:docs','karim',()=>ent('docs'),{tag:'soudeur',n:3,sans:['📗 Accueil RH','➕ Note de service','À relancer']})&&ok3;
 ok3=await run('equipe:info','karim',()=>ent('info'),{tag:'soudeur',n:3,sans:['📣 Publier une info']})&&ok3;
 ok3=await run('equipe:annu','karim',()=>ent('annu'),{tag:'soudeur',sans:['Ancienneté et médailles']})&&ok3;
-ok3=await run('equipe:presentation','karim',()=>ent('presentation'),{tag:'soudeur',n:3,avec:["Qui l'écrit"],sans:['✏️ Écrire la présentation']})&&ok3;
 C.s3=ok3;
 /* ── s4 : premier passage, « ? », catalogue ── */
 let o={};await page.evaluate(()=>{localStorage.setItem('trace:tuto:test','1');});await as('julien');await page.evaluate(()=>window.TRACE.tuto.reset());
@@ -144,12 +142,12 @@ await page.evaluate(()=>{const b=document.querySelector('#modal [data-close]');i
 console.log('s4) premier passage, ?, catalogue :',J(o));
 const catC=o.cat['Tracé Compagnon']||[],catE=o.cat['Tracé Équipe']||[],catR=o.cat['Réglages']||[];
 C.s4=o.first&&o.first.k==='compagnon'&&o.docs&&o.docs.k==='compagnon:docs'&&/^Tracé Compagnon · Documents · 1 \//.test(o.docsCard||'')&&!o.again&&o.help&&o.help.k==='compagnon:docs'
-  &&['Documents','Planning','Productions','Notes de frais','Heures','Passeport','Avatar','Mes demandes','Magasin','Véhicule laissé','Véhicule','Chantiers'].every(x=>catC.includes(x))&&catC[0]==="Vue d'ensemble du module"
-  &&['Annuaire',"Documents d'entreprise",'Communication interne',"Présentation de l'entreprise",'Accueil RH','Documents administratifs','Pack SCR'].every(x=>catE.includes(x))&&catR.length===1&&(o.cat['Tracé']||[]).length===1;
+  &&['Documents','Planning','Productions','Notes de frais','Heures','Passeport','Avatar','Mes demandes · commande','Mes demandes · dépôt','Véhicule laissé','Véhicule','Chantiers'].every(x=>catC.includes(x))&&catC[0]==="Vue d'ensemble du module"
+  &&['Annuaire',"Documents d'entreprise",'Communication interne','Accueil RH','Documents administratifs','Pack SCR'].every(x=>catE.includes(x))&&catR.length===1&&(o.cat['Tracé']||[]).length===1;
 /* ── s5 : 360 px ── */
 console.log('s5) 360 px :');await page.setViewportSize({width:360,height:740});await wait(300);let ok5=true;
 ok5=await run('accueil','karim',async()=>true,{tag:'360',shot:'tuto_co_accueil_360.png',shotAt:4})&&ok5;
-ok5=await run('compagnon:dem','karim',()=>espace('dem'),{tag:'360'})&&ok5;
+await page.evaluate(()=>window.TRACE.band.setModules(['magasin']));ok5=await run('compagnon:dem','karim',()=>espace('dem'),{tag:'360'})&&ok5;await page.evaluate(()=>window.TRACE.band.setModules([]));
 ok5=await run('equipe:annu','ethan',()=>ent('annu'),{tag:'360'})&&ok5;
 await page.setViewportSize({width:390,height:844});C.s5=ok5;
 C.s6=!logs.length;if(logs.length)console.log('console :',logs);

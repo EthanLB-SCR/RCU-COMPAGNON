@@ -221,14 +221,15 @@ console.log('c5) chef / conducteur :',J(o));
 C.c5=o.hub&&!o.dem&&!o.cc&&o.mes&&!o.aTraiter&&o.condDem&&o.condCc&&/Compte d'un chantier/.test(o.choix)&&/Chantier fictif Alpha/.test(o.choix);
 /* ── c6 : paliers éteints — Magasin ET Mes demandes ; le Magasin ignore les demandes sans magasin ── */
 SETTINGS.paliers=Object.assign({},SETTINGS.paliers,{on:false});
-await relaunch(B);await goMoiSub(B,'Mes demandes');o={subs:await subs(B)};
-await goMoiSub(B,'Magasin');o.mag=(await txt(B)).slice(0,500);
+await relaunch(B);o={subs:await B.evaluate(async()=>{document.getElementById('htEspace').click();await new Promise(r=>setTimeout(r,300));return [...document.querySelectorAll('#eq-app .eq-subs .chip')].map(c=>(c.dataset.v||'')+'='+c.textContent.trim());})};
+await B.evaluate(()=>{const c=document.querySelector('#eq-app .eq-subs [data-v="mag"]');if(c)c.click();});await W(B,350);o.mag=(await txt(B)).slice(0,500); /* 31/10 (Ethan : « Magasin et Mes demandes, c'est la même chose ? ») : UNE tuile « Mes demandes » (celle du Magasin quand il est pris) */
 o.mvt=Object.values(REG).filter(r=>r.kind==='magmvt').length;o.magCalls=calls.filter(c=>c.kind==='magmvt'||c.kind==='magcat').length;
 console.log('c6) paliers éteints :',J(o));
-C.c6=o.subs.some(s=>/Mes demandes/.test(s))&&o.subs.some(s=>/Magasin/.test(s))&&/Aucune demande en cours/.test(o.mag)&&!/Disque A|Échafaudage|Gants fictifs/.test(o.mag)&&o.mvt===0&&o.magCalls===0;
+C.c6=o.subs.filter(s=>/Mes demandes/.test(s)).length===1&&o.subs.some(s=>/^mag=.*Mes demandes/.test(s))&&!o.subs.some(s=>/Magasin/.test(s))&&o.subs.every(s=>!/^dem=/.test(s)||/Achats en cours/.test(s))&&/Aucune demande en cours/.test(o.mag)&&!/Disque A|Échafaudage|Gants fictifs/.test(o.mag)&&o.mvt===0&&o.magCalls===0;
 /* ── c7 : 390 puis 360 px, boutons ── */
 const pass=async w=>{await B.setViewportSize({width:w,height:780});await W(B,300);const r={};await goMoiSub(B,'Mes demandes');r.list=await noOverflow(B);r.lb=await minBtn(B,'.dm-root');await xclick(B,'dem|new|');r.n1=await noOverflow(B);r.b1=await minBtn(B,'.dm-root');
   await xclick(B,'dem|step|2');r.n2=await noOverflow(B);r.b2=await minBtn(B,'.dm-root');if(w===360)await shot(B,'cc_tel360_demande_2');await xclick(B,'dem|step|1');await xclick(B,'dem|list|');await openDem(B,ID1);r.f=await noOverflow(B);r.bf=await minBtn(B,'.dm-root');if(w===360)await shot(B,'cc_tel360_fiche');await xclick(B,'dem|list|');return r;};
+SETTINGS.paliers=Object.assign({},SETTINGS.paliers,{on:true});await relaunch(B); /* 31/10 : paliers rallumés (Magasin en Labo, pas pour ce compte) → « Mes demandes » = demandes à l'encadrement, comme en c1–c5 */
 o={w390:await pass(390),w360:await pass(360),refus,unknownOk:calls.filter(c=>!['magdem','commande','storage','storage-sign'].includes(c.kind)).map(c=>c.kind)};
 console.log('c7) téléphone :',J(o));
 C.c7=['w390','w360'].every(k=>{const r=o[k];return r.list&&r.n1&&r.n2&&r.f&&r.lb>=44&&r.b1>=44&&r.b2>=44&&r.bf>=44;})&&!refus.length;
@@ -344,7 +345,7 @@ o={w390:await passB(390),w360:await passB(360)};await page.setViewportSize({widt
 console.log('c13) largeurs :',J(o));
 C.c13=['w390','w360'].every(k=>o[k].choix&&o[k].compte&&o[k].mois&&o[k].btn>=34)&&o.w1366;
 /* ── c15 : hors connexion (personnages de démo) : demande avec photo GARDÉE dans la demande (pas de stockage), traitée par le bureau, rien dans la file d'envoi ── */
-await page.setViewportSize({width:390,height:844});await wait(200);await asUser('karim');await goMoiSub(page,'Mes demandes');if(!(await has(page,'#eq-app [data-v="dem|new|"]')))await xclick(page,'dem|list|');
+await page.setViewportSize({width:390,height:844});await wait(200);await page.evaluate(()=>window.TRACE.band.setModules(['magasin'])); /* 31/10 : démo sans le module Magasin → « Mes demandes » = demandes à l'encadrement */await asUser('karim');await goMoiSub(page,'Mes demandes');if(!(await has(page,'#eq-app [data-v="dem|new|"]')))await xclick(page,'dem|list|');
 await xclick(page,'dem|new|');await setv(page,'#dm-lib','Bâche fictive');await setv(page,'#dm-libq','2');await xclick(page,'dem|libadd|');await xclick(page,'dem|step|2');await setv(page,'#dm-site','cc_nord',['change']);
 await page.setInputFiles('#eq-app input[data-xin="dem|photo"]:not([capture])',{name:'photo-fictive.png',mimeType:'image/png',buffer:PNG});await wait(1500);
 o={thumb:(await page.evaluate(()=>(document.querySelector('#eq-app .dm-ph img')||{}).src||'')).slice(0,15),over:await noOverflow(page)};

@@ -396,7 +396,13 @@ function tasks(me,ctx){const L=[];if(!canAsk(me))return L;const D=demAll();
 /* tests / outillage */
 const testApi=()=>({state:S,all:demAll,vu:me=>VU(me)});
 export default {id:'dem',feat:'demandes',hub:'expl',
-  moiSubs:(me,ctx)=>{try{if(typeof window!=='undefined'&&window.TRACE&&!window.TRACE.demandes)window.TRACE.demandes=testApi();}catch(e){}if(!canAsk(me))return [];const vu=VU(me);const n=demAll().filter(d=>d.byKey===me.id&&nouveau(d,vu)).length;return [['dem','Mes demandes',n,false]];},
+  moiSubs:(me,ctx)=>{try{if(typeof window!=='undefined'&&window.TRACE&&!window.TRACE.demandes)window.TRACE.demandes=testApi();}catch(e){}if(!canAsk(me))return [];const vu=VU(me);const n=demAll().filter(d=>d.byKey===me.id&&nouveau(d,vu)).length;
+    /* 31/10 (Ethan : « Magasin et Mes demandes, c'est la même chose ? ») : UNE tuile « Mes demandes ». Module Magasin pris → c'est celle du Magasin (le dépôt prépare,
+       remet, commande ce qui manque) ; cette tuile-ci ne reste que s'il reste ici une demande en cours (la sienne, ou à traiter pour l'encadrement), sous « Achats en cours ». */
+    let mag=false;try{mag=!!(ctx&&ctx.api&&ctx.api.feat&&ctx.api.feat('magasin'));}catch(e){mag=false;}
+    if(mag){const EN=d=>d.statut==='envoyee'||d.statut==='commandee'||d.statut==='remise';let h=false;try{h=demCanHandle(ctx);}catch(e){h=false;}
+      if(!demAll().some(d=>EN(d)&&(d.byKey===me.id||h)))return [];return [['dem','Achats en cours',n,false]];}
+    return [['dem','Mes demandes',n,false]];},
   view:(sub,me,ctx)=>sub==='dem'?vDem(me,ctx):null,
   xview:(key,me,ctx)=>{cssLotCC();if(key!=='file')return null;if(!demCanHandle(ctx))return wrap('<div class="card"><div class="eq-s">Réservé à l\'encadrement (conducteur, bureau).</div></div>');return wrap(vFile(me,ctx,false));},
   hubRows:(tab,me,ctx)=>{if(tab!=='achats'||!demCanHandle(ctx))return [];const D=demAll();const n=D.filter(d=>d.statut==='envoyee').length,nU=D.filter(d=>d.statut==='envoyee'&&d.urgent).length,nc=D.filter(d=>d.statut==='commandee'||d.statut==='remise').length;

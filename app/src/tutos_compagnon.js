@@ -24,13 +24,12 @@ const siEcran=(k,q,f)=>a=>(k.includes(':')?sur(a,k):dans(a,k))?vu(q):(!f||!!f(a)
 const siHub=(q,f)=>a=>sur(a,'equipe')?vu(q):(!f||!!f(a)); /* lignes du hub Équipe (pas dans ses sous-écrans) */
 const CH=v=>'#eq-app .eq-subs [data-v="'+v+'"]'; /* une rubrique de Compagnon */
 const QSE=a=>adm()||can(a,'qse.manage');
-const presEdit=a=>siEcran('equipe:presentation','#eq-app [data-act="presedit"]',b=>adm()||can(b,'rh.voir')||can(b,'site.delete'))(a); /* RH, direction, administrateur */
 
 export const NOMS={
   'compagnon:docs':'Documents','compagnon:planning':'Planning','compagnon:chantiers':'Chantiers','compagnon:prod':'Productions','compagnon:frais':'Notes de frais',
-  'compagnon:heures':'Heures','compagnon:habs':'Passeport','compagnon:avatar':'Avatar','compagnon:dem':'Mes demandes','compagnon:mag':'Magasin',
+  'compagnon:heures':'Heures','compagnon:habs':'Passeport','compagnon:avatar':'Avatar','compagnon:dem':'Mes demandes · commande','compagnon:mag':'Mes demandes · dépôt',
   'compagnon:vlaisse':'Véhicule laissé','compagnon:vx':'Véhicule',
-  'equipe:annu':'Annuaire','equipe:docs':"Documents d'entreprise",'equipe:info':'Communication interne','equipe:presentation':"Présentation de l'entreprise",
+  'equipe:annu':'Annuaire','equipe:docs':"Documents d'entreprise",'equipe:info':'Communication interne',
   'equipe:x:acc':'Accueil RH','equipe:x:dob':'Documents administratifs','equipe:x:pack':'Pack SCR'
 };
 
@@ -58,7 +57,7 @@ compagnon:[
   {sel:CH('heures')+', '+CH('prod')+', #eq-app .eq-subs',titre:'Heures et Productions',texte:"Heures : tes journées pointées, ce qui est validé, ta navette du mois. Productions : tes soudures et manchons comptés sur le plan.",si:siEcran('compagnon',CH('heures')+', '+CH('prod'),pointe)},
   {sel:CH('frais')+', #eq-app .eq-subs',titre:'Notes de frais',texte:"Une dépense avancée pour le chantier : le montant, le ticket en photo, c'est envoyé. Ton conducteur valide, le bureau rembourse.",si:siEcran('compagnon',CH('frais'),a=>feat(a,'frais'))},
   {sel:CH('habs')+', #eq-app .eq-subs',titre:'Passeport et Avatar',texte:"Passeport : tes habilitations, à jour ou à renouveler. Avatar : ton personnage dans l'appli, il porte tes récompenses."},
-  {sel:CH('mag')+', '+CH('dem')+', #eq-app .eq-subs',titre:'Magasin et Mes demandes',texte:"Magasin : du matériel du dépôt, que tu passes retirer. Mes demandes : du matériel commandé par l'encadrement pour ton chantier.",si:siEcran('compagnon',CH('mag')+', '+CH('dem'),a=>feat(a,'magasin')||feat(a,'demandes'))},
+  {sel:CH('mag')+', '+CH('dem')+', #eq-app .eq-subs',titre:'Mes demandes',texte:"Besoin de matériel pour ton chantier ? « ＋ Nouvelle demande », puis tu suis l'état : avec un magasin, tu la retires au dépôt ; sinon l'encadrement la commande et la fait livrer.",si:siEcran('compagnon',CH('mag')+', '+CH('dem'),a=>feat(a,'magasin')||feat(a,'demandes'))},
   {sel:CH('vlaisse')+', #eq-app .eq-subs',titre:'Véhicule laissé',texte:"Un véhicule t'attend sur un chantier ou au dépôt : lis son état des lieux, puis signe pour le prendre.",si:a=>dans(a,'compagnon')&&vu(CH('vlaisse'))},
   {sel:CH('chantiers')+', #eq-app .eq-subs',titre:'Chantiers',texte:"Les chantiers dont tu es chef ou conducteur : avancement, stock, engins.",si:a=>dans(a,'compagnon')&&vu(CH('chantiers'))}
 ],
@@ -167,10 +166,8 @@ equipe:[
   {titre:'Équipe',texte:"L'entreprise : les personnes, les documents à signer, les infos. Tout le monde y a accès ; quelques lignes sont réservées aux RH, au bureau et à l'administrateur."},
   {sel:'#eq-q',titre:"L'équipe de ton chantier",texte:"Intérimaire : tu vois les personnes de ton chantier. Touche une personne pour sa fiche et l'appeler.",si:a=>sur(a,'equipe')&&vu('#eq-q')&&!vu('#eq-app [data-act="xgo"][data-v="annu"]')},
   {sel:'#eq-app [data-act="xgo"][data-v="annu"]',titre:'Annuaire',texte:"Toute l'entreprise par poste : fiche, téléphone, e-mail. Touche une personne pour l'appeler.",si:siHub('#eq-app [data-act="xgo"][data-v="annu"]')},
-  {sel:'#eq-app [data-act="xgo"][data-v="docs"]',titre:"Documents d'entreprise",texte:"Règlement intérieur, notes de service, flash info sécurité : les documents de l'entreprise et qui les a signés.",si:siHub('#eq-app [data-act="xgo"][data-v="docs"]')},
+  {sel:'#eq-app [data-act="xgo"][data-v="docs"]',titre:"Documents d'entreprise",texte:"Règlement intérieur, notes de service, flash info sécurité, documents d'accueil des nouveaux : qui les a signés.",si:siHub('#eq-app [data-act="xgo"][data-v="docs"]')},
   {sel:'#eq-app [data-act="xgo"][data-v="info"]',titre:'Communication interne',texte:"Les infos publiées à tout le monde : actualités, résultats, événements. À lire, sans signature.",si:siHub('#eq-app [data-act="xgo"][data-v="info"]')},
-  {sel:'#eq-app [data-act="xgo"][data-v="presentation"]',titre:"Présentation de l'entreprise",texte:"Le métier, les chiffres clés, l'organisation, les valeurs : la page à montrer à un nouvel arrivant.",si:siHub('#eq-app [data-act="xgo"][data-v="presentation"]')},
-  {sel:'#eq-app [data-act="xgo"][data-v="x:acc:admin"]',titre:'Accueil RH',texte:"Les documents d'accueil des nouveaux, les livrets, le passeport de prévention : qui a signé, qui est en retard.",si:siHub('#eq-app [data-act="xgo"][data-v="x:acc:admin"]',a=>QSE(a)||can(a,'dossier.edit'))},
   {sel:'#eq-app [data-act="xgo"][data-v="x:dob:ent"]',titre:'Documents administratifs',texte:"Assurances, Kbis, URSSAF, RIB, qualifications : déposés une fois, joints aux offres, avec une alerte avant échéance.",si:siHub('#eq-app [data-act="xgo"][data-v="x:dob:ent"]',a=>QSE(a)||can(a,'affaires.view')||can(a,'dossier.edit'))},
   {sel:'#eq-app [data-act="xgo"][data-v="x:pack:imp"]',titre:'Pack SCR',texte:"Administrateur : le fichier privé de l'entreprise (catalogue du magasin, documents d'accueil, véhicules…), importé une fois.",si:siHub('#eq-app [data-act="xgo"][data-v="x:pack:imp"]',adm)},
   {sel:'#eq-app [data-act="tabgo"][data-v="admin"]',titre:'Administration',texte:"Administrateur : comptes et accès, postes, qui peut quoi, options et modules. C'est l'écran Réglages.",si:siHub('#eq-app [data-act="tabgo"][data-v="admin"]',adm)}
@@ -185,6 +182,7 @@ equipe:[
   {titre:'Ancienneté et médailles',texte:"RH et direction : les paliers d'ancienneté des 6 prochains mois et les médailles du travail à vérifier, en haut de la liste.",si:a=>can(a,'rh.voir')}
 ],
 'equipe:docs':[
+  {sel:'#eq-app [data-act="xgo"][data-v="x:acc:admin"]',titre:'📗 Accueil RH',texte:"Le livret d'accueil, les documents d'accueil des nouveaux, le passeport de prévention : qui a signé, qui est en retard.",si:a=>QSE(a)||can(a,'dossier.edit')},
   {sel:'#eq-app [data-act="docadm"]',titre:'Les documents',texte:"Règlement intérieur, notes de service, flash info : pour chacun, qui doit signer et combien l'ont fait."},
   {sel:'#eq-app [data-act="docadm"]',titre:'Qui a signé ?',texte:"Touche un document : chaque personne, ✓ avec la date ou « à signer ». « 🖨 Feuille des signatures » pour l'imprimer."},
   {sel:'#eq-app [data-act="docnew"][data-v="note"]',titre:'➕ Note de service',texte:"Un PDF à dérouler en entier, ou un texte. Choisis qui doit la signer, puis « Publier — à lire et signer ».",si:QSE},
@@ -198,12 +196,6 @@ equipe:[
   {sel:'#eq-app .ac-row[data-act="docopen"], #eq-app .ac-empty',titre:'Lire une info',texte:"Touche une info pour l'ouvrir en grand, avec son PDF s'il y en a un."},
   {titre:'À lire, pas à signer',texte:"Une info se lit, elle ne se signe pas. Ce qui doit être signé (note de service, flash info) passe par Documents d'entreprise."},
   {sel:'#eq-app [data-act="infonew"]',titre:'📣 Publier une info',texte:"Un titre, le texte (un paragraphe par ligne), un PDF si besoin, puis « Publier » : tout le monde la voit.",si:siEcran('equipe:info','#eq-app [data-act="infonew"]',QSE)}
-],
-'equipe:presentation':[
-  {sel:'#eq-app h2.vt + .card, #eq-app h2.vt',titre:"Qui est l'entreprise",texte:"Le métier, les chiffres clés, l'organisation, les valeurs : la page à montrer à un nouvel arrivant."},
-  {titre:'Avec un nouvel arrivant',texte:"Montre-la-lui dès le premier jour : elle complète les documents d'accueil, à signer dans Compagnon → Documents."},
-  {sel:'#eq-app [data-act="presedit"]',titre:'✏️ Écrire la présentation',texte:"RH et direction : un paragraphe par ligne, « # » en début de ligne pour un titre, une plaquette PDF si tu veux. « Publier » et c'est en ligne.",si:a=>presEdit(a)},
-  {titre:"Qui l'écrit",texte:"Les RH et la direction tiennent cette page à jour : une erreur, une info à ajouter, dis-le-leur.",si:a=>!presEdit(a)}
 ],
 'equipe:x:acc':[
   {sel:'#eq-app .eq-kpis',titre:'Accueil RH en chiffres',texte:"Documents d'accueil, lisibles, PDF à joindre, signatures en retard : un chiffre rouge est à traiter."},

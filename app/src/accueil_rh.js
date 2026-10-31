@@ -150,9 +150,9 @@ export default {id:ID,kinds:['doc','docsig'],hub:'entreprise',
   pack:{key:'accueil',label:'Accueil RH — documents d\'accueil, livrets, passeport de prévention',import:(part,ctx)=>importPack(part,ctx)},
   /* 19/10 (QF) : gate() n'existe plus — rien ne bloque l'accueil. banner() = carte de bienvenue non bloquante en tête de l'accueil (espace.js, vAccueil) */
   banner(me,ctx){css();const acc=me&&me._acc;if(!acc||HIDE||ctx.viewing()||!ownView(ctx)||!docsReady())return '';if(!isNewcomer(acc))return '';const L=welcomeDocs(acc);if(!L.length)return '';return welcomeHTML(me,acc,L);},
-  hubRows(tab,me,ctx){css();if(tab!=='entreprise'||!(me.admin||ctx.can('dossier.edit')||ctx.can('qse.manage')))return [];
+  hubRows(tab,me,ctx){css();if(tab!=='docs'||!(me.admin||ctx.can('dossier.edit')||ctx.can('qse.manage')))return []; /* 31/10 (Ethan : « Accueil RH et Documents d'entreprise, c'est la même thématique ») : dans l'écran Documents d'entreprise, plus une ligne à part du hub Équipe */
     const L=accDocs();const nw=L.filter(d=>d.pending).length;
-    return [ctx.row('Accueil RH','Documents d\'accueil à signer, livrets, PDF à joindre, passeport de prévention','📗','#e6f5ec','x:'+ID+':admin',nw?nw+' PDF':null,'bad')];},
+    return [ctx.row('Accueil RH','Livret d\'accueil, documents d\'accueil à signer, PDF à joindre, passeport de prévention','📗','#e6f5ec','x:'+ID+':admin',nw?nw+' PDF':null,'bad')];},
   xview(k,me,ctx){css();if(k==='admin')return adminView(me,ctx);return null;},
   act(v,el,me,ctx){const i=v.indexOf('|');const a=i<0?v:v.slice(0,i),arg=i<0?'':v.slice(i+1);
     if(a==='open'){docOpen(arg,me._acc);return;}

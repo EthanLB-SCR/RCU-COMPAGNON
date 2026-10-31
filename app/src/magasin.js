@@ -477,7 +477,7 @@ function tasks(me,ctx){ensure(ctx);const L=[];const D=dems();
 function goGestion(ctx){S.seg='dem';S.mcur=null;S.art=null;const A=ctx.api;try{if(A&&A.homeTab)A.homeTab('parc');}catch(e){}const b=document.querySelector('#eq-app [data-act=parcseg][data-v=magasin]');if(b&&!b.classList.contains('active'))b.click();}
 
 export default {id:'mag',feat:'magasin',kinds:KINDS,
-  moiSubs:(me,ctx)=>{if(!canAsk(me))return [];const n=dems().filter(d=>d.byKey===me.id&&d.statut==='prete').length;return [['mag','Magasin',n,false]];},
+  moiSubs:(me,ctx)=>{if(!canAsk(me))return [];const n=dems().filter(d=>d.byKey===me.id&&d.statut==='prete').length;return [['mag','Mes demandes',n,false]];}, /* 31/10 (Ethan) : une seule tuile « Mes demandes » côté Compagnon (avec le Magasin, la demande va au dépôt) */
   view:(sub,me,ctx)=>sub==='mag'?vDem(me,ctx):null,
   parcSeg:(seg,me,ctx,bar)=>seg==='magasin'?vGestion(me,ctx,bar):null,
   xview:(key,me,ctx)=>{css();const h=xview2(key,me,ctx);return h?wrap(h):null;}, /* 19/10 : x:mag:pers:<clé> (demandes d'une personne, lecture) · x:mag:equipe (hub du chef) */

@@ -2100,7 +2100,7 @@ function vSub(me){const x=S.xsub;if(!x)return null;const back=t=>`<button class=
   if(x==='cpt')return back('Compteurs d\'heures')+vCompteurs(me); /* 13/10 (f) */
   if(x==='prodEq')return back('')+vProdEquipes(me); /* 12/10 soir : production par équipe, classée comme le planning, heures + production + objectifs */
   if(x==='obj')return back('Objectifs des équipes')+vObjectifs(me);
-  if(x==='docs')return back('Documents d\'entreprise')+docsAdminHTML(DATA.personnes.map(p=>p._acc).filter(Boolean));
+  if(x==='docs')return back('Documents d\'entreprise')+hubSec('📗','Accueil des nouveaux','',extHub('docs',me))+docsAdminHTML(DATA.personnes.map(p=>p._acc).filter(Boolean)); /* 31/10 (Ethan) : Accueil RH (livret, documents d'accueil, passeport) rangé ici */
   if(x==='controles')return back('Contrôles chantier')+vControles(me);
   if(x==='qhs')return back('Quart d\'heure sécurité')+vQhs(me);
   if(x==='habsEq')return back('Habilitations de l\'équipe')+`<div class="eq-cols eq-1"><div>${can(me,'qse.manage')?cTableHabs(me):cEchEquipe(me)||'<div class="card"><div class="eq-s">Rien à signaler.</div></div>'}</div></div>`;
@@ -2167,9 +2167,8 @@ function hubEntreprise(me){const row=hubRow;const t=accueilType(me);const dir=t=
       row('Annuaire','Toute l\'entreprise par poste : fiche, téléphone, adresse, ancienneté',ICO.home,'#ececea','annu',DATA.personnes.filter(p=>p.active).length)])}
     ${hubSec('📄','Documents & communication','',[
       q?row('Documents d\'entreprise','Règlement intérieur, notes de service, flash info, documents d\'accueil — qui a signé, qui est à relancer (échéance 7 jours)',ICO.doc,'#e8f0fb','docs',nDocsTodo||null,'bad'):row('Documents d\'entreprise','Règlement intérieur, notes de service, flash info — ce que tu dois lire et signer',ICO.doc,'#e8f0fb','docs'),
-      row('Communication interne','Infos publiées à tout le monde : actualités, résultats, événements — à lire, sans signature',ICO.msg,'#e3f3f3','info',nInfo||null),
-      row('Présentation de l\'entreprise','Qui est SCR : métier, chiffres clés, organisation, valeurs — la page qu\'on montre à un nouvel arrivant',ICO.bld,'#fff4d6','presentation')])}
-    ${extHub('entreprise',me).length?hubSec('🧩','Accueil, magasin, véhicules','',extHub('entreprise',me)):''}
+      row('Communication interne','Infos publiées à tout le monde : actualités, résultats, événements — à lire, sans signature',ICO.msg,'#e3f3f3','info',nInfo||null)])}
+    ${extHub('entreprise',me).length?hubSec('🗂','Administratif','',extHub('entreprise',me)) /* 31/10 : Accueil RH passé dans Documents d'entreprise ; restent les documents administratifs (offres) et le pack */:''}
     ${hubSec('🛠','Outils','',[
       me.admin?`<button class="ac-row" data-act="tabgo" data-v="admin"><span class="ic" style="background:#15140f;color:#fff">⚙</span><span class="tx"><b>Administration</b><small>Comptes et accès · postes · qui peut quoi · 🧪 bac à sable</small></span><span class="chev">${CHEV}</span></button>`:''])}`;}
 /* ── 10/10 (retour Ethan) : SUIVI DES CONTRÔLES CHANTIER — « la direction et le responsable d'exploitation ont un visuel de qui a fait des contrôles, à quelle fréquence ; on va mettre des objectifs là-dessus » ── */
@@ -2194,7 +2193,7 @@ function vQhs(me){return `<div class="hint" style="margin:0 0 8px">Un quart d'he
     <div class="ac-h"><b>Déclenchés</b><span>40 derniers</span></div>${qhsRecapHTML(DATA.chantiers)}`;}
 /* ── Sous-onglets selon les droits ── */
 /* 31/10 (Ethan : « de meilleures icônes pour passer d'Accueil à Documents dans Compagnon ») : chaque rubrique = une tuile à icône (même langage que les lignes de Pilotage) — l'icône est dessinée en CSS (data-ic), le texte du bouton reste son nom */
-const SUB_ICO={moi:['🏠','#e8f0fb'],docs:['📄','#e8f0fb'],planning:['📅','#fdebe3'],chantiers:['📍','#e6f5ec'],prod:['📈','#efeafb'],frais:['🧾','#ececea'],heures:['⏱','#e6f5ec'],habs:['🎖','#fff4d6'],avatar:['🙂','#efeafb'],dem:['📦','#fff3d6'],mag:['🏬','#fff3d6'],vlaisse:['🚐','#e3f3f3'],vx:['🚐','#e3f3f3']};
+const SUB_ICO={moi:['🏠','#e8f0fb'],docs:['📄','#e8f0fb'],planning:['📅','#fdebe3'],chantiers:['📍','#e6f5ec'],prod:['📈','#efeafb'],frais:['🧾','#ececea'],heures:['⏱','#e6f5ec'],habs:['🎖','#fff4d6'],avatar:['🙂','#efeafb'],dem:['📦','#fff3d6'],mag:['📦','#fff3d6'],vlaisse:['🚐','#e3f3f3'],vx:['🚐','#e3f3f3']};
 function subsFor(me){
   if(S.tab!=='moi')return [];
   const equipes=can(me,'planning.edit')||can(me,'pointage.validate')||can(me,'qse.manage'); /* 12/10 (Ethan) : Moi = mes affaires ; ce qui concerne l'équipe vit dans Équipes — pas de doublon */

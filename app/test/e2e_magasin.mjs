@@ -74,7 +74,7 @@ const noOverflow=pg=>pg.evaluate(()=>document.documentElement.scrollWidth<=windo
 const reg=(k,id)=>(REG[k+'|'+id]||{}).data;
 const dems=()=>Object.values(REG).filter(r=>r.kind==='magdem').map(r=>Object.assign({id:r.id},r.data));
 const mvts=()=>Object.values(REG).filter(r=>r.kind==='magmvt').map(r=>Object.assign({id:r.id},r.data));
-const goMoiMag=async pg=>{await pg.evaluate(async()=>{document.getElementById('htEspace').click();await new Promise(r=>setTimeout(r,250));const c=[...document.querySelectorAll('#eq-app .eq-subs .chip')].find(x=>/Magasin/.test(x.textContent));if(!c)throw new Error('sous-onglet Magasin absent');c.click();});await W(pg,300);};
+const goMoiMag=async pg=>{await pg.evaluate(async()=>{document.getElementById('htEspace').click();await new Promise(r=>setTimeout(r,250));const c=[...document.querySelectorAll('#eq-app .eq-subs .chip')].find(x=>x.dataset.v==='mag'||/Magasin/.test(x.textContent));if(!c)throw new Error('sous-onglet Magasin absent');c.click();});await W(pg,300);};
 const goParc=async pg=>{await pg.evaluate(()=>{const m=document.getElementById('htMag');(m&&m.style.display!=='none'?m:document.getElementById('htParc')).click();});await W(pg,350);}; /* 31/10 (un onglet = un module) : le Magasin a son onglet quand on y a accès (sinon Parc → puce Magasin, comme avant) */
 const ddemain=(()=>{const d=new Date();d.setDate(d.getDate()+1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
 
@@ -178,7 +178,7 @@ await xclick(R.page,'mag|mseg|dem');await xclick(R.page,'mag|mopen|'+ID1);await 
 out.relInputs=await R.page.evaluate(()=>[...document.querySelectorAll('#eq-app input[data-xin^="mag|prep|"]')].map(i=>i.dataset.xin+'='+i.value));
 await xclick(R.page,'mag|pret|'+ID1);await W(R.page,1500);out.st=(reg('magdem',ID1)||{}).statut;
 await goMoiMag(Sd.page);await xclick(Sd.page,'mag|rf');await W(Sd.page,1500);
-out.badge=await Sd.page.evaluate(()=>{const c=[...document.querySelectorAll('#eq-app .eq-subs .chip')].find(x=>/Magasin/.test(x.textContent));return c?(c.querySelector('.eq-badge')||{}).textContent:null;});
+out.badge=await Sd.page.evaluate(()=>{const c=[...document.querySelectorAll('#eq-app .eq-subs .chip')].find(x=>x.dataset.v==='mag'||/Magasin/.test(x.textContent));return c?(c.querySelector('.eq-badge')||{}).textContent:null; /* 31/10 : la tuile s'appelle « Mes demandes » */});
 out.pretes=await Sd.page.evaluate(()=>/Prêtes à retirer/.test(document.getElementById('eq-app').textContent));
 await Sd.page.evaluate(()=>document.getElementById('htHome').click());await W(Sd.page,500);
 out.task=await Sd.page.evaluate(()=>{const n=[...document.querySelectorAll('#eq-app [data-act=notif]')].find(x=>/prête au dépôt/.test(x.textContent));return n?n.textContent.replace(/\s+/g,' ').trim():'';});
