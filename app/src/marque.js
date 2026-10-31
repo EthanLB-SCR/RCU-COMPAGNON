@@ -13,15 +13,18 @@ export function logoTrace(size, o = {}) {
 }
 // Les modules (nom affiché après « Tracé ») — la correspondance écrans → module est faite par l'appli (app.js : bandModule)
 export const MODULES = {
-  chantier: { label: 'Chantier', desc: 'Plan, soudures, bouclage, hydro, phasage, modifs, QSE, DOE' },
+  chantier: { label: 'Chantier', desc: 'Plan, soudures, détection d\'humidité, hydraulique, phasage, modifications, QSE, dossier, DOE' },
   concepteur: { label: 'Concepteur', desc: 'Le traceur : études, plans, calage, versions' },
-  affaires: { label: 'Affaires', desc: 'Chiffrage, DPGF, mémoire, documents administratifs, offres' },
-  pilotage: { label: 'Pilotage', desc: 'Planning, pointage à valider, heures, production, débours, commandes' },
-  flotte: { label: 'Flotte', desc: 'Véhicules : remise, états des lieux, cartes' },
-  magasin: { label: 'Magasin', desc: 'Demandes de matériel, stock, réception, inventaire' },
+  commerce: { label: 'Commerce', desc: 'Affaires à l\'étude : DCE, chiffrage, DPGF, mémoire technique, documents administratifs, offres' }, /* 31/10 (Ethan) : « Affaires » redevient « Commerce » */
+  affaire: { label: 'Affaire', desc: 'Suivi financier des chantiers : bons de commande, notes de frais, comptes chantier' }, /* 31/10 (Ethan) : module à part — le financier n\'est pas dans le suivi opérationnel (Pilotage) */
+  pilotage: { label: 'Pilotage', desc: 'Planning, pointages à valider, heures, production, sécurité, matériel et véhicules des équipes' },
+  flotte: { label: 'Flotte', desc: 'Véhicules : remise, états des lieux, cartes, mouvements' },
+  magasin: { label: 'Magasin', desc: 'Demandes de matériel, stock du dépôt, réception, inventaire, matériel' },
   compagnon: { label: 'Compagnon', desc: 'Mon pointage, mes documents à signer, mes demandes, mon véhicule, mon avatar' },
   equipe: { label: 'Équipe', desc: 'Personnes, accueil RH, fiches de poste, droits' }
 };
+/* 31/10 : modules qu'une entreprise peut ne pas prendre (réglage « modules », Administrateur → 🏢 Entreprise) — Chantier, Compagnon et Équipe sont toujours là */
+export const MODULES_OPTION = ['concepteur', 'pilotage', 'commerce', 'affaire', 'flotte', 'magasin'];
 // Réglage « entreprise » (logo + nom affichés à droite du bandeau) : réglage partagé app_settings « entreprise » (admin), copie sur l'appareil
 export const ENT_KEY = 'trace:entreprise';
 export function entLocal() { try { const v = JSON.parse(localStorage.getItem(ENT_KEY) || 'null'); return v && typeof v === 'object' ? v : null } catch (e) { return null } }

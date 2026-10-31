@@ -147,7 +147,7 @@ export function mvOpenPartage(id,o){o=o||{};if(!A)return;const net=(A.SITES&&A.S
   A.openModal(`<div class="mv-modal" id="mvPart"><h3>⚙ Commun ou séparé, dossier par dossier</h3><div class="eq-s">Chantier partagé « <b>${esc(net.name||id)}</b> » — affaires ${esc(L.join(' · '))}. <b>Commun</b> : un seul dossier pour tout le chantier. <b>Séparé</b> : chaque affaire le sien, avec un sélecteur « Affaire » en tête ; ce qui touche au contrat n'est jamais mélangé. Passer de séparé à commun ne perd rien : chaque enregistrement garde son affaire.</div>
     ${ro?`<div class="warnbox" style="margin:6px 0">Lecture seule : ${o.consult?'version consultée':'réservé au droit « affaires », au chef et au bureau'}.</div>`:''}
     <div id="mvRows">${mvPartRowsHTML(cur,ro)}</div>
-    <label class="f" for="mvNom" style="display:block;margin-top:8px">Nom affiché aux gars</label><input class="f" id="mvNom" value="${esc(nom)}" maxlength="80" autocomplete="off"${ro?' disabled':''}>
+    <label class="f" for="mvNom" style="display:block;margin-top:8px">Nom affiché aux équipes</label><input class="f" id="mvNom" value="${esc(nom)}" maxlength="80" autocomplete="off"${ro?' disabled':''}>
     <div class="actions"><button class="btn" type="button" data-close>${ro?'Fermer':'Annuler'}</button>${ro?'':'<button class="btn primary" type="button" id="mvPartGo">Enregistrer</button>'}</div></div>`);
   const rows=document.getElementById('mvRows');mvWireRows(rows);const go=document.getElementById('mvPartGo');
   if(go)go.onclick=async()=>{const map=mvReadRows(rows);const nm=((document.getElementById('mvNom')||{}).value||'').trim()||nom;go.disabled=true;go.textContent='⏳ Enregistrement…';const r=await savePartage(id,map,nm);A.closeModal();

@@ -83,7 +83,8 @@ out.up=Object.keys(UP).length;
 await pick(page,'pack',{name:'pack_test.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(pack('v1')))});await page.waitForTimeout(1500);
 out.re=await page.evaluate(()=>{const t=document.getElementById('eq-app').textContent.replace(/\s+/g,' ');return {box:(document.querySelector('#eq-app .okbox')||{}).textContent,same:/0 nouveau, 0 mis à jour, 4 inchangés/.test(t),n:window.TRACE.reg.all('doc').filter(x=>/^acc_(?!_)/.test(x.id)).length,livPdf:!!(window.TRACE.reg.get('doc','acc_livret_test')||{}).url};});
 // rien ne bloque l'administrateur (19/10, lot QF : plus d'écran bloquant, plus d'aperçu ni de réglage « tout le monde ») ; la vue Accueil RH explique la carte de bienvenue
-out.adm=await page.evaluate(async()=>{const r={};document.getElementById('htHome').click();await new Promise(x=>setTimeout(x,300));r.gate0=!!document.querySelector('.acc-gate');r.tabs=getComputedStyle(document.getElementById('homeTabs')).display!=='none';return r;});
+/* 31/10 matin (Ethan : « on peut enlever le ruban qui prend de la place ») : le ruban d'onglets est caché — « rien ne bloque » = le sélecteur de module du bandeau (#tbHomeMod) reste là */
+out.adm=await page.evaluate(async()=>{const r={};document.getElementById('htHome').click();await new Promise(x=>setTimeout(x,300));r.gate0=!!document.querySelector('.acc-gate');r.tabs=(e=>!!e&&getComputedStyle(e).display!=='none'&&e.getBoundingClientRect().width>0)(document.getElementById('tbHomeMod'));return r;});
 await goAccRh();Object.assign(out.adm,await page.evaluate(()=>{const t=document.getElementById('eq-app').textContent.replace(/\s+/g,' ');return {noPreview:![...document.querySelectorAll('#eq-app [data-act=x]')].some(b=>/aperçu|Tout le monde/.test(b.textContent)),carte:/Carte de bienvenue/.test(t),label:/à signer dès l'arrivée \(sous 7 jours\)/.test(t)&&!/bloquant à l'arrivée/.test(t)};}));
 await flushed(page);out.srv=Object.keys(REG).filter(k=>/^doc\|acc_/.test(k)).sort();
 console.log('1) administrateur : import, PDF, réimport, aperçu :',JSON.stringify(out));
@@ -96,7 +97,7 @@ await ctx.close();
 // ── 2) intérimaire fictif, 1re connexion, téléphone 390 px : AUCUN écran bloquant, carte de bienvenue ; depuis « À faire » : lecture forcée → choix → champ → signature ; livret par chapitres
 ({ctx,page}=await mkCtx(INT,{width:390,height:844},'2026-10-14T10:00:00Z'));
 await page.waitForTimeout(500);
-out={gate:await page.evaluate(()=>!!document.querySelector('.acc-gate')),tabs:await page.evaluate(()=>getComputedStyle(document.getElementById('homeTabs')).display!=='none'),welcome:await page.evaluate(()=>{const w=document.querySelector('.acc-welcome');return w?w.textContent.replace(/\s+/g,' ').trim():null;}),ov0:await noOverflow(page)};
+out={gate:await page.evaluate(()=>!!document.querySelector('.acc-gate')),tabs:await page.evaluate(()=>(e=>!!e&&getComputedStyle(e).display!=='none'&&e.getBoundingClientRect().width>0)(document.getElementById('tbHomeMod'))),welcome:await page.evaluate(()=>{const w=document.querySelector('.acc-welcome');return w?w.textContent.replace(/\s+/g,' ').trim():null;}),ov0:await noOverflow(page)};
 out.todo=await page.evaluate(()=>[...document.querySelectorAll('#eq-app .ac-notif')].map(n=>n.textContent.replace(/\s+/g,' ').trim()).filter(t=>/À lire et signer/.test(t)));
 // document 1 : la note (texte) — « J'ai lu » bloqué tant que pas en bas ; puis choix + « Fait à » + signature obligatoires
 await clickTodo(page,'Note d.information');await page.waitForTimeout(500);
@@ -123,7 +124,7 @@ for(const i of [0,1]){await page.evaluate(i2=>document.querySelector('#modal [da
 out.l.read1=await page.evaluate(()=>({dis:document.getElementById('dr-read').disabled,txt:document.getElementById('dr-read').textContent,ticks:[...document.querySelectorAll('#modal [data-chapic]')].map(x=>x.textContent).join('')}));
 await page.evaluate(()=>document.getElementById('dr-read').click());await page.waitForTimeout(200);out.l.mention=await page.evaluate(()=>/livret de test/.test(document.getElementById('dr-step2').textContent));
 await draw(page,'dr-pad');await page.evaluate(()=>document.getElementById('dr-ok').click());await page.waitForTimeout(900);
-out.free=await page.evaluate(()=>({gate:!!document.querySelector('.acc-gate'),tabs:getComputedStyle(document.getElementById('homeTabs')).display!=='none',notifs:[...document.querySelectorAll('#eq-app .ac-notif')].map(n=>n.textContent.replace(/\s+/g,' ').trim()).filter(t=>/Charte|test/.test(t))}));
+out.free=await page.evaluate(()=>({gate:!!document.querySelector('.acc-gate'),tabs:(e=>!!e&&getComputedStyle(e).display!=='none'&&e.getBoundingClientRect().width>0)(document.getElementById('tbHomeMod')),notifs:[...document.querySelectorAll('#eq-app .ac-notif')].map(n=>n.textContent.replace(/\s+/g,' ').trim()).filter(t=>/Charte|test/.test(t))}));
 out.ov3=await noOverflow(page);
 await flushed(page);
 const sigN=REG['docsig|acc_note_test|'+INT.email],sigL=REG['docsig|acc_livret_test|'+INT.email];

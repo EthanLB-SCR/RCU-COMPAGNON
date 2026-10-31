@@ -55,6 +55,7 @@ const minBtn=(pg,root)=>pg.evaluate(r=>{const L=[...document.querySelectorAll('#
 const subs=pg=>pg.evaluate(()=>[...document.querySelectorAll('#eq-app .eq-subs .chip')].map(c=>c.textContent.trim()));
 const goMoiSub=async(pg,re)=>{await pg.evaluate(async re=>{document.getElementById('htEspace').click();await new Promise(r=>setTimeout(r,300));const c=[...document.querySelectorAll('#eq-app .eq-subs .chip')].find(x=>new RegExp(re).test(x.textContent));if(!c)throw new Error('sous-onglet absent : '+re);c.click();},re);await W(pg,350);};
 const goHub=async pg=>{await pg.evaluate(()=>{document.getElementById('htEq').click();});await W(pg,450);};
+const goAff=async pg=>{await pg.evaluate(()=>{document.getElementById('htAff').click();});await W(pg,450);}; /* 31/10 matin (Ethan : « bons de commande et débours : pas avec le suivi opérationnel ») : le compte chantier est dans le module Affaire ; les demandes restent dans Pilotage */
 const goAccueil=async pg=>{await pg.evaluate(()=>{document.getElementById('htHome').click();});await W(pg,450);};
 const hubRow=async(pg,go)=>{await pg.evaluate(go=>{const b=document.querySelector(`#eq-app [data-act="xgo"][data-v="${go}"]`);if(!b)throw new Error('ligne du hub absente : '+go);b.click();},go);await W(pg,400);};
 
@@ -160,7 +161,7 @@ const ID1=d1&&d1.id;
 const Dx=await mkCtx(COND,{width:1366,height:900});const D=Dx.page;await login(D,COND.email);
 await goAccueil(D);o={afaire:(await notifs(D)).filter(t=>/matériel/.test(t))};
 await goHub(D);o.row=await D.evaluate(()=>{const b=document.querySelector('#eq-app [data-act="xgo"][data-v="x:dem:file"]');return b?b.textContent.replace(/\s+/g,' ').trim():null;});
-o.rowCc=await has(D,'#eq-app [data-act="xgo"][data-v="x:cc:"]');
+await goAff(D);o.rowCc=await has(D,'#eq-app [data-act="xgo"][data-v="x:cc:"]');await goHub(D); /* 31/10 matin : compte chantier → module Affaire ; les demandes restent dans Pilotage */
 await hubRow(D,'x:dem:file');o.file=(await txt(D)).slice(0,400);await shot(D,'cc_pc_file_demandes');
 await xclick(D,'dem|gopen|'+ID1);await xclick(D,'dem|cmd|'+ID1);
 await setv(D,'#dm-four','Fournisseur Fictif Delta');await setv(D,'#dm-prevue',PREVUE);
@@ -212,8 +213,9 @@ C.c4=o.id2&&o.id3==='annulee'&&/Échafaudage fictif/.test(o.file)&&!/Gants ficti
 /* ── c5 : le chef de chantier (droits) ── */
 const Cx=await mkCtx(CHEF,{width:1366,height:900});const CH=Cx.page;await login(CH,CHEF.email);
 await goHub(CH);o={hub:await CH.evaluate(()=>!!document.querySelector('#eq-app .eq-hubsec')),dem:await has(CH,'#eq-app [data-act="xgo"][data-v="x:dem:file"]'),cc:await has(CH,'#eq-app [data-act="xgo"][data-v="x:cc:"]')};
+await goAff(CH);o.cc=o.cc||await has(CH,'#eq-app [data-act="xgo"][data-v="x:cc:"]'); /* 31/10 matin : compte chantier → module Affaire */
 await goMoiSub(CH,'Mes demandes');o.mes=/Nouvelle demande/.test(await txt(CH));o.aTraiter=/Demandes à traiter/.test(await txt(CH));
-await goHub(D);o.condDem=await has(D,'#eq-app [data-act="xgo"][data-v="x:dem:file"]');o.condCc=await has(D,'#eq-app [data-act="xgo"][data-v="x:cc:"]');
+await goHub(D);o.condDem=await has(D,'#eq-app [data-act="xgo"][data-v="x:dem:file"]');await goAff(D);o.condCc=await has(D,'#eq-app [data-act="xgo"][data-v="x:cc:"]'); /* 31/10 matin : compte chantier → module Affaire */
 await D.evaluate(()=>{const b=document.querySelector('#eq-app [data-act="xgo"][data-v="x:cc:"]');if(b)b.click();});await W(D,400);o.choix=(await txt(D)).slice(0,300);await shot(D,'cc_pc_compte_choix');
 console.log('c5) chef / conducteur :',J(o));
 C.c5=o.hub&&!o.dem&&!o.cc&&o.mes&&!o.aTraiter&&o.condDem&&o.condCc&&/Compte d'un chantier/.test(o.choix)&&/Chantier fictif Alpha/.test(o.choix);
@@ -278,10 +280,11 @@ o=await page.evaluate(()=>{const T=window.TRACE;const b=T.reg.get('prix','base')
 console.log('… jeu fictif :',J(o));
 const asUser=async id=>{await page.evaluate(id=>{const T=window.TRACE;T.state.userId=id;T.showScreen('home');T.renderHome();},id);await wait(300);};
 const goPil=async()=>{await page.evaluate(()=>document.getElementById('htEq').click());await wait(400);};
+const goAffP=async()=>{await page.evaluate(()=>document.getElementById('htAff').click());await wait(400);}; /* 31/10 matin : le compte chantier (x:cc:) est dans le module Affaire */
 const ptxt=()=>txt(page);
 const card=t=>page.evaluate(t=>{const c=[...document.querySelectorAll('#eq-app .cc-card')].find(c=>((c.querySelector('h3')||{}).textContent||'').startsWith(t));return c?[...c.querySelectorAll('tr')].map(tr=>[...tr.children].map(td=>td.textContent.replace(/[  ]/g,' ').replace(/\s+/g,' ').trim()).join(' | ')):null;},t);
 /* ── c8 : Sophie (bureau) ── */
-await asUser('sophie');await goPil();
+await asUser('sophie');await goAffP();
 o={row:await has(page,'#eq-app [data-act="xgo"][data-v="x:cc:"]')};
 await page.evaluate(()=>document.querySelector('#eq-app [data-act="xgo"][data-v="x:cc:"]').click());await wait(400);
 o.choix=(await ptxt()).slice(0,500);await shot(page,'cc_pc_choix_chantier');
@@ -327,17 +330,17 @@ C.c11=!!o.tile&&/Compte chantier/.test(o.tile)&&o.screen==='home'&&/💶 Compte 
 await asUser('karim');o={pil:await page.evaluate(()=>{const b=document.getElementById('htEq');return !!b&&b.style.display!=='none';})};
 await openBureau('cc_nord');o.tileKarim=await has(page,'#bureau [data-bur="__compte"]');
 await page.evaluate(()=>window.TRACE.showScreen('home'));await asUser('sophie');
-await page.evaluate(async()=>{await window.TRACE.paliers.setOn(true);});await wait(200);await goPil();o.labo={row:await has(page,'#eq-app [data-act="xgo"][data-v="x:cc:"]')};await openBureau('cc_nord');o.labo.tile=await has(page,'#bureau [data-bur="__compte"]');
-await page.evaluate(async()=>{await window.TRACE.paliers.setFeat('comptechantier','socle');});await page.evaluate(()=>window.TRACE.showScreen('home'));await asUser('sophie');await goPil();o.socle={row:await has(page,'#eq-app [data-act="xgo"][data-v="x:cc:"]')};await openBureau('cc_nord');o.socle.tile=await has(page,'#bureau [data-bur="__compte"]');
+await page.evaluate(async()=>{await window.TRACE.paliers.setOn(true);});await wait(200);await goAffP();o.labo={row:await has(page,'#eq-app [data-act="xgo"][data-v="x:cc:"]')};await openBureau('cc_nord');o.labo.tile=await has(page,'#bureau [data-bur="__compte"]');
+await page.evaluate(async()=>{await window.TRACE.paliers.setFeat('comptechantier','socle');});await page.evaluate(()=>window.TRACE.showScreen('home'));await asUser('sophie');await goAffP();o.socle={row:await has(page,'#eq-app [data-act="xgo"][data-v="x:cc:"]')};await openBureau('cc_nord');o.socle.tile=await has(page,'#bureau [data-bur="__compte"]');
 await page.evaluate(async()=>{await window.TRACE.paliers.setFeat('comptechantier','labo');await window.TRACE.paliers.setOn(false);});await page.evaluate(()=>window.TRACE.showScreen('home'));await asUser('sophie');
 console.log('c12) droits / paliers :',J(o));
 C.c12=!o.pil&&!o.tileKarim&&!o.labo.row&&!o.labo.tile&&o.socle.row&&o.socle.tile;
 /* ── c13 : téléphone 390 / 360 ── */
-const passB=async w=>{await page.setViewportSize({width:w,height:800});await wait(300);await goPil();await page.evaluate(()=>document.querySelector('#eq-app [data-act="xgo"][data-v="x:cc:"]').click());await wait(300);const r={choix:await noOverflow(page)};await xclick(page,'cc|open|cc_nord');await wait(300);r.compte=await noOverflow(page);
+const passB=async w=>{await page.setViewportSize({width:w,height:800});await wait(300);await goAffP();await page.evaluate(()=>document.querySelector('#eq-app [data-act="xgo"][data-v="x:cc:"]').click());await wait(300);const r={choix:await noOverflow(page)};await xclick(page,'cc|open|cc_nord');await wait(300);r.compte=await noOverflow(page);
   r.btn=await page.evaluate(()=>{const L=[...document.querySelectorAll('#eq-app .cc-root .btn, #eq-app .cc-root .chip')].filter(b=>b.offsetParent!==null).map(b=>Math.round(b.getBoundingClientRect().height));return L.length?Math.min(...L):99;});
   if(w===390){await shot(page,'cc_tel_compte_chantier');await page.evaluate(()=>{const c=[...document.querySelectorAll('#eq-app .cc-card')].find(c=>/Heures par poste/.test(c.textContent));if(c)c.scrollIntoView({block:'start'});});await wait(200);await shot(page,'cc_tel_compte_postes');await page.evaluate(()=>{const c=[...document.querySelectorAll('#eq-app .cc-card')].find(c=>/Bons de commande/.test(c.textContent));if(c)c.scrollIntoView({block:'start'});});await wait(200);await shot(page,'cc_tel_compte_bons');await page.evaluate(()=>{const c=[...document.querySelectorAll('#eq-app .cc-card')].find(c=>/^Dépenses/.test((c.querySelector('h3')||{}).textContent||''));if(c)c.scrollIntoView({block:'start'});});await wait(200);await shot(page,'cc_tel_compte_depenses');}
   await xclick(page,'cc|per|mois');r.mois=await noOverflow(page);await xclick(page,'cc|per|tout');return r;};
-o={w390:await passB(390),w360:await passB(360)};await page.setViewportSize({width:1366,height:900});await wait(200);await goPil();await page.evaluate(()=>document.querySelector('#eq-app [data-act="xgo"][data-v="x:cc:"]').click());await wait(300);await xclick(page,'cc|open|cc_nord');o.w1366=await noOverflow(page);
+o={w390:await passB(390),w360:await passB(360)};await page.setViewportSize({width:1366,height:900});await wait(200);await goAffP();await page.evaluate(()=>document.querySelector('#eq-app [data-act="xgo"][data-v="x:cc:"]').click());await wait(300);await xclick(page,'cc|open|cc_nord');o.w1366=await noOverflow(page);
 console.log('c13) largeurs :',J(o));
 C.c13=['w390','w360'].every(k=>o[k].choix&&o[k].compte&&o[k].mois&&o[k].btn>=34)&&o.w1366;
 /* ── c15 : hors connexion (personnages de démo) : demande avec photo GARDÉE dans la demande (pas de stockage), traitée par le bureau, rien dans la file d'envoi ── */

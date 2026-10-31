@@ -140,8 +140,8 @@ function act(v,el,me,ctx){const i=String(v).indexOf('|');const k=i<0?v:v.slice(0
 function input(champ,el,me,ctx,type){if(champ!=='q'||type!=='input')return;CS.q=el.value;const box=typeof document!=='undefined'&&document.getElementById('cc-list');if(box){const t=document.createElement('div');t.innerHTML=vChoix(me,ctx);const n=t.querySelector('#cc-list');if(n)box.innerHTML=n.innerHTML;}} /* la recherche filtre sans redessiner le champ (le clavier reste ouvert) */
 /* tests / outillage */
 const testApi=ctx=>({state:CS,model:id=>ccModel(id,ctx),totaux:(id,P)=>ccTotaux(ccModel(id,ctx),P||null),print:id=>ccPrintHTML(id,ctx)});
-export default {id:'cc',feat:'comptechantier',hub:'expl',
+export default {id:'cc',feat:'comptechantier',hub:'affaire', /* 31/10 : module Affaire (suivi financier) */
   gate:(me,ctx)=>{try{if(typeof window!=='undefined'&&window.TRACE)window.TRACE.compteCh=testApi(ctx);}catch(e){}return null;},
   xview:(key,me,ctx)=>{cssLotCC();if(!ccCan(ctx))return wrap('<div class="card"><div class="eq-s">Le compte chantier est réservé au conducteur, au bureau et à la direction.</div></div>');return wrap(key?vCompte(key,me,ctx):vChoix(me,ctx));},
-  hubRows:(tab,me,ctx)=>tab==='achats'&&ccCan(ctx)?[ctx.row('Compte d\'un chantier','Un chantier : bons de commande, dépenses, heures par poste — sans compta, imprimable','💶','#e3f3f3','x:cc:',null)]:[],
+  hubRows:(tab,me,ctx)=>tab==='affaire'&&ccCan(ctx)?[ctx.row('Compte d\'un chantier','Un chantier : bons de commande, dépenses, heures par poste — sans compta, imprimable','💶','#e3f3f3','x:cc:',null)]:[],
   act,input};

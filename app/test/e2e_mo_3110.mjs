@@ -30,7 +30,7 @@ const ctxT=()=>page.evaluate(()=>(document.querySelector('#tbHome .tbCtx .t')||{
 const over=()=>page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth+1);
 /* ── c1 : onglets = modules */
 let o={};await as('ethan');o.ethan=await tabsVis();o.mods={};
-for(const [id,lab] of [['htSites','Chantier'],['htExpl','Pilotage'],['htEspace','Compagnon'],['htCom','Affaires'],['htParc','Flotte'],['htMag','Magasin'],['htEnt','Équipe']]){await tab(id);o.mods[id]={band:await bandTxt(),t:await ctxT(),on:await page.evaluate(id=>document.getElementById(id).classList.contains('on'),id)};}
+for(const [id,lab] of [['htSites','Chantier'],['htExpl','Pilotage'],['htEspace','Compagnon'],['htCom','Commerce'],['htAff','Affaire'],['htParc','Flotte'],['htMag','Magasin'],['htEnt','Équipe']]){await tab(id);o.mods[id]={band:await bandTxt(),t:await ctxT(),on:await page.evaluate(id=>document.getElementById(id).classList.contains('on'),id)};}
 await tab('htSites');o.sub=await page.evaluate(()=>[...document.querySelectorAll('#homeSubTabs button')].filter(b=>b.style.display!=='none').map(b=>b.textContent.trim()));
 await tab('htMag');o.magChips=await page.evaluate(()=>document.querySelectorAll('#eq-app [data-act=parcseg]').length);o.magH2=await page.evaluate(()=>(document.querySelector('#eq-app h2')||{}).textContent||'');
 await tab('htParc');o.parcChips=await page.evaluate(()=>[...document.querySelectorAll('#eq-app [data-act=parcseg]')].map(b=>b.textContent.trim()));
@@ -39,21 +39,21 @@ await page.evaluate(()=>document.getElementById('tbHomeMod').click());await wait
 await as('karim');o.karim=await tabsVis();await tab('htEspace');o.karimCtx=await ctxT();o.karimBand=await bandTxt();
 o.moi=await page.evaluate(()=>{const t=[...document.querySelectorAll('#homeTabs button, #homeSubTabs button, #tbHome .tbCtx, #eq-app .ac-tile')].map(e=>e.textContent).join(' | ');return /\bMoi\b/.test(t);});
 console.log('c1) onglets = modules :',J(o));
-const MODS={htSites:'Chantier',htExpl:'Pilotage',htEspace:'Compagnon',htCom:'Affaires',htParc:'Flotte',htMag:'Magasin',htEnt:'Équipe'};
-C.c1=o.ethan.join()==="Aujourd'hui,Chantier,Pilotage,Compagnon,Affaires,Flotte,Magasin,Équipe"&&o.karim.join()==="Aujourd'hui,Chantier,Compagnon,Équipe"&&Object.entries(MODS).every(([id,m])=>o.mods[id].band==='Tracé '+m&&o.mods[id].on)
-  &&o.mods.htEspace.t==='Ethan L.'&&o.karimCtx==='Karim B.'&&o.karimBand==='Tracé Compagnon'&&!o.moi&&!o.sub.some(t=>/Équipes/.test(t))&&o.sub.join()==='🗺 Carte,☰ Liste,⛑ Sécurité'&&o.magChips===0&&/Magasin/.test(o.magH2)&&o.parcChips.join()==='🚐 Flotte,🔧 Matériel'
-  &&o.tiles.join()==='Chantier,Pilotage,Sécurité,Compagnon,Affaires,Flotte,Magasin,Équipe,Réglages'&&['Tracé','Tracé Chantier','Tracé Concepteur','Tracé Affaires','Tracé Pilotage','Tracé Flotte','Tracé Magasin','Tracé Compagnon','Tracé Équipe'].every(x=>o.menu.includes(x));
+const MODS={htSites:'Chantier',htExpl:'Pilotage',htEspace:'Compagnon',htCom:'Commerce',htAff:'Affaire',htParc:'Flotte',htMag:'Magasin',htEnt:'Équipe'}; /* 31/10 matin (Ethan) : Affaires → Commerce, + Affaire */
+C.c1=o.ethan.join()==="Aujourd'hui,Chantier,Pilotage,Compagnon,Commerce,Affaire,Flotte,Magasin,Équipe"&&o.karim.join()==="Aujourd'hui,Chantier,Compagnon,Équipe"&&Object.entries(MODS).every(([id,m])=>o.mods[id].band==='Tracé '+m&&o.mods[id].on)
+  &&o.mods.htEspace.t==='Ethan L.'&&o.karimCtx==='Karim B.'&&o.karimBand==='Tracé Compagnon'&&!o.moi&&!o.sub.some(t=>/Équipes/.test(t))&&o.sub.filter(t=>t&&t!=='?').join()==='Carte,Liste' /* 31/10 matin : tuiles à icône (dessinée en CSS) ; Sécurité → Pilotage ; « ? » du tutoriel au bout (dessiné en CSS : texte vide) */&&o.magChips===2 /* Magasin | Matériel */&&/Magasin/.test(o.magH2)&&o.parcChips.length===0 /* 31/10 matin : le Matériel est dans Magasin */
+  &&o.tiles.join()==='Chantier,Pilotage,Compagnon,Commerce,Affaire,Flotte,Magasin,Équipe,Réglages' /* 31/10 matin : plus de tuile Sécurité (dans Pilotage), Commerce, + Affaire */&&['Tracé','Tracé Chantier','Tracé Concepteur','Tracé Commerce','Tracé Affaire','Tracé Pilotage','Tracé Flotte','Tracé Magasin','Tracé Compagnon','Tracé Équipe'].every(x=>o.menu.includes(x));
 /* ── c2 : Options par module */
 await as('ethan');await page.evaluate(()=>document.getElementById('htAdmin').click());await wait(600);
 await page.evaluate(()=>{const b=[...document.querySelectorAll('#homeBody .admNav button')].find(x=>/Options/.test(x.textContent));if(b)b.click();});await wait(500);
 o=await page.evaluate(()=>{const cards=[...document.querySelectorAll('#homeBody .admOptMod')];return {mods:cards.map(c=>c.dataset.mod),heads:cards.map(c=>c.querySelector('.admModH b').textContent.replace(/\s+/g,' ').trim()),
   rows:Object.fromEntries(cards.map(c=>[c.dataset.mod,[...c.querySelectorAll('.admOpt .admOptT > b')].map(b=>b.textContent)])),n:document.querySelectorAll('#homeBody .admOpt').length,
-  tutos:(()=>{const r=[...document.querySelectorAll('#homeBody .admOpt')].find(x=>/Tutos/.test(x.textContent));return r?(r.querySelector('.btn.on')||{}).textContent:null;})()};});
+  tutos:(()=>{const r=[...document.querySelectorAll('#homeBody .admOpt')].find(x=>/Tutoriels/.test(x.textContent));return r?(r.querySelector('.btn.on')||{}).textContent:null;})()};});
 if(SHOTS){await page.screenshot({path:SHOTS+'/mo_options_390.png',fullPage:false});}
 console.log('c2) Options par module :',J(o));
 const allRows=Object.values(o.rows).flat();
-C.c2=o.mods.join()==='chantier,pilotage,affaires,flotte,magasin,compagnon,transverse'&&o.heads[0]==='Tracé Chantier'&&o.heads[1]==='Tracé Pilotage'&&o.n===allRows.length&&new Set(allRows).size===allRows.length&&o.n>=21
-  &&o.rows.affaires.some(t=>/Affaires/.test(t))&&o.rows.flotte.some(t=>/Flotte/.test(t))&&o.rows.magasin.some(t=>/Magasin/.test(t))&&o.rows.compagnon.some(t=>/Notes de frais/.test(t))&&o.rows.transverse.some(t=>/Tutos/.test(t))&&/Labo/.test(o.tutos||'')&&o.rows.pilotage.length>=3 /* 31/10 (fusion) : + options des lots PI / CC rangées au bon module */&&['Planning simplifié','Production : tableau','Compte chantier'].every(x=>o.rows.pilotage.some(t=>t.startsWith(x)))&&o.rows.compagnon.some(t=>/Demandes de matériel/.test(t))&&o.rows.chantier.some(t=>/Plans d.exé/.test(t));
+C.c2=o.mods.join()==='chantier,pilotage,commerce,affaire,flotte,magasin,compagnon,transverse' /* 31/10 matin : Commerce + Affaire */&&o.heads[0]==='Tracé Chantier'&&o.heads[1]==='Tracé Pilotage'&&o.n===allRows.length&&new Set(allRows).size===allRows.length&&o.n>=21
+  &&o.rows.commerce.some(t=>/Commerce/.test(t))&&o.rows.flotte.some(t=>/Flotte/.test(t))&&o.rows.magasin.some(t=>/Magasin/.test(t))&&o.rows.affaire.some(t=>/Notes de frais/.test(t))&&o.rows.transverse.some(t=>/Tutoriels/.test(t))&&/Labo/.test(o.tutos||'')&&o.rows.pilotage.length>=3 /* 31/10 (fusion) : + options des lots PI / CC rangées au bon module */&&['Planning simplifié','Production : tableau'].every(x=>o.rows.pilotage.some(t=>t.startsWith(x)))&&o.rows.affaire.some(t=>/Compte chantier/.test(t)) /* 31/10 matin : compte chantier et notes de frais → Affaire */&&o.rows.compagnon.some(t=>/Demandes de matériel/.test(t))&&o.rows.chantier.some(t=>/Plans d.exé/.test(t));
 /* ── c3 : écran de chargement court */
 await fresh({'trace:intro:test':'short','trace:skipLogin':'1'});await page.reload({waitUntil:'commit'});
 o={early:await page.evaluate(()=>{const s=document.getElementById('tr-splash');return {splash:!!s,cls:s?s.className:'',boot:document.documentElement.classList.contains('trBoot'),svg:s?s.querySelectorAll('.tr-outer,.tr-inner,.tr-flow,.tr-wire').length:0,word:s?(s.querySelector('.tr-word')||{}).textContent:'',theme:(document.getElementById('trTheme')||{}).content};}).catch(e=>({err:e.message}))};
@@ -109,7 +109,7 @@ await page.evaluate(()=>localStorage.removeItem('trace:tuto:test'));await page.e
 console.log('c5) tutos :',J(o));
 const inScreen=c=>c&&c.left>=0&&c.right<=c.W&&c.top>=0&&c.bottom<=c.H&&c.btns.every(b=>b.h>=44);
 C.c5=inScreen(o.c0)&&/Compagnon/.test(o.c0.mod)&&o.steps.length>=3&&o.steps.some(s=>s.hole)&&o.closed&&o.seen&&!o.again&&o.help&&/Compagnon/.test(o.help.mod)&&o.pil&&/Pilotage/.test(o.pil.mod)&&o.pilClosed&&o.pilSeen
-  &&/Revoir le tuto · Tracé Pilotage/.test(o.menuTuto||'')&&o.menuOpen&&o.menuOpen.k==='pilotage'&&o.outsideClosed&&inScreen(o.c360)&&o.c360.W===360&&/Affaires/.test(o.c360.mod)&&o.chantier&&/Chantier/.test(o.chantier.mod)&&!!o.chantier.hole&&inScreen(o.chantier2)&&!o.robot;
+  &&/Tutoriel de cet écran · Tracé Pilotage/.test(o.menuTuto||'') /* 31/10 matin : libellé */&&o.menuOpen&&o.menuOpen.k==='pilotage'&&o.outsideClosed&&inScreen(o.c360)&&o.c360.W===360&&/Commerce/.test(o.c360.mod) /* 31/10 matin : Affaires → Commerce */&&o.chantier&&/Chantier/.test(o.chantier.mod)&&!!o.chantier.hole&&inScreen(o.chantier2)&&!o.robot;
 /* ── c6 : « Tracé » partout */
 o={};await page.evaluate(()=>window.TRACE.showScreen('login'));await wait(300);
 o.login=await page.evaluate(()=>({btn:getComputedStyle(document.getElementById('loginGo')).backgroundColor,h:Math.round(document.getElementById('loginGo').getBoundingClientRect().height),word:document.querySelector('.loginBox .word').textContent}));

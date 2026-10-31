@@ -400,5 +400,5 @@ export default {id:'dem',feat:'demandes',hub:'expl',
   view:(sub,me,ctx)=>sub==='dem'?vDem(me,ctx):null,
   xview:(key,me,ctx)=>{cssLotCC();if(key!=='file')return null;if(!demCanHandle(ctx))return wrap('<div class="card"><div class="eq-s">Réservé à l\'encadrement (conducteur, bureau).</div></div>');return wrap(vFile(me,ctx,false));},
   hubRows:(tab,me,ctx)=>{if(tab!=='achats'||!demCanHandle(ctx))return [];const D=demAll();const n=D.filter(d=>d.statut==='envoyee').length,nU=D.filter(d=>d.statut==='envoyee'&&d.urgent).length,nc=D.filter(d=>d.statut==='commandee'||d.statut==='remise').length;
-    return [ctx.row('Demandes de matériel','Les demandes des gars pour leurs chantiers : commander, livrer, refuser — sans magasin'+(nc?' · '+nc+' en attente de livraison':''),'📦','#fff3d6','x:dem:file',n||null,nU?'bad':'')];},
+    return [ctx.row('Demandes de matériel','Les demandes des équipes pour leurs chantiers : commander, livrer, refuser — sans magasin'+(nc?' · '+nc+' en attente de livraison':''),'📦','#fff3d6','x:dem:file',n||null,nU?'bad':'')];},
   tasks,act,input};

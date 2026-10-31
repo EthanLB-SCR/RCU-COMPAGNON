@@ -293,7 +293,7 @@ export function ptseqGallerySection(D,o){o=o||{};const pts=(D.points||[]).filter
 /* ── branchement ── */
 export function ptseqOnSite(id){if(!id||id==='__vide')return;regLoad('pteq').then(()=>{pump();try{ptseqOverlay();}catch(e){}if(A.state.tab==='points')ptseqRender();}).catch(e=>console.warn(e));}
 function injectTab(){const tb=document.getElementById('tabbar');const cont=document.querySelector('.view')?.parentElement;if(!tb||!cont)return;
-  if(!tb.querySelector('[data-tab="points"]')){const b=document.createElement('button');b.dataset.tab='points';b.textContent='📍 Points';tb.insertBefore(b,tb.querySelector('[data-tab="liste"]')||tb.querySelector('[data-tab="recap"]')||tb.querySelector('[data-tab="export"]'));}
+  if(!tb.querySelector('[data-tab="points"]')){const b=document.createElement('button');b.dataset.tab='points';b.dataset.ic='📍';b.textContent='Points de contrôle'; /* 31/10 (Ethan) : noms professionnels ; icône dessinée en CSS (data-ic) */tb.insertBefore(b,tb.querySelector('[data-tab="liste"]')||tb.querySelector('[data-tab="recap"]')||tb.querySelector('[data-tab="export"]'));}
   if(!document.getElementById('view-points')){const v=document.createElement('section');v.className='view';v.id='view-points';v.innerHTML='<div class="pad" id="points"></div>';cont.appendChild(v);}
   const mk=document.getElementById('markers');if(mk&&!document.getElementById('ptG')){const g=document.createElementNS('http://www.w3.org/2000/svg','g');g.id='ptG';mk.appendChild(g);}}
 function onSheetClick(e){const b=e.target.closest('[data-pact]');if(!b||!A)return;const a=b.dataset.pact;const S=A.state;e.preventDefault();e.stopPropagation();

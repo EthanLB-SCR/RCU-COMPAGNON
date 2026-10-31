@@ -8,49 +8,61 @@
 // · Règle de rigueur : toute nouveauté naît en « labo » ; un onglet ou une tuile sans clé connue n'est jamais caché (on ne casse pas l'existant), mais le test
 //   unit_paliers le signale.
 export const PALIERS={socle:'Socle — tout SCR',labo:'Labo — testeurs (Sud-Ouest)'};
-export const GROUPES={chantier:'Chantier',pilotage:'Pilotage',affaires:'Affaires',flotte:'Flotte',magasin:'Magasin',compagnon:'Compagnon',equipe:'Équipe',transverse:'Sans module',
+export const GROUPES={chantier:'Chantier',pilotage:'Pilotage',commerce:'Commerce',affaire:'Affaire',affaires:'Commerce',flotte:'Flotte',magasin:'Magasin',compagnon:'Compagnon',equipe:'Équipe',transverse:'Sans module',
   /* anciens groupes (jusqu'au 30/10) : toujours acceptés, rangés dans leur module à l'écran */ equipes:'Pilotage',secu:'Sans module',scr:'Équipe',moi:'Compagnon'};
 /* 31/10 (Ethan : « la réorganisation éventuelle des options par module ») : l'écran 🧪 Options range les options par MODULE (charte « Tracé ») — Chantier, Pilotage,
    Affaires, Flotte, Magasin, Compagnon, Équipe, puis ce qui n'a pas de module (Conversation… : transverse) ; un groupe inconnu tombe dans « Autres ». */
-export const MOD_ORDER=['chantier','pilotage','affaires','flotte','magasin','compagnon','equipe','transverse','autres'];
-export const MOD_LABEL={chantier:'Tracé Chantier',pilotage:'Tracé Pilotage',affaires:'Tracé Affaires',flotte:'Tracé Flotte',magasin:'Tracé Magasin',compagnon:'Tracé Compagnon',equipe:'Tracé Équipe',transverse:'Sans module (transverse)',autres:'Autres'};
-const GROUPE_MODULE={equipes:'pilotage',secu:'transverse',scr:'equipe',moi:'compagnon'};
-const FEAT_MODULE={commerce:'affaires',parc:'flotte',magasin:'magasin'}; // anciennes options du groupe « SCR, Commerce, Parc »
+export const MOD_ORDER=['chantier','pilotage','commerce','affaire','flotte','magasin','compagnon','equipe','transverse','autres']; /* 31/10 : Affaires → Commerce ; + Affaire (suivi financier) */
+export const MOD_LABEL={chantier:'Tracé Chantier',pilotage:'Tracé Pilotage',commerce:'Tracé Commerce',affaire:'Tracé Affaire',flotte:'Tracé Flotte',magasin:'Tracé Magasin',compagnon:'Tracé Compagnon',equipe:'Tracé Équipe',transverse:'Sans module (transverse)',autres:'Autres'};
+const GROUPE_MODULE={equipes:'pilotage',secu:'transverse',scr:'equipe',moi:'compagnon',affaires:'commerce'};
+const FEAT_MODULE={commerce:'commerce',parc:'flotte',magasin:'magasin',frais:'affaire',comptechantier:'affaire'}; /* 31/10 : notes de frais et compte chantier = module Affaire (suivi financier) */ // anciennes options du groupe « SCR, Commerce, Parc »
 // [clé, libellé, groupe, palier par défaut, ce que ça cache]
 export const FEATURES=[
- ['bouclage','Bouclage / DH','chantier','socle','onglet Bouclage : mesures DH, localisation de défaut, bouclages temporaires'],
- ['hydro','Hydraulique','chantier','labo','onglet Hydro : essais, hydrants, PV, calendrier'],
- ['stock','Stock chantier','chantier','labo','onglet Stock (zones, livraisons, prélèvements) et le catalogue'],
- ['fourniture','Fourniture','chantier','labo','onglet Fourniture : besoins, commandes fournisseur, comparatif des quantitatifs'],
+ ['bouclage','Détection d\'humidité','chantier','socle','onglet Détection d\'humidité : mesures, localisation de défaut, bouclages temporaires'],
+ ['hydro','Hydraulique','chantier','labo','onglet Hydraulique : essais, hydrants, PV, calendrier'],
+ ['stock','Stockage','chantier','labo','onglet Stockage (zones, livraisons, prélèvements) et le catalogue des pièces'],
+ ['fourniture','Fournitures','chantier','labo','onglet Fournitures : besoins, commandes fournisseur, comparatif des quantitatifs'],
  ['phasage','Phasage','chantier','labo','onglet Phasage : phases, planning du chantier, marché'],
- ['modifs','Modifications / TS','chantier','labo','onglet Modifs, éléments − / + sur le plan, bloc « Modifications » des fiches, partie Modifs du DOE'],
- ['points','Points / constats','chantier','labo','onglet Points : points d\'attention, constats, photos'],
+ ['modifs','Modifications / TS','chantier','labo','onglet Modifications : comparaison marché / réel, modifications déclarées (TS) pointées sur le plan, partie Modifications du DOE'],
+ ['points','Points de contrôle','chantier','labo','onglet Points de contrôle : vannes, purges, vidanges, sous-stations, raccordements — état et photos datées'],
  ['conv','Conversation','chantier','socle','onglet Conversation : messages, notes sur le plan, tâches'],
  ['qse','QSE du chantier','chantier','socle','onglet QSE : quarts d\'heure, accueils, émargements'],
- ['dossier','Dossier administratif','chantier','socle','onglet Dossier : documents obligatoires consultables (DICT…)'],
- ['export','Export / DOE','chantier','socle','onglet Export : carnet, plan, maquette, lien du plan interactif, zip DOE'],
+ ['dossier','Dossier du chantier','chantier','socle','onglet Dossier : pièces obligatoires (DICT, PPSPS, PGC…), lien vers le Drive du chantier'],
+ ['export','DOE et exports','chantier','socle','onglet DOE et exports : carnet de soudage, plan, maquette, lien du plan interactif, zip DOE'],
  ['mutu','Chantier partagé par affaire','chantier','labo','rattacher une seconde affaire à un chantier, dossiers séparés par affaire'],
  ['planning','Planning des équipes','pilotage','socle','Pilotage → Planning de la semaine, Ma semaine'],
  ['objectifs','Objectifs des équipes','pilotage','labo','Pilotage → Objectifs du jour par équipe'],
  ['production','Production par équipe','pilotage','socle','Pilotage → heures et production, rapport de semaine'],
- ['tutos','Tutos au premier passage','transverse','labo','guide pas à pas la 1re fois qu\'on entre dans un module (Suivant / Passer), « ❓ Revoir le tuto » dans le menu des modules'], /* 31/10 (lot MO) */
- ['accident','Déclaration d\'accident','transverse','labo','Sécurité → déclarer un accident / presque-accident'],
- ['commerce','Affaires (Commerce)','affaires','labo','onglet Affaires : affaires, DCE, chiffrage, mémoire technique, DPGF, offre, situations'],
+ ['tutos','Tutoriels','transverse','labo','tutoriel de chaque module et de chaque option, la 1re fois qu\'on y entre ; « ? » pour le revoir ; 📚 Tous les tutoriels'], /* 31/10 (lot MO) */
+ ['accident','Déclaration d\'accident','transverse','labo','Pilotage → Sécurité : déclarer un accident / presque-accident'],
+ ['commerce','Commerce','commerce','labo','module Commerce : affaires à l\'étude, DCE, chiffrage, mémoire technique, DPGF, offre, situations'],
  ['parc','Parc / véhicules','scr','labo','onglet Parc : flotte, réception et restitution de véhicule, Moi → Mon véhicule'],
  ['magasin','Magasin et matériel','scr','labo','demandes de matériel, préparation, stock du dépôt'],
- ['frais','Notes de frais','moi','labo','Moi → Mes notes de frais, validation des notes'],
- ['plansexe','Plans d\'exé','chantier','labo','Dossier → plans d\'exé (planches, indices, zones), « 📄 Plan d\'exé » des fiches soudure, « 📄 Mes plans » sur le plan, calque Plans d\'exé'], /* 31/10 (lot DX) */
+ ['frais','Notes de frais','affaire','labo','Moi → Mes notes de frais, validation des notes'],
+ ['plansexe','Plans d\'exécution','chantier','labo','Dossier → plans d\'exé (planches, indices, zones), « 📄 Plan d\'exé » des fiches soudure, « 📄 Mes plans » sur le plan, calque Plans d\'exé'], /* 31/10 (lot DX) */
  ['planning_simple','Planning simplifié (semaine par chantier)','pilotage','labo','Pilotage → « Planning de la semaine » (qui est où chaque jour, placer en 3 touchers, copier la semaine dernière) ; « Demain : chantier X » dans Compagnon — sans elle : le planning détaillé comme avant'], /* 31/10 (lot PI) */
  ['prod_tableau','Production : tableau jour / semaine','pilotage','labo','Pilotage → Production par équipe → tableau par équipe (jour / semaine : soudures, manchons, ml, objectif vs réalisé, barres), chantiers comptés, impression A4 — sans elle : l\'écran d\'avant seul'], /* 31/10 (lot PI) */
  ['demandes','Demandes de matériel (sans magasin)','compagnon','labo','Compagnon → Mes demandes (matériel pour un chantier), Pilotage → Demandes de matériel : commandé, livré / remis, refusé'], /* 31/10 (lot CC) */
- ['comptechantier','Compte chantier','pilotage','labo','Pilotage → Compte d\'un chantier, Bureau du chantier → 💶 : bons de commande, dépenses, heures par poste (lecture seule)'], /* 31/10 (lot CC) */
+ ['comptechantier','Compte chantier','affaire','labo','Affaire → Compte d\'un chantier, Bureau du chantier → 💶 : bons de commande, dépenses, heures par poste (lecture seule)'], /* 31/10 (lot CC) */
 ];
 export const FEAT_KEYS=FEATURES.map(f=>f[0]);
 export const featDef=k=>FEATURES.find(f=>f[0]===k)||null;
 // 31/10 (lot MO) : module d'une option (écran 🧪 Options) : son groupe s'il est un module ; sinon l'ancien groupe traduit ; inconnu → « autres »
 export const featModule=f=>{const d=Array.isArray(f)?f:featDef(f);if(!d)return 'autres';if(FEAT_MODULE[d[0]])return FEAT_MODULE[d[0]];const g=d[2];if(MOD_ORDER.includes(g))return g;return GROUPE_MODULE[g]||'autres';};
 // 31/10 : libellés aux noms des modules pour les options dont la ligne ci-dessus reste telle quelle (fin du registre : les lots parallèles y ajoutent leurs clés)
-[['parc','Flotte (Parc véhicules)','onglet Flotte : véhicules, réception et restitution de véhicule, Compagnon → Mon véhicule'],['frais','Notes de frais','Compagnon → Mes notes de frais, validation des notes (Pilotage)']].forEach(([k,l,d])=>{const f=featDef(k);if(f){f[1]=l;f[4]=d;}});
+[['parc','Flotte de véhicules','module Flotte : véhicules, réception et restitution de véhicule, Compagnon → Mon véhicule'],['frais','Notes de frais','Compagnon → Mes notes de frais, validation des notes (Affaire)']].forEach(([k,l,d])=>{const f=featDef(k);if(f){f[1]=l;f[4]=d;}});
+/* ── 31/10 (Ethan : « si les modules Magasin ou Flotte ne sont pas pris, ça ne doit pas apparaître ») : MODULES DE L'ENTREPRISE ──
+   Réglage partagé app_settings « modules » {off:[…]} (Administrateur → 🏢 Entreprise), copie sur l'appareil. Un module que l'entreprise n'a pas pris disparaît PARTOUT :
+   son onglet, sa ligne du menu des modules et toutes ses options, y compris leurs accès depuis un autre module (ex. véhicules dans Pilotage) — interrupteur des
+   paliers éteint ou allumé. Chantier, Compagnon et Équipe sont toujours là (marque.js : MODULES_OPTION). Par défaut : tout est pris (rien ne change). */
+const MKEY='trace:modules';let MODOFF=new Set();try{const v=JSON.parse(localStorage.getItem(MKEY)||'null');if(v&&Array.isArray(v.off))MODOFF=new Set(v.off.filter(x=>typeof x==='string'));}catch(e){}
+export const moduleOn=m=>!m||!MODOFF.has(m);
+export const modulesOff=()=>[...MODOFF];
+export function setModulesLocal(v){MODOFF=new Set(v&&Array.isArray(v.off)?v.off.filter(x=>typeof x==='string'):[]);try{localStorage.setItem(MKEY,JSON.stringify({off:[...MODOFF],at:(v&&v.at)||null,by:(v&&v.by)||''}));}catch(e){}}
+export async function loadModules(){if(!A||!A.sync||!A.sync.getSetting||!A.state.cloudUser)return false;try{const v=await A.sync.getSetting('modules');if(v&&typeof v==='object'){setModulesLocal(v);return true;}}catch(e){console.warn(e);}return false;}
+export async function saveModules(off){const v={off:[...new Set((off||[]).filter(x=>typeof x==='string'))],at:new Date().toISOString(),by:(A&&A.userName&&A.userName())||''};let where='appareil';
+  if(A&&A.state.cloudUser&&A.sync&&A.sync.setSetting){const err=await A.sync.setSetting('modules',v);if(err)return {error:err==='hors ligne'?'connexion au serveur perdue — rien n\'a changé (🩺 Diagnostic)':err};where='serveur';}
+  setModulesLocal(v);return {ok:true,where};}
 /* ── réglage partagé ── */
 const KEY='trace:paliers';let CFG=null;let A=null;
 export function initPaliers(api){A=api;CFG=loadLocal();}
@@ -69,7 +81,7 @@ export const idsOf=acc=>acc?[acc.id,acc.email].filter(Boolean).map(String):[];
 export const personPalier=acc=>{const c=paliersCfg();const ids=idsOf(acc);return ids.some(id=>c.people[id]==='labo')?'labo':'socle';};
 export const personExtra=(acc,k)=>{const c=paliersCfg();for(const id of idsOf(acc)){const x=c.extra[id];if(x&&typeof x[k]==='boolean')return x[k];}return null;};
 /* la personne voit-elle l'option ? — interrupteur général éteint : oui, toujours ; clé inconnue : oui (on ne casse pas l'existant) ; sinon : réglage personnel, puis palier */
-export function featFor(acc,k){const c=paliersCfg();if(!c.on)return true;if(!featDef(k))return true;const x=personExtra(acc,k);if(x!==null)return x;if(personPalier(acc)==='labo')return true;return palierOf(k)==='socle';}
+export function featFor(acc,k){const c=paliersCfg();if(featDef(k)&&!moduleOn(featModule(k)))return false; /* 31/10 : module non pris → l'option disparaît, paliers éteints ou non */if(!c.on)return true;if(!featDef(k))return true;const x=personExtra(acc,k);if(x!==null)return x;if(personPalier(acc)==='labo')return true;return palierOf(k)==='socle';}
 export function featsOf(acc){const out={};FEAT_KEYS.forEach(k=>{out[k]=featFor(acc,k);});return out;}
 export const paliersOn=()=>paliersCfg().on;
 export const laboPeople=()=>Object.entries(paliersCfg().people).filter(([,p])=>p==='labo').map(([id])=>id);

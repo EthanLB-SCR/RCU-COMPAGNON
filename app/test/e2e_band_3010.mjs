@@ -37,10 +37,11 @@ const measure=(sel)=>page.evaluate(sel=>{const tb=document.querySelector(sel);if
   return {W,bandH:Math.round(rb.height),ctxH:ctx?Math.round(r(ctx).height):0,modTxt:mb?mb.textContent.replace(/▾/,'').trim():'',modFull:mod?mod.scrollWidth<=mod.clientWidth+1:true,modBtnFull:mb?mb.scrollWidth<=mb.clientWidth+1:true,
     modRight:rm?Math.round(rm.right):0,coLeft:rc?Math.round(rc.left):0,coRight:rc?Math.round(rc.right):0,img:ri?{w:Math.round(ri.width*10)/10,h:Math.round(ri.height*10)/10,inside:ri.left>=rc.left-0.5&&ri.right<=rc.right+0.5&&ri.top>=rc.top-0.5&&ri.bottom<=rc.bottom+0.5}:null,
     over:document.documentElement.scrollWidth>W,maxRight:Math.max(0,...kids.map(k=>k.right)),kids:kids.filter(k=>k.right>W).map(k=>k.id)};},sel);
-const okBand=(m,ph=true)=>!!m&&!m.over&&m.maxRight<=m.W&&m.modFull&&m.modBtnFull&&m.modRight<=m.coLeft&&m.coRight<=m.W&&(!m.img||(m.img.inside&&m.img.w<=(ph?112.5:132.5)&&m.img.h<=(ph?36.5:40.5)))&&(ph?m.bandH===56:m.bandH===64)&&m.ctxH>=(ph?44:48);
+/* 31/10 matin (Ethan : « le bandeau avec mon nom on s'en fout ») : plus de 2e ligne sur l'accueil (line2=false → hauteur 0) ; le chantier garde la sienne (⌂, chantier, 🔍, ☰, ?) */
+const okBand=(m,ph=true,line2=true)=>!!m&&!m.over&&m.maxRight<=m.W&&m.modFull&&m.modBtnFull&&m.modRight<=m.coLeft&&m.coRight<=m.W&&(!m.img||(m.img.inside&&m.img.w<=(ph?112.5:132.5)&&m.img.h<=(ph?36.5:40.5)))&&(ph?m.bandH===56:m.bandH===64)&&(line2?m.ctxH>=(ph?44:48):m.ctxH===0);
 const phone=async(W)=>{await page.setViewportSize({width:W,height:800});await wait(200);const out={};
   await page.evaluate(()=>{const T=window.TRACE;T.showScreen('home');document.getElementById('htEspace').click();});await wait(400);
-  out.moi=await measure('#tbHome');out.moi.avaCtx=await page.evaluate(()=>!!document.querySelector('#tbHomeAvaCtx #homeAva'));out.moi.ctxTxt=await page.evaluate(()=>document.querySelector('#tbHome .tbCtx').textContent.trim().slice(0,60));
+  out.moi=await measure('#tbHome');out.moi.avaCtx=await page.evaluate(()=>!!document.querySelector('#tbHome .tbBand #homeAva')); /* 31/10 matin : la pastille (avatar) est dans le bandeau, à droite */out.moi.ctxTxt=await page.evaluate(()=>document.querySelector('#tbHome .tbCtx').textContent.trim().slice(0,60));
   if(SHOTS)await page.screenshot({path:SHOTS+`/band_moi_${W}.png`,clip:{x:0,y:0,width:W,height:220}});
   await page.evaluate(()=>{document.getElementById('tbHomeModName').textContent='Concepteur';});out.pire=await measure('#tbHome');await page.evaluate(()=>window.TRACE.band.render());
   await page.evaluate(()=>{const T=window.TRACE;const id=Object.keys(T.sites).find(k=>k!=='__vide'&&T.sites[k]&&T.sites[k].lines);T.showScreen('site');if(T.state.siteId!==id)T.switchSite(id);T.state.tab='plan';T.renderAll();});await wait(600);
@@ -50,9 +51,9 @@ const phone=async(W)=>{await page.setViewportSize({width:W,height:800});await wa
   return out;};
 /* ── c2 / c3 */
 o=await phone(390);console.log('c2) 390 px :',J(o));
-C.c2=okBand(o.moi)&&/Compagnon/.test(o.moi.modTxt)&&o.moi.avaCtx&&!/\bMoi\b/.test(o.moi.ctxTxt)&&/Ethan/.test(o.moi.ctxTxt) /* 31/10 : 2e ligne = la personne, plus « Moi » */&&okBand(o.pire)&&/Concepteur/.test(o.pire.modTxt)&&okBand(o.site)&&/Chantier/.test(o.site.modTxt)&&o.site.btns.every(Boolean)&&o.site.hidden.every(d=>d==='none');
+C.c2=okBand(o.moi,true,false)&&/Compagnon/.test(o.moi.modTxt)&&o.moi.avaCtx&&!/\bMoi\b/.test(o.moi.ctxTxt)&&/Ethan/.test(o.moi.ctxTxt) /* 31/10 : 2e ligne = la personne, plus « Moi » (31/10 matin : ligne cachée sur l'accueil) */&&okBand(o.pire,true,false)&&/Concepteur/.test(o.pire.modTxt)&&okBand(o.site)&&/Chantier/.test(o.site.modTxt)&&o.site.btns.every(Boolean)&&o.site.hidden.every(d=>d==='none');
 o=await phone(360);console.log('c3) 360 px :',J(o));
-C.c3=okBand(o.moi)&&o.moi.avaCtx&&okBand(o.pire)&&/Concepteur/.test(o.pire.modTxt)&&okBand(o.site)&&o.site.btns.every(Boolean);
+C.c3=okBand(o.moi,true,false)&&o.moi.avaCtx&&okBand(o.pire,true,false)&&/Concepteur/.test(o.pire.modTxt)&&okBand(o.site)&&o.site.btns.every(Boolean);
 /* ── c4 : traceur */
 const tr={};for(const W of [390,360,1366]){const p2=await ctx.newPage();p2.on('pageerror',e=>logs.push('PAGEERROR (traceur): '+e.message.slice(0,200)));await p2.setViewportSize({width:W,height:800});await p2.goto(BASE+'/traceur.html');await p2.waitForTimeout(1200);
   tr[W]=await p2.evaluate(()=>{const tb=document.getElementById('tbTr');const band=tb.querySelector('.tbBand');const mb=tb.querySelector('.tbMod');const mod=tb.querySelector('.tbModName');const co=tb.querySelector('.tbCo');const img=co.querySelector('.tbCoImg');const W=window.innerWidth;
@@ -74,6 +75,6 @@ if(SHOTS)await page.screenshot({path:SHOTS+'/band_pc_1366.png',clip:{x:0,y:0,wid
 await page.evaluate(()=>{const T=window.TRACE;T.showScreen('site');T.renderAll();});await wait(400);o.wideSite=await measure('#tbSite');
 if(SHOTS)await page.screenshot({path:SHOTS+'/band_pc_chantier_1366.png',clip:{x:0,y:0,width:1366,height:220}});
 console.log('c5) modules + PC :',J(o));
-C.c5=o.list.includes('chantier')&&o.list.includes('compagnon')&&o.menu.length===o.list.length&&o.menu.some(t=>/Tracé\s*Chantier/.test(t))&&o.after.tab==='espace'&&o.after.mod==='Compagnon'&&o.wide.isWide&&okBand(o.wide,false)&&o.wide.ava&&okBand(o.wideSite,false);
+C.c5=o.list.includes('chantier')&&o.list.includes('compagnon')&&o.menu.length===o.list.length&&o.menu.some(t=>/Tracé\s*Chantier/.test(t))&&o.after.tab==='espace'&&o.after.mod==='Compagnon'&&o.wide.isWide&&okBand(o.wide,false,false) /* 31/10 matin : pas de 2e ligne sur l'accueil, même sur PC */&&o.wide.ava&&okBand(o.wideSite,false)&&o.list.includes('commerce')&&o.list.includes('affaire') /* 31/10 matin : Affaires → Commerce + module Affaire */;
 C.c6=!logs.length;if(logs.length)console.log('console :',logs);
 console.log('RÉSULTATS',J(C));console.log('RESULTAT:',Object.values(C).every(Boolean)?'TOUT VERT':'ÉCHEC '+Object.keys(C).filter(k=>!C[k]).join(' '));await browser.close();process.exit(Object.values(C).every(Boolean)?0:1);

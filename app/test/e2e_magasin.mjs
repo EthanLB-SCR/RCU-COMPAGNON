@@ -139,7 +139,7 @@ d=reg('magdem',ID1);out.st3=d.statut;out.remis=d.lignes.map(l=>l.remis).join();o
 const M1=mvts().filter(m=>m.demande===ID1);out.mv=M1.map(m=>m.type+':'+m.ref+':'+m.qte+':'+m.imputation.id+':'+m.qui+':'+m.pourName).sort();
 out.ui=await txt(R.page);out.toast=await toast(R.page);
 console.log('3) préparation partielle + remise :',JSON.stringify({...out,ui:out.ui.slice(0,300)}));
-C.c3=/1 demande à préparer/.test(out.notif)&&((out.landed.tab==='parc'&&out.landed.seg==='magasin')||(out.landed.tab==='magasin'&&!out.landed.seg)) /* 31/10 (un onglet = un module) : le Magasin a son onglet (plus de puce « Magasin » dans Flotte) */&&/Bruno TESTSOUDEUR/.test(out.landed.row)&&out.st1==='preparation'&&out.inputs.join()==='3,2,1'&&out.st2==='prete'&&out.prep==='2,2,1'&&/partielle — reliquat 1/.test(out.h2||'')
+C.c3=/1 demande à préparer/.test(out.notif)&&((out.landed.tab==='parc'&&out.landed.seg==='magasin')||(out.landed.tab==='magasin'&&(!out.landed.seg||out.landed.seg==='magasin'))) /* 31/10 (un onglet = un module) : le Magasin a son onglet (plus de puce « Magasin » dans Flotte) ; 31/10 matin : le Matériel rejoint le Magasin → puces Magasin / Matériel, on arrive sur « Magasin » */&&/Bruno TESTSOUDEUR/.test(out.landed.row)&&out.st1==='preparation'&&out.inputs.join()==='3,2,1'&&out.st2==='prete'&&out.prep==='2,2,1'&&/partielle — reliquat 1/.test(out.h2||'')
   &&out.qui===SOUD.email&&out.st3==='remise'&&out.remis==='2,2,1'&&out.retire==='Bruno TESTSOUDEUR'&&out.mv.join()==='sortie:T-01:2:SRV_B:Bruno TESTSOUDEUR:Bruno TESTSOUDEUR,sortie:T-02:1:SRV_B:Bruno TESTSOUDEUR:Bruno TESTSOUDEUR,sortie:T-04:2:SRV_B:Bruno TESTSOUDEUR:Bruno TESTSOUDEUR'
   &&/Retirée · reliquat à venir/.test(out.ui)&&/reliquat 1/.test(out.ui)&&/3 sorties de stock/.test(out.toast);
 

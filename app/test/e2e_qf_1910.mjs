@@ -88,15 +88,15 @@ const goEnt=async(page,re)=>{await page.evaluate(async r=>{document.getElementBy
 const goMoiDocs=async page=>{await page.evaluate(()=>document.getElementById('htEspace').click());await page.waitForTimeout(300);await page.evaluate(()=>{const c=[...document.querySelectorAll('#eq-app .eq-subs .chip')].find(x=>/Documents/.test(x.textContent));if(c)c.click();});await page.waitForTimeout(350);};
 const OV=[];const ov=async(page,tag)=>{const ok=await noOverflow(page);if(!ok)console.log('DÉBORDEMENT 390 :',tag);OV.push(ok);};
 // ══ c0 · administrateur (PC 1366) : import du pack, Accueil RH, aucun écran bloquant malgré gateAll, carte de bienvenue non bloquante
-let {ctx,page}=await mkCtx(ADM,{width:1366,height:900});
-let out={gate:await page.evaluate(()=>!!document.querySelector('.acc-gate')),tabs:await page.evaluate(()=>getComputedStyle(document.getElementById('homeTabs')).display!=='none'),welcome:await page.evaluate(()=>!!document.querySelector('.acc-welcome'))};
+let {ctx,page}=await mkCtx(ADM,{width:1366,height:900}); /* 31/10 matin (Ethan : « on peut enlever le ruban ») : ruban d'onglets caché — « rien ne bloque » = le sélecteur de module du bandeau (#tbHomeMod) reste là */
+let out={gate:await page.evaluate(()=>!!document.querySelector('.acc-gate')),tabs:await page.evaluate(()=>(e=>!!e&&getComputedStyle(e).display!=='none'&&e.getBoundingClientRect().width>0)(document.getElementById('tbHomeMod'))),welcome:await page.evaluate(()=>!!document.querySelector('.acc-welcome'))};
 await goEnt(page,'Accueil RH');
 await page.evaluate(()=>{const b=document.querySelector('#eq-app [data-v="acc|pick|pack"]');if(b)b.click();});await page.waitForSelector('body > input[type=file]',{state:'attached',timeout:4000}).catch(()=>{});
 await page.setInputFiles('body > input[type=file]',{name:'pack_test.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(PACK))});await page.waitForTimeout(1800);
 out.adm=await page.evaluate(()=>{const app=document.getElementById('eq-app');const t=app.textContent.replace(/\s+/g,' ');return {h2:(app.querySelector('h2.vt')||{}).textContent||'',imp:/2 documents : 2 nouveaux/.test(t),sum:/1 à signer dès l'arrivée \(sous 7 jours\)/.test(t),noBloq:!/bloquant/i.test(t),noGateAll:!/Tout le monde|Nouveaux comptes seulement|Voir l'écran de bienvenue/.test(t),carte:/Carte de bienvenue/.test(t)&&/Rien ne bloque jamais/.test(t),rows:[...app.querySelectorAll('.acc-drow .ac-row')].map(r=>r.textContent.replace(/\s+/g,' ').trim())};});
 await shot(page,'pc_1_accueil_rh_sans_blocage');
 await home(page);await flushed(page);
-out.home=await page.evaluate(()=>{const w=document.querySelector('.acc-welcome');return {gate:!!document.querySelector('.acc-gate'),welcome:w?w.textContent.replace(/\s+/g,' ').trim():null,tabs:getComputedStyle(document.getElementById('homeTabs')).display!=='none',cfg:JSON.stringify(window.TRACE.reg.get('doc','acc__cfg')||{})};});
+out.home=await page.evaluate(()=>{const w=document.querySelector('.acc-welcome');return {gate:!!document.querySelector('.acc-gate'),welcome:w?w.textContent.replace(/\s+/g,' ').trim():null,tabs:(e=>!!e&&getComputedStyle(e).display!=='none'&&e.getBoundingClientRect().width>0)(document.getElementById('tbHomeMod')),cfg:JSON.stringify(window.TRACE.reg.get('doc','acc__cfg')||{})};});
 console.log('c0) administrateur :',JSON.stringify(out));
 C.c0=!out.gate&&out.tabs&&out.adm.imp&&out.adm.sum&&out.adm.noBloq&&out.adm.noGateAll&&out.adm.carte&&out.adm.rows.length===2&&out.adm.rows.some(r=>/Note d.information \(test\).*à signer dès l'arrivée \(sous 7 jours\)/.test(r))&&out.adm.rows.some(r=>/Charte \(test\).*embauche J\+7/.test(r))
   &&!out.home.gate&&out.home.tabs&&/gateAll":true/.test(out.home.cfg)&&!!out.home.welcome&&/Bienvenue chez SCR, Camille/.test(out.home.welcome)&&/3 documents à lire et à signer sous 7 jours/.test(out.home.welcome);
@@ -104,7 +104,7 @@ await ctx.close();
 // ══ c1 · nouveau compte (téléphone 390) : rien ne bloque, carte de bienvenue, « À faire » avec échéances, « Commencer », ✕
 ({ctx,page}=await mkCtx(NEW,{width:390,height:844},true));
 await page.waitForTimeout(600);
-out={gate:await page.evaluate(()=>!!document.querySelector('.acc-gate')),tabs:await page.evaluate(()=>getComputedStyle(document.getElementById('homeTabs')).display!=='none'),hi:await page.evaluate(()=>(document.querySelector('#eq-app .ac-hi')||{}).textContent||'')};
+out={gate:await page.evaluate(()=>!!document.querySelector('.acc-gate')),tabs:await page.evaluate(()=>(e=>!!e&&getComputedStyle(e).display!=='none'&&e.getBoundingClientRect().width>0)(document.getElementById('tbHomeMod'))),hi:await page.evaluate(()=>(document.querySelector('#eq-app .ac-hi')||{}).textContent||'')};
 out.w=await page.evaluate(()=>{const w=document.querySelector('.acc-welcome');if(!w)return null;const x=w.querySelector('.acc-x');const r=x&&x.getBoundingClientRect();const b=[...w.querySelectorAll('.btn')].map(e=>({t:e.textContent.trim(),h:e.getBoundingClientRect().height}));return {t:w.textContent.replace(/\s+/g,' ').trim(),xh:r?r.height:0,btns:b,first:w.compareDocumentPosition(document.querySelector('#eq-app .ac-two'))&Node.DOCUMENT_POSITION_FOLLOWING?true:false};});
 out.n=await notifs(page);await ov(page,'nouveau compte · accueil');
 await shot(page,'tel_1_bienvenue_nouveau_compte');

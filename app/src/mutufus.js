@@ -174,7 +174,7 @@ export function implicitWelds(S){let n=0;(S&&S.lines||[]).forEach(L=>{if(!L||(L.
    {<onglet>: 'commun' | 'separe'} — absente (ou valeur inconnue) = le défaut ci-dessous. [onglet, libellé, défaut, réglable, pourquoi]. Toujours communs : le plan (Ethan), et
    ce qui est UN par site ou sans données propres (bureau, QSE, dossier d'accueil, stock physique, catalogue) ; toujours séparés : Modifs et DOE (le contrat) ; réglables : le reste. */
 export const MV_PARTS=[
-  ['plan','Plan d\'ensemble et pointage','commun',false,'une fois les affaires réunies, le plan les montre ensemble : les gars voient leur ville, tout le réseau, et pointent'],
+  ['plan','Plan d\'ensemble et pointage','commun',false,'une fois les affaires réunies, le plan les montre ensemble : les équipes voient leur ville, tout le réseau, et pointent'],
   ['bureau','Bureau','commun',false,'l\'outil du conducteur et du chef sur place : il n\'a pas de données à lui, chaque dossier qu\'il ouvre suit son propre réglage'],
   ['conv','Conversation','commun',true,'une seule équipe sur place : les messages et les notes servent à tout le monde (séparée : chaque affaire son fil ; les notes restent sur le plan)'],
   ['qse','QSE','commun',false,'mêmes personnes sur le même site : un seul accueil, mêmes émargements et quarts d\'heure sécurité'],

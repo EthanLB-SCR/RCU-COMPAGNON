@@ -182,7 +182,7 @@ export function magMineHTML(key){const h=magPersBadge(key);return h?`<div class=
 export function magHubRow(me,ids,row){css2();const T=(ids||[]).filter(Boolean);S2.team[me.id]=T;if(!T.length)return '';const set=new Set(T);const L=dems2().filter(d=>set.has(d.byKey)&&!d.direct);const n=s=>L.filter(d=>d.statut===s).length;const pr=n('prete'),pp=n('preparation'),en=n('envoyee'),rl=L.filter(d=>d.statut==='remise'&&relq2(d)>0).length;
   const parts=[pr?pr+' prête'+(pr>1?'s':'')+' au dépôt':'',en?en+' en attente':'',pp?pp+' en préparation':'',rl?rl+' reliquat'+(rl>1?'s':'')+' à venir':''].filter(Boolean);
   const t=pr?pr+' commande'+(pr>1?'s':'')+' prête'+(pr>1?'s':'')+' au dépôt dans l\'équipe':'Commandes au dépôt de l\'équipe';
-  return row(t,parts.length?parts.join(' · ')+' — touche pour voir qui':'Aucune commande en cours dans l\'équipe · les demandes des gars au magasin, et ce qui est prêt à retirer','📦',pr?'#e6f5ec':'#efeee9','x:mag:equipe',pr||null,'ok');}
+  return row(t,parts.length?parts.join(' · ')+' — touche pour voir qui':'Aucune commande en cours dans l\'équipe · les demandes des équipes au magasin, et ce qui est prêt à retirer','📦',pr?'#e6f5ec':'#efeee9','x:mag:equipe',pr||null,'ok');}
 // fiche d'une personne (panneau) : ses demandes en cours
 export function magPersCard(key){const L=dems2().filter(d=>d.byKey===key&&!d.direct&&['envoyee','preparation','prete','remise'].includes(d.statut)&&!(d.statut==='remise'&&!relq2(d)));if(!L.length)return '';
   return `<div class="card"><h3>📦 Magasin</h3><div class="mag-pbs">${magPersBadge(key)}</div><div class="eq-s">${L.slice(0,4).map(d=>esc(fDate(d.at))+' · '+esc((d.lignes||[]).length?pl((d.lignes||[]).length,'article'):'demande libre')+' · '+esc((st2()[d.statut]||[d.statut])[0])).join('<br>')}</div></div>`;}
@@ -202,7 +202,7 @@ export function xview2(key,me,ctx){css2();ensure(ctx);const [k,...r]=String(key|
     const by={};L.forEach(d=>{(by[d.byKey]=by[d.byKey]||[]).push(d);});const keys=Object.keys(by).sort((a,b)=>(persNom(a,ctx)||a).localeCompare(persNom(b,ctx)||b,'fr'));
     return `<h2 class="vt">📦 Commandes au dépôt <span class="hint">· ton équipe</span></h2><div class="eq-kpis mag-kp"><div class="eq-kpi ${pr?'ok':''}"><b>${pr}</b><small>prête${pr>1?'s':''} au dépôt</small></div><div class="eq-kpi"><b>${L.filter(d=>d.statut==='envoyee').length}</b><small>en attente</small></div><div class="eq-kpi"><b>${L.filter(d=>d.statut==='preparation').length}</b><small>en préparation</small></div><div class="eq-kpi"><b>${L.filter(d=>d.statut==='remise').length}</b><small>reliquats à venir</small></div></div>
       ${keys.map(k2=>`<div class="ac-h"><b>${esc(persNom(k2,ctx)||by[k2][0].byName||k2)}</b><span>${pl(by[k2].length,'demande')}</span></div>${by[k2].sort((a,b)=>String(a.at).localeCompare(String(b.at))).map(rowRO).join('')}`).join('')||'<div class="ac-empty">✓ Aucune commande en cours dans ton équipe.</div>'}
-      <div class="hint">Ce que les gars de ton équipe ont demandé au magasin et ce qui les attend au dépôt. Lecture seule : le magasin prépare et remet.</div>`;}
+      <div class="hint">Ce que ton équipe a demandé au magasin et ce qui les attend au dépôt. Lecture seule : le magasin prépare et remet.</div>`;}
   return '';}
 
 /* ══════════ G5 · NOUVEL ARTICLE ══════════ */
