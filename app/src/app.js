@@ -3314,6 +3314,20 @@ function openSitePicker(){let L=[];try{L=homeMetas().filter(m=>!m.locked);}catch
   document.querySelectorAll('.spList [data-spick]').forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.spick;closeModal();if(!id||id===state.siteId)return;const m=L.find(x=>x.id===id);toast('Ouverture de « '+((m&&m.name)||id)+' »…');
     openSiteFromHome(id).then(ok=>{if(ok)toast('Chantier : '+NET.name);else if(state.siteId)siteSel.value=state.siteId;}).catch(err=>{console.warn(err);toast('Chantier non ouvert : '+(err&&err.message||err));if(state.siteId)siteSel.value=state.siteId;});}));}
 {const sp=$('#sitePick');if(sp)sp.addEventListener('click',e=>{e.preventDefault();openSitePicker();});}
+/* 01/11 (Ethan : « le plan d'ensemble, des fois ça ne charge pas toute l'image, ça arrive régulièrement ») : une tuile de la photo aérienne IGN qui échoue (réseau qui
+   patine, serveur saturé) affichait l'icône « image cassée » du navigateur, en grand et flou. Désormais, pour TOUTES les cartes (plan, calage, hydro, stockage, dossier) :
+   la tuile en échec est cachée (pas d'icône) et seule elle est redemandée, 3 fois (après 1,5 s, 4 s, 10 s), puis encore une fois au retour du réseau. Rien d'autre ne change. */
+{const isTile=t=>!!t&&typeof t.getAttribute==='function'&&String(t.tagName||'').toLowerCase()==='image'&&/^https:\/\/data\.geopf\.fr\/wmts\?/.test(t.getAttribute('href')||'');
+  const WAIT=[1500,4000,10000];const lost=new Set();
+  /* la tuile est redemandée par une image à part (son « chargée » est fiable, celui d'une <image> SVG écrite par innerHTML ne l'est pas) ; une fois reçue, la tuile
+     du plan la reprend (même adresse, déjà en mémoire ; le fragment n'est pas envoyé au serveur) et réapparaît */
+  const again=t=>{const n=+(t.dataset.trTry||0);if(n>=WAIT.length){lost.add(t);return;}t.dataset.trTry=String(n+1);
+    setTimeout(()=>{if(!t.isConnected)return;const u=String(t.getAttribute('href')||'').split('#')[0];const im=new Image();
+      im.onload=()=>{if(!t.isConnected)return;t.dataset.trOk='1';t.setAttribute('href',u+'#r'+(n+1));t.style.visibility='';lost.delete(t);};
+      im.onerror=()=>{if(t.isConnected)again(t);};im.src=u;},WAIT[n]);};
+  document.addEventListener('error',e=>{const t=e.target;if(!isTile(t)||(t.dataset.trTry&&!t.dataset.trOk))return;if(t.dataset.trOk){delete t.dataset.trOk;}t.style.visibility='hidden';again(t);},true);
+  addEventListener('online',()=>{[...lost].forEach(t=>{lost.delete(t);if(t.isConnected){t.dataset.trTry=String(WAIT.length-1);again(t);}});});
+  window.__trTiles={lost:()=>lost.size};}
 const wantSite=new URLSearchParams(location.search).get('site');const wantAff=new URLSearchParams(location.search).get('aff');if(wantSite)history.replaceState(null,'',location.pathname);
 const lastSite=localStorage.getItem('trace:lastSite'); // dernier chantier ouvert sur cet appareil (carte « Reprendre » de l'accueil)
 state.siteId=(wantSite&&SITES[wantSite])?wantSite:(lastSite&&SITES[lastSite])?lastSite:Object.keys(SITES)[0];siteSel.value=state.siteId;
