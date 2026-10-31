@@ -24,15 +24,15 @@ export const NOMS={
 };
 export default {
  /* ── 💧 Détection d'humidité (droit « DH : mesures » : soudeurs, manchonneurs, encadrement) ── */
- 'chantier:bouclage':[
-  {sel:'#tabbar [data-tab="bouclage"]',titre:'Détection d\'humidité',texte:'Le suivi des fils de détection (étamé, cuivré), manchon par manchon : la boucle attendue, ta mesure, l\'endroit d\'un défaut. Pour les manchonneurs, les soudeurs et l\'encadrement.'},
-  {sel:'#bl-line',titre:'La ligne et la conduite',texte:'Choisis la ligne, puis Aller ou Retour : chaque conduite a sa propre boucle, calculée depuis le départ.'},
-  {sel:'#dh-rkm',titre:'Les paramètres',texte:'Fil (Ω/km), isolement mini, tolérance, fil monté dans un piquage : mets les valeurs du fournisseur. Hors connexion, ce sont les réglages de ton appareil ; connecté, ceux publiés pour tout SCR.'},
-  {sel:'#bouclage .card:has(#dh-rows)',titre:'La boucle, manchon par manchon',texte:'Fils raccordés en vert, inversion en rouge, à raccorder en gris ; « Ω pont. » = la valeur attendue si on ponte à ce manchon. Touche un manchon pour mesurer depuis lui.'}, /* le bloc entier : à 360 px, le haut du tableau tombe sous la barre d'onglets */
-  {sel:'#dh-mesure',titre:'Mesure en un point',texte:'Touche la carte de la boucle mesurée (vers l\'amont ou vers l\'aval), saisis la boucle (Ω) et l\'isolement (MΩ), puis « Comparer » : vert = conforme, jaune = écart à vérifier.'},
-  {titre:'Enregistrer la mesure',texte:'« 💾 Enregistrer cette mesure » garde la date, les valeurs, le verdict et le bouclage du moment. Les dernières mesures s\'affichent juste en dessous, pour comparer dans le temps.'},
-  {titre:'Bouclage temporaire ⟲',texte:'Dans la fiche d\'une soudure, « ⟲ Bouclage temporaire des fils ici » ferme la boucle à ce manchon (test DH amont). « 📏 DH : mesurer depuis ce manchon » ouvre cet écran dessus.'},
-  {sel:'#loc-from',titre:'Localiser un défaut',texte:'Dis où l\'appareil est branché (« Branché à »), sur quel fil et la distance qu\'il annonce, puis touche « Localiser ». « Voir sur le plan » montre l\'endroit et le trajet du fil.'}
+ 'chantier:bouclage':[ /* 01/11 (Ethan) : plan de bouclage en tête (le prévu), puis le réel ; schéma filaire retiré, liste des manchons repliée */
+  {sel:'#tabbar [data-tab="bouclage"]',titre:'Détection d\'humidité',texte:'En haut, le plan de bouclage : ce qui est prévu. En dessous, le bouclage fait sur le chantier : la boucle réelle, ta mesure, l\'endroit d\'un défaut.'},
+  {sel:'#bpCard',titre:'Le plan de bouclage',texte:'Antennes isolées (I) ou en série (S), coupures du feeder (✂), boîtier de détection (▣) : chaque boucle a sa couleur et sa longueur de fil.'},
+  {sel:'#bpCard .bpModes',titre:'Préparer le plan',texte:'Chef ou bureau : « Tés I / S », « ✂ Couper » à un manchon (on boucle de part et d\'autre), « ▣ Boîtier », puis « ✓ Valider le plan ». Les équipes voient la consigne aux tés.'},
+  {sel:'#bpCard [data-bpmode="at"]',titre:'Je me place',texte:'Touche un manchon ou le boîtier sur le petit plan : l\'appli dit dans quelle boucle tu es et ce que tu dois lire en théorie.'},
+  {sel:'#bl-line',titre:'Le bouclage réel',texte:'Choisis la ligne, puis Aller ou Retour : chaque conduite a sa boucle, calculée depuis le départ. Les paramètres (Ω/km, isolement mini) sont juste en dessous.'},
+  {sel:'#bouclage .card:has(#dh-rows)',titre:'La boucle réelle',texte:'Fermée ou non, raccordés, à faire, inversions. Le détail manchon par manchon est replié : ouvre-le si besoin, un manchon touché sert de point de mesure.'},
+  {sel:'#dh-mesure',titre:'Mesure en un point',texte:'Saisis la boucle (Ω) et l\'isolement (MΩ), puis « Comparer » : vert = conforme, jaune = à vérifier. « 💾 Enregistrer » garde la mesure et le bouclage du moment.'},
+  {sel:'#loc-from',titre:'Localiser un défaut',texte:'Dis où l\'appareil est branché, sur quel fil et la distance annoncée, puis « Localiser ». « Voir sur le plan » montre l\'endroit.'}
  ],
  /* ── 🌊 Hydraulique (droit « Hydro » : chef, bureau) ── */
  'chantier:hydro':[

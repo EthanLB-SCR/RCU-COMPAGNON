@@ -176,8 +176,8 @@ const rec=()=>T(()=>{const t=[...document.querySelectorAll('#tsview table.tsMain
 o={all:await rec()};const row=(R,lab)=>R.rows.find(r=>r[0].startsWith(lab))||[];
 await page.click('#tsview [data-tsrecf="ts"]');await wait(300);o.ts=await rec();await page.click('#tsview [data-tsrecf="compris"]');await wait(300);o.co=await rec();await page.click('#tsview [data-tsrecf="all"]');await wait(300);
 const fTes=o.all.foc.find(x=>/^foc:tes:-1/.test(x));o.fTes=fTes||null;
-if(fTes){await page.click(`#tsview [data-mod="${fTes}"]`);await wait(700);}
-o.focus=await T(()=>({tab:window.TRACE.state.tab,on:window.TRACE.mod.api().FO.on,bar:((document.getElementById('modPickBar')||{}).textContent||'').replace(/\s+/g,' ').slice(0,120),items:document.querySelectorAll('#modPickBar [data-mod^="foc-go:"]').length,red:(document.body.innerHTML.match(/stroke="#d93025"/g)||[]).length}));
+if(fTes){await page.click(`#tsview [data-mod="${fTes}"]`);await wait(700);}await shot('16_focus_tes');
+await page.click('#modPickBar [data-mod="foc-list"]');await wait(200);o.focus=await T(()=>({tab:window.TRACE.state.tab,on:window.TRACE.mod.api().FO.on,bar:((document.getElementById('modPickBar')||{}).textContent||'').replace(/\s+/g,' ').slice(0,120),items:document.querySelectorAll('#modPickBar [data-mod^="foc-go:"]').length,red:(document.body.innerHTML.match(/stroke="#d93025"/g)||[]).length}));
 await page.click('#modPickBar [data-mod="foc-end"]');await wait(300);o.after=await T(()=>({on:window.TRACE.mod.api().FO.on,red:(document.body.innerHTML.match(/stroke="#d93025"/g)||[]).length,bar:getComputedStyle(document.getElementById('modPickBar')).display}));
 console.log('c16) récap TS / compris + voir sur le plan :',J({H:o.all.H,ml:row(o.all,'Linéaire'),coudes:row(o.all,'Coudes'),tes:row(o.all,'Tés'),ts:o.ts.rows.map(r=>r[0]),co:o.co.rows.map(r=>r[0]),chips:o.all.chips,fTes:o.fTes,focus:o.focus,after:o.after}));
 C.c16=o.all.H.includes('dont TS')&&o.all.H.includes('compris')&&o.all.chips.length===3&&/\+229,5/.test(row(o.all,'Linéaire')[4]||'')&&/\+2/.test(row(o.all,'Coudes')[4]||'')&&o.ts.rows.length===2&&o.ts.rows.every(r=>/^(Linéaire|Coudes)/.test(r[0]))&&o.co.rows.length>=1&&!!o.fTes&&o.focus.tab==='plan'&&o.focus.on&&/Retiré : −2 tés/.test(o.focus.bar)&&o.focus.items>=1&&o.focus.red>0&&!o.after.on&&o.after.red===0&&o.after.bar==='none';
@@ -191,6 +191,31 @@ await T(()=>{const X=window.TRACE;X.state.tab='ts';X.renderAll();});await wait(3
 console.log('c17) écarts non déclarés :',J(o));
 const ml=ucR('ml');
 C.c17=!!o.uc&&o.order.uc>o.order.decl&&!!ml&&/−159,5/.test(ml.td[1])&&/DN 100 : −69,5/.test(ml.td[1])&&/DN 65 : −90/.test(ml.td[1])&&/déclaré \+229,5/.test(ml.td[0])&&/écart \+70/.test(ml.td[0])&&!ucR('coudes')&&!!ucR('soud')&&o.form.show&&o.form.mini.some(t=>/soudure/.test(t))&&o.eye.on&&o.eye.tab==='plan';
+/* ── c18 (01/11, Ethan : « je clique soudures, ça me propose de sélectionner sur plan, je fais des tronçons et ça compte tout le tronçon ; coudes, linéaire, pièces, un combo ;
+   après je fais en moins et je sélectionne pareil sur l'ancien plan ») */
+await T(()=>{const X=window.TRACE;X.closeModal&&X.closeModal();X.state.tab='ts';X.renderAll();});await wait(300);await T(()=>window.TRACE.mod.decl({fresh:true}));await wait(300);
+await page.click('#modal [data-mod="dcl-count"]');await wait(250);
+o={keys:await T(()=>[...document.querySelectorAll('#modal [data-mod^="ct-k:"]')].map(b=>b.dataset.mod.split(':')[1]+(b.classList.contains('on')?'*':'')))};
+await page.click('#modal [data-mod="ct-k:coudes"]');await wait(200);await page.click('#modal [data-mod="ct-go"]');await wait(500);
+o.bar=await T(()=>(document.getElementById('modPickBar')||{}).textContent.replace(/\s+/g,' ').slice(0,60));
+const onAx=(P,f)=>{let L=0;const seg=[];for(let i=1;i<P.length;i++){const d=Math.hypot(P[i][0]-P[i-1][0],P[i][1]-P[i-1][1]);seg.push(d);L+=d;}let t=L*f;for(let i=1;i<P.length;i++){if(t<=seg[i-1]||i===P.length-1){const u=seg[i-1]?Math.min(1,t/seg[i-1]):0;return {x:P[i-1][0]+(P[i][0]-P[i-1][0])*u,y:P[i-1][1]+(P[i][1]-P[i-1][1])*u,L};}t-=seg[i-1];}};
+const axes=await T(()=>{const U=window.TRACE.mod.api();return {ap:U.msTest('ap').find(l=>l.id==='L3').P,av:U.msTest('av').find(l=>l.id==='L3').P};});
+const tapAx=async q=>{await center(q);await wait(150);await tapW(q);};
+const n1=onAx(axes.ap,0.02),n2=onAx(axes.ap,0.98);await tapAx(n1);await tapAx(n2);
+o.plus=await T(()=>{const U=window.TRACE.mod.api();return {tr:U.CT.tr.map(t=>t.line+':'+Math.round(t.m0)+'-'+Math.round(t.m1)),rows:U.ctCount().rows.map(r=>r.k+':'+r.dn+':'+r.q),chips:[...document.querySelectorAll('#modPickBar .ctChip')].map(x=>x.textContent)};});
+await page.click('#modPickBar [data-mod="ct-add"]');await wait(400);
+o.form1=await T(()=>[...document.querySelectorAll('#modal .dclMiniT')].map(x=>x.textContent.trim()));
+await page.click('#modal [data-mod="ct-sg:-1"]');await wait(200);await page.click('#modal [data-mod="ct-go"]');await wait(500);
+o.orange=await T(()=>(document.body.innerHTML.match(/stroke="#f08a24"/g)||[]).length);
+const v1=onAx(axes.av,0.02),v2=onAx(axes.av,0.98);await tapAx(v1);await tapAx(v2);
+o.moins=await T(()=>{const U=window.TRACE.mod.api();return {rows:U.ctCount().rows.map(r=>r.k+':'+r.dn+':'+r.q),bar:(document.getElementById('modPickBar')||{}).textContent.replace(/\s+/g,' ').slice(0,40)};});
+await page.click('#modPickBar [data-mod="ct-add"]');await wait(400);
+o.form2=await T(()=>[...document.querySelectorAll('#modal .dclMiniT')].map(x=>x.textContent.trim()));
+await page.click('#modal [data-mod="dcl-cancel"]');await wait(300);
+console.log('c18) compter sur un tronçon :',J(o));
+const mlP=(o.plus.rows.find(r=>r.startsWith('ml:'))||'').split(':');const mlM=(o.moins.rows.find(r=>r.startsWith('ml:'))||'').split(':');
+C.c18=o.keys.includes('ml*')&&o.keys.includes('soud*')&&!o.keys.includes('coudes*')&&/Compter/.test(o.bar)&&/nouveau tracé/.test(o.bar)&&o.plus.tr.length===1&&/^L3:/.test(o.plus.tr[0])&&mlP[1]==='100'&&Math.abs(+mlP[2]-n1.L*0.96)<3&&o.plus.rows.some(r=>/^soud:100:\d+/.test(r))&&o.plus.rows.some(r=>/^coudes:100:2$/.test(r))
+  &&o.form1.some(t=>/^\+[\d,]+ m DN 100/.test(t))&&o.form1.some(t=>/^\+\d+ soudures DN 100/.test(t))&&o.form1.some(t=>/^\+2 coudes DN 100/.test(t))&&o.orange>0&&/ancien tracé/.test(o.moins.bar)&&mlM[1]==='80'&&Math.abs(+mlM[2]-v1.L*0.96)<3&&o.form2.some(t=>/^−[\d,]+ m DN 80/.test(t));
 /* ── c12 : « 🔒 Re-figer » → « C'est mon tracé de base » : les modifs DÉCLARÉES sont gardées (l'ancienne par éléments part, comme avant) */
 await T(()=>{const X=window.TRACE;X.state.tab='ts';X.renderAll();});await wait(300);await page.click('#tsview [data-tsrefreeze]');await wait(300);
 o={modal:await T(()=>document.getElementById('modal').textContent.replace(/\s+/g,' ').slice(0,600))};await page.click('#tsRfBase');await wait(500);
