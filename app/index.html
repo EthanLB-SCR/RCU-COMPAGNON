@@ -203,7 +203,10 @@
   .tbCtx.homeSub{padding:0 12px}.tbCtx.homeSub .t{font-size:15px;font-weight:700;color:var(--nuit);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0}
   .tbCtx.homeSub .s{font-size:12px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:0}
   .tbAvaCtx{margin-left:auto;flex:none;display:flex}.tbAvaCtx:empty{display:none}
-  .tbCtx .brand{flex:1 1 auto;min-width:0}
+  .tbCtx .brand{flex:1 1 auto;min-width:0;position:relative}
+  .sitePick{position:absolute;inset:0;width:100%;height:100%;background:transparent;border:0;padding:0;margin:0;cursor:pointer} /* 01/11 : le nom du chantier ouvre la liste des chantiers ouverts à la personne */
+  .spList{display:flex;flex-direction:column;gap:6px;max-height:60vh;overflow:auto}.spRow{display:block;width:100%;text-align:left;min-height:52px;padding:8px 12px;border:1px solid #E6E1F6;border-radius:12px;background:#fff;cursor:pointer;font:inherit;color:var(--nuit)}
+  .spRow b{display:block;font-size:15px}.spRow small{display:block;color:var(--muted);font-size:12px;margin-top:2px}.spRow.on{border-color:var(--nuit);background:#F4F1FC}.spRow:active{background:#EEE9FA}
   .tbCtx #siteSel{display:block;width:100%;max-width:100%;border:0;background:transparent;padding:6px 18px 6px 2px;font-size:15px;font-weight:700;color:var(--nuit);text-overflow:ellipsis;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%232B1B5A' stroke-width='2'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 2px center}
   .tbCtx #shMeteo{flex:none;font-size:12.5px;background:#fff;border:1px solid #E6E2EF;border-radius:10px;padding:3px 8px;white-space:nowrap;color:var(--nuit)}
   .tbCtx .rolebox{flex:none;margin-left:0}.tbCtx .rolebox select{max-width:118px;text-overflow:ellipsis}
@@ -1365,7 +1368,7 @@ setTimeout(function(){gone('filet')},25000); /* filet : jamais plus de 25 s, mê
     <div class="tbBand"><span class="tbLogo" id="tbSiteLogo"></span><button class="tbMod" id="tbSiteMod" type="button" title="Changer de module"><span class="tbName">Tracé</span><span class="tbModName" id="tbSiteModName">Chantier</span><span class="tbChev" aria-hidden="true">▾</span></button><span class="tbCo" id="tbSiteCo"></span><button class="ava tbAvaPc" id="tbSiteAva" type="button" title="Mon compte" style="display:none">?</button></div>
     <div class="tbCtx">
     <button class="iconbtn" id="btnHome" title="Accueil">⌂</button>
-    <div class="brand"><select id="siteSel" title="Changer de chantier"></select></div><span class="mt" id="shMeteo" style="display:none"></span>
+    <div class="brand"><select id="siteSel" title="Changer de chantier"></select><button type="button" id="sitePick" class="sitePick" aria-label="Changer de chantier" title="Changer de chantier"></button></div><span class="mt" id="shMeteo" style="display:none"></span>
     <div class="rolebox"><select id="roleSel"></select><button class="iconbtn" id="btnWide" style="display:none" title="Affichage large">⤢</button><button class="iconbtn" id="btnHelp" style="display:none" title="Aide">?</button><button type="button" class="tuHelp" id="btnTuto" title="Tutoriel de cet onglet" aria-label="Tutoriel de cet onglet" style="display:none">?</button><button class="iconbtn" id="btnSearch" title="Rechercher une soudure">🔍</button><button class="iconbtn" id="btnMenu" title="Menu">☰</button></div>
   </div>
   </header>

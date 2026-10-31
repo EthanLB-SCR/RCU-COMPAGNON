@@ -180,10 +180,15 @@ function savePlanning(week,patch){const P=PLANNING[week]||(PLANNING[week]={aff:{
 // 13/10 (Ethan : « Sofiane ne peut pas entrer dans le chantier de Nantes alors que je l'ai mis responsable dessus ») : le chef / conducteur désigné dans la FICHE du
 // chantier l'ouvre toujours, planifié ou pas ; et un chef de chantier ouvre aussi les chantiers de sa semaine PROCHAINE (préparer son chantier avant d'y être).
 export function espacePlannedSites(acc){if(!acc||acc.admin||acc.active===false||acc.type==='visiteur')return null;const fam=POSTE_FAM[acc.poste];const chef=acc.poste==='chef';if(!(fam==='terrain'||chef))return null;
-  const key=personKey(acc);const aff=planningAff()[key]||{};const set=new Set();semaineDe(0).concat(semaineDe(-1),chef?semaineDe(1):[]).forEach(d=>(aff[d]||[]).forEach(id=>set.add(id)));
+  const key=personKey(acc);const aff=planningAff()[key]||{};const set=new Set();semaineDe(0).concat(semaineDe(-1),semaineDe(1)).forEach(d=>(aff[d]||[]).forEach(id=>set.add(id))); /* 01/11 (Ethan) : opérateur comme chef de chantier — semaine précédente, en cours ET suivante */
   if(!set.size&&!PL_RULES.strict)return null; /* pas planifié : règle souple = tout voir (inchangé) */
   try{(A.sites()||[]).forEach(c=>{if(c&&key&&(c.chef===key||c.conducteur===key))set.add(c.id);});}catch(e){} /* à son nom dans la fiche du chantier */
   return set; /* règle stricte sans planning : seulement les chantiers à son nom */}
+/* 01/11 (Ethan : « un conducteur, tous les chantiers du secteur ; responsable d'exploitation pareil, tous les chantiers de son secteur ; la direction tous ») :
+   null = pas de filtre (direction, bureau, administrateur, ou secteur inconnu) ; sinon (secteur du chantier, chef, conducteur) → vrai si le chantier lui est ouvert.
+   Un chantier sans secteur reste visible (fiche incomplète : on ne le perd pas) ; un chantier où il est chef / conducteur dans la fiche aussi. */
+export function espaceSecteurFilter(acc){try{if(!acc||acc.admin||acc.active===false)return null;const p=acc.poste;if(p!=='conducteur'&&p!=='resp_exploitation')return null;if(!DATA)DATA=buildData();const key=personKey(acc);const me=DATA.personnes.find(x=>x.id===key);const sec=me?mySecteur(me):'';if(!sec)return null;
+  return (sSec,chef,cond)=>!sSec||sSec===sec||(!!key&&(chef===key||cond===key));}catch(e){return null;}}
 export function espaceRespSites(acc){const key=personKey(acc);const out=new Set();if(!key)return out;try{(A.sites()||[]).forEach(c=>{if(c&&(c.chef===key||c.conducteur===key))out.add(c.id);});}catch(e){}return out;}
 export const espacePlanning=()=>PLANNING;
 export const espaceSavePlanning=(wk,patch)=>savePlanning(wk,patch); /* tests / outillage */
