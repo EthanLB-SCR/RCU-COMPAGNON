@@ -19,7 +19,7 @@ const FEAT_MODULE={commerce:'commerce',parc:'flotte',magasin:'magasin',frais:'af
 // [clé, libellé, groupe, palier par défaut, ce que ça cache]
 export const FEATURES=[
  ['bouclage','Détection d\'humidité','chantier','socle','onglet Détection d\'humidité : mesures, localisation de défaut, bouclages temporaires'],
- ['hydro','Hydraulique','chantier','labo','onglet Hydraulique : essais, hydrants, PV, calendrier'],
+ ['hydro','Hydraulique','chantier','labo','onglet Hydraulique : essais, bornes incendie, procès-verbaux, calendrier'],
  ['stock','Stockage','chantier','labo','onglet Stockage (zones, livraisons, prélèvements) et le catalogue des pièces'],
  ['fourniture','Fournitures','chantier','labo','onglet Fournitures : besoins, commandes fournisseur, comparatif des quantitatifs'],
  ['phasage','Phasage','chantier','labo','onglet Phasage : phases, planning du chantier, marché'],

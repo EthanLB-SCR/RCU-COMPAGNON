@@ -48,7 +48,7 @@ export function rebaseSite(net0,dx,dy){const net=JSON.parse(JSON.stringify(net0|
   if(net.marche&&Array.isArray(net.marche.lines))net.marche.lines.forEach(x=>{if(x&&x.axis)x.axis=PL(x.axis);});
   if(net.stock&&typeof net.stock==='object'){(net.stock.zones||[]).forEach(XY);(net.stock.moves||[]).forEach(m=>{if(!m)return;if(m.from)m.from=P(m.from);if(m.to)m.to=P(m.to);});}
   if(net.conv&&Array.isArray(net.conv.msgs))net.conv.msgs.forEach(m=>{if(m&&m.pos)m.pos=P(m.pos);});
-  if(net.fourniture&&Array.isArray(net.fourniture.zones))net.fourniture.zones.forEach(z=>{if(z&&z.poly)z.poly=PL(z.poly);});
+  if(net.fourniture&&Array.isArray(net.fourniture.zones))net.fourniture.zones.forEach(z=>{if(z&&z.poly)z.poly=PL(z.poly);if(z&&Array.isArray(z.polys))z.polys=z.polys.map(P=>Array.isArray(P)?PL(P):P);}); /* 01/11 : zone en plusieurs parties */
   if(net.hydro&&typeof net.hydro==='object')['water','fills','skids'].forEach(k=>(net.hydro[k]||[]).forEach(XY));
   if(net.ts&&Array.isArray(net.ts.items))net.ts.items.forEach(it=>{if(it&&Array.isArray(it.geo))it.geo=it.geo.map(PL);});
   (net.ann||[]).forEach(a=>{if(a&&a.p)a.p=P(a.p);});

@@ -85,10 +85,14 @@ console.log('4) trame (commande) :',JSON.stringify(out));
 C.c4=out.box&&out.box.open&&out.head===TRAME_COLS.join('\t')&&/emplis la feuille « Trame »/.test(out.consigne)&&out.xlsx&&out.xlsx.name==='Trame import SCR - commande et BL.xlsx'&&out.xlsx.sheet==='Trame'&&out.xlsx.lines===0&&out.xlsx.zip==='PK'
   &&out.read.rows.length===5&&/84 ml → 7 barres/.test(out.read.rows[1])&&/\| 84$/.test(out.read.rows[1])&&/\| 18$/.test(out.read.rows[0])&&/trame SCR/.test(out.read.info||'')&&/ligne 7 : type « Bidule » inconnu/.test(out.read.bad||'')
   &&out.after.b200.cde===18&&out.after.b200.aQual===2&&out.after.b100.cde===7&&out.after.b100.aQual===7&&out.after.m200.aCmd===0;
-// ── 5) écarts au-delà de la commande, comme les TS : Barre DN200 → 1 inclus + 1 en commande complémentaire ; Barre DN100 → 5 inclus puis ↺ ; la commande complémentaire passée
-out={card:await page.evaluate(()=>{const c=document.querySelector('#fourniture details[data-fzui=ecarts]');return c?{open:c.open,rows:[...c.querySelectorAll('.fz-ecart')].map(x=>x.textContent.replace(/\s+/g,' ').trim().slice(0,60))}:null;}),banner:await page.evaluate(()=>(document.querySelector('#fourniture .err')||{}).textContent||'')};
-const qualify=async(label,etat,qty)=>{await page.evaluate(([l,e,qq])=>{const row=[...document.querySelectorAll('#fourniture .fz-ecart')].find(x=>x.textContent.includes(l));if(!row)return;if(qq){const i=row.querySelector('[data-fzq]');i.value=qq;}row.querySelector(`[data-fa=dec][data-v^="${e}|"]`).click();},[label,etat,qty]);await wait(250);};
-await qualify('Barre DN200','inclus',1);await qualify('Barre DN200','compl',null);await qualify('Barre DN100','inclus',5);
+// ── 5) variations par rapport à la commande : Barre DN200 → 1 « fournisseur informé » + 1 en commande complémentaire ; Barre DN100 → 5 informé puis ↺ ; la commande complémentaire passée
+// 01/11 soir (Ethan) : plus de grande liste à classer ligne par ligne — UN menu des variations (en plus / en moins), cochées d'office, quantité réglable,
+//   deux boutons : « 📨 Fournisseur informé » (pas de commande : il livre au besoin, facturé à la pièce livrée) ou « 📦 Commande complémentaire »
+out={card:await page.evaluate(()=>{const c=document.querySelector('#fourniture details[data-fzui=ecarts]');return c?{open:c.open,rows:[...c.querySelectorAll('.fz-var')].map(x=>(x.classList.contains('m')?'−':'+')+(x.querySelector('.lb')||{}).textContent+' '+(((x.querySelector('[data-fzvq]')||{}).value)||(x.querySelector('.n')||{}).textContent.replace(/[^0-9]/g,'')))}:null;}),banner:await page.evaluate(()=>(document.querySelector('#fourniture .err')||{}).textContent||''),
+  want:await page.evaluate(()=>{const X=window.TRACE.fourniture.compute();return X.rows.filter(r=>r.aQual>0).length+X.rows.filter(r=>r.aQualM>0).length;})};
+const qualify=async(label,etat,qty)=>{await page.evaluate(([l,e,qq])=>{document.querySelectorAll('#fourniture .fz-var').forEach(x=>{const cb=x.querySelector('input[data-fzv]');const on=!x.classList.contains('m')&&(x.querySelector('.lb')||{}).textContent===l;if(cb.checked!==on)cb.click();const qi=x.querySelector('[data-fzvq]');if(on&&qi&&qq){qi.value=qq;qi.dispatchEvent(new Event('change',{bubbles:true}));}});
+  document.querySelector(`#fourniture [data-fa=decm][data-v="${e==='compl'?'compl':'info'}"]`).click();},[label,etat,qty]);await wait(300);};
+await qualify('Barre DN200','info',1);await qualify('Barre DN200','compl',null);await qualify('Barre DN100','info',5);
 r=await R();out.q={b200:r.by['Barre DN200'],b100:r.by['Barre DN100'],tot:r.tot};
 out.compl=await page.evaluate(()=>{const c=document.querySelector('#fourniture details[data-fzui=compl]');return c?[...c.querySelectorAll('table.fz-compl tr')].slice(1).map(tr=>tr.textContent.replace(/\s+/g,' ').trim()):null;});
 await page.evaluate(()=>document.querySelector('#fourniture [data-fa=compltr][data-v=copy]').click());await wait(250);out.complClip=await clip();
@@ -98,11 +102,11 @@ r=await R();out.placed={b200:r.by['Barre DN200'],tot:r.tot,cmds:await page.evalu
 await page.evaluate(async()=>{const w=ms=>new Promise(r=>setTimeout(r,ms));const F=window.TRACE.net.fourniture;const d=F.dec.find(x=>x.label==='Barre DN100'&&!x.deleted);document.querySelector('#fourniture details[data-fzdec]').open=true;document.querySelector(`#fourniture [data-fa=decx][data-v="${d.id}"]`).click();await w(250);});
 r=await R();out.reset=r.by['Barre DN100'];out.dec=await page.evaluate(()=>window.TRACE.net.fourniture.dec.map(d=>d.etat+':'+d.qty+(d.deleted?'(retiré)':'')));
 console.log('5) écarts :',JSON.stringify(out));
-C.c5=out.card&&out.card.rows.length===5&&out.card.rows.some(x=>/^Barre DN200 · 2 au-delà de la commande/.test(x))&&/à qualifier/.test(out.banner)
+C.c5=out.card&&out.card.open&&out.card.rows.length===out.want&&out.want>=5&&out.card.rows.includes('+Barre DN200 2')&&out.card.rows.includes('+Barre DN100 7')&&/Variations par rapport à la commande — à traiter/.test(out.banner)
   &&out.q.b200.inclus===1&&out.q.b200.compl===1&&out.q.b200.aQual===0&&out.q.b200.aCmd===1&&out.q.b100.inclus===5&&out.q.b100.aQual===2&&JSON.stringify(out.compl)==='["Barre DN2001"]'
   &&/^Type de pièce\tDN/.test(out.complClip)&&/\r\nBarre\t200\t\t\t12\t1\tu\t\t\tBarre DN200$/.test(out.complClip)&&/📦1/.test(out.cell)&&/✓1 incl\./.test(out.cell)
   &&out.placed.b200.cde===19&&out.placed.b200.compl===0&&out.placed.b200.aCmd===0&&out.placed.b200.inclus===1&&out.placed.cmds.length===2&&/\[compl CC-1\] Barre DN200×1$/.test(out.placed.cmds[1])&&out.placed.tag&&!out.placed.complCard
-  &&out.reset.inclus===0&&out.reset.aQual===7&&out.dec.includes('inclus:5(retiré)');
+  &&out.reset.inclus===0&&out.reset.aQual===7&&out.dec.includes('info:5(retiré)');
 // ── 6) BL de la zone A au format trame : Excel relu par la trame, puis « → Stock » : livraison prévue pré-remplie, rattachée à la zone (comptée « annoncé »)
 await page.evaluate(()=>{const T=window.TRACE;const st=T.net.stock||(T.net.stock={});st.zones=[{id:'Z1',name:'Bord de fouille',x:30,y:70,w:13,h:3,status:'ok'}];st.livs=st.livs||[];st.lots=st.lots||[];st.takes=st.takes||[];st.moves=st.moves||[];T.fourniture.render();});
 r=await R();const zA0=r.zones.find(z=>z.name==='Zone A');

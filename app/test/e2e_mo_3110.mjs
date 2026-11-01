@@ -5,8 +5,8 @@
 //      Magasin = la vue du dépôt sans les puces Flotte / Matériel ; le menu des modules liste les mêmes modules
 //  c2  🧪 Options rangées par module (Tracé Chantier, Pilotage, Affaires, Flotte, Magasin, Compagnon, sans module) ; chaque option une seule fois ; Tutos = option Labo
 //  c3  écran de chargement court (code de la charte) : présent au démarrage, retiré au premier rendu, appli visible, barre d'état repassée en blanc
-//  c4  intro longue : jouée (scène 3D + logo), un toucher la passe sans rien toucher dessous ; 1re ouverture du jour seulement (« auto ») ; compte qui pointe → coupée
-//      dès que l'appli est prête ; sans le toucher, elle dure ≈ 4,9 s puis s'en va
+//  c4  intro longue (01/11 soir : intro A v75, canvas, après le premier rendu) : un toucher la passe sans rien toucher dessous ; 1re ouverture du jour seulement
+//      (« auto ») ; compte qui pointe → pas d'intro ; sans le toucher, elle va au bout (≈ 8 s) puis s'en va sans rien laisser
 //  c5  tutos : 1re arrivée dans Compagnon → guide (cible surlignée, gros boutons) → Suivant… Terminé → ne revient plus ; ❓ le rouvre ; Pilotage → Passer ; toucher à côté
 //      ferme ; menu des modules « ❓ Revoir le tuto » ; 360 px : carte dans l'écran ; sans le drapeau de test, un robot ne voit jamais de tuto
 //  c6  « Tracé » partout : version sur l'écran de connexion, bouton « Se connecter » Nuit, traceur « pas encore dans Tracé », manifest theme_color Nuit ;
@@ -63,14 +63,16 @@ console.log('c3) écran de chargement :',J(o));
 C.c3=o.early.splash&&/tr-short/.test(o.early.cls)&&o.early.boot&&o.early.svg===5&&o.early.word==='Tracé'&&o.early.theme==='#2B1B5A'&&!o.after.splash&&!o.after.boot&&o.after.theme==='#FFFFFF'&&o.after.appVis==='visible'&&o.after.mode&&o.after.mode.mode==='short'&&o.after.mode.ended;
 /* ── c4 : intro longue */
 o={};
-// a) jouée en entier (sans le raccourci « compte qui pointe »), un toucher la passe — et ce toucher ne déclenche rien dessous
-await fresh({'trace:intro:test':'long-full','trace:skipLogin':'1'});await page.reload({waitUntil:'commit'});await wait(900);
-o.a=await page.evaluate(()=>{const s=document.getElementById('tr-splash');return {long:!!s&&s.classList.contains('tr-long'),intro:!!document.getElementById('tr-intro'),scene:document.querySelectorAll('#tr-intro .in-svg').length,face:!!document.querySelector('#tr-intro .in-face2'),skip:!!document.querySelector('#tr-splash .tr-skip'),mode:window.trBoot&&window.trBoot.mode(),day:localStorage.getItem('trace:intro:day'),ended:window.trBoot.ended()};});
+// a) 01/11 soir (identité Tracé, étape 2) : l'intro A v75 (canvas) se joue APRÈS le premier rendu ; un toucher la passe — et ce toucher ne déclenche rien dessous
+const introOn=()=>page.waitForFunction(()=>window.trBoot&&window.trBoot.info().introAt!==null,null,{timeout:20000}).catch(()=>{});
+await fresh({'trace:intro:test':'long-full','trace:skipLogin':'1'});await page.reload({waitUntil:'commit'});
+o.a={early:await page.evaluate(()=>{const s=document.getElementById('tr-splash');return {splash:!!s,cls:s?s.className:'',logo:s?s.querySelectorAll('.tr-outer,.tr-inner').length:0};}).catch(e=>({err:e.message}))};await introOn();await wait(900);
+Object.assign(o.a,await page.evaluate(()=>{const s=document.getElementById('tr-splash');return {long:!!s&&s.classList.contains('tr-long'),intro:!!document.querySelector('#tr-splash .tr-intro canvas'),ver:window.TraceIntro&&window.TraceIntro.version,skip:!!document.querySelector('#tr-splash .tr-skip'),mode:window.trBoot&&window.trBoot.mode(),day:localStorage.getItem('trace:intro:day'),ended:window.trBoot.ended(),info:window.trBoot.info()};}));
 await page.evaluate(()=>{window.__clk=0;document.addEventListener('click',()=>{window.__clk++;},false);});
-await page.mouse.click(195,600);await wait(450);o.a.afterTap={splash:!!(await page.$('#tr-splash')),clk:await page.evaluate(()=>window.__clk),info:await page.evaluate(()=>window.trBoot.info())};
-if(SHOTS){await fresh({'trace:intro:test':'long-full','trace:skipLogin':'1'});await page.reload({waitUntil:'commit'});await wait(1500);await page.screenshot({path:SHOTS+'/mo_intro_390_a.png'});await wait(1500);await page.screenshot({path:SHOTS+'/mo_intro_390_b.png'});await wait(1500);await page.screenshot({path:SHOTS+'/mo_intro_390_c.png'});await page.waitForFunction(()=>window.trBoot&&window.trBoot.ended(),null,{timeout:15000}).catch(()=>{});}
-// b) sans toucher : elle s'en va seule vers 4,9 s
-await fresh({'trace:intro:test':'long-full','trace:skipLogin':'1'});const t0=Date.now();await page.reload({waitUntil:'commit'});await page.waitForFunction(()=>window.trBoot&&window.trBoot.ended(),null,{timeout:15000}).catch(()=>{});o.b={ms:Date.now()-t0,info:await page.evaluate(()=>window.trBoot.info())};
+await page.mouse.click(195,600);await wait(450);o.a.afterTap={splash:!!(await page.$('#tr-splash')),host:!!(await page.$('.tr-intro')),clk:await page.evaluate(()=>window.__clk),info:await page.evaluate(()=>window.trBoot.info())};
+// b) sans toucher : l'intro va au bout (≈ 8 s à ×1,4) puis s'en va seule, sans rien laisser
+await fresh({'trace:intro:test':'long-full','trace:skipLogin':'1'});const t0=Date.now();await page.reload({waitUntil:'commit'});await page.waitForFunction(()=>window.trBoot&&window.trBoot.ended(),null,{timeout:40000}).catch(()=>{});await wait(400);
+o.b={ms:Date.now()-t0,info:await page.evaluate(()=>window.trBoot.info()),left:await page.evaluate(()=>!!document.getElementById('tr-splash')||!!document.querySelector('.tr-intro'))};
 // c) compte qui pointe (personnage de démo au démarrage : Karim, soudeur) → coupée dès que l'appli est prête
 await fresh({'trace:intro:test':'long','trace:skipLogin':'1'});const t1=Date.now();await page.reload({waitUntil:'commit'});await page.waitForFunction(()=>window.trBoot&&window.trBoot.ended(),null,{timeout:15000}).catch(()=>{});o.c={ms:Date.now()-t1,user:await page.evaluate(()=>window.TRACE.state.userId),info:await page.evaluate(()=>window.trBoot.info())};
 // d) règle du jour (« auto ») : 1re ouverture → longue (et le jour est noté) ; ouverture suivante → courte
@@ -81,8 +83,9 @@ await page.waitForFunction(()=>window.trBoot&&window.trBoot.ended(),null,{timeou
 await fresh({'trace:skipLogin':'1'});await page.reload({waitUntil:'commit'});o.e=await page.evaluate(()=>({splash:!!document.getElementById('tr-splash'),mode:window.trBoot&&window.trBoot.mode(),boot:document.documentElement.classList.contains('trBoot')}));
 console.log('c4) intro longue :',J(o));
 const today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Paris'}).format(new Date());
-C.c4=o.a.long&&o.a.intro&&o.a.scene===6 /* plan des rues + 5 couches du réseau */&&o.a.face&&o.a.skip&&o.a.mode==='long'&&o.a.day===today&&!o.a.ended&&!o.a.afterTap.splash&&o.a.afterTap.info.why==='toucher'&&o.a.afterTap.clk===0
-  &&o.b.info.why==='fin'&&o.b.info.endAt>=4800 /* ≈ 4,9 s, ou plus si l'appli est lente à démarrer */&&o.c.user==='karim'&&(o.c.info.why==='pointe'||(o.c.info.why==='fin'&&o.c.info.readyAt>=4800)) /* coupée dès que l'appli est prête */&&o.d.first==='long'&&o.d.day===today&&o.d.second==='short'&&!o.e.splash&&o.e.mode==='off'&&!o.e.boot;
+C.c4=o.a.early.splash&&o.a.early.logo===2 /* pendant le chargement : l'écran court (logo) */&&o.a.long&&o.a.intro&&o.a.ver==='A-v75'&&o.a.skip&&o.a.mode==='long'&&o.a.day===today&&!o.a.ended&&o.a.info.introAt>=o.a.info.readyAt /* jamais avant le premier rendu */
+  &&!o.a.afterTap.splash&&!o.a.afterTap.host&&o.a.afterTap.info.why==='toucher'&&o.a.afterTap.clk===0
+  &&o.b.info.why==='fin'&&o.b.info.endAt-o.b.info.introAt>=6000&&!o.b.left&&o.c.user==='karim'&&o.c.info.why==='pointe'&&o.c.info.introAt===null /* compte qui pointe : pas d'intro */&&o.d.first==='long'&&o.d.day===today&&o.d.second==='short'&&!o.e.splash&&o.e.mode==='off'&&!o.e.boot;
 await page.waitForTimeout(300);await skipLogin();
 /* ── c5 : tutos */
 o={};

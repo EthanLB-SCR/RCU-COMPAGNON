@@ -1,7 +1,8 @@
 // hydro.js — onglet Hydraulique : sectorisation en tronçons, linéaires, volumes, extrémités (by-pass / kits fin de ligne)
 // Module pur (aucune dépendance, aucun accès DOM) : testé en node (test/hydro_test.mjs).
 // Entrées normalisées par l'appli :
-//   lines : [{id,name,length,nCond,els:[{id,kind,dn,m0,m1,len}],parent,parentM,startKind,endKind,endWelds:[{weldId,status,cond}]}]
+//   lines : [{id,name,length,nCond,els:[{id,kind,dn,m0,m1,len}],parent,parentM,startKind,endKind,endFam,endLab,endWelds:[{weldId,status,cond}]}]
+//   endFam : 'sst' (sous-station, chaufferie : vannes + by-pass) | 'bout' (fin de ligne, raccordement) — type d'extrémité du traceur ; endLab : son libellé
 //   opts  : {prest:{epreuve,rincage,passivation,remplissage}, params:{vitesse,debit,skidW,skidL}, cuts:[{line,m}], fillAt:{line,m}|null}
 
 export const DN_INT={20:.0217,25:.0285,32:.0372,40:.0431,50:.0545,65:.0703,80:.0825,100:.1071,125:.1325,150:.1603,200:.2101,250:.263,300:.3127,350:.3444,400:.3938}; // Ø intérieur (m) — tubes P235GH réseaux de chaleur
@@ -42,16 +43,19 @@ export function buildHydro(lines,{prest={},params={},cuts=[],fills=null,fillAt=n
       // extrémités du tronçon : départs de racine, bouts de ligne, côtés de coupe
       const ends=[];
       ss.forEach(s=>{const l=byId[s.line];
-        if(s.m0<=1e-6){if(!l.parent||!byId[l.parent]){const alr=l.startKind==='endpoint'?'racc':null;ends.push({line:s.line,m:0,type:'start',label:alr?'raccordement ('+(l.name||l.id)+')':'départ '+(l.name||l.id),already:alr,welded:null});}} // raccordement = piquage sur le réseau existant / la chaufferie — PAS une sous-station
+        if(s.m0<=1e-6){if(!l.parent||!byId[l.parent]){const sst0=l.startFam==='sst';const alr=sst0?'sst':l.startKind==='endpoint'?'racc':null;ends.push({line:s.line,m:0,type:'start',label:sst0?(l.startLab||'Sous-station')+' ('+(l.name||l.id)+')':alr?(l.startLab||'raccordement')+' ('+(l.name||l.id)+')':'départ '+(l.name||l.id),already:alr,welded:null});}} // raccordement = piquage sur le réseau existant — PAS une sous-station ; 01/11 soir : une ligne tracée DEPUIS sa sous-station (type de départ « sous-station » ou « chaufferie ») = vannes + by-pass
         else ends.push({line:s.line,m:s.m0,type:'cut',cut:s.cut0.idx,label:s.cut0.valve?'vanne '+s.cut0.valve:'coupe '+(s.cut0.idx+1),valve:!!s.cut0.valve,already:null,welded:null});
-        if(s.m1>=l.length-1e-6){const alr=l.endKind==='bypass'?'bp':l.endKind==='endpoint'?'sst':null; // sst = sous-station de bâtiment au bout de l'antenne (bouclée chez elle)
+        if(s.m1>=l.length-1e-6){const sst=l.endFam==='sst'||(!l.endFam&&l.endKind==='endpoint'); /* 01/11 soir : le TYPE d'extrémité du traceur décide (sous-station / chaufferie ≠ raccordement sur existant ≠ fin de ligne) */
+          const alr=l.endKind==='bypass'?'bp':sst?'sst':l.endKind==='endpoint'?'racc':null;const nm=l.name||l.id;
           const w=(l.endWelds||[]).filter(x=>WELDED(x.status));
-          ends.push({line:s.line,m:l.length,type:'tip',label:alr==='sst'?'SST ('+(l.name||l.id)+')':'bout '+(l.name||l.id),already:alr,endcap:l.endKind==='endcap',welded:l.endKind==='endcap'&&w.length?w:null});}
+          ends.push({line:s.line,m:l.length,type:'tip',label:sst?(l.endLab||'Sous-station')+' ('+nm+')':l.endLab?l.endLab+' ('+nm+')':'bout '+nm,already:alr,endcap:l.endKind==='endcap',welded:l.endKind==='endcap'&&w.length?w:null});}
         else ends.push({line:s.line,m:s.m1,type:'cut',cut:s.cut1.idx,label:s.cut1.valve?'vanne '+s.cut1.valve:'coupe '+(s.cut1.idx+1),valve:!!s.cut1.valve,already:null,welded:null});});
       const myFills=fillSegs.filter(x=>ss.includes(x.seg));const hasFill=myFills.length>0;
       ends.forEach(en=>{const l=byId[en.line];const single=(l.nCond||2)<2;
         if(myFills.some(x=>en.line===x.f.line&&Math.abs(en.m-(+x.f.m||0))<=12)){en.need='none';en.fill=true;return;} // le skid branché là boucle cette extrémité
         if(en.already==='bp'){en.need='none';return;} // un by-pass déjà posé au bout : bouclé
+        if(en.already==='sst'){en.need='SST';return;} /* 01/11 soir (Ethan : « si on fait l'épreuve et que l'onglet affiche fin de ligne alors que dans les faits c'est une sous-station avec des vannes et by-pass : super important ») :
+           une sous-station n'est JAMAIS un kit fin de ligne — épreuve : isolée par ses vannes ; circulation : par son by-pass (jamais à travers l'échangeur) */
         // 'sst' : en sous-station aussi il faut poser le by-pass (on ne boucle pas à travers l'échangeur) — précision Ethan 20/08
         // 'racc' (raccordement au réseau existant) : PAS encore soudé pendant l'épreuve → extrémité ouverte, à boucher (épreuve) ou à boucler (circulation)
         if(en.type==='cut'&&en.valve){en.need='none';return;} // coupe sur vanne : elle reste fermée
@@ -70,7 +74,7 @@ export function buildHydro(lines,{prest={},params={},cuts=[],fills=null,fillAt=n
   const alerts=[];troncons.forEach(t=>t.ends.forEach(en=>{if(en.need==='BP'&&en.welded)alerts.push({t:t.idx,line:en.line,welds:en.welded.map(w=>w.weldId),label:en.label});}));
   const count=k=>troncons.reduce((s,t)=>s+t.ends.filter(e=>e.need===k).length,0);
   return {flow,prest,params:P,cuts:cl,troncons,alerts,
-    totals:{lenA:troncons.reduce((s,t)=>s+t.lenA,0),vol:troncons.reduce((s,t)=>s+t.vol,0),nBP:count('BP'),nKFL:count('KFL'),nEvac:count('EVAC'),nAlert:alerts.length,noFill:troncons.filter(t=>t.needFill).length}};
+    totals:{lenA:troncons.reduce((s,t)=>s+t.lenA,0),vol:troncons.reduce((s,t)=>s+t.vol,0),nBP:count('BP'),nKFL:count('KFL'),nEvac:count('EVAC'),nSST:count('SST'),nAlert:alerts.length,noFill:troncons.filter(t=>t.needFill).length}};
 }
 // opérations du calendrier prévisionnel (pastilles posées librement, répétables, dans l'ordre voulu)
 export const CAL_OPS={brut:{label:'Remplissage eau brute',short:'Eau brute',color:'#7d94b8',ico:'💧'},epreuve:{label:'Épreuve hydraulique',short:'Épreuve',color:'#eb6834',ico:'🧪'},rincage:{label:'Rinçage dynamique',short:'Rinçage',color:'#1c6fd6',ico:'🌊'},vidange:{label:'Vidange eau brute',short:'Vidange',color:'#8f8d86',ico:'🕳'},adoucie:{label:'Remplissage eau adoucie',short:'Eau adoucie',color:'#0ca30c',ico:'🚰'},passivation:{label:'Passivation',short:'Passivation',color:'#8a2be2',ico:'⚗️'},autre:{label:'Autre opération',short:'Autre',color:'#b8860b',ico:'📌'}};

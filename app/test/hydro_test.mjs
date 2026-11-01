@@ -77,13 +77,18 @@ H=buildHydro([S],{prest:{rincage:true}});
 ok(near(H.troncons[0].vol,areaDN(80)*100,.01),'volume ×1 en mono-conduite');
 ok(H.troncons[0].ends.every(e=>e.need==='EVAC'),'rinçage mono-tube : évacuation libre');
 
-console.log('— bout en sous-station (SST ≠ raccordement ; BP à poser en SST aussi) —');
+console.log('— bout en sous-station (01/11 soir : une sous-station n\'est jamais un kit fin de ligne — vannes + by-pass) —');
 const B={id:'B',name:'Antenne B',length:50,nCond:2,parent:null,parentM:0,startKind:'pipe',endKind:'endpoint',endWelds:[],els:[pipe(0,50,50)]};
 H=buildHydro([B],{prest:{rincage:true}});
 const eB=H.troncons[0].ends.find(e=>e.type==='tip');
-ok(eB.already==='sst'&&eB.need==='BP'&&/SST/.test(eB.label),'SST + circulation : BP à poser en sous-station (pas à travers l\'échangeur)');
+ok(eB.already==='sst'&&eB.need==='SST'&&/Sous-station/.test(eB.label)&&H.totals.nSST===1&&H.totals.nBP===1 /* le départ seul */,'SST + circulation : par le by-pass de la sous-station (pas un by-pass « à poser » générique)');
 H=buildHydro([B],{prest:{epreuve:true}});
-ok(H.troncons[0].ends.find(e=>e.type==='tip').need==='KFL','SST + épreuve seule : bouchon');
+ok(H.troncons[0].ends.find(e=>e.type==='tip').need==='SST'&&H.totals.nKFL===1 /* le départ seul */,'SST + épreuve seule : vannes de la sous-station, PAS un kit fin de ligne');
+const B2=Object.assign({},B,{id:'B2',endFam:'sst',endLab:'Chaufferie'});H=buildHydro([B2],{prest:{epreuve:true}});
+ok(/^Chaufferie/.test(H.troncons[0].ends.find(e=>e.type==='tip').label),'libellé du type d\'extrémité (chaufferie)');
+const R={id:'R',name:'Antenne R',length:40,nCond:2,parent:null,parentM:0,startKind:'pipe',endKind:'endpoint',endFam:'bout',endLab:'Raccordement sur existant (PEC)',endWelds:[],els:[pipe(0,40,50)]};
+H=buildHydro([R],{prest:{epreuve:true}});const eR=H.troncons[0].ends.find(e=>e.type==='tip');
+ok(eR.already==='racc'&&eR.need==='KFL'&&/PEC/.test(eR.label),'raccordement sur existant (pas une sous-station) : extrémité ouverte à boucher pour l\'épreuve');
 
 console.log('— coupes invalides ignorées —');
 H=buildHydro(LINES,{prest:{epreuve:true},cuts:[{line:'ZZ',m:10},{line:'P',m:0.2},{line:'P',m:299.9}]});
