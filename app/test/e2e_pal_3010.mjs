@@ -7,7 +7,7 @@
 //      « ＋ Poser » sans Modifs, calques sans Modifications / Écarts, accueil sans Commerce ni Parc, Moi sans Notes de frais, Sécurité sans « Déclarer un accident »
 //  c4  Ethan passé Labo (bouton de sa fiche) : tout revient ; option personnelle « Hydro en moins » : Hydro seul disparaît ; « suivant palier » : revient
 //  c5  une option passée au Socle (Phasage) : visible pour une personne Socle (Karim via « voir comme ») ; Karim ne voit pas Hydro ; Planning passé Labo : Ethan (Socle) perd
-//      « Planning des équipes » (Équipes & heures) et le sous-onglet Planning de Moi, garde Production ; retour ; Ethan éteint les paliers : tout revient
+//      « Planning de la semaine » (Équipes & heures) et le sous-onglet Planning de Moi, garde Production ; retour ; Ethan éteint les paliers : tout revient
 //  c6  console propre
 import { chromium } from 'playwright';
 const BASE=process.env.BASE||'http://localhost:8765';
@@ -68,15 +68,15 @@ await page.evaluate(()=>{const b=document.querySelector('[data-admfeat="phasage:
 o={phas:await page.evaluate(()=>(document.querySelector('[data-admfeat="phasage:socle"]')||{}).className||'')};
 await asUser('karim');await openSite();o.karim=await siteTabs();o.karimFeat=await page.evaluate(()=>({phasage:window.TRACE.paliers.feat('phasage'),hydro:window.TRACE.paliers.feat('hydro'),conv:window.TRACE.paliers.feat('conv')}));
 await asUser('ethan');await page.evaluate(()=>{window.TRACE.showScreen('home');document.getElementById('htAdmin').click();});await wait(500);await page.evaluate(()=>{const b=[...document.querySelectorAll('#homeBody .admNav button')].find(x=>/Options/.test(x.textContent));b.click();});await wait(400); /* 31/10 : Réglages ne se peint plus derrière un autre écran (acces.js, lot co) — on revient à l'accueil depuis le chantier, comme la personne */
-/* c5b : Planning (Socle) → Labo : Ethan (Socle) perd « Planning des équipes » dans Équipes & heures et « Voir ta semaine » dans Moi ; Production reste ; retour au Socle */
+/* c5b : Planning (Socle) → Labo : Ethan (Socle) perd « Planning de la semaine » (planning unique, 01/11 soir) dans Équipes & heures et « Voir ta semaine » dans Moi ; Production reste ; retour au Socle */
 const hub=async()=>{await page.evaluate(()=>document.getElementById('htSites').click());await wait(250);await page.evaluate(()=>document.getElementById('htEq').click());await wait(500);return page.evaluate(()=>document.getElementById('eq-app').textContent);};
 const moi=async()=>{await page.evaluate(()=>document.getElementById('htEspace').click());await wait(500);return page.evaluate(()=>({txt:document.getElementById('eq-app').textContent,subs:[...document.querySelectorAll('#eq-app .eq-subs [data-act=sub]')].map(b=>b.dataset.v)}));};
-let h=await hub(),m=await moi();o.before={plan:/Planning des équipes/.test(h),prod:/Production par équipe/.test(h),subs:m.subs};
+let h=await hub(),m=await moi();o.before={plan:/Planning de la semaine/.test(h),prod:/Production par équipe/.test(h),subs:m.subs};
 await page.evaluate(()=>document.getElementById('htAdmin').click());await wait(500);await page.evaluate(()=>{const b=[...document.querySelectorAll('#homeBody .admNav button')].find(x=>/Options/.test(x.textContent));b.click();});await wait(400);
 await page.evaluate(()=>{document.querySelector('[data-admfeat="planning:labo"]').click();});await wait(400);
-h=await hub();m=await moi();o.planLabo={plan:/Planning des équipes/.test(h),prod:/Production par équipe/.test(h),subs:m.subs,mutu:await page.evaluate(()=>window.TRACE.paliers.feat('mutu'))};
+h=await hub();m=await moi();o.planLabo={plan:/Planning de la semaine/.test(h),prod:/Production par équipe/.test(h),subs:m.subs,mutu:await page.evaluate(()=>window.TRACE.paliers.feat('mutu'))};
 await page.evaluate(()=>document.getElementById('htAdmin').click());await wait(500);await page.evaluate(()=>{const b=[...document.querySelectorAll('#homeBody .admNav button')].find(x=>/Options/.test(x.textContent));b.click();});await wait(400);
-await page.evaluate(()=>{document.querySelector('[data-admfeat="planning:socle"]').click();});await wait(400);o.planBack=/Planning des équipes/.test(await hub());
+await page.evaluate(()=>{document.querySelector('[data-admfeat="planning:socle"]').click();});await wait(400);o.planBack=/Planning de la semaine/.test(await hub());
 await page.evaluate(()=>document.getElementById('htAdmin').click());await wait(500);await page.evaluate(()=>{const b=[...document.querySelectorAll('#homeBody .admNav button')].find(x=>/Options/.test(x.textContent));b.click();});await wait(400);
 await page.evaluate(()=>{const t=document.getElementById('admPalOn');t.checked=false;t.dispatchEvent(new Event('change',{bubbles:true}));});await wait(500);
 o.off=await page.evaluate(()=>window.TRACE.paliers.on());await asUser('karim');o.karimOff=await page.evaluate(()=>({hydro:window.TRACE.paliers.feat('hydro'),commerce:window.TRACE.paliers.feat('commerce')}));

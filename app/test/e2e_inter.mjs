@@ -131,8 +131,8 @@ C.c1_pointage=out.card0&&out.srv&&out.srv.ev==='start,pause,resume,end'&&out.srv
 await tapAct(Cp.page,'sub','planning',500);
 const tile=pg=>pg.evaluate(d=>{const t=document.querySelector(`#eq-app [data-act=planjour][data-v="${d}"]`);return t?t.textContent.replace(/\s+/g,' ').trim():null;},TOMORROW);
 out={avant:await tile(Cp.page)};
-await home(Co.page,'htEq');await hubRow(Co.page,/Planning des équipes/);
-await tapAct(Co.page,'plsel',COMP.email,400);await tapAct(Co.page,'plput','SRV_B',800);await W(Co.page,1200);
+await home(Co.page,'htEq');await hubRow(Co.page,/Planning de la semaine/); /* 01/11 soir : planning unique — Bruno → Beta → Placer (ses jours libres) */
+await tapAct(Co.page,'pi','who|'+COMP.email,400);await tapAct(Co.page,'pi','site|SRV_B',400);await tapAct(Co.page,'pi','ok|',800);await W(Co.page,1200);
 out.srv=((PLAN[WEEK].data.aff[COMP.email])||{})[TOMORROW];out.toast=await Co.page.evaluate(()=>(document.getElementById('toast')||{}).textContent||'');
 out.apres=await until(Cp.page,d=>{const t=document.querySelector(`#eq-app [data-act=planjour][data-v="${d}"]`);const s=t?t.textContent.replace(/\s+/g,' ').trim():'';return /Beta/.test(s)?s:null;},TOMORROW);
 out.today=await Cp.page.evaluate(d=>{const t=document.querySelector(`#eq-app [data-act=planjour][data-v="${d}"]`);return t?t.textContent.replace(/\s+/g,' ').trim():'';},TODAY);

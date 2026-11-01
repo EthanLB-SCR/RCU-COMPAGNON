@@ -5,7 +5,7 @@
 //
 // Lot PL (31/10) : modules PILOTAGE et AFFAIRE. Clés lues dans l'appli (TRACE.tuto.where(), espace.js → espaceViewKey) :
 //   pilotage          hub (Planning & objectifs · Heures & paie · Matériel & véhicules · Sécurité)
-//   pilotage:plan     Planning de la semaine (simplifié)          pilotage:orga   Planning des équipes (détaillé) — chef de chantier : « Mon planning et mon équipe »
+//   pilotage:plan     Planning de la semaine (planning unique, 01/11 soir)          pilotage:orga   chef de chantier : « Mon planning et mon équipe » (l'encadrement arrive sur le planning unique)
 //   pilotage:obj      Objectifs des équipes                       pilotage:agenda Ma semaine
 //   pilotage:valid    Pointages à valider                         pilotage:prodEq Production par équipe
 //   pilotage:rapport  Variables de paie · rapport RH              pilotage:gd     Grands déplacements
@@ -42,12 +42,10 @@ export default {
  /* ═══ PILOTAGE — vue d'ensemble : une étape par ligne du hub ═══ */
  pilotage:[
   {titre:"Pilotage",texte:"Le suivi des équipes : planning, objectifs, heures, production, matériel et sécurité. Chaque ligne ouvre une option, avec son tutoriel (« ? » à droite du titre)."},
-  {sel:L('plan'),titre:"Planning de la semaine",texte:"Qui est où chaque jour : place une personne en 3 touchers, copie la semaine dernière. Chacun voit « Demain : chantier » dans Compagnon.",si:ligne('pilotage',L('plan'),a=>opt(a,'planning')&&opt(a,'planning_simple')&&peut(a,'planning.edit'))},
+  {sel:L('plan'),titre:"Planning de la semaine",texte:"Le planning, en un seul écran : cherche quelqu'un par son nom, place-le en 3 touchers, copie la semaine dernière. Chacun voit « Demain : chantier » dans Compagnon.",si:ligne('pilotage',L('plan'),a=>opt(a,'planning')&&peut(a,'planning.edit'))},
   {sel:L('orga'),titre:"Mon planning et mon équipe",texte:"Qui est avec toi, quels jours, sur quels chantiers : le planning que ton conducteur a fait.",si:a=>sans(a,'planning.edit')&&(ici(a,'pilotage')?vu(L('orga')):opt(a,'planning'))},
-  {sel:L('orga'),titre:"Planning des équipes",texte:"Place les équipes semaine par semaine, par secteur, en équipes A, B… ; crée le profil d'une nouvelle personne en deux minutes.",si:a=>peut(a,'planning.edit')&&!opt(a,'planning_simple')&&(ici(a,'pilotage')?vu(L('orga')):opt(a,'planning'))},
   {sel:L('obj'),titre:"Objectifs des équipes",texte:"Par chantier, équipe et jour : une mission et ses heures estimées, posée sur le plan si tu veux. Un repère, pas un plafond.",si:ligne('pilotage',L('obj'),a=>opt(a,'objectifs'))},
   {sel:L('agenda'),titre:"Ma semaine",texte:"Compose ta semaine (visites, réunions, rendez-vous), reliée à Outlook, et regarde celle de ceux qui dépendent de toi.",si:ligne('pilotage',L('agenda'))},
-  {sel:'#eq-app [data-det="hubPlMore"] > summary',titre:"⚙ Plus d'options : planning détaillé",texte:"Le planning d'avant, pour les cas fins : secteurs, équipes A à J, glisser-déposer, fiche du chantier.",si:ligne('pilotage','#eq-app [data-det="hubPlMore"]',a=>opt(a,'planning')&&opt(a,'planning_simple')&&peut(a,'planning.edit'))},
   {sel:L('valid'),titre:"Pointages à valider",texte:"Les heures de l'équipe : le chef de chantier valide, puis le conducteur. Une erreur se corrige avec un motif ; les pointages manquants sont signalés.",si:ligne('pilotage',L('valid'))},
   {sel:L('prodEq'),titre:"Production par équipe",texte:"Les heures et la production de chacun (soudures, manchons), additionnées par équipe et comparées aux objectifs.",si:ligne('pilotage',L('prodEq'),a=>opt(a,'production'))},
   {sel:L('rapport'),titre:"Variables de paie · rapport RH",texte:"Les heures telles qu'elles partent en paie : définitives, validées chef, à valider, grands déplacements. Export CSV pour la RH.",si:ligne('pilotage',L('rapport'),a=>peut(a,'pointage.validate')&&(peut(a,'planning.edit')||peut(a,'rh.voir')))},
@@ -63,29 +61,20 @@ export default {
   {sel:L('habsEq'),titre:"Habilitations de l'équipe",texte:"Les échéances de l'équipe triées par urgence : expirées, à renouveler bientôt, manquantes.",si:ligne('pilotage',L('habsEq'))}
  ],
 
- /* ═══ Planning de la semaine (simplifié, lot PI) — encadrement qui fait le planning ═══ */
+ /* ═══ Planning de la semaine — 01/11 soir : le planning UNIQUE (l'écran en 3 touchers + les options du détaillé) — encadrement qui fait le planning ═══ */
  'pilotage:plan':[
-  {sel:'#eq-app .pi-sum',titre:"Où en est la semaine",texte:"Combien de personnes sont placées toute la semaine, et les jours encore à pourvoir (en rouge). Les jours fériés sont signalés."},
-  {sel:'#eq-app .eq-wknav',titre:"Change de semaine",texte:"Touche ‹ ou ›, ou glisse le bandeau des jours ; les points sous un jour comptent les personnes placées. Le menu des secteurs filtre l'écran."},
+  {sel:'#eq-app #pi-q',titre:"🔍 Chercher quelqu'un",texte:"Tape un nom, un poste ou une agence : seules ses lignes restent, sur les chantiers et dans « À placer ». Les accents ne comptent pas."},
+  {sel:'#eq-app .eq-wknav',titre:"Change de semaine",texte:"Touche ‹ ou ›, ou glisse le bandeau des jours. Sous les boutons : combien sont placés toute la semaine et les jours à pourvoir (en rouge)."},
   {sel:'#eq-app [data-act="pi"][data-v="open|"]',titre:"＋ Placer, en 3 touchers",texte:"1 qui, 2 sur quel chantier, 3 quels jours (ses jours libres sont cochés), l'équipe si tu veux, puis « Placer ». La personne voit « Demain : chantier » dans Compagnon."},
   {sel:'#eq-app [data-act="pi"][data-v="copy|"]',titre:"Copier la semaine dernière",texte:"Reprend la semaine passée des personnes pas encore placées : mêmes chantiers, mêmes équipes, fériés sautés."},
-  {sel:'#eq-app .pi-bar [data-act="xgo"][data-v="orga"]',titre:"⚙ Plus d'options",texte:"Le planning détaillé : secteurs, équipes A à J, glisser-déposer, nouvelle personne, fiche du chantier, météo."},
-  {sel:'#eq-app .pi-tray',titre:"À placer",texte:"Les personnes qui ont encore des jours libres, les plus libres d'abord. Touche une personne (ou 👥 une équipe de la semaine passée), puis le chantier."},
-  {sel:'#eq-app .pi-site:not(details *) [data-act="pi"][data-v^="edit|"], #eq-app .pi-site:not(details *) [data-act="pi"][data-v^="here|"]',titre:"Modifier une personne",texte:"Touche sa ligne sur la carte du chantier : change ses jours ou son équipe, ou « Retirer de ce chantier ». « ＋ Placer quelqu'un ici » part du chantier."},
-  {sel:'#eq-app .pi-leg',titre:"Les repères",texte:"● sur ce chantier · « Abc » sur un autre chantier · ⚠ deux chantiers le même jour · F férié · — hors contrat."}
+  {sel:'#eq-app [data-act="plnew"], #eq-app #pl-new',titre:"＋ Nouvelle personne",texte:"Un intérimaire, une embauche : nom, poste, e-mail. Elle se place tout de suite ; avec son e-mail, son accès est créé."},
+  {sel:'#eq-app .pi-trayc',titre:"À placer",texte:"Ceux qui ont encore des jours libres, filtrés par métier si tu veux. Touche une personne (ou 👥 une équipe), puis le chantier ; sur PC, glisse-la sur la carte."},
+  {sel:'#eq-app .pi-sites > .pi-site .eq-plfd > summary',titre:"⚙ La fiche du chantier",texte:"Sous le nom : secteur, chef, conducteur, horaires et point de rassemblement. Ils servent à l'accueil chantier et aux pointages."},
+  {sel:'#eq-app .pi-sites > .pi-site [data-act="pi"][data-v^="edit|"], #eq-app .pi-sites > .pi-site [data-act="pi"][data-v^="here|"]',titre:"Modifier une personne",texte:"Touche sa ligne sur la carte du chantier : ses jours, son équipe, son secteur, ou « Retirer de ce chantier ». « ＋ Placer quelqu'un ici » part du chantier."}
  ],
 
  /* ═══ Planning des équipes (détaillé) — ou, pour un chef de chantier, « Mon planning et mon équipe » (écran « Ta semaine ») ═══ */
  'pilotage:orga':[
-  {sel:'#eq-app .pi-bar [data-act="xgo"][data-v="plan"]',titre:"Le planning détaillé",texte:"Pour les placements fins : secteurs, équipes A à J, glisser-déposer, fiche du chantier. « ↩ Planning simplifié » revient à l'écran en 3 touchers.",si:a=>peut(a,'planning.edit')&&opt(a,'planning_simple')},
-  {titre:"Planning des équipes",texte:"Place les équipes semaine par semaine : secteurs, équipes A à J, glisser-déposer, fiche du chantier.",si:a=>peut(a,'planning.edit')&&!opt(a,'planning_simple')},
-  {sel:'#eq-app .eq-wknav',titre:"Semaine et secteur",texte:"‹ › ou glisse le bandeau pour changer de semaine. Choisis le secteur : la jauge dit combien sont placés toute la semaine.",si:a=>peut(a,'planning.edit')},
-  {sel:'#eq-app [data-act="plcopy"]',titre:"Reprendre la semaine passée",texte:"Recopie la semaine d'avant en un toucher, puis ajuste. « Avec l'encadrement » ajoute les chefs et les conducteurs à placer.",si:a=>peut(a,'planning.edit')},
-  {sel:'#eq-app [data-act="meteo"]',titre:"☀ Météo",texte:"Recharge la météo des chantiers : elle s'affiche jour par jour sur chaque carte et habille les avatars de l'équipe.",si:a=>peut(a,'planning.edit')},
-  {sel:'#eq-app #pl-tray, #eq-app .eq-pltray',titre:"À placer",texte:"Cherche par nom, filtre par métier (Soudeurs, Manchonneurs…). « ＋ Nouvelle personne (intérimaire, embauche) » : elle se place tout de suite.",si:a=>peut(a,'planning.edit')},
-  {sel:'#eq-app .eq-plsite:not(details *)',titre:"Placer sur un chantier",texte:"Touche une personne puis le chantier (ou glisse-la dessus), choisis l'équipe, « Placer … ici ». Touche une personne placée pour régler ses jours.",si:a=>peut(a,'planning.edit')},
-  {sel:'#eq-app .eq-plsite:not(details *) .eq-plfd > summary',titre:"⚙ La fiche du chantier",texte:"Sous le nom : secteur, chef, conducteur, horaires et point de rassemblement. Ils servent à l'accueil chantier et aux pointages.",si:a=>peut(a,'planning.edit')},
-  {titre:"Ce que voient les équipes",texte:"Chacun n'ouvre dans l'appli que les chantiers de sa semaine et de la précédente. Le chef de chantier voit son planning dans Pilotage.",si:a=>peut(a,'planning.edit')},
   /* chef de chantier (sans le droit « planning ») : son planning, fait par le conducteur */
   {sel:'#eq-app [data-act="plansem"]',titre:"Ta semaine",texte:"« Cette semaine » ou « Semaine prochaine » : ton planning, tel que ton conducteur l'a fait.",si:a=>sans(a,'planning.edit')},
   {sel:'#eq-app .eq-semaine',titre:"Jour par jour",texte:"Chaque jour : la météo et ta tenue. Touche un jour pour voir son détail dessous.",si:a=>sans(a,'planning.edit')},

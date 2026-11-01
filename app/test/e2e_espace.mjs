@@ -59,42 +59,48 @@ C.c6=/Entreprise|Annuaire/.test(out.h2)&&out.pers>=3&&out.groupes>=2&&out.figs>=
 const seed=async()=>page.evaluate(()=>{const T=window.TRACE;const src=T.sites[Object.keys(T.sites).find(k=>k!=='__vide'&&T.sites[k]&&T.sites[k].lines)];if(!src)return 0;
   const mk=(id,name,ville,secteur)=>{if(T.sites[id])return;const x=JSON.parse(JSON.stringify(src));x.id=id;x.name=name;x.fiche={ville,secteur};T.sites[id]=x;};mk('demo_caen','Caen — Presqu\'île','Caen','ouest');mk('demo_rennes','Rennes — Baud-Chardonnet','Rennes','ouest');mk('demo_lyon','Lyon — Confluence','Lyon','sudest');return Object.keys(T.sites).length;});
 await page.evaluate(()=>{localStorage.setItem('trace:homeTab','espace');});await page.reload();await page.waitForTimeout(1200);await skip();await seed();
-const goOrga=async()=>page.evaluate(()=>{window.TRACE.state.userId='ethan';window.TRACE.renderHome();document.getElementById('htExpl').click();const b=[...document.querySelectorAll('#eq-app .ac-row')].find(x=>/Planning des équipes/.test(x.textContent));if(b)b.click();return !!b;}); /* refonte 09/10 soir : le planning des équipes vit dans l'espace Exploitation */
+const goOrga=async()=>page.evaluate(()=>{window.TRACE.state.userId='ethan';window.TRACE.renderHome();document.getElementById('htExpl').click();const b=[...document.querySelectorAll('#eq-app .ac-row')].find(x=>/Planning de la semaine/.test(x.textContent));if(b)b.click();return !!b;}); /* refonte 09/10 soir : le planning des équipes vit dans l'espace Exploitation ; 01/11 soir : planning UNIQUE */
+const PI=(v)=>page.evaluate(v=>{const b=document.querySelector(`#eq-app [data-act=pi][data-v="${v}"]`);if(!b)throw new Error('absent : '+v);b.click();},v);
+const chipOf=re=>page.evaluate(src=>{const c=[...document.querySelectorAll('#eq-app .pi-trayc .pi-chip')].find(x=>new RegExp(src).test(x.textContent));if(!c)throw new Error('pas dans À placer : '+src);c.click();},re);
+const rowsOf=site=>`#eq-app .pi-site[data-site=${site}] .pi-row[data-q]`;
+const st=()=>page.evaluate(R=>({tray:document.querySelectorAll('#eq-app .pi-trayc > .pi-tray .pi-chip').length,caen:document.querySelectorAll(R.c).length,rennes:document.querySelectorAll(R.r).length,prog:(document.querySelector('#eq-app .pi-sum')||{}).textContent||'',dotsOn:document.querySelectorAll(R.c+' .pi-c.on').length,h2:(document.querySelector('#eq-app h2.vt')||{}).textContent}),{c:rowsOf('demo_caen'),r:rowsOf('demo_rennes')});
 out={};out.sub=await goOrga();await page.waitForTimeout(400);
 out.karimSub=await page.evaluate(()=>{window.TRACE.state.userId='karim';window.TRACE.renderHome();return document.getElementById('htExpl').style.display!=='none';}); // un soudeur n'a pas l'espace Exploitation
 await goOrga();await page.waitForTimeout(400);
-out.t0=await page.evaluate(()=>({tray:document.querySelectorAll('#eq-app .eq-pltray .eq-plchip').length,sites:document.querySelectorAll('#eq-app .eq-plsite').length,prog:(document.querySelector('#eq-app .eq-plprog')||{}).textContent,h2:(document.querySelector('#eq-app h2.vt')||{}).textContent}));
-// Karim → Caen (toute la semaine), Julien → Rennes
-await page.evaluate(()=>{[...document.querySelectorAll('#eq-app .eq-pltray .eq-plchip')].find(x=>/Karim/.test(x.textContent)).querySelector('.eq-plmain').click();});await page.waitForTimeout(200);
-out.selDrop=await page.evaluate(()=>({sel:document.querySelectorAll('#eq-app .eq-plchip.sel').length,drop:document.querySelectorAll('#eq-app .eq-plsite.drop').length,btn:document.querySelectorAll('#eq-app [data-act=plput]').length}));
-await page.evaluate(()=>document.querySelector('#eq-app .eq-plsite[data-drop=demo_caen] [data-act=plput]').click());await page.waitForTimeout(300);
-await page.evaluate(()=>{[...document.querySelectorAll('#eq-app .eq-pltray .eq-plchip')].find(x=>/Julien/.test(x.textContent)).querySelector('.eq-plmain').click();document.querySelector('#eq-app .eq-plsite[data-drop=demo_rennes] [data-act=plput]').click();});await page.waitForTimeout(300);
-out.t1=await page.evaluate(()=>({tray:document.querySelectorAll('#eq-app .eq-pltray .eq-plchip').length,caen:document.querySelectorAll('#eq-app .eq-plsite[data-drop=demo_caen] .eq-plchip').length,rennes:document.querySelectorAll('#eq-app .eq-plsite[data-drop=demo_rennes] .eq-plchip').length,prog:(document.querySelector('#eq-app .eq-plprog')||{}).textContent,dotsOn:document.querySelectorAll('#eq-app .eq-plsite[data-drop=demo_caen] .eq-pldots i.on').length}));
-// jours : ouvrir l'éditeur de Karim, retirer le vendredi → 4 points ; secteur de rattachement proposé
-await page.evaluate(()=>document.querySelector('#eq-app .eq-plsite[data-drop=demo_caen] .eq-plchip .eq-plmain').click());await page.waitForTimeout(200);
-out.edit=await page.evaluate(()=>{const e=document.querySelector('#eq-app .eq-pledit');return {open:!!e,days:e?e.querySelectorAll('[data-act=plday]').length:0,sect:!!(e&&e.querySelector('select[data-chg=plpers]'))};});
-await page.evaluate(()=>{[...document.querySelectorAll('#eq-app .eq-pledit [data-act=plday]')].pop().click();});await page.waitForTimeout(200);
-out.t2=await page.evaluate(()=>({dotsOn:document.querySelectorAll('#eq-app .eq-plsite[data-drop=demo_caen] .eq-pldots i.on').length,plan:(()=>{const E=window.TRACE.espace.state();const aff=window.TRACE.espace.planning?Object.values(window.TRACE.espace.planning())[0]:null;return aff?Object.keys(aff.aff).length:-1;})()}));
-// retirer Julien de Rennes → de retour dans le bac
-await page.evaluate(()=>{document.querySelector('#eq-app .eq-plsite[data-drop=demo_rennes] .eq-plchip .eq-plmain').click();});await page.waitForTimeout(200);
-await page.evaluate(()=>{document.querySelector('#eq-app .eq-pledit [data-act=plrm]').click();});await page.waitForTimeout(200);
-out.t3=await page.evaluate(()=>({tray:document.querySelectorAll('#eq-app .eq-pltray .eq-plchip').length,rennes:document.querySelectorAll('#eq-app .eq-plsite[data-drop=demo_rennes] .eq-plchip').length,prog:(document.querySelector('#eq-app .eq-plprog')||{}).textContent}));
-// semaine prochaine vide → « Reprendre la semaine passée » recopie Karim (4 jours) ; progression
+out.t0=await st();out.t0.sites=await page.evaluate(()=>document.querySelectorAll('#eq-app .pi-site').length);
+// Karim → Caen (toute la semaine), Julien → Rennes : qui → où → Placer (jours libres cochés)
+await chipOf('Karim');await page.waitForTimeout(200);
+out.selDrop=await page.evaluate(()=>({sel:document.querySelectorAll('#eq-app .pi-chip.sel').length,step:(document.querySelector('#pi-panel .pi-step')||{}).textContent||'',sites:document.querySelectorAll('#pi-panel [data-act=pi][data-v^="site|"]').length}));
+await PI('site|demo_caen');await page.waitForTimeout(150);await PI('ok|');await page.waitForTimeout(300);
+await chipOf('Julien');await page.waitForTimeout(150);await PI('site|demo_rennes');await page.waitForTimeout(150);await PI('ok|');await page.waitForTimeout(300);
+out.t1=await st();
+// jours : toucher la ligne de Karim → ses 5 jours, son secteur ; retirer le vendredi → 4 jours
+await page.evaluate(R=>document.querySelector(R).click(),rowsOf('demo_caen'));await page.waitForTimeout(200);
+out.edit=await page.evaluate(()=>{const e=document.querySelector('#pi-panel');return {open:!!e,days:e?e.querySelectorAll('.pi-days [data-act=pi][data-v^="day|"]').length:0,sect:!!(e&&e.querySelector('select[data-chg=plpers]'))};});
+await page.evaluate(()=>{[...document.querySelectorAll('#pi-panel .pi-days [data-act=pi][data-v^="day|"]')].pop().click();});await page.waitForTimeout(150);await PI('ok|');await page.waitForTimeout(300);
+out.t2=await st();
+// retirer Julien de Rennes → de retour dans « À placer »
+await page.evaluate(R=>document.querySelector(R).click(),rowsOf('demo_rennes'));await page.waitForTimeout(200);await PI('rm|');await page.waitForTimeout(300);
+out.t3=await st();
+// semaine prochaine vide → « Copier la semaine dernière » recopie Karim (4 jours)
 await page.evaluate(()=>{[...document.querySelectorAll('#eq-app [data-act=plweek]')].find(b=>b.dataset.v==='1').click();});await page.waitForTimeout(300);
-out.t4=await page.evaluate(()=>({tray:document.querySelectorAll('#eq-app .eq-pltray .eq-plchip').length,place:document.querySelectorAll('#eq-app .eq-plsite .eq-plchip').length,h2:(document.querySelector('#eq-app h2.vt')||{}).textContent}));
-await page.evaluate(()=>document.querySelector('#eq-app [data-act=plcopy]').click());await page.waitForTimeout(300);
-out.t5=await page.evaluate(()=>({caen:document.querySelectorAll('#eq-app .eq-plsite[data-drop=demo_caen] .eq-plchip').length,dotsOn:document.querySelectorAll('#eq-app .eq-plsite[data-drop=demo_caen] .eq-pldots i.on').length,tray:document.querySelectorAll('#eq-app .eq-pltray .eq-plchip').length}));
-// secteur Ouest seulement : Lyon passe dans « autres secteurs » ; fiche chantier (⚙) : changer le secteur de Lyon → Ouest le ramène
+out.t4=await st();out.t4.place=await page.evaluate(()=>document.querySelectorAll('#eq-app .pi-site .pi-row[data-q]').length);
+await PI('copy|');await page.waitForTimeout(300);
+out.t5=await st();
+// secteur Ouest seulement : Lyon (Sud-Est) passe dans « Autres chantiers » ; ⚙ fiche du chantier : son secteur → Ouest (enregistré)
 await page.evaluate(()=>{[...document.querySelectorAll('#eq-app [data-act=plweek]')].find(b=>b.dataset.v==='0').click();});await page.waitForTimeout(200);
 await page.evaluate(()=>{const s=document.querySelector('#eq-app select[data-chg=plSect]');s.value='ouest';s.dispatchEvent(new Event('change',{bubbles:true}));});await page.waitForTimeout(300);
-out.t6=await page.evaluate(()=>({main:[...document.querySelectorAll('#eq-app .eq-plsites')][0].querySelectorAll('.eq-plsite').length,hors:document.querySelectorAll('#eq-app details[data-det=plAutres] .eq-plsite').length,lyonHors:!!document.querySelector('#eq-app details[data-det=plAutres] .eq-plsite[data-drop=demo_lyon]')}));
-await page.evaluate(()=>{const s=document.querySelector('#eq-app .eq-plsite[data-drop=demo_lyon] select[data-chg=plfiche][data-k=secteur]');s.value='ouest';s.dispatchEvent(new Event('change',{bubbles:true}));});await page.waitForTimeout(500);
-out.t7=await page.evaluate(()=>({lyonMain:!!document.querySelector('#eq-app .eq-plsites .eq-plsite[data-drop=demo_lyon]')&&!document.querySelector('#eq-app details[data-det=plAutres] .eq-plsite[data-drop=demo_lyon]'),fiche:window.TRACE.sites.demo_lyon.fiche.secteur}));
+out.t6=await page.evaluate(()=>({main:document.querySelectorAll('#eq-app .pi-sites > .pi-site:not(details *)').length,lyonHors:!!document.querySelector('#eq-app details[data-det=piHors] .pi-site[data-site=demo_lyon]'),caenMain:!!document.querySelector('#eq-app .pi-sites > .pi-site[data-site=demo_caen]:not(details *)')}));
+await page.evaluate(()=>{const s=document.querySelector('#eq-app .pi-site[data-site=demo_lyon] select[data-chg=plfiche][data-k=secteur]');s.value='ouest';s.dispatchEvent(new Event('change',{bubbles:true}));});await page.waitForTimeout(500);
+out.t7=await page.evaluate(()=>({fiche:window.TRACE.sites.demo_lyon.fiche.secteur,resume:(document.querySelector('#eq-app .pi-site[data-site=demo_lyon] .eq-plfd > summary')||{}).textContent||''}));
 // rechargement : le planning est gardé (kv)
 await page.reload();await page.waitForTimeout(1200);await skip();await seed();await goOrga();await page.waitForTimeout(500);
-out.t8=await page.evaluate(()=>({caen:document.querySelectorAll('#eq-app .eq-plsite[data-drop=demo_caen] .eq-plchip').length,dotsOn:document.querySelectorAll('#eq-app .eq-plsite[data-drop=demo_caen] .eq-pldots i.on').length}));
-console.log('8) planning équipe :',JSON.stringify(out));
-C.c8=out.sub&&!out.karimSub&&out.t0.tray===3&&out.t0.sites>=4&&/0 \/ 3/.test(out.t0.prog)&&/Planning équipe/.test(out.t0.h2)&&out.selDrop.sel===1&&out.selDrop.drop>=4&&out.selDrop.btn>=4&&out.t1.tray===1&&out.t1.caen===1&&out.t1.rennes===1&&/2 \/ 3/.test(out.t1.prog)&&out.t1.dotsOn===5&&out.edit.open&&out.edit.days===5&&out.edit.sect&&out.t2.dotsOn===4&&out.t3.tray===3&&out.t3.rennes===0&&/0 \/ 3/.test(out.t3.prog)&&/11 jours à pourvoir/.test(out.t3.prog)&&out.t4.tray===3&&out.t4.place===0&&out.t5.caen===1&&out.t5.dotsOn===4&&out.t5.tray===3 /* ③ : Karim placé 4 jours sur 5 reste « à placer » (vendredi libre) */&&out.t6.main===4&&out.t6.hors===1&&out.t6.lyonHors&&out.t7.lyonMain&&out.t7.fiche==='ouest'&&out.t8.caen===1&&out.t8.dotsOn===4;
+out.t8=await st();
+console.log('8) planning (unique) :',JSON.stringify(out));
+C.c8=out.sub&&!out.karimSub&&out.t0.tray===3&&out.t0.sites>=4&&/0 \/ 3/.test(out.t0.prog)&&/Planning de la semaine/.test(out.t0.h2)&&out.selDrop.sel===1&&/Sur quel chantier/.test(out.selDrop.step)&&out.selDrop.sites>=4
+  &&out.t1.tray===1&&out.t1.caen===1&&out.t1.rennes===1&&/2 \/ 3/.test(out.t1.prog)&&out.t1.dotsOn===5&&out.edit.open&&out.edit.days===5&&out.edit.sect&&out.t2.dotsOn===4
+  &&out.t3.tray===3&&out.t3.rennes===0&&/0 \/ 3/.test(out.t3.prog)&&/11 jours à pourvoir/.test(out.t3.prog)&&out.t4.tray===3&&out.t4.place===0&&out.t5.caen===1&&out.t5.dotsOn===4&&out.t5.tray===3 /* ③ : Karim placé 4 jours sur 5 reste « à placer » (vendredi libre) */
+  &&out.t6.caenMain&&out.t6.lyonHors&&out.t7.fiche==='ouest'&&/Ouest/.test(out.t7.resume)&&out.t8.caen===1&&out.t8.dotsOn===4;
 // ── 9) VERROU DU PLANNING sur l'accueil : Karim (soudeur, planifié à Caen) voit les autres chantiers grisés et ne peut pas les ouvrir ; Caen s'ouvre ; Julien (pas placé) voit tout (règle souple) ; règle stricte → rien ; retour souple
 await page.evaluate(()=>{localStorage.setItem('trace:homeTab','list');});await page.reload();await page.waitForTimeout(1200);await skip();await seed();
 out=await page.evaluate(async()=>{const T=window.TRACE;T.state.userId='karim';T.renderHome();await new Promise(r=>setTimeout(r,200));const cards=[...document.querySelectorAll('.siteCard')].map(c=>({id:c.dataset.open,locked:c.classList.contains('locked'),txt:c.textContent}));
@@ -160,17 +166,17 @@ USER={...USER,id:'00000000-0000-0000-0000-000000000004',email:'j.martin@scr.fr'}
 await page.evaluate(()=>{localStorage.clear();});await page.evaluate(()=>new Promise(r=>{try{const q=indexedDB.deleteDatabase('trace-kv');q.onsuccess=q.onerror=q.onblocked=()=>r();}catch(e){r();}}));
 await page.evaluate(s=>{localStorage.setItem('sb-pghftlepduvfazbiavhq-auth-token',JSON.stringify(s));localStorage.setItem('trace:homeTab','espace');},SESSION);
 await page.reload();await page.waitForTimeout(3000);
-out=await page.evaluate(()=>{const T=window.TRACE;const me=T.acces.current();document.getElementById('htEspace').click();const subs=[...document.querySelectorAll('#eq-app .eq-subs .chip')].map(c=>c.textContent.trim());document.getElementById('htExpl').click();const b=[...document.querySelectorAll('#eq-app .ac-row')].find(x=>/Planning des équipes/.test(x.textContent));if(b)b.click();
-  return {me:T.espace.key(me),poste:me.poste,subs,expl:document.getElementById('htExpl').style.display!=='none', /* 31/10 : Équipes & heures = l'onglet Pilotage */sites:[...document.querySelectorAll('#eq-app .eq-plsite')].map(x=>x.dataset.drop),tray:[...document.querySelectorAll('#eq-app .eq-pltray .eq-plchip')].map(x=>x.dataset.drag)};});
+out=await page.evaluate(()=>{const T=window.TRACE;const me=T.acces.current();document.getElementById('htEspace').click();const subs=[...document.querySelectorAll('#eq-app .eq-subs .chip')].map(c=>c.textContent.trim());document.getElementById('htExpl').click();const b=[...document.querySelectorAll('#eq-app .ac-row')].find(x=>/Planning de la semaine/.test(x.textContent));if(b)b.click();
+  return {me:T.espace.key(me),poste:me.poste,subs,expl:document.getElementById('htExpl').style.display!=='none', /* 31/10 : Équipes & heures = l'onglet Pilotage */sites:[...document.querySelectorAll('#eq-app .pi-site')].map(x=>x.dataset.site),tray:[...document.querySelectorAll('#eq-app .pi-trayc .pi-chip')].map(x=>x.dataset.p)};}); /* 01/11 soir : planning unique */
 const n10=calls.length;
-await page.evaluate(()=>{[...document.querySelectorAll('#eq-app .eq-pltray .eq-plchip')].find(x=>x.dataset.drag==='k.benali@scr.fr').querySelector('.eq-plmain').click();document.querySelector('#eq-app .eq-plsite[data-drop=SRV_A] [data-act=plput]').click();});await page.waitForTimeout(1800);
+await page.evaluate(()=>{[...document.querySelectorAll('#eq-app .pi-trayc .pi-chip')].find(x=>x.dataset.p==='k.benali@scr.fr').click();document.querySelector('#pi-panel [data-act=pi][data-v="site|SRV_A"]').click();document.querySelector('#pi-panel [data-act=pi][data-v="ok|"]').click();});await page.waitForTimeout(1800);
 const cPlan=calls.slice(n10).filter(c=>c.fn==='planning_set'),cSect=calls.slice(n10).filter(c=>c.fn==='people_set_part'&&c.p_part==='secteur');
-await page.evaluate(()=>{const s=document.querySelector('#eq-app .eq-plsite[data-drop=SRV_B] select[data-chg=plfiche][data-k=secteur]');s.value='idf';s.dispatchEvent(new Event('change',{bubbles:true}));});await page.waitForTimeout(1200);
+await page.evaluate(()=>{const s=document.querySelector('#eq-app .pi-site[data-site=SRV_B] select[data-chg=plfiche][data-k=secteur]');s.value='idf';s.dispatchEvent(new Event('change',{bubbles:true}));});await page.waitForTimeout(1200);
 const cFiche=calls.slice(n10).filter(c=>c.fn==='site_set_part');
-out.after=await page.evaluate(()=>({caen:document.querySelectorAll('#eq-app .eq-plsite[data-drop=SRV_A] .eq-plchip').length,pending:window.TRACE.espace.state().pending.length,secteurKarim:(window.TRACE.espace.state().people['k.benali@scr.fr']||{}).secteur,resume:(document.querySelector('#eq-app .eq-plsite[data-drop=SRV_B] .eq-plfd summary')||{}).textContent}));
+out.after=await page.evaluate(()=>({caen:document.querySelectorAll('#eq-app .pi-site[data-site=SRV_A] .pi-row[data-q]').length,pending:window.TRACE.espace.state().pending.length,secteurKarim:(window.TRACE.espace.state().people['k.benali@scr.fr']||{}).secteur,resume:(document.querySelector('#eq-app .pi-site[data-site=SRV_B] .eq-plfd summary')||{}).textContent}));
 // rechargement : le planning vient du serveur (PLAN_ROWS), plus rien en attente, Karim toujours sur SRV_A
 await page.evaluate(()=>new Promise(r=>{try{const q=indexedDB.deleteDatabase('trace-kv');q.onsuccess=q.onerror=q.onblocked=()=>r();}catch(e){r();}}));await page.reload();await page.waitForTimeout(3000);
-out.reload=await page.evaluate(()=>{document.getElementById('htExpl').click();const b=[...document.querySelectorAll('#eq-app .ac-row')].find(x=>/Planning des équipes/.test(x.textContent));if(b)b.click();return {caen:document.querySelectorAll('#eq-app .eq-plsite[data-drop=SRV_A] .eq-plchip').length,dots:document.querySelectorAll('#eq-app .eq-plsite[data-drop=SRV_A] .eq-pldots i.on').length,weeks:Object.keys(window.TRACE.espace.planning()).length};});
+out.reload=await page.evaluate(()=>{document.getElementById('htExpl').click();const b=[...document.querySelectorAll('#eq-app .ac-row')].find(x=>/Planning de la semaine/.test(x.textContent));if(b)b.click();return {caen:document.querySelectorAll('#eq-app .pi-site[data-site=SRV_A] .pi-row[data-q]').length,dots:document.querySelectorAll('#eq-app .pi-site[data-site=SRV_A] .pi-row[data-q] .pi-c.on').length,weeks:Object.keys(window.TRACE.espace.planning()).length};});
 // Karim connecté : liste des chantiers → SRV_B grisé, SRV_A ouvert
 USER={...USER,id:'00000000-0000-0000-0000-000000000001',email:'k.benali@scr.fr'};SESSION={...SESSION,user:USER};
 await page.evaluate(()=>new Promise(r=>{try{const q=indexedDB.deleteDatabase('trace-kv');q.onsuccess=q.onerror=q.onblocked=()=>r();}catch(e){r();}}));
@@ -203,8 +209,8 @@ out.back=await page.evaluate(()=>{const T=window.TRACE;return {me:T.espace.key(T
 // météo : store rempli (géocodage « Caen » puis prévisions), planning → 5 cases météo sous le chantier SRV_A
 out.meteo=await page.evaluate(()=>{const T=window.TRACE;const m=T.espace.meteo();const today=(()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();const a=m.SRV_A;return {sites:Object.keys(m),ll:a&&a.ll,today:a&&a.days&&a.days[today],n:a?Object.keys(a.days||{}).length:0,kinds:a?Object.values(a.days||{}).map(x=>x[0]):[]};});
 await page.evaluate(()=>{document.getElementById('htExpl').click();});await page.waitForTimeout(500);
-await page.evaluate(()=>{const b=[...document.querySelectorAll('#eq-app .ac-row')].find(x=>/Planning des équipes/.test(x.textContent));b&&b.click();});await page.waitForTimeout(500);
-out.plMeteo=await page.evaluate(()=>{const c=document.querySelector('#eq-app .eq-plsite[data-drop=SRV_A] .eq-plmeteo');const cells=c?[...c.querySelectorAll('span')]:[];const today=cells.find(x=>/Pluie/.test(x.getAttribute('title')||''));return {cells:cells.length,txt:c?c.textContent:'',titleToday:today?today.getAttribute('title'):''};}); /* la semaine affichée peut commencer avant aujourd'hui : les jours passés n'ont pas de prévision */
+await page.evaluate(()=>{const b=[...document.querySelectorAll('#eq-app .ac-row')].find(x=>/Planning de la semaine/.test(x.textContent));b&&b.click();});await page.waitForTimeout(500); /* 01/11 soir : planning unique */
+out.plMeteo=await page.evaluate(()=>{const c=document.querySelector('#eq-app .pi-site[data-site=SRV_A] .pi-met');const cells=c?[...c.querySelectorAll('.pi-c')]:[];const today=cells.find(x=>/Pluie/.test(x.getAttribute('title')||''));return {cells:cells.length,txt:c?c.textContent:'',titleToday:today?today.getAttribute('title'):''};}); /* la semaine affichée peut commencer avant aujourd'hui : les jours passés n'ont pas de prévision */
 console.log('11) voir comme + météo :',JSON.stringify({...out,meteoCalls:meteoCalls.length}));
 C.c11=out.me==='elebihan@scr-soudure.fr'&&out.admin&&out.bar&&out.opts[0]==='__me'&&out.opts.includes('acc:00000000-0000-0000-0000-000000000001')&&out.groups>=2&&!out.adminTab&&out.locked===0&&out.banner==='none' /* 12/10 : l'administration vit dans Entreprise → Outils, plus d'onglet */
   &&out.karim.me==='k.benali@scr.fr'&&!out.karim.test&&out.karim.acting&&out.karim.via==='Ethan LE BIHAN'&&out.karim.hbAct&&/agis comme Karim BENALI/.test(out.karim.banner)&&/Soudeur/.test(out.karim.banner)&&!out.karim.adminTab&&out.karim.cards.includes('SRV_A')&&out.karim.cards.includes('SRV_B🔒')&&out.karim.sel==='acc:00000000-0000-0000-0000-000000000001'&&/Karim BENALI/.test(out.karim.who)&&/✍/.test(out.karim.who)

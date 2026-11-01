@@ -10,7 +10,7 @@
 //      + états intérieurs (même clé) : bon de commande ouvert, demande de matériel ouverte, compte d'un chantier ouvert → leurs étapes surlignent la vraie cible
 //  c3  vues d'ensemble : une étape par ligne du hub affichée — Ethan (administrateur), Sophie (bureau), un chef de chantier (planning fait par le conducteur :
 //      « Mon planning et mon équipe » et son tutoriel « Ta semaine »), une assistante RH (compteurs, paie, grands déplacements) ; l'écran Sécurité (tuile d'Aujourd'hui)
-//  c3b paliers allumés (Socle) : vue d'ensemble = les lignes visibles, « Planning des équipes » sans planning simplifié, Production sans le tableau (3 étapes)
+//  c3b paliers allumés (Socle) : vue d'ensemble = les lignes visibles, « Planning de la semaine » (planning unique, 01/11 soir), Production sans le tableau (3 étapes)
 //  c4  360 px : Pilotage (vue d'ensemble), Pointages à valider, Bons de commande — cartes dans l'écran, cibles surlignées
 //  c5  au 1er passage (drapeau de test des tutos) : Affaire → sa vue d'ensemble ; 1re ouverture de « Bons de commande » → son tutoriel détaillé ; plus rien ensuite
 //  c6  captures 390 (SHOTS) : vue d'ensemble Pilotage, Planning de la semaine, Pointages à valider, Bons de commande
@@ -101,8 +101,8 @@ const SH={pilotage:{at:'Planning de la semaine',file:'tu_pl_pilotage_390.png'},'
 /* ── c2 : chaque clé, 390 px (Ethan, administrateur : il voit tout ; « Commandes au dépôt » : Sophie, bureau) ── */
 await page.evaluate(()=>{const W=window.TRACE.tuto;W.keys&&W.keys();});
 o={keysApp:await page.evaluate(K=>K.filter(k=>!window.TRACE.tuto.keys().includes(k)),KEYS),res:{}};
-const WHO={'pilotage:x:mag':'sophie'};
-for(const k of KEYS){const who=WHO[k]||'ethan';await as(who);await open(k);const w=await where();const hb=await help();const r=await run(k,SH[k]);r.who=who;r.where=w;r.help=hb;o.res[k]=r;
+const WHO={'pilotage:x:mag':['sophie'],'pilotage:orga':['julien','chef']}; /* 01/11 soir : « orga » n'existe plus que pour le chef de chantier (Ta semaine) — l'encadrement arrive sur le planning unique */
+for(const k of KEYS){const w0=WHO[k]||['ethan'];const who=w0[0];await as(...w0);await open(k);const w=await where();const hb=await help();const r=await run(k,SH[k]);r.who=who;r.where=w;r.help=hb;o.res[k]=r;
   if(!(w===k&&hb&&ok(r)&&nOk(r,k)&&r.mod.startsWith((k.startsWith('affaire')?'Tracé Affaire':'Tracé Pilotage')+(k.includes(':')?' · '+NOMS[k]:''))))console.log('  ✗',k,J(r));}
 const bad2=Object.entries(o.res).filter(([k,r])=>!(r.where===k&&r.help&&ok(r)&&nOk(r,k)&&r.mod.startsWith((k.startsWith('affaire')?'Tracé Affaire':'Tracé Pilotage')+(k.includes(':')?' · '+NOMS[k]:'')))).map(([k])=>k);
 console.log('c2) 390 px, chaque clé :',J({keysApp:o.keysApp,n:Object.keys(o.res).length,etapes:Object.values(o.res).reduce((a,r)=>a+r.n,0),bad:bad2,detail:Object.fromEntries(Object.entries(o.res).map(([k,r])=>[k,r.n+' · '+r.steps.filter(s=>s.endsWith('◉')).length+' ◉']))}));
@@ -139,11 +139,11 @@ C.c3=['ethan','sophie','chef','rh','secu','affE','affS'].every(x=>ovOk(o[x]))&&o
   &&o.chefOrga.where==='pilotage:orga'&&/Ta semaine/.test(o.chefOrga.h2)&&o.chefOrga.help&&ok(o.chefOrga)&&o.chefOrga.n===4&&o.chefOrga.steps[0].startsWith('Ta semaine');
 /* ── c3b : paliers ALLUMÉS (tout le monde en Socle ; Planning simplifié, Objectifs, Production : tableau, Demandes… en Labo) : les étapes suivent ce que la personne voit ── */
 await page.evaluate(()=>window.TRACE.paliers.setOn(true));o.soc=await overview('pilotage','ethan');
-await as('ethan');await open('pilotage:orga');await page.evaluate(()=>window.TRACE.tuto.start('pilotage:orga'));await wait(250);o.socOrga=await run('pilotage:orga');
+await as('ethan');await open('pilotage:plan');await page.evaluate(()=>window.TRACE.tuto.start('pilotage:plan'));await wait(250);o.socOrga=await run('pilotage:plan'); /* 01/11 soir : planning unique, palier ou pas */
 await as('ethan');await open('pilotage:prodEq');await page.evaluate(()=>window.TRACE.tuto.start('pilotage:prodEq'));await wait(250);o.socProd=await run('pilotage:prodEq');
 await page.evaluate(()=>window.TRACE.paliers.setOn(false));
 console.log('c3b) paliers allumés :',J({hub:sum(o.soc),orga:{n:o.socOrga.n,steps:o.socOrga.steps,miss:o.socOrga.miss},prod:{n:o.socProd.n,steps:o.socProd.steps,miss:o.socProd.miss}}));
-C.c3=C.c3&&ovOk(o.soc)&&o.soc.rows.includes('orga')&&!o.soc.rows.includes('plan')&&o.soc.steps.includes('Planning des équipes ◉')&&ok(o.socOrga)&&o.socOrga.n===8&&o.socOrga.steps[0]==='Planning des équipes'
+C.c3=C.c3&&ovOk(o.soc)&&o.soc.rows.includes('plan')&&!o.soc.rows.includes('orga')&&o.soc.steps.includes('Planning de la semaine ◉')&&ok(o.socOrga)&&o.socOrga.n===8&&/Chercher quelqu'un/.test(o.socOrga.steps[0])
   &&ok(o.socProd)&&o.socProd.n===3&&!o.socProd.steps.some(s=>/Imprimer|tableau|Semaine ou jour|comptés/.test(s));
 /* ── c4 : 360 px ── */
 await page.setViewportSize({width:360,height:740});o={};

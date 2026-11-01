@@ -14,12 +14,12 @@
 //      « envoyée pour validation », étapes), « Annuler la fin » (touchée par erreur) puis fin ; Théo voit « Pointage corrigé » (à savoir) + la trace
 //  c6  planning simplifié (PC) : S46, férié visible ; « Copier la semaine dernière » (férié sauté, équipe A gardée) ; Nina placée en 3 touchers (Nina → Moulin → Placer)
 //  c7  Nina (téléphone) : « Demain · mar. 10/11 : Chantier fictif du Moulin » dans Moi (Compagnon) et sur l'accueil
-//  c8  « Plus d'options » : le planning détaillé d'avant s'ouvre (À placer, cartes) et revient ; le hub garde « Planning des équipes » (pli)
+//  c8  01/11 soir : planning UNIQUE — plus de « Plus d'options » ; l'ancienne adresse du détaillé (orga) ouvre le même planning ; le hub n'a plus que « Planning de la semaine »
 //  c9  production par équipe (PC) : chantiers comptés dits (Tilleuls ✓, Moulin ✗), semaine : équipe A 8 soudures · 96 ml · objectif « x / 6 soudures » + barre,
 //      équipe B 4 manchons ; jour (vendredi) ; impression A4 (fenêtre, charte)
 //  c10 bureau (RH, PC) : Production par équipe et Pointages à valider (2e niveau, rien en attente)
 //  c11 téléphone 390 ET 360 : aucun débordement (validation, Moi, planning, production) ; boutons de terrain ≥ 44 px
-//  c12 paliers ALLUMÉS (personne en Socle, options nouvelles en Labo) : l'écran d'avant (Planning des équipes, pas de tableau, pas de « Demain »)
+//  c12 paliers ALLUMÉS (personne en Socle, options nouvelles en Labo) : le planning unique (01/11 soir : plus d'écran d'avant), pas de tableau, pas de « Demain »
 //  c13 console propre (aucune erreur), aucune écriture refusée par le serveur simulé
 import { chromium } from 'playwright';
 import fs from 'fs';
@@ -194,14 +194,13 @@ console.log('c6) planning :',J({p0:o.p0,fer:o.fer,copy:o.copy,taps:[t1,t2,t3],pa
 C.c6=/Planning de la semaine · semaine 46/.test(o.p0.h2)&&/férié : mer\. 11\/11/.test(o.p0.sum)&&/^M11férié \/ 5$/.test(o.fer)&&o.p0.tray.some(t=>/Équipe A · Chantier fictif des Tilleuls/.test(t))&&o.p0.tray.some(t=>/Nina TESTINTERIM/.test(t))
   &&o.copy.hugo==='2026-11-09,2026-11-10,2026-11-12,2026-11-13,eq:SRV_A'&&o.copy.team==='A'&&o.copy.marcTeam==='B'&&o.copy.n===5&&/5 personnes reprises de la semaine 45 · mer\. 11\/11 férié : pas repris/.test(o.copy.toast)
   &&t1&&t2&&t3&&o.panel.days==='✓09 ✓10 ·11 ✓12 ✓13'&&/Placer Nina · toute la semaine \(sauf férié\)/.test(o.panel.ok)&&J(o.nina)===J({'2026-11-09':['SRV_B'],'2026-11-10':['SRV_B'],'2026-11-12':['SRV_B'],'2026-11-13':['SRV_B']})&&/Nina/.test(o.card);
-// ── c8 : Plus d'options → planning détaillé d'avant, et retour ; le hub garde l'ancienne ligne (pli)
-await tapAct(P.page,'xgo','orga',500);o={orga:await P.page.evaluate(()=>({tray:!!document.querySelector('#eq-app .eq-pltray'),sites:document.querySelectorAll('#eq-app .eq-plsite').length,back:!!document.querySelector('#eq-app [data-act=xgo][data-v=plan]')}))};
-await tapAct(P.page,'xgo','plan',500);o.back=await P.page.evaluate(()=>!!document.querySelector('#eq-app .pi-sites'));
+// ── c8 : 01/11 soir — planning UNIQUE : plus de bouton vers le détaillé ; l'ancienne adresse (orga) ouvre le même écran ; le hub n'a plus qu'une ligne
+o={btn:await P.page.evaluate(()=>!!document.querySelector('#eq-app [data-act=xgo][data-v=orga]'))};await fake(P.page,'xgo','orga',500);o.orga=await P.page.evaluate(()=>({q:!!document.querySelector('#eq-app #pi-q'),sites:document.querySelectorAll('#eq-app .pi-site').length,old:!!document.querySelector('#eq-app .eq-pltray, #eq-app .eq-plsite')}));
 await hub(P.page);await P.page.evaluate(()=>{const b=document.querySelector('#eq-app .ac-back');if(b)b.click();});await W(P.page,300);
-o.hub=await P.page.evaluate(()=>({rows:[...document.querySelectorAll('#eq-app .ac-row .tx > b')].map(b=>b.textContent),fold:!!document.querySelector('#eq-app details.eq-hubmore [data-v=orga]'),badge:([...document.querySelectorAll('#eq-app .ac-row')].find(r=>/Planning de la semaine/.test(r.textContent))||{textContent:''}).textContent.replace(/\s+/g,' ')}));
+o.hub=await P.page.evaluate(()=>({rows:[...document.querySelectorAll('#eq-app .ac-row .tx > b')].map(b=>b.textContent),fold:!!document.querySelector('#eq-app details.eq-hubmore'),badge:([...document.querySelectorAll('#eq-app .ac-row')].find(r=>/Planning de la semaine/.test(r.textContent))||{textContent:''}).textContent.replace(/\s+/g,' ')}));
 await shot(P,'pi_c8_hub_1366');
-console.log('c8) plus d\'options :',J(o));
-C.c8=o.orga.tray&&o.orga.sites>=2&&o.orga.back&&o.back&&o.hub.rows.includes('Planning de la semaine')&&o.hub.rows.includes('Planning des équipes')&&o.hub.fold;
+console.log('c8) planning unique :',J(o));
+C.c8=!o.btn&&o.orga.q&&o.orga.sites>=2&&!o.orga.old&&o.hub.rows.includes('Planning de la semaine')&&!o.hub.rows.includes('Planning des équipes')&&!o.hub.fold;
 // ── c9 : production par équipe — le chantier des Tilleuls ouvert sur ce PC (soudures fictives à leur nom), le Moulin non
 await hubRow(P.page,/Production par équipe/);o={cur:await P.page.evaluate(()=>({scope:((document.querySelector('#eq-app .pi-scope')||{}).textContent||''),open:[...document.querySelectorAll('#eq-app .pi-scope [data-act=opensite]')].map(b=>b.dataset.v)}))}; /* semaine en cours, aucun chantier ouvert sur ce PC */
 await fake(P.page,'opensite','SRV_A',500);const opened=await until(P.page,()=>{const T=window.TRACE;return T.state.screen==='site'&&T.state.siteId==='SRV_A'&&T.sites.SRV_A&&Object.keys(T.state.lines||{}).sort().join()===(T.sites.SRV_A.lines||[]).map(l=>l.id).sort().join()?true:null;},null,20000);await W(P.page,1000);
@@ -271,13 +270,13 @@ await P.ctx.close();
 SETTINGS.paliers={v:1,on:true,feat:{},people:{},extra:{}};
 P=await open(COND,{width:1366,height:900},false,{wide:true});await hub(P.page);
 o={rows:await P.page.evaluate(()=>[...document.querySelectorAll('#eq-app .ac-row .tx > b')].map(b=>b.textContent)),on:await P.page.evaluate(()=>window.TRACE.paliers&&window.TRACE.paliers.on&&window.TRACE.paliers.on())};
-await hubRow(P.page,/Planning des équipes/);o.orga=await P.page.evaluate(()=>!!document.querySelector('#eq-app .eq-pltray')&&!document.querySelector('#eq-app [data-act=xgo][data-v=plan]'));
+await hubRow(P.page,/Planning de la semaine/);o.orga=await P.page.evaluate(()=>!!document.querySelector('#eq-app #pi-q')&&!document.querySelector('#eq-app .eq-pltray')); /* 01/11 soir : planning unique, palier ou pas */
 await hubRow(P.page,/Production par équipe/);o.prod=await P.page.evaluate(()=>({tab:!!document.querySelector('#eq-app .pi-prod'),old:document.querySelectorAll('#eq-app .eq-peteam').length}));
 await P.ctx.close();
 P=await open(INT,{width:390,height:844},true);await home(P.page,'htEspace');o.demain=await P.page.evaluate(()=>!!document.querySelector('#eq-app .pi-demain'));await P.ctx.close();
 delete SETTINGS.paliers;
 console.log('c12) paliers allumés :',J(o));
-C.c12=o.on===true&&!o.rows.includes('Planning de la semaine')&&o.rows.includes('Planning des équipes')&&o.orga&&!o.prod.tab&&o.prod.old>=1&&!o.demain;
+C.c12=o.on===true&&o.rows.includes('Planning de la semaine')&&!o.rows.includes('Planning des équipes')&&o.orga&&!o.prod.tab&&o.prod.old>=1&&!o.demain;
 
 // ── c11 / c13
 console.log('c11) débordements :',J(OVF));C.c11=!OVF.length;

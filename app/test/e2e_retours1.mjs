@@ -22,8 +22,8 @@ await page.evaluate(()=>{const T=window.TRACE;const src=T.sites[Object.keys(T.si
 // ── 1) Karim n'est PAS placé → pas de « Accueil chantier à faire » (ancienne séance comprise) ; Ethan le place à Caen → la notification apparaît, une seule ; Julien (pas placé) : rien
 await asUser('karim');
 let out=await page.evaluate(()=>({notifs:[...document.querySelectorAll('#eq-app .ac-notif .tx b')].map(b=>b.textContent)}));
-await page.evaluate(async()=>{const T=window.TRACE;T.state.userId='ethan';T.renderHome();document.getElementById('htExpl').click();await new Promise(r=>setTimeout(r,200));[...document.querySelectorAll('#eq-app .ac-row')].find(x=>/Planning des équipes/.test(x.textContent)).click();await new Promise(r=>setTimeout(r,200));
-  const c=[...document.querySelectorAll('#eq-app .eq-pltray .eq-plchip')].find(x=>/Karim/.test(x.textContent));c.querySelector('.eq-plmain').click();document.querySelector('#eq-app .eq-plsite[data-drop=demo_caen] [data-act=plput]').click();});await wait(300);
+await page.evaluate(async()=>{const T=window.TRACE;T.state.userId='ethan';T.renderHome();document.getElementById('htExpl').click();await new Promise(r=>setTimeout(r,200));[...document.querySelectorAll('#eq-app .ac-row')].find(x=>/Planning de la semaine/.test(x.textContent)).click();await new Promise(r=>setTimeout(r,200));
+  const c=[...document.querySelectorAll('#eq-app .pi-tray .pi-chip')].find(x=>/Karim/.test(x.textContent));c.click();await new Promise(r=>setTimeout(r,150));document.querySelector('#eq-app #pi-panel [data-act=pi][data-v="site|demo_caen"]').click();await new Promise(r=>setTimeout(r,150));document.querySelector('#eq-app #pi-panel [data-act=pi][data-v="ok|"]').click(); /* 01/11 soir : planning unique (Karim → Caen → Placer) */});await wait(300);
 await asUser('karim');
 out.placed=await page.evaluate(()=>[...document.querySelectorAll('#eq-app .ac-notif .tx b')].map(b=>b.textContent));
 await asUser('julien');

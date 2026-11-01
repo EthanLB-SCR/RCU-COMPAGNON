@@ -321,16 +321,16 @@ await xclick(R.page,'mag|mseg|cmd');out.cmd=await noOverflow(R.page);await xclic
 console.log('9) 390 px :',JSON.stringify(out));
 C.c9=['fiches','fiche','edit','equip','na','mvt','lot','bon','cmd','part'].every(k=>out[k])&&out.minF>=40&&out.minE>=40&&out.minL>=40;
 
-// ── 10) le conducteur (sans le droit magasin, PC) : Parc → Magasin = seulement 🧰 Fiches type ; Planning des équipes : pastille sur la carte de Bruno ; équiper le véhicule pour Bruno
+// ── 10) le conducteur (sans le droit magasin, PC) : Parc → Magasin = seulement 🧰 Fiches type ; Planning de la semaine (planning unique) : pastille sur la ligne de Bruno ; équiper le véhicule pour Bruno
 const Cd=await mkCtx(COND,{width:1366,height:800});await login(Cd.page,COND.email);
 await goParc(Cd.page);await Cd.page.evaluate(()=>{const b=document.querySelector('#eq-app [data-act=parcseg][data-v=magasin]');if(b)b.click();});await W(Cd.page,500);
 out={chips:await Cd.page.evaluate(()=>{const F=[...document.querySelectorAll('#eq-app .mag-root .eq-filtres')].pop();return F?[...F.querySelectorAll('.chip')].map(c=>c.textContent.trim()):[];}),list:await Cd.page.evaluate(()=>[...document.querySelectorAll('#eq-app .mag-row')].length)};
 out.stockChip=await has(Cd.page,'mag|mseg|stock'); /* sans le droit « Magasin » : ni stock, ni demandes */
 await xclick(Cd.page,'mag|fiopen|p:soudeur');out.edit=await has(Cd.page,'mag|fiedit|');
-await goHub(Cd.page);await Cd.page.evaluate(()=>{const r=[...document.querySelectorAll('#eq-app .ac-row')].find(x=>/Planning des équipes/.test(x.textContent));if(r)r.click();});await W(Cd.page,600);
-out.chip=await Cd.page.evaluate(()=>{const c=[...document.querySelectorAll('#eq-app .eq-plsite[data-drop=SRV_A] .eq-plchip')].find(x=>/Bruno/.test(x.textContent));return c?[...c.querySelectorAll('.mag-pb')].map(p=>p.textContent.trim()):null;});
-await shotAt(Cd.page,'pc_1366_planning_equipes_pastille','#eq-app .eq-plsite[data-drop=SRV_A] .mag-pb');
-await Cd.page.evaluate(()=>{const c=[...document.querySelectorAll('#eq-app .eq-plsite[data-drop=SRV_A] .eq-plchip')].find(x=>/Bruno/.test(x.textContent));c.querySelector('.mag-pb').click();});await W(Cd.page,500);out.pers=/demandes de Bruno TESTSOUDEUR/.test(await txt(Cd.page));
+await goHub(Cd.page);await Cd.page.evaluate(()=>{const r=[...document.querySelectorAll('#eq-app .ac-row')].find(x=>/Planning de la semaine/.test(x.textContent));if(r)r.click(); /* 01/11 soir : planning unique */});await W(Cd.page,600);
+out.chip=await Cd.page.evaluate(()=>{const c=[...document.querySelectorAll('#eq-app .pi-site[data-site=SRV_A] .pi-row[data-q]')].find(x=>/Bruno/.test(x.textContent));return c?[...c.querySelectorAll('.mag-pb')].map(p=>p.textContent.trim()):null;});
+await shotAt(Cd.page,'pc_1366_planning_equipes_pastille','#eq-app .pi-site[data-site=SRV_A] .mag-pb');
+await Cd.page.evaluate(()=>{const c=[...document.querySelectorAll('#eq-app .pi-site[data-site=SRV_A] .pi-row[data-q]')].find(x=>/Bruno/.test(x.textContent));c.querySelector('.mag-pb').click();});await W(Cd.page,500);out.pers=/demandes de Bruno TESTSOUDEUR/.test(await txt(Cd.page));
 await goParc(Cd.page);await Cd.page.evaluate(()=>{const b=document.querySelector('#eq-app [data-act=parcseg][data-v=magasin]');if(b)b.click();});await W(Cd.page,400);await xclick(Cd.page,'mag|mseg|fiches');await xclick(Cd.page,'mag|fiopen|p:soudeur');await xclick(Cd.page,'mag|eqstart|p:soudeur');
 await setv(Cd.page,'#eq-app select[data-xin="mag|eqveh"]','AA-111-AA',['change']);out.persSel=await Cd.page.evaluate(()=>(document.querySelector('#eq-app select[data-xin="mag|eqpers"]')||{}).value);
 await xclick(Cd.page,'mag|eqsend|');await W(Cd.page,1500);out.toast=await toast(Cd.page);const D3=dems().find(x=>x.byKey===SOUD.email&&x.creeParKey===COND.email);out.d3=D3&&[D3.statut,D3.imputation.id,D3.lignes.length,D3.creePar].join();out.back=/Dotation fictive soudure/.test(await txt(Cd.page))&&!(await Cd.page.evaluate(()=>!!document.querySelector('#eq-app select[data-xin="mag|eqveh"]')));
