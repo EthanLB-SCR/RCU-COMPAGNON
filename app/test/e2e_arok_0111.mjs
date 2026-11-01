@@ -55,7 +55,7 @@ await page.evaluate(()=>window.TRACE.ar.open(''));await W(300);o.d5={row:!!(awai
 o.d5.m=await marks();o.d5.ok=await page.evaluate(id=>{const f=window.TRACE.ar.fiche();return !!(f.arOk&&f.arOk[id]);},o.ids.l2);
 C.d5=o.d5.row&&o.d5.m.l2>=1&&!o.d5.ok;
 // d6 — manchonneur : explications sans boutons ; ＋ Poser : 🏭 grisé pour lui, actif pour le chef
-const poseChauf=async()=>{await page.evaluate(()=>{const f=document.getElementById('planFab');if(f)f.click();});await W(300);const r=await page.evaluate(()=>{const x=document.querySelector('#modal [data-pose-mode="chauf"]');return x?{on:!x.disabled}:null;});await closeModal();await W(200);return r;};
+const poseChauf=async()=>{await page.evaluate(()=>{const f=document.getElementById('btnPose');if(f)f.click(); /* 01/11 soir : ☰ › ＋ Poser sur le plan… */});await W(300);const r=await page.evaluate(()=>{const x=document.querySelector('#modal [data-pose-mode="chauf"]');return x?{on:!x.disabled}:null;});await closeModal();await W(200);return r;};
 o.d6={chefPose:await poseChauf()};
 await page.evaluate(()=>{const T=window.TRACE;T.state.userId='julien';T.renderAll();});await W(300);
 await page.evaluate(id=>window.TRACE.ar.open(id),o.ids.l2);await W(300);

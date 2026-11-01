@@ -49,7 +49,7 @@ export default {
  ],
  /* ── VUE D'ENSEMBLE d'un chantier ouvert : bandeau, 2e ligne, familles, puis une étape par onglet ── */
  chantier:[
-  {sel:'#shName',titre:"Bienvenue dans Tracé Chantier",texte:"Le chantier ouvert et, juste dessous, son avancement. Ici, toute l'équipe, du terrain au bureau, trouve le plan, la vie du chantier (sécurité, conversation, dossier) et la technique."},
+  {sel:'#shName, #canvas',titre:"Bienvenue dans Tracé Chantier",texte:"Le chantier ouvert. Ici, toute l'équipe, du terrain au bureau, trouve le plan, la vie du chantier (sécurité, conversation, dossier) et la technique."}, /* 01/11 soir (lot 0111n) : le plan d'ensemble n'a plus le bandeau nom + % (le nom est sur la 2e ligne) → l'étape montre le plan */
   {sel:'#tbSiteMod',titre:"Le bandeau : Tracé Chantier ▾",texte:"Le module où tu es. Touche-le pour passer à un autre module, revoir le tutoriel de l'écran ou ouvrir 📚 Tous les tutoriels."},
   {sel:'#siteSel',titre:"2e ligne : le chantier ouvert",texte:"Touche son nom pour changer de chantier, ⌂ pour revenir à tes chantiers. À droite : ? relance le tutoriel de l'onglet, 🔍 cherche une soudure, ☰ ouvre le menu."},
   {sel:'#facets',titre:"Plan · Vie du chantier · Technique",texte:"Les onglets sont rangés en trois familles. Touche une famille : ses onglets s'affichent dans la barre du bas (glisse-la s'il y en a d'autres)."},
@@ -73,11 +73,11 @@ export default {
  /* ── 📐 le plan d'ensemble ── */
  'chantier:plan':[
   {sel:'#svg',titre:"Le plan d'ensemble",texte:"Glisse un doigt pour te déplacer, pince à deux doigts pour zoomer. Touche une soudure (un rond) : sa fiche s'ouvre."},
-  {sel:'#legend',titre:"Les couleurs des soudures",texte:"Gris : à souder · orange : soudée · bleu : contrôlée · vert : manchonnée · rouge : à reprendre. Trait rouge = aller, trait bleu = retour."},
+  {sel:'#legend',titre:"ℹ Légende : les couleurs",texte:"Repliée pour laisser le plan : touche « ℹ Légende ». Gris : à souder · orange : soudée · bleu : contrôlée · vert : manchonnée · rouge : à reprendre. Trait rouge = aller, bleu = retour."}, /* 01/11 soir : légende pliée par défaut */
   {titre:"La fiche d'une soudure",texte:"En haut : n°, statut, DN, aller ou retour, PK. « Faire l'étape … » ouvre la tienne : 1 Soudure (soudeur), puis 2 Fils raccordés, 3 Manchon posé, 4 Moussage (manchonneur)."},
   {titre:"Photo, puis « Valider l'étape »",texte:"📷 Photo du cordon (obligatoire pour la soudure), puis « Valider l'étape » : ton nom et la date restent sur la fiche. Sans réseau, c'est gardé et envoyé au retour du réseau."},
   {titre:"👥 Pour le compte du soudeur",texte:"Tuyauteur, manchonneur, pelleur : le soudeur a fini ? Ouvre la soudure, « Soudé par » : choisis-le, prends la photo du cordon et valide. La soudure compte pour lui, ton nom reste dans l'historique.",si:a=>C(a,'weld.step1.for')},
-  {sel:'#planFab',titre:"＋ Poser sur le plan",texte:"Une note avec photo, une soudure faite sur place, une modif… : choisis, puis touche l'endroit sur le plan. Une barre en haut t'explique chaque étape.",si:a=>C(a,'phasage.edit','stock.edit','conv.post','site.tracer')},
+  {sel:'#btnMenu',titre:"＋ Poser sur le plan",texte:"Dans ☰ › Terrain & chantier : « ＋ Poser sur le plan… ». Une note avec photo, une soudure faite sur place, une modif : choisis, puis touche l'endroit. Une barre t'explique chaque étape.",si:a=>C(a,'phasage.edit','stock.edit','conv.post','site.tracer')}, /* 01/11 soir : le ＋ flottant a quitté le plan (Ethan) */
   {sel:'.zoomctl [data-z="eye"]',titre:"👁 Ce qui s'affiche",texte:"Les calques : DN, longueurs, n° de soudure, fils, notes, points… « Épuré » allège le plan, « Par défaut » remet tout. 📅 juste dessous : qui a fait quoi, et quand."},
   {sel:'#btnSearch',titre:"🔍 Retrouver une soudure",texte:"Tape son n° (ex. 24) puis Entrée : le plan se centre dessus et sa fiche s'ouvre. Le même menu ☰ filtre le plan : « Pour moi », « À souder »…"},
   {sel:'#pxPlanBtn',titre:"📄 Mes plans",texte:"Les plans d'exé du chantier, ceux de ta zone en premier. Depuis la fiche d'une soudure, « 📄 Plan d'exé » ouvre directement la bonne planche.",si:a=>F(a,'plansexe')}

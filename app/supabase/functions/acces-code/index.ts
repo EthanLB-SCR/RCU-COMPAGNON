@@ -10,6 +10,10 @@
 //    is_admin() avec CE jeton (même règle que la base) : seul un administrateur actif passe ;
 //  - la personne visée doit avoir un accès (invitation) ou un compte actif ; jamais son propre compte, jamais un compte administrateur
 //    (un administrateur change son mot de passe lui-même) ;
+//  - 01/11/2026 soir (Ethan : « un conducteur ou un chef de chantier, sans être administrateur, doit pouvoir envoyer le lien de 1re connexion aux gars de
+//    son chantier ») : un CHEF ou un CONDUCTEUR (encadrement actif) peut faire le code d'une personne JAMAIS CONNECTÉE (invitation, pas encore de compte),
+//    placée au planning (semaine passée, en cours ou les deux suivantes) sur un chantier dont il est le chef ou le conducteur (fiche du chantier).
+//    Remettre à zéro le mot de passe d'un compte existant reste réservé à l'administrateur ;
 //  - le code n'est ni stocké ni journalisé ici ; un nouveau code remplace l'ancien (et le mot de passe d'avant) ;
 //  - la clé de service (SUPABASE_SERVICE_ROLE_KEY, ou la clé secrète « default » des nouvelles clés) est fournie par Supabase à
 //    l'exécution : elle n'est jamais dans l'appli ni dans le dépôt. Aucun secret à configurer.
@@ -28,6 +32,17 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
 const ADMIN_SEED = ['elebihan@scr-soudure.fr']; // administrateur d'office (même liste que la base et l'appli)
+// encadrement qui peut envoyer le 1er accès des gars de ses chantiers (01/11/2026) — les postes de l'appli (src/acces.js, famille encadrement / direction)
+const ENCADRANTS = ['chef', 'conducteur', 'resp_exploitation', 'resp_operations', 'gerant', 'dir_adjointe', 'dir_technique'];
+// semaine ISO « 2026-W45 » d'une date (même clé que le planning de l'appli)
+function weekKey(d: Date): string {
+  const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const day = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - day);
+  const y = t.getUTCFullYear();
+  const w = Math.ceil(((t.getTime() - Date.UTC(y, 0, 1)) / 86400000 + 1) / 7);
+  return y + '-W' + String(w).padStart(2, '0');
+}
 const CODE_RE = /^[a-z0-9]{8,32}$/; // codes générés par l'appli : 8 caractères, minuscules et chiffres (sans i, l, o, 0, 1)
 const EMAIL_RE = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
 // message du serveur relayé à l'appli : sans « not found » / « 404 » (l'appli les lit comme « fonction pas déployée »)
@@ -87,7 +102,13 @@ async function handle(req: Request): Promise<Response> {
   const me = String(who.user.email || '').toLowerCase();
   const { data: isAdm, error: eAdm } = await asCaller.rpc('is_admin');
   if (eAdm) return json({ error: 'contrôle administrateur impossible : ' + clean(eAdm.message) }, 500);
-  if (isAdm !== true) return json({ error: "réservé à l'administrateur" }, 403);
+  let chefOnly = false; // chef / conducteur (pas administrateur) : 1er accès des gars de ses chantiers seulement
+  if (isAdm !== true) {
+    const { data: mine } = await srv.from('profiles').select('poste,active,admin').eq('id', who.user.id).limit(1);
+    const p0 = ((mine || []) as { poste?: string; active?: boolean }[])[0];
+    if (!p0 || p0.active === false || !ENCADRANTS.includes(String(p0.poste || ''))) return json({ error: "réservé à l'administrateur, au chef ou au conducteur du chantier" }, 403);
+    chefOnly = true;
+  }
 
   // 2) la demande
   let body: Record<string, unknown> = {};
@@ -108,6 +129,24 @@ async function handle(req: Request): Promise<Response> {
   if (!inv && !prof) return json({ error: "aucun accès créé pour cette adresse : « Créer un accès » d'abord" }, 400);
   if (prof && (prof.admin || prof.poste === 'admin')) return json({ error: "compte administrateur : son mot de passe se change par la personne elle-même (retire-lui ★ d'abord si besoin)" }, 403);
   if (prof && prof.active === false) return json({ error: "compte inactif : coche « actif » d'abord" }, 400);
+
+  // 3 bis) chef / conducteur : seulement une personne jamais connectée, placée sur un de SES chantiers (fiche : chef ou conducteur)
+  if (chefOnly) {
+    if (!inv || prof) return json({ error: "déjà connecté une fois : pour un mot de passe oublié, demande à l'administrateur un nouveau code" }, 403);
+    const { data: ss, error: eS } = await srv.from('sites').select('id,fiche:data->fiche');
+    if (eS) return json({ error: 'lecture des chantiers impossible : ' + clean(eS.message) }, 500);
+    const mineSites = new Set(((ss || []) as { id: string; fiche?: { chef?: string; conducteur?: string } | null }[])
+      .filter((r) => r.fiche && [r.fiche.chef, r.fiche.conducteur].some((x) => String(x || '').toLowerCase() === me)).map((r) => r.id));
+    const now = Date.now();
+    const weeks = [-7, 0, 7, 14].map((dd) => weekKey(new Date(now + dd * 86400000)));
+    const { data: pl, error: eP } = await srv.from('planning').select('week,data').in('week', weeks);
+    if (eP) return json({ error: 'lecture du planning impossible : ' + clean(eP.message) }, 500);
+    const placed = ((pl || []) as { data?: { aff?: Record<string, Record<string, unknown>> } }[]).some((r) => {
+      const o = (r.data && r.data.aff && r.data.aff[email]) || {};
+      return Object.keys(o).some((k) => /^\d{4}-\d{2}-\d{2}$/.test(k) && Array.isArray(o[k]) && (o[k] as string[]).some((id) => mineSites.has(id)));
+    });
+    if (!placed) return json({ error: "pas sur un de tes chantiers : place-le d'abord au planning sur ton chantier (ou demande à l'administrateur)" }, 403);
+  }
 
   const meta = { must_change: true, code_by: me, code_at: new Date().toISOString() };
   const setCode = async (uid: string) => {

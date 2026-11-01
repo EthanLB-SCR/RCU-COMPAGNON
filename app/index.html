@@ -750,6 +750,9 @@ button.gd-cell{cursor:pointer}.gd-cell .gd-d{font-weight:800;font-size:12.5px;li
 .pv-title{font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--ink2);margin-bottom:6px}
 .pv-q{display:flex;gap:10px;align-items:flex-start;background:#fff4ee;border:1px solid #f3c9b4;border-radius:12px;padding:10px 12px;font-size:14px;line-height:1.35;font-weight:600}.pv-q b{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#eb6834;color:#fff;flex:none;font-size:13px}
 .pv-file{font-size:12.5px;margin:0 0 6px}.pv-pdf{max-height:50vh;background:#efede8}
+.siteHead.slim .l1,.siteHead.slim .l2{display:none!important}.siteHead.slim{padding-top:6px;padding-bottom:6px} /* 01/11 soir : plan d'ensemble épuré */
+.legend.folded{padding:0;background:none;border:0}.legend.folded>:not(.legTog){display:none!important}.legTog{font:inherit;font-size:11.5px;font-weight:700;color:var(--ink2,#555);background:rgba(252,252,251,.94);border:1px solid var(--line,#ddd);border-radius:999px;padding:4px 10px;min-height:30px;cursor:pointer}.legend:not(.folded) .legTog{background:none;border:0;padding:0 4px 0 0;min-height:0}
+.pdfTip{font-size:12px;color:var(--ink2,#555);margin:0 0 6px;padding:4px 2px}.pv-pdf.pdfZoom{overflow-x:auto}.pv-pdf.pdfZoom img.pdfPg{width:200%!important;max-width:none} /* 01/11 soir : 🔍 Agrandir — le texte du PDF deux fois plus gros, on glisse pour lire */
 .dr-fsw{float:right;display:inline-flex;gap:4px;margin-left:6px}.dr-fsw .btn.sm{min-height:32px;padding:0 9px;font-size:12px}
 /* 13/10 : lecture d'un document en plein écran */
 .modal.full{padding:0}.modal.full .box{max-width:none;width:100%;height:100%;max-height:100%;border-radius:0;display:flex;flex-direction:column}.modal.full .dr-body,.modal.full .pv-pdf{max-height:none;flex:1 1 auto;min-height:0}.pv-mod{max-height:56vh}
@@ -1209,7 +1212,7 @@ setTimeout(function(){gone('filet')},25000); /* filet : jamais plus de 25 s, mê
         <div style="display:flex;gap:6px;margin-top:6px"><button class="btn sm" id="loginFirst" style="flex:1">Première connexion ou oubli : créer mon mot de passe</button><button class="btn sm" id="loginOtp" style="flex:1">Code par e-mail</button></div>
         </div>
         <div id="loginAlt" style="display:none"></div>
-        <div class="hint2" id="loginHint">Ton accès est créé par l'administrateur avec ton e-mail. Première fois (ou mot de passe oublié) : demande-lui ton <b>code de connexion</b>, puis « créer mon mot de passe ».</div>
+        <div class="hint2" id="loginHint">Ton accès est créé par ton responsable avec ton e-mail. Première fois (ou mot de passe oublié) : demande-lui ton <b>lien</b> ou ton <b>code de connexion</b> (SMS ou mail), puis « créer mon mot de passe ».</div>
       </div>
       <a href="#" id="loginSkip" style="font-size:12px;color:var(--ink2);margin-top:6px">Continuer hors connexion (chantiers de cet appareil)</a>
       <div class="loginFoot">SCR — Soudure Construction Réseaux <span id="loginVer"></span></div>

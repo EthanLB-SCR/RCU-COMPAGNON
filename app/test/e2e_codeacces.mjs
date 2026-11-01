@@ -27,7 +27,7 @@ await ctx.route(u=>u.href.startsWith(SB),async route=>{const req=route.request()
   if(p==='/functions/v1/acces-code'){fnCalls.push({body:b,auth:String(req.headers()['authorization']||'')});
     if(FN==='missing')return json({code:'NOT_FOUND',message:'Requested function was not found'},404);
     if(FN==='deny')return json({error:"réservé à l'administrateur"},403);
-    const em=String(b.email||'').toLowerCase();const created=!PW[em];PW[em]=b.code;META[em]={...(META[em]||{}),must_change:true,code_by:CUR.email};
+    const em=String(b.email||'').toLowerCase();const created=!PW[em];PW[em]=b.code;META[em]={...(META[em]||{}),must_change:true,code_by:CUR.email,code_at:new Date().toISOString()}; /* comme la vraie fonction : la date du code */
     if(created){IDS[em]=IDS[em]||'44444444-2222-4333-8444-'+String(Object.keys(IDS).length).padStart(12,'0');const inv=invites.find(i=>i.email===em);if(inv){inv.used_at=new Date().toISOString();profiles.push(prof(IDS[em],em,inv.prenom,inv.nom,inv.poste,false));}}
     return json({ok:true,created});}
   if(p==='/auth/v1/otp'){if(NOTAUTH)return json({code:400,error_code:'email_address_not_authorized',msg:'Email address "'+b.email+'" cannot be used as it is not authorized'},400);return json({});}
@@ -80,18 +80,18 @@ C.c3=out.fn.body.email===KARIM_EMAIL&&out.fn.body.code===CODE&&tokSub===ETHAN.id
   &&/^sms:\?&body=/.test(out.m2.sms)&&decodeURIComponent(out.m2.sms.split('body=')[1]).includes(shown)&&out.m2.copy&&PW[KARIM_EMAIL]===CODE&&META[KARIM_EMAIL].must_change===true&&out.list&&/Nouveau code/.test(out.list.btn);
 // ── 4) Karim, écran d'accueil → « Première connexion » : e-mail + code tapé EN MAJUSCULES avec espace + son mot de passe → connecté ; le serveur a le nouveau mot de passe, must_change effacé
 await out0();
-await page.click('#loginFirst');await wait(250);out={panel:await page.evaluate(()=>({t:document.querySelector('#loginAlt .loginAlt-t').textContent,code:!!document.querySelector('#lgCode'),pw:document.querySelectorAll('#loginAlt input[type=password]').length,send:(document.querySelector('#lgSend')||{}).textContent,hint:document.querySelector('#loginHint').textContent}))};
+await page.click('#loginFirst');await wait(250);out={panel:await page.evaluate(()=>({t:document.querySelector('#loginAlt .loginAlt-t').textContent,code:!!document.querySelector('#lgCode'),pw:document.querySelectorAll('#loginAlt input[type=password]').length,send:(document.querySelector('#lgSend')||{}).textContent,ask:[...document.querySelectorAll('#loginAlt .hint2')].map(x=>x.textContent).join(' '),hint:document.querySelector('#loginHint').textContent}))};
 await page.fill('#lgEmail',KARIM_EMAIL);await page.fill('#lgCode','zzzz zzzz');await page.fill('#lgPw1','Karim-2026!');await page.fill('#lgPw2','Karim-2026!');await page.click('#lgOk');await wait(1000);out.faux=await scr();
 await page.fill('#lgCode',shown.toUpperCase());await page.click('#lgOk');await wait(1800);out.ok=await scr();out.pw=PW[KARIM_EMAIL];out.meta=META[KARIM_EMAIL];out.put=puts[puts.length-1];
 console.log('4) première connexion avec le code :',JSON.stringify(out));
-C.c4=out.panel.t==='CRÉER MON MOT DE PASSE'&&out.panel.code&&out.panel.pw===2&&/recevoir par e-mail/i.test(out.panel.send)&&/donné par ton responsable/.test(out.panel.hint)
+C.c4=out.panel.t==='CRÉER MON MOT DE PASSE'&&out.panel.code&&out.panel.pw===2&&out.panel.send===undefined&&/Demande à ton chef/.test(out.panel.ask) /* 01/11 soir : plus de « recevoir par e-mail » (pas de SMTP) — voir c8 */&&/donné par ton responsable/.test(out.panel.hint)
   &&out.faux.login&&!out.faux.home&&/E-mail ou code incorrect/.test(out.faux.hint)&&!out.ok.login&&out.ok.home&&out.pw==='Karim-2026!'&&out.meta.must_change===false&&out.put.data&&out.put.data.must_change===false;
 // ── 5) reconnexion de Karim avec SON mot de passe : accueil direct (pas de nouvelle demande)
 await out0();await page.fill('#loginEmail',KARIM_EMAIL);await page.fill('#loginPwd','Karim-2026!');await page.click('#loginGo');await wait(1800);out={relog:await scr()};
 console.log('5) reconnexion :',JSON.stringify(out));
 C.c5=!out.relog.login&&out.relog.home&&!out.relog.modal;
 // ── 6) mot de passe oublié : nouveau code ; Karim le tape dans la case MOT DE PASSE ordinaire (« k7mp 4qxa ») → connecté mais l'appli exige son mot de passe avant d'entrer
-await out0();const CODE2='h3wz8ntc';PW[KARIM_EMAIL]=CODE2;META[KARIM_EMAIL]={...META[KARIM_EMAIL],must_change:true};
+await out0();const CODE2='h3wz8ntc';PW[KARIM_EMAIL]=CODE2;META[KARIM_EMAIL]={...META[KARIM_EMAIL],must_change:true,code_at:new Date().toISOString()};
 await page.fill('#loginEmail',KARIM_EMAIL);await page.fill('#loginPwd','H3WZ 8NTC');await page.click('#loginGo');await wait(1800);out={force:await scr()};
 await wait(800);out.force2=await scr();
 await page.fill('#lgPw1','Nouveau-2026');await page.fill('#lgPw2','Nouveau-2027');await page.click('#lgOk');await wait(300);out.diff=(await scr()).hint;
@@ -101,17 +101,21 @@ console.log('6) code tapé dans la case mot de passe → choix obligatoire :',JS
 C.c6=out.force.login&&!out.force.home&&out.force.altT==='CHOISIS TON MOT DE PASSE'&&!out.force.main&&out.force2.altT==='CHOISIS TON MOT DE PASSE'&&!out.force2.home&&/diffèrent/.test(out.diff)&&/déjà ton mot de passe/.test(out.same)
   &&!out.ok.login&&out.ok.home&&out.pw==='Nouveau-2026'&&out.meta===false;
 // ── 7) connecté avec un nouveau code puis appli FERMÉE avant d'avoir choisi le mot de passe : à la réouverture, l'écran « choisis ton mot de passe » revient ; « Se déconnecter » ressort
-await out0();PW[KARIM_EMAIL]='p7xk3mwa';META[KARIM_EMAIL]={...META[KARIM_EMAIL],must_change:true};
+await out0();PW[KARIM_EMAIL]='p7xk3mwa';META[KARIM_EMAIL]={...META[KARIM_EMAIL],must_change:true,code_at:new Date().toISOString()};
 await page.fill('#loginEmail',KARIM_EMAIL);await page.fill('#loginPwd','p7xk3mwa');await page.click('#loginGo');await wait(1500);out={avant:(await scr()).altT};
 await page.reload();await wait(2600);out.reopen=await scr();
 await page.click('#lgOut');await wait(900);out.out=await scr();META[KARIM_EMAIL].must_change=false;
 console.log('7) réouverture avec code provisoire :',JSON.stringify(out));
 C.c7=out.avant==='CHOISIS TON MOT DE PASSE'&&out.reopen.login&&!out.reopen.home&&out.reopen.altT==='CHOISIS TON MOT DE PASSE'&&out.out.login&&out.out.main&&!out.out.alt;
 // ── 8) « Le recevoir par e-mail » vers une adresse que Supabase refuse (pas de SMTP) : message qui renvoie vers le responsable ; ce qui était tapé reste
+// 01/11 soir (Ethan : « enlève les recevoir code par e-mail ») : par défaut (pas de SMTP), ni « Code par e-mail » ni « Le recevoir par e-mail » — « demande à ton chef » ; le drapeau trace:otpMail = 1 les ramène
+const dflt=await page.evaluate(()=>{const o=document.getElementById('loginOtp');return {otp:o?getComputedStyle(o).display:'absent'};});await page.click('#loginFirst');await wait(250);
+Object.assign(dflt,await page.evaluate(()=>({send:!!document.getElementById('lgSend'),hint:[...document.querySelectorAll('#loginAlt .hint2')].map(x=>x.textContent).join(' ')})));await page.click('#lgBack');await wait(200);
+await page.evaluate(()=>localStorage.setItem('trace:otpMail','1'));
 NOTAUTH=true;await page.click('#loginFirst');await wait(250);await page.fill('#lgEmail','inconnu@scr-soudure.fr');await page.fill('#lgCode','abcd');await page.click('#lgSend');await wait(900);
-out={na:(await scr()).hint,kept:await page.evaluate(()=>document.querySelector('#lgCode').value),flag:await page.evaluate(()=>localStorage.getItem('trace:pwdSetup'))};NOTAUTH=false;
+out={dflt,na:(await scr()).hint,kept:await page.evaluate(()=>document.querySelector('#lgCode').value),flag:await page.evaluate(()=>localStorage.getItem('trace:pwdSetup'))};NOTAUTH=false;
 await page.click('#lgBack');await wait(200);out.back=await scr();
 console.log('8) e-mail refusé par Supabase :',JSON.stringify(out));
-C.c8=/Pas d'e-mail possible vers cette adresse/.test(out.na)&&/responsable/.test(out.na)&&out.kept==='abcd'&&!out.flag&&out.back.main&&!out.back.alt;
+C.c8=out.dflt.otp==='none'&&!out.dflt.send&&/Demande à ton chef/.test(out.dflt.hint)&&/Pas d'e-mail possible vers cette adresse/.test(out.na)&&/responsable/.test(out.na)&&out.kept==='abcd'&&!out.flag&&out.back.main&&!out.back.alt;
 const bad=Object.entries(C).filter(([k,v])=>!v).map(([k])=>k);console.log(bad.length?'RESULTAT: ECHEC '+bad.join(','):'RESULTAT: TOUT VERT');console.log(logs.length?logs:'[]');
 await browser.close();

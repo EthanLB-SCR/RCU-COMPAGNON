@@ -44,7 +44,14 @@ export function docsAll(){const rows=regAll('doc').filter(r=>!r.cfg&&!RETIRED_ID
 export function docsArchived(){return regAll('doc').filter(d=>d&&d.active===false&&!d.cfg&&!RETIRED_IDS.has(d.id));}
 export const docById=id=>docsAll().find(d=>d.id===id)||docsArchived().find(d=>d.id===id)||RETIRED_DOCS.find(d=>d.id===id)||null;
 // à qui s'applique un document : tous / postes / types de compte — un visiteur ne signe rien ; 14/10 nuit : un document d'accueil « PDF à joindre » (pending) ne se signe pas encore
-export function docApplies(d,acc){if(!acc||acc.poste==='visiteur'||acc.active===false)return false;if(d.pending||d.cfg)return false;const r=d.req||{all:true};if(r.none)return false; /* communication interne, présentation : rien à signer */if(r.all)return true;if(Array.isArray(r.postes)&&r.postes.includes(acc.poste))return true;if(Array.isArray(r.types)&&r.types.includes(acc.type||'salarie'))return true;return false;}
+/* 01/11 soir (Ethan : « revoir les documents obligatoires entre intérimaire et salarié : pas de fiche de poste pour un intérimaire, ni de règlement intérieur ») :
+   un intérimaire signe ce qui vaut pour tout le monde (sécurité, RGPD, charte…) et ce qui coche « aussi les intérimaires » ; jamais le règlement intérieur ni une fiche de poste ;
+   un document ciblé par poste ne vaut pour lui que si « aussi les intérimaires » est coché (avant : le poste suffisait — sa fiche de soudeur lui était demandée). */
+const isReglement=d=>d.kind==='reglement'||/r[eè]glement int[eé]rieur/i.test(d.title||'')||/^reglement/i.test(String(d.id||'').replace(/^acc_/,''));
+const isFichePoste=d=>d.kind==='fiche'||/fiche\s+de\s+poste/i.test(d.title||'')||/^fiche_/i.test(String(d.id||'').replace(/^acc_/,''));
+export function docApplies(d,acc){if(!acc||acc.poste==='visiteur'||acc.active===false)return false;if(d.pending||d.cfg)return false;const r=d.req||{all:true};if(r.none)return false; /* communication interne, présentation : rien à signer */
+  if((acc.type||'salarie')==='interim'){if(isReglement(d)||isFichePoste(d))return false;if(r.all)return true;return Array.isArray(r.types)&&r.types.includes('interim');}
+  if(r.all)return true;if(Array.isArray(r.postes)&&r.postes.includes(acc.poste))return true;if(Array.isArray(r.types)&&r.types.includes(acc.type||'salarie'))return true;return false;}
 export function docsFor(acc){return docsAll().filter(d=>docApplies(d,acc));}
 export const docSig=(docId,key)=>regGet('docsig',docId+'|'+key);
 /* 14/10 nuit (accueil RH) : une signature vaut pour la version signée — NOUVELLE VERSION → nouvelle signature (une signature sans version reste valable) */
@@ -70,7 +77,15 @@ export function docTaskInfo(d,acc){const x=docDue(d,acc);if(!x)return {};return 
 /* 19/10 (QF) : qui a des documents EN RETARD (rappel du chef / des RH, lecture seule) → [{acc, name, n, docs}] triés par le plus grand retard */
 export function docsLatePeople(accs){return (accs||[]).filter(Boolean).map(a=>{const k=docKey(a);const L=docsFor(a).filter(d=>!docSigned(d,k)).map(d=>({d,u:docDue(d,a)})).filter(x=>x.u&&x.u.late).sort((x,y)=>x.u.left-y.u.left);return L.length?{acc:a,name:a.name||a.email||'',n:L.length,worst:-L[0].u.left,docs:L.map(x=>x.d)}:null;}).filter(Boolean).sort((a,b)=>b.worst-a.worst||String(a.name).localeCompare(String(b.name)));}
 /* champs à compléter : « [[À COMPLÉTER : nom…]] » du texte importé → nom, poste, date du jour de la personne qui lit */
-const fillPh=(html,acc)=>!html||!acc?html:String(html).replace(/<mark class="acc-ph" data-ph="(nom|poste|date)">[^<]*<\/mark>/g,(m,k)=>'<b>'+esc(k==='nom'?(acc.name||acc.email||''):k==='poste'?((POSTES_DEF.find(p=>p[0]===acc.poste)||[])[1]||acc.poste||''):new Date().toLocaleDateString('fr-FR'))+'</b>');
+/* 01/11 soir (Ethan : « sur la note RGPD obligatoire à signer, la lettre n'était pas au nom du DG mais au nom du profil que j'ai créé ») : un « [[À COMPLÉTER : …]] » qui
+   désigne le SIGNATAIRE (gérant, signataire, dirigeant, DG…) ou le RÉFÉRENT RGPD prend la valeur de l'entreprise (Administrateur → Entreprise → Signataire et référent RGPD) —
+   jamais le nom du lecteur ; non réglé : le repère reste affiché (surligné). Le reste comme avant : nom / poste du lecteur, date du jour. */
+const nrmPh=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const phRole=lab=>{const k=nrmPh(lab);if(/gerant|signataire|dirigeant|directeur|president|\bdg\b|employeur/.test(k))return 'sign';if(/rgpd|dpo|donnees personnelles/.test(k))return /mail|adresse/.test(k)?'rgpdMail':'rgpd';return null;};
+const fillPh=(html,acc)=>{if(!html||!acc)return html;const E=(A&&A.ent&&A.ent())||{};const S=E.sign||{},R=E.rgpd||{};
+  return String(html).replace(/<mark class="acc-ph" data-ph="(\w+)">([^<]*)<\/mark>/g,(m,k,lab)=>{const role=phRole(lab);
+    if(role){const v=role==='sign'?(k==='poste'?S.titre:S.nom):role==='rgpd'?R.nom:R.email;return v?'<b>'+esc(v)+'</b>':m;} /* « fonction / qualité du signataire » → son titre */
+    if(k==='nom')return '<b>'+esc(acc.name||acc.email||'')+'</b>';if(k==='poste')return '<b>'+esc((POSTES_DEF.find(p=>p[0]===acc.poste)||[])[1]||acc.poste||'')+'</b>';if(k==='date')return '<b>'+esc(new Date().toLocaleDateString('fr-FR'))+'</b>';return m;});};
 export function docSigsOf(docId){return regAll('docsig').filter(s=>s.doc===docId);}
 /* ── signature au doigt (nom + trait) : partagée avec le parcours d'accueil chantier (next.js) ── */
 export function sigPadHTML(id){return `<canvas id="${id}" width="640" height="200" class="dr-pad" style="width:100%;height:140px;border:1.5px dashed #b8b4a8;border-radius:10px;background:#fff;touch-action:none"></canvas><div class="hint" style="margin-top:4px">Signe au doigt dans le cadre — la signature vaut « j'ai lu et compris ».</div>`;}
@@ -91,7 +106,15 @@ export async function mountPdfReader(file,host,alt,btn,onRead,range){const url=f
   try{const doc=await (PDFC[url]||(PDFC[url]=lib.getDocument({url,withCredentials:false}).promise.catch(e=>{delete PDFC[url];throw e;})));host.innerHTML='';const n=doc.numPages;const W=Math.min(host.clientWidth||600,900)-20;
     /* 14/10 nuit (livrets) : range = [première, dernière page] d'un chapitre — le bouton se débloque en bas du chapitre */
     const p0=range?Math.max(1,Math.min(n,+range[0]||1)):1,p1=range?Math.max(p0,Math.min(n,+range[1]||n)):n;
-    for(let i=p0;i<=p1;i++){const page=await doc.getPage(i);const vp0=page.getViewport({scale:1});const scale=W/vp0.width;const vp=page.getViewport({scale});const c=document.createElement('canvas');c.width=Math.round(vp.width);c.height=Math.round(vp.height);c.style.width='100%';c.style.display='block';c.style.margin='0 0 8px';host.appendChild(c);await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+    /* 01/11 soir (Ethan : « vérifier que tous les PDF à signer soient très bien lisibles ») : la page était dessinée à la taille de l'écran (350 px de large au téléphone,
+       étirée ×3 par l'écran : texte flou et minuscule) → dessinée à la résolution de l'écran ×2 (texte net même agrandi), puis convertie en image (la mémoire du dessin
+       est rendue : un livret de 40 pages tient au téléphone) ; « 🔍 Agrandir » double la largeur (on lit en glissant). */
+    const Q=Math.min(4,Math.max(2,(window.devicePixelRatio||1)*2));
+    if((window.innerWidth||0)<600&&document.getElementById('dr-zoom')){const tip=document.createElement('div');tip.className='pdfTip';tip.textContent='📱 Pour lire plus gros : tourne le téléphone, ou touche « 🔍 Agrandir ».';host.appendChild(tip);}
+    for(let i=p0;i<=p1;i++){const page=await doc.getPage(i);const vp0=page.getViewport({scale:1});const vp=page.getViewport({scale:Math.min(W*Q,2600)/vp0.width});const c=document.createElement('canvas');c.width=Math.round(vp.width);c.height=Math.round(vp.height);
+      await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+      const im=document.createElement('img');im.className='pdfPg';im.alt='Page '+i;im.style.width='100%';im.style.display='block';im.style.margin='0 0 8px';im.style.background='#fff';
+      try{const b=await new Promise(r=>c.toBlob(r,'image/png'));im.src=b?URL.createObjectURL(b):c.toDataURL('image/png');}catch(e){im.src=c.toDataURL('image/png');}c.width=c.height=0;host.appendChild(im);
       const lab=document.createElement('div');lab.className='hint';lab.style.textAlign='right';lab.textContent='page '+i+' / '+n;host.appendChild(lab);}
     const end=document.createElement('div');end.className='okbox';end.textContent=range?'Fin du chapitre (page'+(p1>p0?'s '+p0+' à '+p1:' '+p0)+').':'Fin du document ('+n+' page'+(n>1?'s':'')+').';host.appendChild(end);
     readGate(host,btn,()=>onRead('pdfjs'));}
@@ -100,7 +123,7 @@ export async function mountPdfReader(file,host,alt,btn,onRead,range){const url=f
 export function docOpen(docId,acc){const d=docById(docId);if(!d||!A)return;acc=acc||A.current();const key=docKey(acc);const sig0=docSig(d.id,key);const mine=docSigOk(d,sig0)?sig0:null;const was=!mine&&sig0?sig0:null; /* 14/10 nuit : signé dans une version précédente → à signer à nouveau */const act=!!(A.acting&&A.acting());const noSign=!!(d.req&&d.req.none);const ro=(A.viewing&&A.viewing())||act||noSign; /* 12/10 : « agir comme » fait tout… sauf signer à la place de la personne (attestation personnelle) */
   const isQ=Array.isArray(d.qs)&&d.qs.length;const name=acc?(acc.name||acc.email||''):'';const pdf=!isQ&&isPdfDoc(d);
   const X=d.acc||null;const chap=pdf&&X&&Array.isArray(X.chap)&&X.chap.length?X.chap:null; /* 14/10 nuit (accueil RH) : livret lu CHAPITRE par chapitre (plages de pages) */const html=fillPh(d.html,acc);
-  const pvFile=`<div class="pv-file"><b>📄 ${esc(d.file||d.title)}</b>${d.by?` <span class="dim">· ${esc(d.by)}${d.at?' · '+dFR(d.at):''}</span>`:''}<span class="dr-fsw"><button type="button" class="btn sm" id="dr-fs" title="Lire en plein écran (la lecture compte toujours pour la signature)">⤢ Plein écran</button>${d.url?`<a class="btn sm" href="${esc(d.url)}" target="_blank" rel="noopener" title="Ouvrir le PDF dans un nouvel onglet">↗</a>`:''}</span></div>`;
+  const pvFile=`<div class="pv-file"><b>📄 ${esc(d.file||d.title)}</b>${d.by?` <span class="dim">· ${esc(d.by)}${d.at?' · '+dFR(d.at):''}</span>`:''}<span class="dr-fsw"><button type="button" class="btn sm" id="dr-zoom" title="Texte plus gros : glisse de gauche à droite pour lire">🔍 Agrandir</button><button type="button" class="btn sm" id="dr-fs" title="Lire en plein écran (la lecture compte toujours pour la signature)">⤢ Plein écran</button>${d.url?`<a class="btn sm" href="${esc(d.url)}" target="_blank" rel="noopener" title="Ouvrir le PDF dans un nouvel onglet">↗</a>`:''}</span></div>`;
   const altHTML=`<div id="dr-alt" style="display:none"><a class="btn block" href="${d.url||d.data}" target="_blank" rel="noopener">📄 Ouvrir le document dans un nouvel onglet</a><div class="hint" style="margin:4px 0">Le lecteur intégré n'est pas disponible ici (hors connexion ou appareil) : ouvre le document, lis-le en entier, puis atteste — le bouton se débloque après lecture.</div></div>`;
   const body=isQ
     ?`<div class="dr-q">${d.intro?`<p class="hint">${esc(d.intro)}</p>`:''}${d.qs.map((q,i)=>`<label class="dr-qi"><input type="checkbox" data-q="${i}" ${mine?'checked disabled':''}><span><b>${i+1}</b> ${esc(q)}</span></label>`).join('')}</div>`
@@ -118,6 +141,7 @@ export function docOpen(docId,acc){const d=docById(docId);if(!d||!A)return;acc=a
   { /* 13/10 (Ethan) : « un lien pour ouvrir le doc en plein écran » — la fenêtre de lecture passe en plein écran (CSS : marche aussi sur iPhone), le défilement compte toujours pour la signature */
     const fs=document.getElementById('dr-fs');const M=document.getElementById('modal');if(M)M.classList.remove('full');
     if(fs&&M)fs.onclick=()=>{const on=M.classList.toggle('full');fs.textContent=on?'✕ Réduire':'⤢ Plein écran';const b=document.getElementById('dr-body');if(b)b.scrollTop=b.scrollTop;};
+    const zm=document.getElementById('dr-zoom');if(zm)zm.onclick=()=>{const b=document.getElementById('dr-body');if(!b)return;const y=b.scrollHeight?b.scrollTop/b.scrollHeight:0;const on=b.classList.toggle('pdfZoom');zm.textContent=on?'🔍 Taille normale':'🔍 Agrandir';requestAnimationFrame(()=>{b.scrollTop=y*b.scrollHeight;});}; /* 01/11 soir */
     const close=()=>{if(M)M.classList.remove('full');};M&&M.querySelectorAll('[data-close]').forEach(x=>x.addEventListener('click',close));}
   const rd=document.getElementById('dr-read');let readAt=null;let readMode=null;const readCh={};
   if(chap){ /* 14/10 nuit : sommaire des chapitres → un chapitre à la fois (pages a…b), « J'ai lu ce chapitre » en bas ; tous lus → signature. Signé / lecture seule : consultation libre */

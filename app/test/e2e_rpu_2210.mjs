@@ -27,7 +27,7 @@ const nState=(S,s)=>Object.values(S).filter(x=>x.s===s).length;
 let {ctx,page}=await mk({width:1366,height:860},'ethan');
 const S0=await st(page);
 // ── c1) déclaration de toute la ligne (Manchonnées) → la barre « ↶ Annuler »
-await page.click('#planFab');await page.waitForTimeout(250);await page.click('#modal [data-pose-mode="reprise"]');await page.waitForTimeout(250);
+await page.click('#btnMenu');await page.waitForTimeout(200);await page.click('#btnPose');await page.waitForTimeout(250);await page.click('#modal [data-pose-mode="reprise"]');await page.waitForTimeout(250);
 let B0=await bar(page);await tapAt(page,20);await page.click('#slideBar [data-rp="all"]');await page.waitForTimeout(300);await page.click('#rpSt .chip[data-v="manchonnee"]');await page.check('#rpFils');await page.click('#rpGo');await page.waitForTimeout(400);
 let B=await bar(page);const S1=await st(page);await shot(page,'1_barre');
 console.log('c1) après déclaration :',JSON.stringify({B0,B,man:nState(S1,'manchonnee')}));
@@ -54,7 +54,7 @@ C.c5=/1 saisie depuis : elle reste/.test(L.t[0]||'')&&S4['S-0004'].s==='controle
 await ctx.close();
 // ── c6) soudeur : « Déjà posé » grisé, pas de liste
 ({ctx,page}=await mk({width:1366,height:860},'karim'));
-await page.click('#planFab');await page.waitForTimeout(250);const soud=await page.evaluate(()=>{const b=document.querySelector('#modal [data-pose-mode="reprise"]');return b?b.disabled:null;});
+await page.click('#btnMenu');await page.waitForTimeout(200);await page.click('#btnPose');await page.waitForTimeout(250);const soud=await page.evaluate(()=>{const b=document.querySelector('#modal [data-pose-mode="reprise"]');return b?b.disabled:null;});
 await page.evaluate(()=>window.TRACE.rep.start());await page.waitForTimeout(200);const Bs=await bar(page);
 console.log('c6) soudeur :',JSON.stringify({soud,Bs}));C.c6=soud===true&&!Bs;
 await ctx.close();

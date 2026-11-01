@@ -13,6 +13,7 @@ const ctx=await browser.newContext({...devices['iPhone 13']});const page=await c
 const logs=[];page.on('pageerror',e=>logs.push('PAGEERROR: '+e.message.slice(0,300)));
 page.on('console',m=>{if(m.type()==='error'&&!/supabase|Failed to fetch|net::ERR|404|WebSocket|400|500/i.test(m.text()))logs.push(m.text().slice(0,200));});
 page.on('dialog',d=>d.accept().catch(()=>{}));
+const syncLogs=[];page.on('console',m=>{if(/^\[synchro\]/.test(m.text()))syncLogs.push(m.text().slice(0,200));}); /* 01/11 soir : les messages de synchro vont en console, plus à l'écran */
 const USER={id:'00000000-0000-0000-0000-000000000001',aud:'authenticated',role:'authenticated',email:'test@scr.fr',app_metadata:{provider:'email'},user_metadata:{},created_at:'2026-01-01T00:00:00Z'};
 const SESSION={access_token:'fake-token',token_type:'bearer',expires_in:86400,expires_at:Math.floor(Date.now()/1000)+86400,refresh_token:'fake-refresh',user:USER};
 const GEO={crs:'EPSG:3857',aff:{a:1,b:0,e:-187009,c:0,d:-1,f:6124000}}; // plan en mètres posé près de Rennes
@@ -54,7 +55,7 @@ await fresh('list',NET);
 let st=await screen();const cardA=await page.$eval('#homeBody',e=>/Chantier A/.test(e.textContent));console.log('A0) accueil, carte « Chantier A » présente:',JSON.stringify({...st,card:cardA}));
 let t0=Date.now();await page.tap('#homeBody .siteCard[data-open="S1"]');
 let r=await waitOpen('S1',40);const dtA=Date.now()-t0;console.log('A) tap carte, serveur muet → chantier ouvert ?',JSON.stringify({...r,ms:dtA}));
-const cA=cardA&&r.opened&&dtA<7500&&/Serveur lent/.test(r.toast||'');
+const cA=cardA&&r.opened&&dtA<7500&&!/Serveur lent/.test(r.toast||'')&&syncLogs.some(t=>/Serveur lent/.test(t)); /* 01/11 soir (Ethan : « enlève les écritures noires en bas d'écran quand ça synchronise ») : plus de message à l'écran, une trace en console */console.log('A) synchro (console) :',JSON.stringify(syncLogs));
 // ── B) chantier serveur seul, requête « sites?id=eq. » muette
 hang={welds:false,line_state:false,siteById:true};
 await fresh('list',NET);

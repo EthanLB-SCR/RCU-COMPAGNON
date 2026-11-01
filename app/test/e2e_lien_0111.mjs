@@ -8,8 +8,9 @@
 //  l4  lien d'un autre (Luc) sur le téléphone de Karim : on demande avant de déconnecter → « Me déconnecter et continuer » → l'écran de Luc, rempli
 //  l5  lien abîmé : écran de connexion normal, pas d'erreur
 //  l6  (+ SMS / mail par personne, compteur « envoyés » et repère « ✓ envoyé ») codes en série : invités de la liste, cases à cocher (on décoche ceux d'un autre chantier, Tous / Aucun), nom de la fiche → un code pour chaque coché (fonction appelée pour chacun), QR un par un (Suivant ›), fiche à imprimer (un QR par personne)
-//  l8  iPhone de Marc (QR des codes en série) : mot de passe créé → fenêtre « Mets Tracé sur ton écran d'accueil » (étapes Safari, une seule fois) ; reprise depuis le compte avec le bouton « Installer » quand le navigateur le propose
+//  l8  iPhone de Marc (QR des codes en série), réseau lent : mot de passe créé UNE fois (plus de 2e écran « Choisis ton mot de passe ») → fenêtre « Mets Tracé sur ton écran d'accueil » (étapes Safari, une seule fois) ; reprise depuis le compte avec le bouton « Installer » quand le navigateur le propose
 //  l9  adresse locale → avertissement avant de créer les codes ; sur PC : ni fenêtre ni bouton « écran d'accueil »
+//  l10 écran de connexion sans « code par e-mail » ; lien déjà servi (retouché un autre jour) : « Ce lien a déjà servi » → connexion avec son mot de passe
 //  l7  zéro erreur de page
 import { chromium } from 'playwright';
 const BASE=process.env.BASE||'http://localhost:8765';
@@ -36,7 +37,7 @@ const SRV=async route=>{const req=route.request();const u=new URL(req.url());con
   if(p==='/functions/v1/acces-code'){fnCalls.push({body:b,auth:String(req.headers()['authorization']||'')});
     if(FN==='missing')return json({code:'NOT_FOUND',message:'Requested function was not found'},404);
     if(FN==='deny')return json({error:"réservé à l'administrateur"},403);
-    const em=String(b.email||'').toLowerCase();const created=!PW[em];PW[em]=b.code;META[em]={...(META[em]||{}),must_change:true,code_by:CUR.email};
+    const em=String(b.email||'').toLowerCase();const created=!PW[em];PW[em]=b.code;META[em]={...(META[em]||{}),must_change:true,code_by:CUR.email,code_at:new Date().toISOString()}; /* comme la vraie fonction : la date du code */
     if(created){IDS[em]=IDS[em]||'44444444-2222-4333-8444-'+String(Object.keys(IDS).length).padStart(12,'0');const inv=invites.find(i=>i.email===em);if(inv){inv.used_at=new Date().toISOString();profiles.push(prof(IDS[em],em,inv.prenom,inv.nom,inv.poste,false));}}
     return json({ok:true,created});}
   if(p==='/auth/v1/otp'){if(NOTAUTH)return json({code:400,error_code:'email_address_not_authorized',msg:'Email address "'+b.email+'" cannot be used as it is not authorized'},400);return json({});}
@@ -88,6 +89,15 @@ C.l4=o.l4.a.modal&&/luc\.essai@scr-soudure\.fr/.test(o.l4.txt)&&/karim\.benali@s
 // ── l5 : lien abîmé
 await ph.goto(BASE+'/index.html?v=3#acces=zz%%%');await ph.waitForTimeout(1800);o.l5=await scr2();
 C.l5=o.l5.login&&o.l5.altT!=='CRÉER MON MOT DE PASSE'&&o.l5.hash==='';
+// ── l10 (01/11 soir) : écran de connexion sans « code par e-mail » (pas de SMTP) ; le lien de Karim retouché un autre jour (code déjà servi) : message clair → connexion avec son mot de passe
+o.l10={otpBtn:await ph.evaluate(()=>{const b=document.getElementById('loginOtp');return !!b&&getComputedStyle(b).display!=='none';})};
+await ph.evaluate(()=>{localStorage.clear();});await ph.goto(L1.replace('/index.html#','/index.html?v=4#'));await ph.waitForTimeout(2200);
+o.l10.send=await ph.evaluate(()=>!!document.getElementById('lgSend'));o.l10.noCodeHint=await ph.evaluate(()=>/demande à ton chef/i.test((document.getElementById('loginAlt')||{}).textContent||''));
+await ph.fill('#lgPw1','Autre-Mdp9');await ph.fill('#lgPw2','Autre-Mdp9');await ph.click('#lgOk');await ph.waitForTimeout(1500);
+o.l10.hint=await ph.evaluate(()=>(document.getElementById('loginHint')||{}).textContent||'');o.l10.pwUnchanged=PW[KARIM_EMAIL]==='Karim-Chantier7';
+await ph.evaluate(()=>{const a=document.getElementById('lgToMain');if(a)a.click();});await ph.waitForTimeout(300);
+o.l10.main=await ph.evaluate(()=>({email:(document.getElementById('loginEmail')||{}).value,main:getComputedStyle(document.querySelector('#loginMain')).display!=='none'}));
+C.l10=!o.l10.otpBtn&&!o.l10.send&&o.l10.noCodeHint&&/Ce lien a déjà servi/.test(o.l10.hint)&&o.l10.pwUnchanged&&o.l10.main.email===KARIM_EMAIL&&o.l10.main.main;
 await ctx2.close();
 // ── l6 : codes en série (Marc et Théo, jamais connectés)
 CUR={...ETHAN};const nFn0=fnCalls.length;
@@ -129,13 +139,13 @@ await page.evaluate(()=>{const c=document.querySelector('#modal [data-close]');i
 C.l9b=!o.l9.inst&&o.l9.seen===null;
 // ── l8 : iPhone de Marc (QR des codes en série) → mot de passe → « Mets Tracé sur ton écran d'accueil » (une fois) ; repris dans le compte, bouton Installer si le navigateur le propose
 {const IPH='Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
-  const ctx3=await browser.newContext({viewport:{width:390,height:844},userAgent:IPH});await ctx3.route(u=>u.href.startsWith(SB),SRV);
+  const ctx3=await browser.newContext({viewport:{width:390,height:844},userAgent:IPH});await ctx3.route(u=>u.href.startsWith(SB),async r=>{if(new URL(r.request().url()).pathname==='/rest/v1/profiles')await new Promise(x=>setTimeout(x,1500));return SRV(r);}); /* 01/11 soir : réseau lent (fiche du compte en retard) — le mot de passe ne doit être demandé qu'une fois */
   await ctx3.addInitScript(()=>{try{localStorage.setItem('trace:installTip:test','1');}catch(e){}});
   const p3=await ctx3.newPage();p3.on('pageerror',e=>logs.push('PH: '+e.message.slice(0,200)));
   const lm=SMSL['Marc ESSAI'];o.l8={link:!!lm};
   if(lm){await p3.goto(lm);await p3.waitForTimeout(2200);
     await p3.fill('#lgPw1','Marc-Chantier8');await p3.fill('#lgPw2','Marc-Chantier8');await p3.click('#lgOk');
-    let tip=null;for(let k=0;k<20&&!tip;k++){await p3.waitForTimeout(500);tip=await p3.evaluate(()=>{const m=document.querySelector('#modal');if(!m.classList.contains('show'))return null;const h=(m.querySelector('h3')||{}).textContent||'';return /écran d'accueil/.test(h)?{h,li:m.querySelectorAll('.itSteps li').length,txt:m.textContent}:null;});}
+    o.l8.force=false;let tip=null;for(let k=0;k<20&&!tip;k++){await p3.waitForTimeout(500);if(await p3.evaluate(()=>/CHOISIS TON MOT DE PASSE/.test((document.querySelector('#loginAlt .loginAlt-t')||{}).textContent||'')&&document.querySelector('#loginView').classList.contains('show')))o.l8.force=true;tip=await p3.evaluate(()=>{const m=document.querySelector('#modal');if(!m.classList.contains('show'))return null;const h=(m.querySelector('h3')||{}).textContent||'';return /écran d'accueil/.test(h)?{h,li:m.querySelectorAll('.itSteps li').length,txt:m.textContent}:null;});}
     if(SHOT&&tip)await p3.screenshot({path:SHOT+'/lien_3_ecran.png'});
     o.l8.tip=tip?{h:tip.h,li:tip.li,ios:/Sur l'écran d'accueil/.test(tip.txt)&&/Safari/.test(tip.txt),once:/une fois/.test(tip.txt)}:null;o.l8.home=await p3.evaluate(()=>document.querySelector('#homeView').classList.contains('show'));
     await p3.evaluate(()=>{const c=document.querySelector('#modal [data-close]');if(c)c.click();});await p3.waitForTimeout(300);
@@ -145,7 +155,7 @@ C.l9b=!o.l9.inst&&o.l9.seen===null;
     if(o.l8.btn){await p3.click('#modal #accInst');await p3.waitForTimeout(400);o.l8.go=await p3.evaluate(()=>!!document.querySelector('#modal #it-go'));
       if(o.l8.go){await p3.click('#modal #it-go');await p3.waitForTimeout(500);o.l8.prompted=await p3.evaluate(()=>window.__prompted||0);o.l8.toast=await p3.evaluate(()=>(document.querySelector('#toast')||{}).textContent||'');}}}
   await ctx3.close();
-  C.l8=o.l8.link&&!!o.l8.tip&&o.l8.tip.li===3&&o.l8.tip.ios&&o.l8.tip.once&&o.l8.home&&o.l8.again===false&&o.l8.btn&&o.l8.go&&o.l8.prompted===1&&/écran d'accueil/.test(o.l8.toast);}
+  C.l8=o.l8.link&&!o.l8.force&&!!o.l8.tip&&o.l8.tip.li===3&&o.l8.tip.ios&&o.l8.tip.once&&o.l8.home&&o.l8.again===false&&o.l8.btn&&o.l8.go&&o.l8.prompted===1&&/écran d'accueil/.test(o.l8.toast);}
 console.log('mesures :',J({...o,k:undefined,l:undefined}).slice(0,3000));console.log('série :',J(o.l6).slice(0,1500));console.log('écran d\'accueil :',J({l8:o.l8,l9:o.l9}).slice(0,1200));
 await browser.close();C.l7=!logs.filter(l=>/PAGEERROR|PH:/.test(l)).length;if(logs.length)console.log('journal',J(logs.slice(0,6)));
 console.log('RÉSULTATS',J(C));const ko=Object.entries(C).filter(([,v])=>!v).map(([k])=>k);console.log(ko.length?'RESULTAT: ECHEC '+ko.join(' '):'RESULTAT: TOUT VERT');process.exit(ko.length?1:0);

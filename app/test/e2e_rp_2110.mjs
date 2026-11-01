@@ -23,9 +23,9 @@ const tapAt=async(page,m)=>{await page.evaluate(m=>{const T=window.TRACE;const L
 
 // ── c1) soudeur : « Déjà posé » grisé ; chef : actif
 let {ctx,page}=await mk({width:1366,height:860},'karim');
-await page.click('#planFab');await page.waitForTimeout(250);const soud=await page.evaluate(()=>{const b=document.querySelector('#modal [data-pose-mode="reprise"]');return b?{dis:b.disabled}:null;});await ctx.close();
+await page.click('#btnMenu');await page.waitForTimeout(200);await page.click('#btnPose');await page.waitForTimeout(250);const soud=await page.evaluate(()=>{const b=document.querySelector('#modal [data-pose-mode="reprise"]');return b?{dis:b.disabled}:null;});await ctx.close();
 ({ctx,page}=await mk({width:1366,height:860},'ethan'));
-await page.click('#planFab');await page.waitForTimeout(250);const chef=await page.evaluate(()=>{const b=document.querySelector('#modal [data-pose-mode="reprise"]');return b?{dis:b.disabled,t:b.textContent.replace(/\s+/g,' ').trim()}:null;});
+await page.click('#btnMenu');await page.waitForTimeout(200);await page.click('#btnPose');await page.waitForTimeout(250);const chef=await page.evaluate(()=>{const b=document.querySelector('#modal [data-pose-mode="reprise"]');return b?{dis:b.disabled,t:b.textContent.replace(/\s+/g,' ').trim()}:null;});
 await shot(page,'1_menu');await page.click('#modal [data-pose-mode="reprise"]');await page.waitForTimeout(250);let bar=await page.evaluate(()=>(document.getElementById('slideBar')||{}).textContent||'');
 console.log('c1) menu :',JSON.stringify({soud,chef,bar}));C.c1=!!soud&&soud.dis&&!!chef&&!chef.dis&&/Déjà posé/.test(chef.t)&&/touche le DÉBUT/.test(bar);
 // ── c2) S-0003 déjà soudée (saisie du jour) ; début PK 5 puis « Jusqu'au bout de la ligne » → la fenêtre compte 13 à déclarer, 1 déjà saisie

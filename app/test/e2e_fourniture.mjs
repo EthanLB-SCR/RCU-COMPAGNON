@@ -82,7 +82,7 @@ console.log('8) pointé dans Stock :',JSON.stringify(out),'·',pick(r,'Barre DN1
 C.c8=out.btn&&out.zoneCol&&out.sel.join()==='Bord de fouille,➕ Nouvelle zone — à poser sur le plan après validation'&&out.after.status==='ok'&&out.after.lots.includes('Barre 12 m DN100×14@Z1')&&pick(r,'Barre DN100')==='12/2/0/14/7/14/0/0/0/0'&&r.zones[1].tot.stock>=14;
 // ── 9) plan : la zone entourée sur le calque ; Karim (soudeur) ne voit pas l'onglet ; téléphone : Technique sans défilement ; « ＋ Poser » propose la zone à livrer
 out=await page.evaluate(async()=>{const w=ms=>new Promise(r=>setTimeout(r,ms));const T=window.TRACE;T.state.tab='plan';T.renderAll();await w(150);const r={poly:document.querySelectorAll('#fzG polygon').length,label:[...document.querySelectorAll('#fzG text')].map(t=>t.textContent)};
-  document.getElementById('planFab').click();await w(150);r.pose=[...document.querySelectorAll('#modal [data-pose-mode]')].map(b=>b.dataset.poseMode);document.querySelector('#modal [data-close]').click();await w(100);return r;});
+  {const b=document.getElementById('btnPose');if(b)b.click();}await w(150); /* 01/11 soir : ☰ › ＋ Poser sur le plan… */r.pose=[...document.querySelectorAll('#modal [data-pose-mode]')].map(b=>b.dataset.poseMode);document.querySelector('#modal [data-close]').click();await w(100);return r;});
 await page.selectOption('#roleSel','karim');await wait(300);
 out.karim=await page.evaluate(()=>({allowed:window.TRACE.tabAllowed('fourniture'),btn:document.querySelector('#tabbar [data-tab="fourniture"]').style.display}));
 await page.selectOption('#roleSel','ethan');await wait(200);await page.setViewportSize({width:390,height:844});await wait(200);

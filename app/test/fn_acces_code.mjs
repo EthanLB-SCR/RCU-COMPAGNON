@@ -1,4 +1,4 @@
-// FONCTION SERVEUR « acces-code » (13/10/2026) — testée pour de vrai : le code de supabase/functions/acces-code/index.ts tourne dans Deno
+// FONCTION SERVEUR « acces-code » (13/10/2026 ; 01/11 soir : + chef / conducteur, 1er accès des gars de ses chantiers) — testée pour de vrai : le code de supabase/functions/acces-code/index.ts tourne dans Deno
 // (comme chez Supabase), face à un Supabase SIMULÉ (authentification + base) sur cette machine. On vérifie qui a le droit, ce qui est refusé,
 // et ce que la fonction envoie au serveur d'authentification (création / remplacement du mot de passe, adresse confirmée, repère must_change).
 // Aucune donnée réelle : adresses et codes inventés. Deno : $DENO_BIN, sinon `deno` du système, sinon installé dans /tmp/deno-tool (npm).
@@ -11,12 +11,12 @@ function denoBin(){if(process.env.DENO_BIN&&fs.existsSync(process.env.DENO_BIN))
 const DENO=denoBin();
 // ── Supabase simulé
 const ANON='anon-test-key',SERVICE='service-test-key',PUB='sb_publishable_test',SEC='sb_secret_test';
-let users,profiles,invites,log;
+let users,profiles,invites,log;let SITES=[],PLANNING=[];
 const reset=()=>{users=[{id:'11111111-1111-4111-8111-111111111111',email:'elebihan@scr-soudure.fr',password:'x',user_metadata:{}},{id:'22222222-2222-4222-8222-222222222222',email:'paul.durand@scr-soudure.fr',password:'Soudure-2026!',user_metadata:{}},{id:'33333333-3333-4333-8333-333333333333',email:'julie.martin@scr-soudure.fr',password:'y',user_metadata:{}},{id:'44444444-4444-4444-8444-444444444444',email:'parti@scr-soudure.fr',password:'z',user_metadata:{}},{id:'55555555-5555-4555-8555-555555555555',email:'ancien@scr-soudure.fr',password:'v',user_metadata:{}}];
   profiles=[{id:'11111111-1111-4111-8111-111111111111',email:'elebihan@scr-soudure.fr',admin:true,poste:'resp_exploitation',active:true},{id:'22222222-2222-4222-8222-222222222222',email:'paul.durand@scr-soudure.fr',admin:false,poste:'soudeur',active:true},{id:'33333333-3333-4333-8333-333333333333',email:'julie.martin@scr-soudure.fr',admin:true,poste:'assist_rh',active:true},{id:'44444444-4444-4444-8444-444444444444',email:'parti@scr-soudure.fr',admin:false,poste:'soudeur',active:false},{id:'66666666-6666-4666-8666-666666666666',email:'fantome@scr-soudure.fr',admin:false,poste:'manchonneur',active:true}];
   invites=[{email:'karim.benali@scr-soudure.fr'},{email:'ancien@scr-soudure.fr'},{email:'fantome@scr-soudure.fr'}];log=[];};
 reset();
-const TOK={'tok-ethan':'11111111-1111-4111-8111-111111111111','tok-paul':'22222222-2222-4222-8222-222222222222'};const KEYS=[SERVICE,SEC];
+const TOK={'tok-ethan':'11111111-1111-4111-8111-111111111111','tok-paul':'22222222-2222-4222-8222-222222222222','tok-chef':'77777777-7777-4777-8777-777777777777'};const KEYS=[SERVICE,SEC];
 const userJson=u=>({id:u.id,aud:'authenticated',role:'authenticated',email:u.email,email_confirmed_at:u.confirmed?'2026-10-13T10:00:00Z':'2026-10-01T10:00:00Z',user_metadata:u.user_metadata||{},app_metadata:{provider:'email'},created_at:'2026-10-01T10:00:00Z',updated_at:new Date().toISOString()});
 const srv=http.createServer((req,res)=>{let body='';req.on('data',c=>body+=c);req.on('end',()=>{const u=new URL(req.url,'http://x');const p=u.pathname;const auth=String(req.headers.authorization||'').replace(/^Bearer\s+/i,'');const apikey=String(req.headers.apikey||'');let b={};try{b=JSON.parse(body||'{}');}catch(e){}
   const send=(o,st=200)=>{res.writeHead(st,{'content-type':'application/json'});res.end(JSON.stringify(o));};const isSvc=KEYS.includes(auth)||KEYS.includes(apikey)&&!auth;
@@ -24,7 +24,9 @@ const srv=http.createServer((req,res)=>{let body='';req.on('data',c=>body+=c);re
   if(p==='/auth/v1/user'&&req.method==='GET'){const id=TOK[auth];const x=users.find(y=>y.id===id);return x?send(userJson(x)):send({code:401,error_code:'bad_jwt',msg:'invalid JWT: unable to parse or verify signature'},401);}
   if(p==='/rest/v1/rpc/is_admin'){const id=TOK[auth];const pr=profiles.find(y=>y.id===id);return send(!!(pr&&pr.active&&(pr.admin||pr.poste==='admin'||pr.email==='elebihan@scr-soudure.fr')));} /* jeton de l'appelant obligatoire : avec la clé de service, auth.uid() est vide → false */
   if(p==='/rest/v1/invites'){if(!KEYS.includes(auth))return send([]);const em=(u.searchParams.get('email')||'').replace(/^eq\./,'');return send(invites.filter(i=>i.email===em));}
-  if(p==='/rest/v1/profiles'){if(!KEYS.includes(auth))return send([]);const em=(u.searchParams.get('email')||'').replace(/^eq\./,'');return send(profiles.filter(i=>i.email===em).slice(0,+(u.searchParams.get('limit')||99)));}
+  if(p==='/rest/v1/profiles'){if(!KEYS.includes(auth))return send([]);const em=(u.searchParams.get('email')||'').replace(/^eq\./,'');const id=(u.searchParams.get('id')||'').replace(/^eq\./,'');return send(profiles.filter(i=>id?i.id===id:i.email===em).slice(0,+(u.searchParams.get('limit')||99)));}
+  if(p==='/rest/v1/sites'){if(!KEYS.includes(auth))return send([]);const sel=u.searchParams.get('select')||'';return send(SITES.map(x=>/fiche:data->fiche/.test(sel)?{id:x.id,fiche:x.data.fiche||null}:x));} /* 01/11 soir : chef / conducteur */
+  if(p==='/rest/v1/planning'){if(!KEYS.includes(auth))return send([]);const w=(u.searchParams.get('week')||'').replace(/^in\.\(/,'').replace(/\)$/,'').split(',').map(x=>x.replace(/"/g,''));return send(PLANNING.filter(x=>w.includes(x.week)));}
   if(p.startsWith('/auth/v1/admin/')){if(!KEYS.includes(auth))return send({code:403,error_code:'not_admin',msg:'User not allowed'},403);
     if(p==='/auth/v1/admin/users'&&req.method==='POST'){if(users.some(y=>y.email===b.email))return send({code:422,error_code:'email_exists',msg:'A user with this email address has already been registered'},422);
       const x={id:crypto.randomUUID(),email:b.email,password:b.password,user_metadata:b.user_metadata||{},confirmed:!!b.email_confirm};users.push(x);
@@ -82,6 +84,21 @@ try{
   o={st:r7.st,j:r7.j,adminAuth:[...new Set(l7.filter(l=>l.p.startsWith('/auth/v1/admin/')).map(l=>l.auth))],rpcKey:[...new Set(l7.filter(l=>l.p==='/rest/v1/rpc/is_admin').map(l=>l.apikey))]};
   console.log('6) nouvelles clés seulement :',JSON.stringify(o));
   C.c6=r7.st===200&&r7.j.ok===true&&o.adminAuth.join()===SEC&&o.rpcKey.join()===PUB;
+  // 7) 01/11 soir : un CHEF (pas administrateur) — 1er accès d'un gars JAMAIS CONNECTÉ placé sur SON chantier (fiche : chef) ; refus : pas placé, placé sur un autre
+  //    chantier, déjà un compte (mot de passe oublié = administrateur) ; un soudeur reste refusé
+  {const wk=d=>{const t=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()));const day=t.getUTCDay()||7;t.setUTCDate(t.getUTCDate()+4-day);const y=t.getUTCFullYear();return y+'-W'+String(Math.ceil(((t-Date.UTC(y,0,1))/86400000+1)/7)).padStart(2,'0');};
+    const today=new Date();const dIso=today.toISOString().slice(0,10);
+    users.push({id:'77777777-7777-4777-8777-777777777777',email:'chef.test@scr-soudure.fr',password:'z',user_metadata:{}});profiles.push({id:'77777777-7777-4777-8777-777777777777',email:'chef.test@scr-soudure.fr',admin:false,poste:'chef',active:true});
+    invites.push({email:'nouveau.gars@scr-soudure.fr'},{email:'autre.gars@scr-soudure.fr'});
+    SITES=[{id:'S_CHEF',data:{fiche:{chef:'chef.test@scr-soudure.fr',conducteur:'cond@scr-soudure.fr'}}},{id:'S_AUTRE',data:{fiche:{chef:'quelquun@scr-soudure.fr'}}}];
+    const call7=(email,tok)=>call(P1,{email,code:'c7ef2026'.replace(/0/g,'p')},tok||'tok-chef');
+    const notPlaced=await call7('nouveau.gars@scr-soudure.fr');
+    PLANNING=[{week:wk(today),data:{aff:{'nouveau.gars@scr-soudure.fr':{[dIso]:['S_CHEF'],'eq:S_CHEF':'A'},'autre.gars@scr-soudure.fr':{[dIso]:['S_AUTRE']}}}}];
+    const ok=await call7('nouveau.gars@scr-soudure.fr');const other=await call7('autre.gars@scr-soudure.fr');const known=await call7('paul.durand@scr-soudure.fr');const soud=await call7('nouveau.gars@scr-soudure.fr','tok-paul');
+    const g=users.find(x=>x.email==='nouveau.gars@scr-soudure.fr');
+    o={notPlaced:[notPlaced.st,notPlaced.j&&notPlaced.j.error],ok:[ok.st,ok.j],other:[other.st,other.j&&other.j.error],known:[known.st,known.j&&known.j.error],soud:[soud.st,soud.j&&soud.j.error],g:g?{pw:g.password,mc:g.user_metadata.must_change,by:g.user_metadata.code_by}:null,autre:!!users.find(x=>x.email==='autre.gars@scr-soudure.fr')};
+    console.log('7) chef de chantier :',JSON.stringify(o));
+    C.c7=notPlaced.st===403&&/pas sur un de tes chantiers/.test(o.notPlaced[1])&&ok.st===200&&ok.j.created===true&&other.st===403&&/pas sur un de tes chantiers/.test(o.other[1])&&known.st===403&&/déjà connecté une fois/.test(o.known[1])&&soud.st===403&&/réservé à l'administrateur/.test(o.soud[1])&&o.g&&o.g.mc===true&&o.g.by==='chef.test@scr-soudure.fr'&&!o.autre;}
 }catch(e){console.log('ERREUR',e&&e.stack||e);C.err=false;}
 finally{try{fn1&&fn1.kill('SIGKILL');}catch(e){}try{fn2&&fn2.kill('SIGKILL');}catch(e){}srv.close();try{fs.rmSync(tmp,{recursive:true,force:true});}catch(e){}}
 const bad=Object.entries(C).filter(([k,v])=>!v).map(([k])=>k);if(bad.length)console.log('journal de la fonction :',FNLOG.join('').slice(-1500));console.log(bad.length?'RESULTAT: ECHEC '+bad.join(','):'RESULTAT: TOUT VERT');process.exit(0);

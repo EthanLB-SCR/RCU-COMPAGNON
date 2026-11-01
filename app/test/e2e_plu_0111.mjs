@@ -16,6 +16,8 @@
 //  u9  ⚙ fiche du chantier sur la carte (secteur · chef · conducteur) ; horaires modifiés → enregistrés au serveur
 //  u10 glisser-déposer (PC) : Théo glissé sur le Moulin → le panneau s'ouvre (Théo, Moulin, jours libres cochés) → Placer
 //  u11 ancienne adresse du détaillé (orga) → le planning unique ; téléphone 390 / 360 : rien ne déborde
+//  u13 invitée jamais connectée : « 📲 Envoyer son accès » dans son panneau → la fenêtre du code de 1re connexion
+//  u14 intérimaire : chantiers = ceux où il est au planning (comme les opérateurs), quel que soit son poste ; pas placé → aucun
 //  u12 console propre, aucune écriture refusée
 import { chromium } from 'playwright';
 import fs from 'fs';
@@ -147,6 +149,18 @@ C.u6=o.a.tray.includes('Denis TESTCONDUC')&&o.chips.includes('Encadrement')&&!o.
 o=await pg.evaluate(()=>{const c=document.querySelector('#eq-app .pi-site[data-site=SRV_B]');const r=c&&[...c.querySelectorAll('.pi-row[data-q]')].find(x=>/Inès TESTINVITE/.test(x.textContent));return {row:!!r,txt:r?r.textContent.replace(/\s+/g,' '):''};});
 console.log('u7) invitée placée :',J(o));
 C.u7=o.row&&/Conducteur de travaux/.test(o.txt)&&/invité/.test(o.txt);
+// u13 (01/11 soir) : sa ligne → panneau « Jamais connecté » → « 📲 Envoyer son accès » → la fenêtre du code de 1re connexion (le serveur vérifie qui a le droit)
+await pg.evaluate(()=>{const c=document.querySelector('#eq-app .pi-site[data-site=SRV_B]');[...c.querySelectorAll('.pi-row[data-q]')].find(x=>/Inès/.test(x.textContent)).click();});await W(pg,300);
+o={btn:await pg.evaluate(()=>!!document.querySelector('#pi-panel [data-act=pi][data-v^="access|"]'))};
+if(o.btn){await tap(pg,'#pi-panel [data-act=pi][data-v^="access|"]',400);o.h=await pg.evaluate(()=>((document.querySelector('#modal.show h3')||{}).textContent||''));await pg.evaluate(()=>{const c=document.querySelector('#modal [data-close]');if(c)c.click();});await W(pg,200);}
+await tapAct(pg,'pi','close|',200);
+console.log('u13) 1er accès depuis le planning :',J(o));
+C.u13=o.btn&&/Code de 1re connexion — Inès TESTINVITE/.test(o.h||'');
+// u14 (01/11 soir, Ethan : « l'intérimaire, comme les opérateurs, a accès à son chantier où il est au planning — pas la logique d'un compte invité ») : accès par le planning, quel que soit son poste ; pas placé → aucun chantier
+o=await pg.evaluate(([nina,lucas,theo])=>{const P=window.TRACE.espace.planned;const ls=s=>s===null?null:[...s].sort();
+  return {nina:ls(P({id:'n',email:nina,poste:'soudeur',type:'interim',active:true})),ninaBureau:ls(P({id:'n2',email:nina,poste:'charge_affaires',type:'interim',active:true})),lucasInt:ls(P({id:'l',email:lucas,poste:'soudeur',type:'interim',active:true})),lucasSal:ls(P({id:'l2',email:lucas,poste:'soudeur',type:'salarie',active:true})),theo:ls(P({id:'t',email:theo,poste:'tuyauteur',type:'salarie',active:true})),strict:!!(window.TRACE.espace.rules&&window.TRACE.espace.rules().strict)};},[INT.email,NEUF.email,TUY.email]);
+console.log('u14) intérimaire : accès par le planning :',J(o));
+C.u14=J(o.nina)==='[]'&&J(o.ninaBureau)==='[]'&&J(o.lucasInt)===J(['SRV_B'])&&J(o.lucasSal)===J(['SRV_B'])&&(o.strict?J(o.theo)==='[]':o.theo===null);
 // u8 : ＋ Nouvelle personne (administrateur, avec e-mail) → poste gardé, panneau ouvert sur elle → Tilleuls → Placer ; Administrateur : poste Tuyauteur
 o={};await tap(pg,'#eq-app [data-act=plnew]',400);o.form=await pg.evaluate(()=>!!document.querySelector('#eq-app #pl-new'));
 await pg.evaluate(()=>{const s=(id,v)=>{const e=document.getElementById(id);e.value=v;e.dispatchEvent(new Event('change',{bubbles:true}));};s('pn-prenom','Zoé');s('pn-nom','TESTNOUVELLE');s('pn-poste','tuyauteur');s('pn-email','zoe.testnouvelle@exemple.fr');s('pn-sect','ouest');});

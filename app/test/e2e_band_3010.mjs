@@ -7,6 +7,7 @@
 //  c4  traceur (« Tracé Concepteur ») à 390 et 360 px : rien ne déborde, nom entier, logo entreprise repris
 //  c5  menu des modules (toucher « Tracé … ») : modules ouverts à la personne ; « Compagnon » → onglet Moi ; affichage large : bandeau 64 px, logo ≤ 132 × 40, pastille dans le bandeau
 //  c6  console propre
+//  c7  (01/11 soir) Entreprise : signataire des courriers et référent RGPD enregistrés (remplissent les documents à signer), nom et logo gardés
 import { chromium } from 'playwright';
 const BASE=process.env.BASE||'http://localhost:8765';const SHOTS=process.env.SHOTS||'';
 const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
@@ -30,6 +31,11 @@ o.ent=await page.evaluate(()=>{const e=window.TRACE.band.ent();return {name:e&&e
 o.band=await page.evaluate(()=>{const i=document.querySelector('#tbHomeCo .tbCoImg');return i?{alt:i.alt,w:i.getBoundingClientRect().width,h:i.getBoundingClientRect().height}:null;});
 console.log('c1) écran Entreprise :',J(o));
 C.c1=o.prevs.length===2&&o.prevs.every(Boolean)&&o.del&&o.ent.name==='ACME Travaux'&&o.ent.logo&&o.band&&o.band.alt==='ACME Travaux'&&o.band.w<=112.5&&o.band.h<=36.5;
+/* ── c7 (01/11 soir, Ethan : « la note RGPD au nom du DG, pas du profil ») : « ✍ Signataire des courriers et référent RGPD » enregistrés, nom et logo gardés (noms fictifs) */
+await page.fill('#entSignNom','Jean FICTIF');await page.fill('#entSignTitre','Directeur général');await page.fill('#entRgpdNom','Rita FICTIVE');await page.fill('#entRgpdMail','rgpd.fictif@exemple.fr');await page.click('#entSignOk');await wait(500);
+o={ent:await page.evaluate(()=>{const e=window.TRACE.band.ent()||{};return {name:e.name,logo:!!e.logo,sign:e.sign,rgpd:e.rgpd};}),card:await page.evaluate(()=>!!document.getElementById('entSignCard'))};
+console.log('c7) signataire / référent RGPD :',J(o));
+C.c7=o.card&&o.ent.name==='ACME Travaux'&&o.ent.logo&&J(o.ent.sign)===J({nom:'Jean FICTIF',titre:'Directeur général'})&&J(o.ent.rgpd)===J({nom:'Rita FICTIVE',email:'rgpd.fictif@exemple.fr'});
 /* mesures d'un bandeau */
 const measure=(sel)=>page.evaluate(sel=>{const tb=document.querySelector(sel);if(!tb)return null;const band=tb.querySelector('.tbBand');const ctx=tb.querySelector('.tbCtx');const mod=tb.querySelector('.tbModName');const mb=tb.querySelector('.tbMod');const co=tb.querySelector('.tbCo');const img=co&&co.querySelector('.tbCoImg');const W=window.innerWidth;
   const r=e=>e?e.getBoundingClientRect():null;const rb=r(band),rc=r(co),ri=r(img),rm=r(mb);

@@ -23,11 +23,14 @@ Mise à jour : rouvrir la fonction dans l'éditeur, remplacer tout le code, Depl
 - **La personne**, sur l'écran d'accueil : « Première connexion ou oubli : créer mon mot de passe » → son e-mail → le code (espaces et majuscules acceptés) → son mot de passe deux fois → elle est connectée. Avec le QR ou le lien, l'e-mail et le code sont déjà remplis.
   Si elle tape le code directement dans la case « mot de passe », l'appli la connecte puis lui demande de choisir son mot de passe avant d'entrer.
   Juste après, sur téléphone, l'appli propose (une fois) de **mettre Tracé sur l'écran d'accueil** ; repris dans le menu du compte (« 📲 Mettre Tracé sur l'écran d'accueil »). Sur iPhone : depuis Safari, Partager → « Sur l'écran d'accueil » ; à la 1re ouverture par l'icône, Tracé redemande une fois l'e-mail et le mot de passe (l'iPhone sépare l'icône de Safari).
-- **L'adresse e-mail sert d'identifiant** : avec le code, aucun e-mail n'est envoyé. Une adresse unique suffit (pro, perso, ou prenom.nom@scr-soudure.fr même sans boîte) ; dans ce dernier cas, « code par e-mail » ne marche pas pour elle : en cas d'oubli, refais-lui un code.
+- **L'adresse e-mail sert d'identifiant** : avec le code, aucun e-mail n'est envoyé. Une adresse unique suffit (pro, perso, ou prenom.nom@scr-soudure.fr même sans boîte). Depuis le 01/11, l'écran de connexion ne propose plus « Code par e-mail » (Supabase n'écrit pas aux compagnons sans SMTP) : il dit « demande à ton chef de t'envoyer ton lien ». En cas d'oubli, refais-lui un code.
 - **Mot de passe oublié** : sur sa carte, **🔐 Nouveau code**. Le code remplace son ancien mot de passe ; elle en rechoisit un en se connectant.
 
+- **Chef de chantier / conducteur** (sans être administrateur) : au planning, sur la ligne d'une personne **jamais connectée**, « 📲 Envoyer son accès » → même fenêtre (SMS, mail, QR). Le serveur n'accepte que si elle est placée (semaine passée, en cours ou les deux suivantes) sur un chantier dont il est le **chef ou le conducteur** (fiche du chantier). Un mot de passe oublié reste l'affaire de l'administrateur.
+  ⚠ Ce droit vient avec la version du 01/11 soir de `index.ts` : **remplacer tout le code de la fonction dans Supabase puis Deploy** (même manip qu'au §1).
+
 ## Sécurité
-- Seul un **administrateur actif** peut créer un code. La fonction revérifie la session auprès du serveur d'authentification, puis `is_admin()` avec le jeton de l'appelant (même règle que la base).
+- Un **administrateur actif** peut créer un code pour tout compte non administrateur ; un **chef / conducteur actif** seulement le 1er accès d'une personne jamais connectée, placée sur un de ses chantiers. La fonction revérifie la session auprès du serveur d'authentification, puis `is_admin()` avec le jeton de l'appelant (même règle que la base).
 - La personne doit avoir un accès créé (invitation) ou un compte **actif**. La fonction refuse son propre compte et tout compte **administrateur** : un administrateur change son mot de passe lui-même dans 🔑 de son compte. Pour un autre administrateur qui a oublié son mot de passe : retire-lui ★, fais le code, remets ★.
 - Le code fait 8 caractères, en minuscules et chiffres, sans i, l, o, 0 ni 1 (rien à confondre, même avec des gants). Il n'est ni stocké ni journalisé. Un nouveau code annule le précédent.
 - Le code reste valable tant que la personne ne s'en est pas servie. À sa première connexion, l'appli l'oblige à choisir son propre mot de passe (repère `must_change` sur le compte, effacé dès que le mot de passe est posé).
@@ -45,3 +48,4 @@ Pour que chacun puisse recevoir un code ou un lien par e-mail (« mot de passe o
    ```
 3. Dans **Authentication → Rate Limits**, le plafond d'e-mails par heure peut ensuite être relevé (30 par heure, par exemple).
 Les deux méthodes cohabitent : le code de l'administrateur marche toujours, même sans SMTP.
+4. Le bouton « Code par e-mail » de l'écran de connexion est masqué depuis le 01/11 : une fois le SMTP en place, il faudra le rebrancher dans l'appli (aujourd'hui : drapeau d'appareil `trace:otpMail` = 1, pour les tests).

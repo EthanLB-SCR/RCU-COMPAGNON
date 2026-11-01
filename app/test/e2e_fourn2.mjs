@@ -57,7 +57,7 @@ C.c2=JSON.stringify(out.back.pts)==='[[-6,40],[70,35],[55,60],[-6,60]]'&&out.bac
   &&JSON.stringify(out.saved.poly)==='[[-10,30],[70,35],[55,60],[20,63],[-6,60]]'&&out.saved.by==='Ethan L.'&&out.saved.tab==='fourniture'&&/Zone A/.test(out.saved.title||'')&&out.saved.rem>=out.zone.rem;
 // ── 3) boutons posés sur le plan, cliqués à la souris : « ＋ Poser sur le plan » ouvre le choix ; ✕ de la barre TS quitte la pose ; ✕ de la zone en modification revient à la zone
 await page.evaluate(()=>{const M=document.querySelector('#modal [data-close]');if(M)M.click();const T=window.TRACE;T.state.tab='plan';T.renderAll();});await wait(250);
-out={fab:await clickEl('#planFab')};out.sheet=await page.evaluate(()=>document.getElementById('modal').classList.contains('show')&&/Poser sur le plan/.test(document.getElementById('modal').textContent));
+out={fab:(await clickEl('#btnMenu'))&&(await clickEl('#btnPose'))}; /* 01/11 soir (lot 0111n) : le ＋ flottant a quitté le plan → ☰ › Terrain & chantier › ＋ Poser sur le plan… */out.sheet=await page.evaluate(()=>document.getElementById('modal').classList.contains('show')&&/Poser sur le plan/.test(document.getElementById('modal').textContent));
 await page.evaluate(()=>{const M=document.querySelector('#modal [data-close]');if(M)M.click();else window.TRACE.closeSheet&&0;document.getElementById('modal').classList.remove('show');});await wait(150);
 await page.evaluate(()=>window.TRACE.ts.start());await wait(250);out.tsOn=await page.evaluate(()=>!!window.TRACE.state.tsPose);await clickEl('#tsCancel');out.tsOff=await page.evaluate(()=>!window.TRACE.state.tsPose);
 await page.evaluate(()=>{const z=window.TRACE.net.fourniture.zones.find(x=>x.name==='Zone A');window.TRACE.fourniture.edit(z.id);});await wait(250);

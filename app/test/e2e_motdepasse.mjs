@@ -33,7 +33,7 @@ const page=await ctx.newPage();
 const logs=[];page.on('pageerror',e=>logs.push('PAGEERROR: '+e.message.slice(0,300)));page.on('console',m=>{if(m.type()==='error'&&!/realtime|websocket|Failed to fetch|net::ERR|404|40[03]|422|429|status of/i.test(m.text()))logs.push(m.text().slice(0,200));});
 page.on('dialog',d=>{logs.push('DIALOG: '+d.message().slice(0,80));d.accept().catch(()=>{});}); /* plus AUCUN prompt() pour le mot de passe */
 const C={};const wait=ms=>page.waitForTimeout(ms);
-await page.goto(BASE+'/index.html');await wait(600);await page.evaluate(()=>{localStorage.clear();});await page.reload();await wait(900);
+await page.goto(BASE+'/index.html');await wait(600);await page.evaluate(()=>{localStorage.clear();localStorage.setItem('trace:otpMail','1');});await page.reload();await wait(900); /* 01/11 soir : le code par e-mail est masqué par défaut (pas de SMTP) — ce test vérifie qu'il marche toujours quand on le rallume */
 const scr=()=>page.evaluate(()=>({login:document.querySelector('#loginView').classList.contains('show'),home:document.querySelector('#homeView').classList.contains('show'),hint:(document.querySelector('#loginHint')||{}).textContent||'',alt:getComputedStyle(document.querySelector('#loginAlt')).display!=='none',flag:localStorage.getItem('trace:pwdSetup')}));
 const fill=async(sel,v)=>{await page.fill(sel,v);};
 // ── 1) le petit œil sur la case mot de passe de la connexion : montre puis cache ; il tient sous le doigt (≥ 40 px)

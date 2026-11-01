@@ -114,7 +114,7 @@ console.log('c7) ancienne modif + avancé :',J(o));
 C.c7=o.old.m&&o.old.n===2&&o.old.decl&&o.tab.cards===2&&o.tab.old&&o.tab.recapOld&&o.adv.open&&o.adv.start&&o.adv.rows>0&&/comptés compris/.test(o.adv.h)&&o.layer.els>0&&o.layer.pins===3&&o.layerOff===0;
 /* ── c8 : ＋ Poser → déclarer (pointer d'abord) ; fiche d'une soudure */
 await T(()=>{const X=window.TRACE;X.state.tab='plan';X.renderAll();});await wait(300);
-await page.click('#planFab');await wait(300);o={poser:await T(()=>{const b=document.querySelector('#modal [data-pose-mode="ts"]');return b?b.textContent.replace(/\s+/g,' ').trim():null;})};
+await page.click('#btnMenu');await wait(200);await page.click('#btnPose');await wait(300); /* 01/11 soir : ☰ › ＋ Poser sur le plan… */o={poser:await T(()=>{const b=document.querySelector('#modal [data-pose-mode="ts"]');return b?b.textContent.replace(/\s+/g,' ').trim():null;})};
 await page.click('#modal [data-pose-mode="ts"]');await wait(400);o.first=await T(()=>({pick:window.TRACE.mod.picking(),go:(document.querySelector('#modPickBar [data-mod="pick-ok"]')||{}).textContent||''}));
 const pD=await T(()=>{const X=window.TRACE;const e=X.mod.elements().find(e=>e.line==='L1'&&e.kind==='tube'&&e.path&&e.path.length>1);const P=e.path;return {x:(P[0][0]+P[P.length-1][0])/2,y:(P[0][1]+P[P.length-1][1])/2};}); /* milieu du tronçon passé en DN 150 de la rue principale */await center(pD);await wait(200);await tapW(pD);
 await page.click('#modPickBar [data-mod="pick-ok"]');await wait(400);o.form=await T(()=>({show:document.getElementById('modal').classList.contains('show'),pts:[...document.querySelectorAll('#modal .dclPt')].map(x=>x.textContent.replace(/\s+/g,' ').trim())}));

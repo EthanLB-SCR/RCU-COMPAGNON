@@ -34,13 +34,13 @@ await page.evaluate(()=>window.TRACE.centerOn(40,50,25));await page.waitForTimeo
 await eye(page);let o=await st(page);await shot(page,'1_pc_defaut');
 console.log('1) défaut :',JSON.stringify({head:o.head,dot:o.dot,def:o.def,chips:o.chips,pieces:o.show.pieces,fils:o.show.fils,carte:o.show.carte,conv:o.show.conv,convAll:o.show.convAll,fourn:o.show.fourn,obj:o.show.objectifs,cotes:o.show.cotes,nums:o.show.nums,manch:o.show.manch,soud:o.show.soud,hint:o.hint.slice(0,160)}));
 C.c1=o.open&&/✓ vue par défaut/.test(o.head)&&!o.dot&&/\bon\b/.test(o.def)&&o.chips>=13&&o.show.pieces===false&&o.show.carte==='ortho'&&o.show.fils&&o.show.conv&&o.show.convAll===false&&o.show.fourn&&o.show.objectifs&&o.show.cotes&&o.show.nums&&o.show.manch&&o.show.soud
-  &&/pas de photo aérienne/.test(o.hint);
+  &&/pas de photo aérienne/.test(o.hint)&&o.show.fond===false /* 01/11 soir (Ethan) : arrivée sur un chantier sans fond de plan */;
 
 // ── 2) toucher la pastille « Fils E / N » (vrai clic, comme au doigt) → décochée, « vue personnalisée », « Changé … : Fils », point orange, mémorisé (v2)
 await page.click('#disp input[data-k="fils"]');await page.waitForTimeout(250);o=await st(page);await shot(page,'2_pc_fils_off');
 const wires=await page.evaluate(()=>document.querySelectorAll('#net .wire, #net [data-wire]').length);
 console.log('2) fils décochés :',JSON.stringify({head:o.head,dot:o.dot,def:o.def,fils:o.show.fils,ls:o.ls&&{v:o.ls._v,fils:o.ls.fils},hint:o.hint.slice(0,220)}));
-C.c2=o.show.fils===false&&/vue personnalisée/.test(o.head)&&o.dot&&/ddef/.test(o.def)&&/Changé par rapport à la vue par défaut : Fils/.test(o.hint)&&o.ls&&o.ls._v===2&&o.ls.fils===false&&/masqués/.test(o.hint);
+C.c2=o.show.fils===false&&/vue personnalisée/.test(o.head)&&o.dot&&/ddef/.test(o.def)&&/Changé par rapport à la vue par défaut : Fils/.test(o.hint)&&o.ls&&o.ls._v===3 /* 01/11 soir : version 3 (fond de plan éteint par défaut) */&&o.ls.fils===false&&/masqués/.test(o.hint);
 
 // ── 3) « ↺ Par défaut » → tout revient, plus de point orange
 await page.click('#disp [data-def="1"]');await page.waitForTimeout(250);o=await st(page);
