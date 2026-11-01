@@ -30,9 +30,9 @@ await page.evaluate(()=>{const st2=[...document.querySelectorAll('#sheet .dstep'
 await page.waitForTimeout(300);
 await page.evaluate(()=>{const st2=[...document.querySelectorAll('#sheet .dstep')][1];st2.querySelector('[data-wire="b:N"]').dispatchEvent(new MouseEvent('click',{bubbles:true}));});
 await page.waitForTimeout(300);
-out=await page.evaluate(()=>({conn:window.TRACE.state.conn,inv:/Inversion/.test(document.querySelector('#sheet').textContent)}));
+out=await page.evaluate(()=>{const t=document.querySelector('#sheet').textContent;const ws=[...document.querySelectorAll('#sheet .wireN')];const w=ws[ws.length-1];return {conn:window.TRACE.state.conn,inv:!!w&&/étamé → cuivré/.test(w.textContent)&&!/Inversion : l|Inversion des fils|manchon sera signalé/.test(t),red:!!(w&&w.classList.contains('err')),face:w?/Fils (face à face|croisés|raccordés)/.test(w.textContent):false,txt:w?w.textContent:''};}); /* 01/11 soir : décrit, sans « Inversion » rouge */
 console.log('2) schéma cliquable → inversion détectée:',JSON.stringify(out));
-const c2=out.conn.E==='N'&&out.inv;
+const c2=out.conn.E==='N'&&out.inv&&!out.red&&out.face;
 // on remet droit
 await page.evaluate(()=>{const st2=[...document.querySelectorAll('#sheet .dstep')][1];st2.querySelector('[data-wire="a:E"]').dispatchEvent(new MouseEvent('click',{bubbles:true}));});
 await page.waitForTimeout(250);

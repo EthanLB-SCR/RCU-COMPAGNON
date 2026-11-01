@@ -77,7 +77,7 @@ export default {
   {titre:"La fiche d'une soudure",texte:"En haut : n°, statut, DN, aller ou retour, PK. « Faire l'étape … » ouvre la tienne : 1 Soudure (soudeur), puis 2 Fils raccordés, 3 Manchon posé, 4 Moussage (manchonneur)."},
   {titre:"Photo, puis « Valider l'étape »",texte:"📷 Photo du cordon (obligatoire pour la soudure), puis « Valider l'étape » : ton nom et la date restent sur la fiche. Sans réseau, c'est gardé et envoyé au retour du réseau."},
   {titre:"👥 Pour le compte du soudeur",texte:"Tuyauteur, manchonneur, pelleur : le soudeur a fini ? Ouvre la soudure, « Soudé par » : choisis-le, prends la photo du cordon et valide. La soudure compte pour lui, ton nom reste dans l'historique.",si:a=>C(a,'weld.step1.for')},
-  {sel:'#btnMenu',titre:"＋ Poser sur le plan",texte:"Dans ☰ › Terrain & chantier : « ＋ Poser sur le plan… ». Une note avec photo, une soudure faite sur place, une modif : choisis, puis touche l'endroit. Une barre t'explique chaque étape.",si:a=>C(a,'phasage.edit','stock.edit','conv.post','site.tracer')}, /* 01/11 soir : le ＋ flottant a quitté le plan (Ethan) */
+  {sel:'#planFab, #btnMenu',titre:"＋ Poser sur le plan",texte:"Le ＋ orange en bas du plan (ou ☰ › Terrain & chantier) : une note avec photo, une soudure faite sur place, une modif… Choisis, puis touche l'endroit. Une barre t'explique chaque étape.",si:a=>C(a,'phasage.edit','stock.edit','conv.post','site.tracer')}, /* 01/11 soir : ＋ remis, en bas au milieu (il chevauchait la colonne zoom) */
   {sel:'.zoomctl [data-z="eye"]',titre:"👁 Ce qui s'affiche",texte:"Les calques : DN, longueurs, n° de soudure, fils, notes, points… « Épuré » allège le plan, « Par défaut » remet tout. 📅 juste dessous : qui a fait quoi, et quand."},
   {sel:'#btnSearch',titre:"🔍 Retrouver une soudure",texte:"Tape son n° (ex. 24) puis Entrée : le plan se centre dessus et sa fiche s'ouvre. Le même menu ☰ filtre le plan : « Pour moi », « À souder »…"},
   {sel:'#pxPlanBtn',titre:"📄 Mes plans",texte:"Les plans d'exé du chantier, ceux de ta zone en premier. Depuis la fiche d'une soudure, « 📄 Plan d'exé » ouvre directement la bonne planche.",si:a=>F(a,'plansexe')}
@@ -136,7 +136,7 @@ export default {
  /* ── 🎖 Liste des soudures (⋯ Plus) ── */
  'chantier:liste':[
   {sel:'#liste h3',titre:"Ligne par ligne",texte:"Les soudures de chaque ligne : l'aller (titre rouge), puis le retour (titre bleu), avec leur nombre."},
-  {sel:'#liste .wrow',titre:"Une ligne = une soudure",texte:"Son n°, son PK (en mètres) et son DN. « FC » = fausse coupe ; « inversion fils » en rouge = manchon à reprendre."},
+  {sel:'#liste .wrow',titre:"Une ligne = une soudure",texte:"Son n°, son PK (en mètres) et son DN. « FC » = fausse coupe ; « fils ✓ » = fils raccordés (« étamé → cuivré » noté tel quel, pour le DOE et la recherche de défaut)."} /* 01/11 soir : plus de jugement sur les fils */,
   {sel:'#liste .wrow .badge',titre:"Son statut, à droite",texte:"À souder, S Soudée, ✓ Contrôlée, M Manchonnée, ! À reprendre : les mêmes couleurs que sur le plan."},
   {sel:'#liste .wrow',titre:"Touche une soudure",texte:"Le plan s'ouvre, centré sur elle, avec sa fiche : tu y fais ton étape comme d'habitude."},
   {sel:'#btnMenu',titre:"Seulement tes soudures",texte:"Sur le plan, ☰ → Filtrer le plan (« Pour moi », « À souder », « À reprendre »…) : la liste reprend ce filtre."},

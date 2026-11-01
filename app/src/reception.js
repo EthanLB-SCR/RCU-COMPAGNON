@@ -385,7 +385,7 @@ function cfgHTML(me){ensureCss();const C=vcfg();const I=C&&C.inventaire;
 const CSS=`.veh-wiz{max-width:640px;margin:0 auto}.veh-kick{font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;overflow-wrap:anywhere}.veh-h{margin:2px 0 6px!important}
 .veh-bar{height:6px;border-radius:99px;background:var(--line);overflow:hidden;margin:0 0 10px}.veh-bar i{display:block;height:100%;background:#eb6834;border-radius:99px}
 .veh-big{min-height:52px!important;font-size:16px!important;font-weight:700;white-space:normal!important;line-height:1.2}
-.veh-nav{position:sticky;bottom:0;display:flex;gap:8px;padding:10px 0 4px;background:linear-gradient(rgba(249,249,247,0),var(--page) 30%);z-index:2;margin-top:12px}.veh-nav .btn{flex:1;min-width:0}
+.veh-nav{position:sticky;bottom:0;display:flex;gap:8px;padding:10px 0 8px;background:var(--page,#f9f9f7);border-top:1px solid var(--line,#ddd);box-shadow:0 -8px 14px -8px rgba(0,0,0,.22);z-index:2;margin-top:12px} /* 01/11 soir (relevé du tournage : un toucher sur « Lundi prochain » est tombé sur « ✓ Déclarer le changement ») : la barre était transparente en haut (dégradé) → on voyait les choix DERRIÈRE le bouton ; barre opaque, bord net */.veh-nav .btn{flex:1;min-width:0}
 .veh-sec{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin:0 0 10px;min-width:0}
 .veh-sec>h3,.veh-sec>summary{margin:0 0 6px;font-size:15px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}.veh-sec>summary{cursor:pointer;min-height:40px}
 .veh-rest{font-size:12px;font-weight:700;color:#7a5200;background:#fff3d6;border-radius:99px;padding:2px 8px;white-space:nowrap}.veh-rest.done{color:#15673a;background:#e6f5ec}

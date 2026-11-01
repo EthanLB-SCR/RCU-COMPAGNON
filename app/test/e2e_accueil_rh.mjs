@@ -175,6 +175,20 @@ await page.evaluate(()=>{const n=[...document.querySelectorAll('#eq-app .ac-noti
 out.modal=await page.evaluate(()=>(document.querySelector('#modal .warnbox')||{}).textContent||'');
 console.log('5) nouvelle version, personne déjà là :',JSON.stringify(out));
 C.c5=!out.gate&&out.notif.some(t=>/à signer avant le 21\/10\/2026 \(dans 7 j\)/.test(t))&&/Nouvelle version \(v2\).*version v1/.test(out.modal)&&out.ov;
+// ── 6) 01/11 soir — REMISE À ZÉRO des comptes (SQL côté serveur) : ses signatures sont effacées du serveur et « cache_reset » est posé → cet appareil, qui les gardait
+//    en cache, les vide à la connexion et se recharge UNE fois (le livret redevient à signer) ; le planning et les envois en attente ne sont pas touchés ; pas de 2e rechargement
+await page.evaluate(()=>{const c=document.querySelector('#modal [data-close]');if(c)c.click();});await page.waitForTimeout(200);
+out={before:await page.evaluate(acc=>window.TRACE.docs.todo(acc).map(x=>x.id),{email:INT.email,type:'interim',poste:'manchonneur',created_at:INT.created_at,name:INT.name})};
+const resetLogs=[];page.on('console',m=>{if(/\[remise à zéro\]/.test(m.text()))resetLogs.push(m.text());});
+Object.keys(REG).filter(k=>k.startsWith('docsig|')&&REG[k].data&&REG[k].data.key===INT.email).forEach(k=>delete REG[k]);SETTINGS.cache_reset={at:'2026-11-01T19:00:00.000000+00:00',by:'test'};
+await page.reload();for(let i=0;i<40&&!resetLogs.length;i++)await page.waitForTimeout(250); /* la remise à zéro est vue à la connexion → caches vidés → l'appli se recharge */
+await page.waitForTimeout(1500);await page.waitForLoadState('load').catch(()=>{});
+const todoAcc={email:INT.email,type:'interim',poste:'manchonneur',created_at:INT.created_at,name:INT.name};
+for(let i=0;i<40;i++){out.after=await page.evaluate(acc=>{try{return window.TRACE.docs.todo(acc).map(x=>x.id);}catch(e){return [];}},todoAcc).catch(()=>[]);if(out.after.includes('acc_livret_test'))break;await page.waitForTimeout(250);}
+out.flag=await page.evaluate(()=>localStorage.getItem('trace:cacheResetAt'));out.logs=resetLogs.slice();
+await page.reload();await page.waitForTimeout(2500);out.logs2=resetLogs.length;out.flag2=await page.evaluate(()=>localStorage.getItem('trace:cacheResetAt'));
+console.log('6) remise à zéro :',JSON.stringify(out));
+C.c6=!out.before.includes('acc_livret_test')&&out.after.includes('acc_livret_test')&&out.flag==='2026-11-01T19:00:00.000000+00:00'&&out.logs.length===1&&/trace:reg:docsig/.test(out.logs[0])&&!/planning|Pending/.test(out.logs[0])&&out.logs2===1&&out.flag2===out.flag;
 await ctx.close();
 console.log('erreurs console :',JSON.stringify(logs));C.console=logs.length===0;
 const bad=Object.entries(C).filter(([k,v])=>!v).map(([k])=>k);console.log(bad.length?'RESULTAT: ECHEC '+bad.join(','):'RESULTAT: TOUT VERT');

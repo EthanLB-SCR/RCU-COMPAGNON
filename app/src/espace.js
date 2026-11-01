@@ -81,7 +81,7 @@ function buildData(){
   const affectations={};uniques.forEach(p=>{if(p.type==='interim'&&Array.isArray(p.sites)&&p.sites.length&&chantiers.some(c=>c.id===p.sites[0]))affectations[p.id]=p.sites[0];});
   const habilitations=[];const avatars={},avatarCompteurs={},documents={};
   uniques.forEach(p=>{const x=PEOPLE[p.id]||{};(x.habs||[]).forEach(h=>habilitations.push(Object.assign({p:p.id},h)));avatars[p.id]=x.avatar||{};avatarCompteurs[p.id]=x.compteurs||{};documents[p.id]=x.docs||[];});
-  return {today,now:nowHM,config:CONFIG,familles:FAMILLES_ESP,postes:POSTES_ESP,chantiers,personnes:uniques,inconnus:{},affectations,planning:planningAff(),meteo:meteoData(),
+  return {get today(){return todayLive();},get now(){return nowLive();}, /* 01/11 soir (relevé du tournage : « écran ouvert à 7 h 04, « Commencer » touché à 7 h 28 → pointé 7 h 04 ») : DATA n'est recalculé que quand les données changent → l'heure et le jour étaient FIGÉS au dernier calcul. Ils sont lus en direct, au moment du geste (pointage, pause, reprise, fin, validation, correction). */config:CONFIG,familles:FAMILLES_ESP,postes:POSTES_ESP,chantiers,personnes:uniques,inconnus:{},affectations,planning:planningAff(),meteo:meteoData(),
     habTypes:HAB_TYPES,habRequises:HAB_REQ,habilitations,pointages:POINTAGES,demandes:null,taches:null,stock:null,engins:null,agenda:null,equipes:null,productions:prodFromNets(uniques),
     avatarPostes:AVATAR_POSTES,avatars,avatarCompteurs,documents};
 }
@@ -252,6 +252,8 @@ const $id=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const pad=n=>String(n).padStart(2,'0');
 const nb=n=>Number(n).toLocaleString('fr-FR');
+let TD_AT=0,TD_V='';const todayLive=()=>{const t=Date.now();if(!TD_V||t-TD_AT>1000){TD_AT=t;TD_V=TODAY();}return TD_V;}; /* le jour, relu au plus une fois par seconde */
+const nowLive=()=>{const n=new Date();return pad(n.getHours())+':'+pad(n.getMinutes());};
 const TODAY=()=>{try{const t=localStorage.getItem('trace:testToday');if(t&&/^\d{4}-\d{2}-\d{2}$/.test(t))return t;}catch(e){} /* tests seulement : figer la date (le planning ignore le week-end) */const n=new Date();return n.getFullYear()+'-'+pad(n.getMonth()+1)+'-'+pad(n.getDate());};
 export const espaceToday=()=>DATA?DATA.today:TODAY();
 const D=s=>{const [y,m,d]=String(s||(DATA?DATA.today:TODAY())).slice(0,10).split('-').map(Number);return new Date(y,m-1,d,12)};

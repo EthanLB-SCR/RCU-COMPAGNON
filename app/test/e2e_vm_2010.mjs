@@ -316,7 +316,7 @@ await ctx.close();
 // ── 8) passe 390 px d'une responsable (Fanny, responsable flotte) : Mouvements, Qui a quoi, fiche, suivi d'un changement, accueil
 await login(Object.assign({},FANNY,{pc:false}));await accueil();await ovf('accueil Fanny 390');await shotNotif('fanny_390_accueil',/^🚐Mouvements de véhicules/);
 await flotteVue('mouv');await ovf('mouvements 390');await shot('fanny_390_mouvements');await flotteVue('qui');await ovf('qui a quoi 390');await shot('fanny_390_qui_a_quoi');
-await fiche(CC);await ovf('fiche CC 390');await shotAt('fanny_390_fiche_CC','#eq-app .veh-card');await click(vx('switch|'+CC),400);await ovf('suivi changement 390');out={suivi:await app(),navH:await page.evaluate(()=>Math.min(...[...document.querySelectorAll('#eq-app .veh-nav .btn')].map(b=>b.getBoundingClientRect().height)))};await shot('fanny_390_suivi_changement');
+await fiche(CC);await ovf('fiche CC 390');await shotAt('fanny_390_fiche_CC','#eq-app .veh-card');await click(vx('switch|'+CC),400);await ovf('suivi changement 390');out={suivi:await app(),navH:await page.evaluate(()=>Math.min(...[...document.querySelectorAll('#eq-app .veh-nav .btn')].map(b=>b.getBoundingClientRect().height))),navBg:await page.evaluate(()=>{const n=document.querySelector('#eq-app .veh-nav');if(!n)return null;const cs=getComputedStyle(n);const m=/rgba?\(([^)]+)\)/.exec(cs.backgroundColor);const al=m?(m[1].split(',')[3]!==undefined?+m[1].split(',')[3]:1):0;return {img:cs.backgroundImage,alpha:al};})}; /* 01/11 soir : barre du bas OPAQUE (avant : dégradé transparent → on touchait « ✓ Déclarer le changement » en visant un choix vu au travers) */await shot('fanny_390_suivi_changement');
 await ctx.close();
 // ── 9) contestation tranchée « Demander un nouvel état des lieux » : Bruno prend DD-444-DD (laissé à qui le prendra par Paul) en le contestant ; Fanny (responsable flotte)
 //      demande un nouvel état des lieux ; Bruno le refait (sa saisie reprise), Fanny le valide
@@ -340,6 +340,6 @@ C.c9=c9.t0==='1/8 · Kilométrage et niveaux'&&c9.tE==='7/8 · Écarts constaté
   &&c9.rows.some(t=>/Tranché par Fanny TESTFLOTTE : nouvel état des lieux demandé à Bruno TESTSOUDEUR/.test(t))&&c9.rows.some(t=>/Nouvel état des lieux de Bruno TESTSOUDEUR \(demandé après contestation\)/.test(t)&&/validé par Fanny TESTFLOTTE/.test(t));
 // ── bilan : débordements (390 px et PC), console, écritures refusées par le serveur simulé
 console.log('débordements :',OVF.length?OVF:'aucun');console.log('serveur simulé : refus',JSON.stringify(refus),'· écritures',calls.length,'· erreurs console',logs.length);
-C.c8=/Attribuer sans attendre/.test(out.suivi)&&/Annuler le changement/.test(out.suivi)&&out.navH>=40&&!OVF.length&&!logs.length&&refus.length===0;
+C.c8=/Attribuer sans attendre/.test(out.suivi)&&/Annuler le changement/.test(out.suivi)&&out.navH>=40&&!!out.navBg&&out.navBg.img==='none'&&out.navBg.alpha===1&&!OVF.length&&!logs.length&&refus.length===0;
 const bad=Object.entries(C).filter(([k,v])=>!v).map(([k])=>k);console.log(bad.length?'RESULTAT: ECHEC '+bad.join(','):'RESULTAT: TOUT VERT');console.log(logs.length?logs:'[]');
 await browser.close();

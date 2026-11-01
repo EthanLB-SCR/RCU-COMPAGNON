@@ -319,7 +319,7 @@ function doeOpen(){const esc=A.esc;const NET=A.net();const all=Object.values(A.s
      <div class="wrow">${miniPlan(all,l,p)}<div style="flex:1">
       <table><tr><th>Événement</th><th>Par</th><th>Date</th></tr>${evs}${stRows}</table>
       ${dh?`<div class="dh">DH figée au raccordement : ${dh.expected?('attendu '+dh.expected+' Ω'):''}${dh.meas?(' · mesuré '+dh.meas+' Ω'):''}${dh.iso!=null?(' · isolement '+dh.iso+' MΩ'):''} — ${esc(dh.closure||'')}</div>`:''}
-      ${j.wire==='inversion'?'<div class="dh" style="color:#a01212">Inversion de fils enregistrée à ce manchon</div>':''}</div></div>
+      ${j.wire==='inversion'?'<div class="dh">Fils raccordés : étamé → cuivré à ce manchon</div>':''}</div></div>
      ${uph.length?`<div class="phs">${uph.map(u=>`<img src="${u}">`).join('')}</div>`:''}</div>`;});}));
   w.document.write(docHTML({title:'Carnet de soudage — '+(NET.name||''),h1:'Carnet de soudage et manchonnage',kicker:'Suivi de chantier',sub:esc(NET.name||''),meta:[['Documentées',nDone+' / '+nTot+' soudures'],['Édité le',dFR(new Date())]],
     body:body||'<p>Aucune soudure documentée pour l’instant.</p>',css:`.w{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:10px 0;page-break-inside:avoid}.whead{font-size:13.5px;margin-bottom:6px}.st{background:var(--soft);border-radius:999px;padding:2px 9px;font-weight:700;font-size:11px}.wrow{display:flex;gap:10px;align-items:flex-start}table{font-size:11.5px}th,td{padding:3px 7px}.dh{font-size:11.5px;margin-top:4px;color:#333}.phs{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.phs img{max-height:110px;max-width:160px;border-radius:8px;border:1px solid var(--line)}`,footLeft:esc(NET.name||'')}));w.document.close();}

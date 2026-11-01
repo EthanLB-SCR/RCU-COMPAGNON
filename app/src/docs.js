@@ -109,7 +109,7 @@ export async function mountPdfReader(file,host,alt,btn,onRead,range){const url=f
     /* 01/11 soir (Ethan : « vérifier que tous les PDF à signer soient très bien lisibles ») : la page était dessinée à la taille de l'écran (350 px de large au téléphone,
        étirée ×3 par l'écran : texte flou et minuscule) → dessinée à la résolution de l'écran ×2 (texte net même agrandi), puis convertie en image (la mémoire du dessin
        est rendue : un livret de 40 pages tient au téléphone) ; « 🔍 Agrandir » double la largeur (on lit en glissant). */
-    const Q=Math.min(4,Math.max(2,(window.devicePixelRatio||1)*2));
+    const Q=Math.min(n>12?4:6,Math.max(2,(window.devicePixelRatio||1)*2)); /* 01/11 soir : ×6 au plus pour un document court → net aussi « Agrandi » (×2) ; ×4 au-delà de 12 pages (mémoire du téléphone) */
     if((window.innerWidth||0)<600&&document.getElementById('dr-zoom')){const tip=document.createElement('div');tip.className='pdfTip';tip.textContent='📱 Pour lire plus gros : tourne le téléphone, ou touche « 🔍 Agrandir ».';host.appendChild(tip);}
     for(let i=p0;i<=p1;i++){const page=await doc.getPage(i);const vp0=page.getViewport({scale:1});const vp=page.getViewport({scale:Math.min(W*Q,2600)/vp0.width});const c=document.createElement('canvas');c.width=Math.round(vp.width);c.height=Math.round(vp.height);
       await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;

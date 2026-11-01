@@ -30,7 +30,7 @@ export default {
   {sel:'#bpCard .bpModes',titre:'Préparer le plan',texte:'Chef ou bureau : « Tés I / S », « ✂ Couper » à un manchon (on boucle de part et d\'autre), « ▣ Boîtier », puis « ✓ Valider le plan ». Les équipes voient la consigne aux tés.'},
   {sel:'#bpCard [data-bpmode="at"]',titre:'Je me place',texte:'Touche un manchon ou le boîtier sur le petit plan : l\'appli dit dans quelle boucle tu es et ce que tu dois lire en théorie.'},
   {sel:'#bl-line',titre:'Le bouclage réel',texte:'Choisis la ligne, puis Aller ou Retour : chaque conduite a sa boucle, calculée depuis le départ. Les paramètres (Ω/km, isolement mini) sont juste en dessous.'},
-  {sel:'#bouclage .card:has(#dh-rows)',titre:'La boucle réelle',texte:'Fermée ou non, raccordés, à faire, inversions. Le détail manchon par manchon est replié : ouvre-le si besoin, un manchon touché sert de point de mesure.'},
+  {sel:'#bouclage .card:has(#dh-rows)',titre:'La boucle réelle',texte:'Fermée ou non, raccordés, à faire, dont étamé → cuivré. Le détail manchon par manchon est replié : ouvre-le si besoin (pour chercher un défaut sur un manchon rouvert).'} /* 01/11 soir : un manchon moussé n\'est pas un point de mesure courant */,
   {sel:'#dh-mesure',titre:'Mesure en un point',texte:'Saisis la boucle (Ω) et l\'isolement (MΩ), puis « Comparer » : vert = conforme, jaune = à vérifier. « 💾 Enregistrer » garde la mesure et le bouclage du moment.'},
   {sel:'#loc-from',titre:'Localiser un défaut',texte:'Dis où l\'appareil est branché, sur quel fil et la distance annoncée, puis « Localiser ». « Voir sur le plan » montre l\'endroit.'}
  ],
