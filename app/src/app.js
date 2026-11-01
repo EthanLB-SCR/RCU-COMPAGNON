@@ -3718,8 +3718,8 @@ async function checkCacheReset(){if(!state.cloudUser||!sync.getSetting)return fa
   let mine='';try{mine=localStorage.getItem('trace:cacheResetAt')||'';}catch(e){}if(mine>=at)return false;
   try{localStorage.setItem('trace:cacheResetAt',at);}catch(e){}
   let keys=[];try{keys=(await kv.keys('trace:')).filter(k=>RESET_KV.test(k));}catch(e){keys=[];}if(!keys.length)return false;
-  for(const k of keys){try{await kv.del(k);}catch(e){}}
-  console.info('[remise à zéro] caches vidés : '+keys.join(', '));toast('Remise à zéro des comptes : cet appareil recharge les données…');setTimeout(()=>{try{location.reload();}catch(e){}},900);return true;}
+  try{localStorage.setItem('trace:purgeOnBoot','1');}catch(e){return false;} /* l'effacement se fait au démarrage suivant, avant toute lecture du stockage (kv.js) : sinon une copie encore en mémoire était réécrite avant le rechargement */
+  toast('Remise à zéro des comptes : cet appareil recharge les données…');setTimeout(()=>{try{location.reload();}catch(e){}},900);return true;}
 async function loadEntreprise(){if(!state.cloudUser||!sync.getSetting)return false;try{const v=await sync.getSetting('entreprise');if(v&&typeof v==='object'){ENT=v;try{localStorage.setItem(ENT_KEY,JSON.stringify(v));}catch(e){}renderBand();return true;}}catch(e){console.warn(e);}return false;}
 async function entSave(next){const cl=(o,ks)=>{if(!o||typeof o!=='object')return null;const r={};ks.forEach(k=>{const x=String(o[k]||'').trim().slice(0,120);if(x)r[k]=x;});return Object.keys(r).length?r:null;};
   const v={name:String(next&&next.name||'').trim().slice(0,60),logo:next&&typeof next.logo==='string'?next.logo:null,sign:next&&next.sign!==undefined?cl(next.sign,['nom','titre']):((ENT&&ENT.sign)||null),rgpd:next&&next.rgpd!==undefined?cl(next.rgpd,['nom','email']):((ENT&&ENT.rgpd)||null),at:new Date().toISOString(),by:(me()||{}).name||''};let where='appareil'; /* 01/11 soir : signataire des courriers et référent RGPD (documents à signer), gardés quand on change le logo */

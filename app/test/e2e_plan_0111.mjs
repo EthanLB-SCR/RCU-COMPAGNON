@@ -10,6 +10,7 @@
 //      « 🔍 Agrandir » : page ×2, toujours nette (≥ 0,95 × les pixels de l'écran)
 //  p6  document texte (règlement) : zone de lecture sur toute la largeur aussi
 //  p7  console propre
+//  p8  un PDF déjà signé se rouvre et s'affiche (avant : « Chargement du document… » sans fin)
 import { chromium, devices } from 'playwright';
 import { makePdf } from './mkpdf.mjs';
 const BASE=process.env.BASE||'http://localhost:8765';const SHOTS=process.env.SHOTS||'';
@@ -72,6 +73,20 @@ await page.evaluate(()=>{const r=[...document.querySelectorAll('#eq-app .ac-row'
 const txt=await rd();await page.evaluate(()=>{const c=document.querySelector('#modal [data-close]');if(c)c.click();});await wait(200);
 console.log('p6) document texte :',J({box:txt.box,body:txt.body}));
 C.p6=txt.body>=0.85*txt.box&&txt.box>300;
+/* ── p8 (01/11 soir, Ethan : « la note de service n° 1 ne s'affiche pas, ça charge à l'infini ») : un PDF déjà SIGNÉ se rouvre et s'affiche (avant : « Chargement du document… » sans fin) */
+const openPdf=async()=>{await page.evaluate(()=>{const r=[...document.querySelectorAll('#eq-app .ac-row')].find(x=>/Fiche test PDF/.test(x.textContent));if(r)r.click();});await page.waitForFunction(()=>document.querySelectorAll('#dr-body img.pdfPg').length>=2,null,{timeout:15000}).catch(()=>{});await wait(300);};
+await openPdf();
+await page.evaluate(()=>{const b=document.getElementById('dr-body');b.scrollTop=b.scrollHeight;b.dispatchEvent(new Event('scroll'));});await wait(300);
+const p8={canRead:await page.evaluate(()=>{const b=document.getElementById('dr-read');return !!b&&!b.disabled;})};
+await page.evaluate(()=>{const b=document.getElementById('dr-read');if(b&&!b.disabled)b.click();});await wait(250);
+await page.evaluate(()=>{const cv=document.getElementById('dr-pad');if(!cv)return;const r=cv.getBoundingClientRect();const ev=(t,x,y)=>cv.dispatchEvent(new PointerEvent(t,{bubbles:true,clientX:r.left+x,clientY:r.top+y,pointerId:1,pointerType:'touch'}));ev('pointerdown',20,40);ev('pointermove',80,60);ev('pointermove',140,30);ev('pointerup',140,30);});
+await page.evaluate(()=>{const b=document.getElementById('dr-ok');if(b)b.click();});await wait(600);
+await page.evaluate(()=>{const c=document.querySelector('#modal [data-close]');if(c&&document.getElementById('modal').classList.contains('show'))c.click();});await wait(300);
+await openPdf();await wait(1200);
+Object.assign(p8,await page.evaluate(()=>({signed:/✓ Signé par/.test((document.getElementById('modal')||{}).textContent||''),pages:document.querySelectorAll('#dr-body img.pdfPg').length,loading:/Chargement du document/.test((document.getElementById('dr-body')||{}).textContent||''),alt:(()=>{const a=document.getElementById('dr-alt');return !!a&&a.style.display!=='none';})()})));
+await page.evaluate(()=>{const c=document.querySelector('#modal [data-close]');if(c)c.click();});await wait(200);
+console.log('p8) PDF déjà signé, rouvert :',J(p8));
+C.p8=p8.canRead&&p8.signed&&p8.pages===2&&!p8.loading&&!p8.alt;
 /* ── p2 (suite) : PC 1366 */
 await ctx.close();ctx=await browser.newContext({viewport:{width:1366,height:820}});page=await ctx.newPage();watch(page);
 await ctx.route(u=>/(^|\.)geopf\.fr$|^geo\.api\.gouv\.fr$|open-meteo\.com$|data\.geopf\.fr$/.test(u.hostname),r=>r.fulfill({status:200,contentType:'application/json',body:'[]'}));
