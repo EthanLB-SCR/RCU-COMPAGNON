@@ -16,9 +16,14 @@ Aucun SQL à passer, aucun secret à configurer : la clé de service est fournie
 Mise à jour : rouvrir la fonction dans l'éditeur, remplacer tout le code, Deploy.
 
 ## 2. Au quotidien
-- **Nouvel arrivant** : Administrateur → « ➕ Créer un accès » (e-mail, poste), puis **🔐 Code de 1re connexion** sur sa carte → **Activer ce code**. Tu donnes le code de vive voix ou par SMS (bouton « 💬 Envoyer par SMS » : message prêt avec le lien de l'appli, son e-mail et le code).
-- **La personne**, sur l'écran d'accueil : « Première connexion ou oubli : créer mon mot de passe » → son e-mail → le code (espaces et majuscules acceptés) → son mot de passe deux fois → elle est connectée.
+- **Nouvel arrivant** : Administrateur → « ➕ Créer un accès » (e-mail, poste), puis **🔐 Code de 1re connexion** sur sa carte → **Activer ce code**. La fenêtre montre un **QR** : la personne le scanne avec l'appareil photo de son téléphone, Tracé s'ouvre avec son e-mail et son code déjà remplis, elle choisit son mot de passe. Sinon : SMS (bouton « 💬 Envoyer par SMS » : message prêt avec le lien de 1re connexion, son e-mail et le code) ou de vive voix.
+- **Toute une équipe d'un coup** : filtre « Invités » → **🔐 Codes en série** → décocher ceux d'un autre chantier → nom de la fiche (facultatif) → **Créer les codes**. Ensuite : les QR un par un sur ton téléphone (« Suivant › »), chacun scanne le sien ; ou **🖨 Fiche à imprimer** (un QR et un code par personne, à découper).
+  La fiche et les SMS valent des mots de passe provisoires : chacun ne reçoit que le sien, la fiche se jette après. Un code non utilisé reste valable : fiche perdue → refais un code aux personnes concernées (l'ancien est annulé).
+  Crée les codes depuis l'appli **en ligne** : ouverte en local (localhost, réseau privé), l'appli prévient que les QR ne marcheraient pas sur les téléphones ; ouverte en fichier, les liens visent l'appli en ligne.
+- **La personne**, sur l'écran d'accueil : « Première connexion ou oubli : créer mon mot de passe » → son e-mail → le code (espaces et majuscules acceptés) → son mot de passe deux fois → elle est connectée. Avec le QR ou le lien, l'e-mail et le code sont déjà remplis.
   Si elle tape le code directement dans la case « mot de passe », l'appli la connecte puis lui demande de choisir son mot de passe avant d'entrer.
+  Juste après, sur téléphone, l'appli propose (une fois) de **mettre Tracé sur l'écran d'accueil** ; repris dans le menu du compte (« 📲 Mettre Tracé sur l'écran d'accueil »). Sur iPhone : depuis Safari, Partager → « Sur l'écran d'accueil » ; à la 1re ouverture par l'icône, Tracé redemande une fois l'e-mail et le mot de passe (l'iPhone sépare l'icône de Safari).
+- **L'adresse e-mail sert d'identifiant** : avec le code, aucun e-mail n'est envoyé. Une adresse unique suffit (pro, perso, ou prenom.nom@scr-soudure.fr même sans boîte) ; dans ce dernier cas, « code par e-mail » ne marche pas pour elle : en cas d'oubli, refais-lui un code.
 - **Mot de passe oublié** : sur sa carte, **🔐 Nouveau code**. Le code remplace son ancien mot de passe ; elle en rechoisit un en se connectant.
 
 ## Sécurité
