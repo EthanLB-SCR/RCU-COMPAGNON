@@ -32,15 +32,21 @@ function zonesOut(zones,outLines){if(!Array.isArray(zones)||!zones.length)return
 const pvNature=p=>p.pvKind||(p.vert==='down'?'vidange':'purge');
 export function siteFromTraceur({id,name,supplier,serie,lines,built,rules,bg,prev,barDefault,prof,ctx,cv,zones,ghosts,vref}){
   const etude=ctx==='etude'; // 14/10 soir (lot T1) : tracé d'une affaire en chiffrage (contexte aff: du traceur)
-  // numéros de soudure : on reprend ceux de la version précédente quand une soudure est retrouvée (même ligne, même conduite, PK à ± 0,35 m), sinon un numéro neuf
-  const used=new Set();let next=1;const prevW=(prev&&prev.welds)||[];prevW.forEach(w=>{const n=+String(w.weldId||'').replace(/\D/g,'');if(n>=next)next=n+1;});
-  const lost=[];const idFor=(line,cond,m)=>{const cand=prevW.filter(w=>w.line===line&&w.cond===cond&&!used.has(w.weldId)&&Math.abs(w.m-m)<0.35).sort((a,b)=>Math.abs(a.m-m)-Math.abs(b.m-m))[0];if(cand){used.add(cand.weldId);return cand.weldId;}let s;do{s='S-'+String(next++).padStart(4,'0');}while(used.has(s));used.add(s);return s;};
+  // numéros de soudure : on reprend ceux de la version précédente quand une soudure est retrouvée (même ligne, même conduite : en place à ± 0,35 m, ou décalée — matchWeldIds), sinon un numéro neuf
+  const used=new Set();let next=1;const prevW=(prev&&prev.welds)||[];prevW.forEach(w=>{const n=+String(w.weldId||'').replace(/\D/g,'');if(n>=next)next=n+1;});if(prev&&+prev.wmax>=next)next=+prev.wmax+1; // 03/11 : numéros déjà vus par le serveur (version restaurée…) jamais réattribués
+  const lost=[],moved=[];const fresh=()=>{let s;do{s='S-'+String(next++).padStart(4,'0');}while(used.has(s));used.add(s);return s;};
+  const idFor=(line,cond,m,pi)=>{if(pi!==undefined){if(pi&&!used.has(pi.weldId)){used.add(pi.weldId);if(Math.abs(pi.m-m)>=0.35&&pi.status&&pi.status!=='a_souder')moved.push({...pi,to:r3(m)});return pi.weldId;}return fresh();}
+    const cand=prevW.filter(w=>w.line===line&&w.cond===cond&&!used.has(w.weldId)&&Math.abs(w.m-m)<0.35).sort((a,b)=>Math.abs(a.m-m)-Math.abs(b.m-m))[0];if(cand){used.add(cand.weldId);return cand.weldId;}return fresh();};
+  // 03/11 : appariement de toute la conduite d'un coup (en place, puis décalées) ; en cas de pépin, l'ancienne règle (± 0,35 m) soudure par soudure
+  const preFor=(line,cond,ws,bar)=>{try{const P=prevW.filter(w=>w.line===line&&w.cond===cond&&!used.has(w.weldId));if(!P.length)return ws.map(()=>null);
+    const r=matchWeldIds(P,ws.map(w=>({m:+w.m,sig:sigOf(w.between)})),{dmax:(+bar||12)+0.5});return r.map(i=>i>=0?P[i]:null);}catch(e){console.warn('soudures : appariement',e);return null;}};
   const outLines=[];lines.forEach(l=>{const B=built[l.id];if(!B||!B.A||!B.R)return;const cond={};
     ['A','R'].forEach(c=>{const cd=B[c];const els=cd.pieces.map(p=>{const kind=KIND[p.kind]||p.kind;const axis=p.path.map(q=>[r3(q[0]),r3(q[1])]);return {id:p.id,kind,kindLabel:KLABEL[kind]||kind,dn:p.dn,dn2:p.dn2,casing:Math.round((p.casing||0.2)*1000),len:r3(p.L),m0:r3(p.m0),m1:r3(p.m1),angle:p.angle,plane:p.plane,axis:[axis],from:axis[0],to:axis[axis.length-1],cut:!!p.cut,std:!!p.std,manchette:!!p.manchette,nue:!!p.nue,ref:p.ref,sub:p.sub,vert:p.vert?(pvNature(p)==='purge'?'up':'down'):p.vert,pvKind:p.vert?pvNature(p):undefined,pvDir:p.vert||undefined,dnb:p.dnb,teeType:p.teeType,saut:!!p.saut,under:!!p.under,photo:p.photo||undefined,branch:p.branch?p.branch.map(q=>[r3(q[0]),r3(q[1])]):undefined,err:p.err||undefined,resid:p.resid,fcWhere:p.fcWhere,legIn:p.legIn,legOut:p.legOut,riser:p.riser?true:undefined,nu:p.nu?true:undefined};});
       const welds=[];let shift=0; // 14/10 soir (lot T1) : by-pass au départ → jonction insérée AVANT le coude (les pièces suivantes décalées d'un rang)
-      cd.welds.forEach(w=>{let idx=w.i+shift;if(w.bypass){const atS=w.bypassAt==='start';const U=cd.pieces.findIndex(p=>p.kind==='bypassEnd'&&(atS?p.sid==='end:start':p.sid!=='end:start'));if(U<0)return;const ap=cd.pieces[U].apex||[w.x,w.y];const Ue=U+shift;const mJ=atS?els[Ue].m0:els[Ue].m1;
+      const pre=preFor(l.id,c,cd.welds,l.bar||barDefault);
+      cd.welds.forEach((w,wk)=>{let idx=w.i+shift;if(w.bypass){const atS=w.bypassAt==='start';const U=cd.pieces.findIndex(p=>p.kind==='bypassEnd'&&(atS?p.sid==='end:start':p.sid!=='end:start'));if(U<0)return;const ap=cd.pieces[U].apex||[w.x,w.y];const Ue=U+shift;const mJ=atS?els[Ue].m0:els[Ue].m1;
           els.splice(atS?Ue:Ue+1,0,{id:atS?'U-liaison-depart':'U-liaison',kind:'bypass',kindLabel:'jonction du by-pass (aller ↔ retour)',dn:w.dn,casing:els[Ue].casing,len:0,m0:mJ,m1:mJ,axis:[[[r3(ap[0]),r3(ap[1])],[r3(ap[0]),r3(ap[1])]]],from:[r3(ap[0]),r3(ap[1])],to:[r3(ap[0]),r3(ap[1])],link:true});idx=Ue;if(atS)shift++;}
-        welds.push({idx,weldId:idFor(l.id,c,w.m),m:r3(w.m),x:r3(w.x),y:r3(w.y),dev:+(w.dev||0).toFixed(2),fc:!!w.fc,dn:w.dn,teeOut:!!w.teeOut,bypass:!!w.bypass,between:w.between,sleeve:w.sleeve||undefined,riser:w.riser?true:undefined,nu:w.nu?true:undefined,sst:w.sst?true:undefined,endType:w.sst?(w.endType||undefined):undefined});}); /* 27/10 soir → 28/10 : sst = point de bout de ligne (raccordement, SST, kit, by-pass : ni soudure ni manchon comptés), endType = le type du bout */
+        welds.push({idx,weldId:idFor(l.id,c,w.m,pre?pre[wk]:undefined),m:r3(w.m),x:r3(w.x),y:r3(w.y),dev:+(w.dev||0).toFixed(2),fc:!!w.fc,dn:w.dn,teeOut:!!w.teeOut,bypass:!!w.bypass,between:w.between,sleeve:w.sleeve||undefined,riser:w.riser?true:undefined,nu:w.nu?true:undefined,sst:w.sst?true:undefined,endType:w.sst?(w.endType||undefined):undefined});}); /* 27/10 soir → 28/10 : sst = point de bout de ligne (raccordement, SST, kit, by-pass : ni soudure ni manchon comptés), endType = le type du bout */
       welds.forEach(w=>{if(!w.sleeve)return;const o=welds.find(x=>x!==w&&x.sleeve===w.sleeve);if(o)w.sleeveWith=o.weldId;}); // deux soudures dans le même manchon
       cond[c]={els,welds,length:r3(cd.length),notes:cd.notes.map(n=>({kind:n.kind,txt:n.txt,m:r3(n.m||0)}))};});
     const profL=l.prof!=null&&isFinite(+l.prof)?+l.prof:(prof!=null&&isFinite(+prof)?+prof:undefined); // 14/10 : profondeur en vigueur sur la ligne (surcharge, sinon défaut du tracé)
@@ -78,7 +84,33 @@ export function siteFromTraceur({id,name,supplier,serie,lines,built,rules,bg,pre
   if(!etude){if(prev&&prev.marche)site.marche=prev.marche;else site.marche=marcheSnapshot(outLines,{source:'traceur',by:'traceur'});} // tracé MARCHÉ figé au premier enregistrement (Ethan 07/10) — ensuite c'est la référence des écarts / TS ; 14/10 soir (lot T1, C5) : une étude n'a ni marché figé ni TS (même si la version précédente en avait), le marché sera figé quand l'affaire sera gagnée
   if(prev&&prev.ts&&!etude)site.ts=prev.ts; // marques TS / hors marché par élément (faites dans l'appli) : conservées
   if(prev&&prev.full)Object.keys(prev.full).forEach(k=>{if(etude&&(k==='marche'||k==='ts'))return; /* intégration 14/10 soir : une étude ne récupère pas un ancien marché par la copie complète */if(site[k]===undefined&&prev.full[k]!==undefined&&prev.full[k]!==null)site[k]=prev.full[k];}); // toute autre partie du chantier faite dans l'appli (phasage, soudures ajoutées sur place, pointage…) : conservée telle quelle — un enregistrement depuis le traceur ne doit rien effacer
-  return {site,lost,nW};
+  return {site,lost,nW,moved};
 }
 // soudures d'un chantier existant (pour l'appariement) : [{line,cond,m,weldId,status}]
-export function weldsOfSite(site,remoteWelds){const st={};(remoteWelds||[]).forEach(r=>{st[r.weld_id]=r.status;});const out=[];(site.lines||[]).forEach(L=>{if(!L.cond)return;['A','R'].forEach(c=>{const cd=L.cond[c];if(!cd)return;(cd.welds||[]).forEach(w=>out.push({line:L.id,cond:c,m:w.m,weldId:w.weldId,status:st[w.weldId]||'a_souder'}));});});return out;}
+export function weldsOfSite(site,remoteWelds){const st={};(remoteWelds||[]).forEach(r=>{st[r.weld_id]=r.status;});const out=[];(site.lines||[]).forEach(L=>{if(!L.cond)return;['A','R'].forEach(c=>{const cd=L.cond[c];if(!cd)return;(cd.welds||[]).forEach(w=>out.push({line:L.id,cond:c,m:w.m,weldId:w.weldId,status:st[w.weldId]||'a_souder',sig:sigOf(w.between)}));});});return out;}
+/* 03/11 (Nantes, Ethan : « j'ai ajouté une manchette sur une antenne, ça a sauté des soudures et manchons sur ce qui a été décalé… on ne sait plus qui est quoi ») : une soudure
+   n'était reconnue que si elle restait à ± 0,35 m → celles DÉCALÉES par une pièce insérée en amont (jusqu'au coude / té / pièce suivant) prenaient un numéro neuf et leurs
+   états (soudée, manchonnée…) restaient sur l'ancien numéro, hors du plan. Maintenant, conduite par conduite :
+   1) les soudures restées en place (± 0,35 m) gardent leur numéro, exactement comme avant ;
+   2) entre deux soudures restées en place, les soudures décalées TOUTES DU MÊME ÉCART (au moins 2, écart ≤ une barre, même sorte de soudure) gardent leur numéro, dans l'ordre —
+      à égalité, l'écart qui garde le plus de soudures déjà faites, puis le plus petit ;
+   3) ce qui reste entre deux soudures reconnues : une pour une, dans l'ordre, seulement si c'est le même nombre et exactement la même sorte deux à deux (tube-tube, tube-coude…) ;
+   sinon numéro neuf (les soudures de la pièce insérée). P : anciennes soudures {m, sig, status} ; N : nouvelles {m, sig} → pour chaque nouvelle, l'index de l'ancienne (ou −1). */
+export function sigOf(b){return Array.isArray(b)&&b.length===2?b.map(x=>String(x==null?'':x).replace(/\d+b?$/,'')).sort().join('|'):'';}
+const famOf=s=>s.split('|').map(k=>k==='M'?'P':k).sort().join('|'); // barre, chute ou manchette : la même famille (tube)
+export function matchWeldIds(P,N,o){const res=N.map(()=>-1),usedP=new Set(),dmax=(o&&o.dmax)||12.5,TOL=0.1;
+  const fam=(a,b)=>!a||!b||famOf(a)===famOf(b),same=(a,b)=>!a||!b||a===b,done=p=>!!(p.status&&p.status!=='a_souder');
+  N.forEach((n,k)=>{let b=-1,bd=0.35;P.forEach((p,i)=>{if(usedP.has(i))return;const d=Math.abs(p.m-n.m);if(d<bd){bd=d;b=i;}});if(b>=0){usedP.add(b);res[k]=b;}}); // 1) en place
+  const solve=(olds,news,depth)=>{if(!olds.length||!news.length||depth>60)return;let best=null;const seen=new Set();
+    olds.forEach(i=>news.forEach(k=>{const d=N[k].m-P[i].m;if(Math.abs(d)>dmax||!fam(P[i].sig,N[k].sig))return;const key=Math.round(d*100);if(seen.has(key))return;seen.add(key);
+      const pr=[];let a=0;news.forEach((kk,b)=>{while(a<olds.length&&P[olds[a]].m+d<N[kk].m-TOL)a++;if(a<olds.length&&Math.abs(P[olds[a]].m+d-N[kk].m)<TOL&&fam(P[olds[a]].sig,N[kk].sig)){pr.push([a,b]);a++;}});
+      const nd=pr.filter(x=>done(P[olds[x[0]]])).length;
+      if(!best||pr.length>best.pr.length||(pr.length===best.pr.length&&(nd>best.nd||(nd===best.nd&&Math.abs(d)<Math.abs(best.d)))))best={pr,nd,d};}));
+    if(best&&best.pr.length>=2){best.pr.forEach(([a,b])=>{res[news[b]]=olds[a];usedP.add(olds[a]);}); // 2) décalées du même écart
+      const B=[[-1,-1],...best.pr,[olds.length,news.length]];for(let s=0;s<B.length-1;s++)solve(olds.slice(B[s][0]+1,B[s+1][0]),news.slice(B[s][1]+1,B[s+1][1]),depth+1);return;}
+    if(olds.length===news.length&&olds.every((i,r)=>same(P[i].sig,N[news[r]].sig)&&Math.abs(N[news[r]].m-P[i].m)<=dmax))olds.forEach((i,r)=>{res[news[r]]=i;usedP.add(i);});}; // 3) une pour une
+  const oi=P.map((p,i)=>i).sort((a,b)=>P[a].m-P[b].m),nk=N.map((n,k)=>k).sort((a,b)=>N[a].m-N[b].m);const rP=new Map(oi.map((i,r)=>[i,r])),rN=new Map(nk.map((k,r)=>[k,r]));
+  const kept=[];nk.forEach(k=>{if(res[k]<0)return;const r=rP.get(res[k]);if(!kept.length||r>rP.get(res[kept[kept.length-1]]))kept.push(k);}); // bornes : soudures en place, dans l'ordre
+  const fO=oi.filter(i=>!usedP.has(i)),fN=nk.filter(k=>res[k]<0);const B=[[-1,-1],...kept.map(k=>[rP.get(res[k]),rN.get(k)]),[Infinity,Infinity]];
+  for(let s=0;s<B.length-1;s++)solve(fO.filter(i=>rP.get(i)>B[s][0]&&rP.get(i)<B[s+1][0]),fN.filter(k=>rN.get(k)>B[s][1]&&rN.get(k)<B[s+1][1]),0);
+  return res;}
