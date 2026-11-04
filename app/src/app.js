@@ -5,6 +5,7 @@ import CATALOGUE from './catalogue.json';
 import {parseDXF,parseDXFFile,analyze,buildSite,buildSiteJBTP,drawingOf,buildDrawing,previewSVG,drawingSVG,drawingBBoxes,decimateDrawing} from './dxfimport.js';
 import {sheetImagesSVG} from './plans.js'; // 14/10 (multi-plans) : images de fond (plusieurs, chacune avec son calage : position, rotation, échelle) — les DXF calés sont déjà fusionnés dans net.drawing par le traceur
 import {sync,mergeServerParts} from './sync.js';
+import {repriseMap,mergeInto} from './reprise.js'; // 03/11 (Nantes) : ⏱ Versions → « ↺ Avancement » (reprise de l'avancement d'une version, sans rien effacer)
 import {kv} from './kv.js';
 import {geoOfSite,fixGeoPts,planToLonLat,lonLatToPlan,lonLatToMercPx,tilesFor,ignTileURL,IGN_LAYERS,distLL,fmtDist,crsName,similarityFromPairs,geocode,CRS} from './geo.js';
 import {parseBL,stockLabel,stockKey,matchKey,zoneAgg,globalAgg,remainByMatch,zoneStatusOf,dnOfOd,isPU,K_LABEL as STK_LABEL,packBars,pipeLen,weldDn,sleeveCasing} from './stock.js'; // 21/10 : + barres regroupées, DN à la soudure
@@ -367,12 +368,23 @@ async function openVersionsModal(){const id=state.siteId;const rows=await sync.l
   if(!rows.length){openModal('<h3>Versions</h3><div class="muted">Pas encore d\'historique pour ce chantier : il se remplit à chaque « Enregistrer dans Tracé » (la version précédente est gardée, 15 maxi).</div><div class="actions" style="margin-top:8px"><button class="btn block" data-close>Fermer</button></div>');return;}
   let profs={};try{(await sync.listProfiles()).forEach(p=>{profs[p.id]=p.name||p.email;});}catch(e){}
   openModal(`<h3>Versions — ${esc(NET.name)}</h3><div class="muted" style="margin-bottom:6px">La version affichée actuellement n'est pas dans la liste : ce sont les états précédents (15 gardés). Restaurer n'efface rien : l'état actuel passera à son tour dans l'historique.</div>
-   <table class="rc">${rows.map(r=>`<tr><td style="text-align:left">${new Date(r.created_at).toLocaleString('fr-FR')}</td><td style="text-align:left" class="dim">${esc(profs[r.saved_by]||'')}</td><td><button class="btn sm" data-restore="${r.id}">Restaurer</button></td></tr>`).join('')}</table>
+   <table class="rc">${rows.map(r=>`<tr><td style="text-align:left">${new Date(r.created_at).toLocaleString('fr-FR')}</td><td style="text-align:left" class="dim">${esc(profs[r.saved_by]||'')}</td><td style="white-space:nowrap"><button class="btn sm" data-reprise="${r.id}" data-at="${esc(new Date(r.created_at).toLocaleString('fr-FR'))}" title="Remettre l'avancement et les photos d'avant cette date sur les soudures qui ont changé de numéro depuis (rien n'est effacé)">↺ Avancement</button> <button class="btn sm" data-restore="${r.id}">Restaurer</button></td></tr>`).join('')}</table><div class="muted" style="margin-top:4px">↺ Avancement : après une modification qui a renuméroté des soudures, reprend sur le numéro actuel l'avancement et les photos qu'elles avaient dans cette version — ce qui a été pointé depuis est gardé, le plan ne change pas.</div>
    <div class="actions" style="margin-top:8px"><button class="btn block" data-close>Fermer</button></div>`);
   $('#modal').querySelectorAll('[data-restore]').forEach(b=>{b.onclick=async()=>{if(!confirm('Restaurer cette version du plan ? Les statuts de soudure ne bougent pas (ils sont rattachés aux numéros) ; l\'état actuel du plan sera gardé dans l\'historique.'))return;
     const v=await sync.loadVersion(+b.dataset.restore);if(!v||!v.data){toast('Version illisible');return;}
     const net={...v.data,id,name:v.name||NET.name};if(net.traceur)net.traceur.savedAt=new Date().toISOString();net.updated_at=undefined;
-    const okk=await sync.saveSite(net);if(!okk){toast('Restauration refusée par le serveur');return;}state.ownSiteWrite=0;closeModal();toast('Version restaurée — rechargement');await refreshSiteFromServer(id);};});}
+    const okk=await sync.saveSite(net);if(!okk){toast('Restauration refusée par le serveur');return;}state.ownSiteWrite=0;closeModal();toast('Version restaurée — rechargement');await refreshSiteFromServer(id);};});
+  $('#modal').querySelectorAll('[data-reprise]').forEach(b=>{b.onclick=()=>repriseVersion(id,+b.dataset.reprise,b.dataset.at||'');});}
+/* 03/11 (Nantes) — reprise de l'avancement d'une version : aperçu, puis « Appliquer » (fusion sur le numéro actuel, rien d'effacé — src/reprise.js) */
+async function repriseVersion(id,vid,at){const v=await sync.loadVersion(vid);if(!v||!v.data){toast('Version illisible');return;}let rows=null;try{rows=await sync.loadWelds(id);}catch(e){}if(!rows||!rows.length){toast('Soudures du serveur indisponibles : connecte-toi et réessaie');return;}
+  if(state.siteId!==id||!NET){toast('Rouvre le chantier et réessaie');return;}const pairs=repriseMap(NET,v.data,rows).filter(p=>findWeld(p.to));
+  if(!pairs.length){openModal(`<h3>Reprendre l'avancement</h3><div class="muted">Rien à reprendre depuis la version du ${esc(at)} : aucune soudure avec de l'avancement n'a changé de numéro depuis (ou elle a déjà été reprise).</div><div class="actions" style="margin-top:8px"><button class="btn block" data-close>Fermer</button></div>`);return;}
+  const lab=s=>(STATUS[s]||{}).label||s||'À souder';const nPh=r=>((r&&r.data&&r.data.photos)||[]).length;
+  openModal(`<h3>Reprendre l'avancement — version du ${esc(at)}</h3><div class="muted" style="margin-bottom:6px"><b>${pairs.length}</b> soudure(s) ont changé de numéro depuis cette version. Leur avancement et leurs photos d'avant passent sur le <b>numéro actuel</b> ; ce qui a été pointé depuis est gardé (l'avancement ne recule pas, photos et historique s'additionnent). Rien n'est effacé, le plan ne change pas.</div>
+   <div style="max-height:50vh;overflow:auto"><table class="rc"><tr><th style="text-align:left">Numéro actuel</th><th style="text-align:left">avant</th><th style="text-align:left">avancement d'avant</th><th style="text-align:left">aujourd'hui</th></tr>${pairs.map(p=>{const f=findWeld(p.to);const j=f&&f.j;return `<tr><td style="text-align:left"><b>${esc(p.to)}</b></td><td style="text-align:left" class="dim">${esc(p.from)}</td><td style="text-align:left">${esc(lab(p.row.status))}${nPh(p.row)?' · '+nPh(p.row)+' photo(s)':''}</td><td style="text-align:left" class="dim">${esc(lab(j&&j.status))}${j&&(j.photos||[]).length?' · '+j.photos.length+' photo(s)':''}</td></tr>`;}).join('')}</table></div>
+   <div class="actions" style="margin-top:8px"><button class="btn" data-close>Annuler</button><button class="btn on" id="rpOk">Appliquer</button></div>`);
+  $('#rpOk').onclick=async()=>{const by=(me()||{}).name||'',now=new Date();const js=[];pairs.forEach(p=>{const f=findWeld(p.to);if(!f)return;mergeInto(f.j,p.row,by,now);js.push(f.j);try{sync.logEvent(state.siteId,p.to,'reprise',by,{de:p.from,version:at});}catch(e){}});
+    Object.values(state.lines).forEach(l=>{if(l.engine)resyncLine(l);});closeModal();renderAll();await pushWelds(js);toast(js.length+' soudure(s) : avancement d\'avant repris (rien d\'effacé)');};}
 async function deleteCurrentSite(){const id=state.siteId;const net=SITES[id];if(!net)return;if(!confirm(`Supprimer le chantier « ${net.name} » (plan, soudures, statuts, photos) ? Cette action est définitive.`))return;
   let msg='';try{localStorage.removeItem('trace:handoff:'+id);}catch(e){}try{await kv.del('trace:handoff:'+id);}catch(e){}
   const hidden=JSON.parse(localStorage.getItem('trace:hiddenSites')||'[]');if(!hidden.includes(id))hidden.push(id);localStorage.setItem('trace:hiddenSites',JSON.stringify(hidden));const hm=hiddenMap();hm[id]=Date.now();localStorage.setItem('trace:hiddenAt',JSON.stringify(hm));
@@ -451,7 +463,13 @@ function splitPipeAt(l,c,i,mAbs,weldId,meta){const cd=l.cond[c];if(!cd)return nu
   cd.joints.push(j);cd.joints.sort((x,y)=>x.idx-y.idx);if(c==='A'||!l.cond.A)l.els=cd.els;return j;}
 function applyExtraWelds(){const recs=NET&&Array.isArray(NET.extraWelds)?NET.extraWelds:null;if(!recs||!recs.length)return;
   recs.forEach(r=>{const l=state.lines[r.line];const cd=l&&l.cond&&l.cond[r.cond];if(!cd||engOf(l,r.cond)){console.warn('soudure ajoutée ignorée',r);return;}
-    const i=cd.els.findIndex(x=>x.id===r.el);if(i<0||cd.joints.some(j=>j.weldId===r.weldId)){console.warn('soudure ajoutée : pièce introuvable ou déjà posée',r);return;}
+    if(cd.joints.some(j=>j.weldId===r.weldId)){console.warn('soudure ajoutée : déjà posée',r);return;}
+    /* 03/11 (Nantes, Ethan : « j'avais deux soudures ajoutées, soudée et manchonnée, qui ont disparu ») : la barre était retrouvée par son NOM (P12…) ; un enregistrement du
+       traceur qui repose les barres (pièce insérée, té déplacé…) renumérote les barres → nom introuvable ou PK hors de la barre → la soudure ajoutée était ignorée (états et
+       photos restés au serveur, sous le même numéro). Maintenant, si la barre nommée ne contient plus le PK, on prend la barre qui le contient (même ligne, même conduite). */
+    const m=+r.m,inside=e=>!!e&&e.kind==='pipe'&&m-(+e.m0)>0.049&&(+e.m1)-m>0.049;let i=cd.els.findIndex(x=>x.id===r.el);
+    if(i<0||!inside(cd.els[i])){const k=cd.els.findIndex(inside);if(k>=0)i=k;}
+    if(i<0){console.warn('soudure ajoutée : barre introuvable au PK',r);return;}
     if(!splitPipeAt(l,r.cond,i,r.m,r.weldId,r))console.warn('soudure ajoutée : PK hors de la barre',r);});}
 function addExtraWeld(l,c,i,mAbs){const recs=extraWeldsOf();if(!recs)return null;const e=l.cond[c].els[i];if(!e||e.kind!=='pipe')return null;
   const weldId='S-'+String(state.nextWeld).padStart(4,'0');const by=(me()||{}).name||state.userId;const at=new Date().toISOString();
@@ -5363,6 +5381,7 @@ window.TRACE.tuto={start:(k,o)=>tutoStart(k,o||{force:true}),arrive:k=>tutoArriv
 window.TRACE.boot={state:()=>window.trBoot?{mode:window.trBoot.mode(),ended:window.trBoot.ended()}:null};
 window.TRACE.ar={inv:id=>arInverted(state.lines[id]),raw:id=>arRaw(state.lines[id]),rev:()=>arLinesRev().map(l=>l.id),fiche:()=>arFiche(),open:id=>openArModal(id||''),chaufStart:()=>arChaufStart(),pose:()=>!!state.arChaufPose,canEdit:()=>arCanEdit()}; /* 01/11 soir : tests (chaufferie, inversions déclarées normales) */
 window.TRACE.st1={opts:()=>st1Opts(),last:()=>state.lastWelder||null};
+window.TRACE.extraReplay=()=>{if(!NET||NET.id==='__vide')return false;const id=NET.id;delete siteStore[id];setupSite(id);renderAll();return true;}; /* 03/11 (tests) : reconstruit le chantier ouvert (soudures ajoutées rejouées) */
 window.TRACE.hyTest={geo:g=>{if(!NET)return false;NET.geo=g;geoCache.delete(NET);renderAll();return !!siteGeo();},osm:()=>fetchOsmHydrants(),report:t=>openHydroReport(t==null?null:t)}; /* 01/11 soir : tests (bornes, dossier) */
 window.TRACE.dhLoopSum=(id,c)=>{const D=dhLoop(id,c||'A');return D?{totalE:D.totalE,totalN:D.totalN,rkm:D.rkm,close:D.close?{kind:D.close.kind,R:D.close.R}:null,tip:D.tipState,n:D.rows.length,todo:D.nTodo}:null;}; /* 01/11 soir : tests (longueurs de fil aller + retour) */ /* 01/11 soir : tests (soudure déclarée pour le compte du soudeur) */
 window.TRACE.nc=ncTestApi(); /* 20/10 (lot NC) : tests — création à la main, envoi différé, étiquette */

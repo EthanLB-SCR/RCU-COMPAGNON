@@ -58,6 +58,13 @@ await page.evaluate(id=>window.TRACE.go(id),siteId);await page.waitForTimeout(15
 await page.selectOption('#roleSel','ethan');await page.waitForTimeout(300);
 const s4=await snap();console.log('4) après rechargement : rejouée, même n°, même PK, barre scindée:',JSON.stringify({site:s4.site,nEls:s4.nEls,nJ:s4.nJ,extra:s4.extra,recs:s4.recs,next:s4.next}));
 const c4=s4.site===siteId&&s4.nEls===s1.nEls&&s4.nJ===s1.nJ&&s4.extra.length===1&&s4.extra[0].id===s1.extra[0].id&&Math.abs(s4.extra[0].m-s1.extra[0].m)<0.01&&s4.next===s1.next;
+// ── 4b) 03/11 (Nantes) : la barre a été renommée par un enregistrement du traceur (barres reposées) → la soudure ajoutée est retrouvée par son PK, même numéro
+await page.evaluate(()=>{const T=window.TRACE;T.net.extraWelds[0].el='P999';return T.extraReplay?T.extraReplay():null;});await page.waitForTimeout(800);
+const s4b=await snap();console.log('4b) barre renommée → retrouvée par le PK:',JSON.stringify({extra:s4b.extra,nJ:s4b.nJ}));
+const c4b=s4b.extra.length===1&&s4b.extra[0].id===s1.extra[0].id&&Math.abs(s4b.extra[0].m-s1.extra[0].m)<0.01&&s4b.nJ===s1.nJ;
+const neg=await page.evaluate(()=>{const T=window.TRACE;const r=T.net.extraWelds[0];const m0=r.m;r.m=-5;T.extraReplay();const L1=Object.values(T.lines).find(l=>!l.parent);const n=L1.cond.A.joints.filter(j=>j.extra).length;r.m=m0;return n;}); // témoin : la reconstruction a bien lieu (PK impossible → pas posée)
+await page.evaluate(el0=>{window.TRACE.net.extraWelds[0].el=el0;window.TRACE.extraReplay();},s4.recs[0].el);await page.waitForTimeout(500); // remis comme avant pour la suite (retrait)
+const c4t=neg===0&&(await snap()).extra.length===1;console.log('4c) témoin (PK impossible → pas posée, puis remise) :',neg,c4t);
 // ── 5) liste : tag « ajoutée » ; fiche : bouton retirer (vierge) → retrait, barre recollée, record effacé
 const lst=await page.evaluate(()=>{const T=window.TRACE;T.state.tab='liste';T.renderAll();const h=document.querySelector('#liste').innerHTML;T.state.tab='plan';T.renderAll();return /➕ ajoutée/.test(h);});
 await page.evaluate(()=>{const T=window.TRACE;const L1=Object.values(T.lines).find(l=>!l.parent);const q=L1.cond.A.joints.findIndex(j=>j.extra);T.openJoint(L1.id,'A',q);});await page.waitForTimeout(400);
@@ -70,7 +77,7 @@ const s6=await page.evaluate(()=>{const T=window.TRACE;const L1=Object.values(T.
 await page.waitForTimeout(400);
 const noRm=await page.evaluate(()=>({rm:!!document.querySelector('#sheet [data-act="remove-extra"]'),reset:!!document.querySelector('#sheet [data-act="reset-weld"]'),acts:[...document.querySelectorAll('#sheet [data-act]')].map(b=>b.dataset.act)}));
 console.log('6) soudure ajoutée avec données : pas de retrait, mais « remettre à À souder » reste:',JSON.stringify({...s6,...noRm}));const c6=s6.n===1&&!noRm.rm&&noRm.reset;
-const ALL=c1&&c2&&c3a&&c3b&&c4&&c5&&c6;
-console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3a,c3b,c4,c5,c6}));
+const ALL=c1&&c2&&c3a&&c3b&&c4&&c4b&&c4t&&c5&&c6;
+console.log('RESULTAT:',ALL?'TOUT VERT':'ECHEC '+JSON.stringify({c1,c2,c3a,c3b,c4,c4b,c4t,c5,c6}));
 console.log(logs.length?logs:'[]');
 await browser.close();process.exit(ALL?0:1);
