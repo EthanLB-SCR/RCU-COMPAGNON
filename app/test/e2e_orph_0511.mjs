@@ -54,5 +54,11 @@ await page.evaluate(()=>window.TRACE.closeSheet&&window.TRACE.closeSheet());awai
 await page.click('#orphWarn');await wait(300);await page.click('#modal [data-orph-ign="S-0952"]');await wait(400);
 o=await page.evaluate(()=>{const b=document.querySelector('#orphWarn');return {list:window.TRACE.orph.list(),show:!!b&&b.classList.contains('show')};});console.log('r6) ignorée :',J(o));
 C.r6=o.list.length===0&&!o.show;
+/* r8 numéro en double : une soudure ajoutée dont le numéro est déjà pris par une autre soudure du plan → signalé (jamais silencieux) */
+const dupId=await page.evaluate(()=>{const T=window.TRACE;const A=T.state.lines.L1.cond.A;const j=A.joints.find(x=>!x.extra&&x.m>2);const far=A.els.filter(e=>e.kind==='pipe'&&e.len>8).map(e=>e.m0+e.len*0.7).find(m=>Math.abs(m-j.m)>3);
+  T.net.extraWelds.push({line:'L1',cond:'A',el:'P98',m:far,weldId:j.weldId,by:'test',at:new Date().toISOString()});T.extraReplay();return j.weldId;});await wait(700);
+o=await page.evaluate(()=>{const b=document.querySelector('#orphWarn');return {show:!!b&&b.classList.contains('show'),txt:b?b.textContent:''};});
+await page.click('#orphWarn');await wait(300);o.modal=await page.evaluate(()=>document.querySelector('#modal').textContent.slice(0,400));await page.evaluate(()=>{const b=document.querySelector('#modal [data-close]');if(b)b.click();});
+console.log('r8) numéro en double :',J({dupId,o}));C.r8=o.show&&o.txt.includes(dupId)&&/en double/.test(o.txt)&&/Numéros en double/.test(o.modal);
 C.r7=logs.length===0;if(logs.length)console.log('console :',logs.slice(0,5));
 console.log('RESULTAT',J(C),Object.values(C).every(Boolean)?'TOUT VERT':'ÉCHEC');await browser.close();
