@@ -46,7 +46,7 @@ await page.evaluate(()=>document.querySelector('#sheet [data-stepok="3"]').click
 out=await page.evaluate(({L})=>{const j=window.TRACE.lines[L].cond.A.joints[1];const ev=(j.events||[]).find(e=>e.type==='manchonnee');
   return {status:j.status,d3:!!(j.steps[3]&&j.steps[3].done),ev:!!ev,type:j.steps[3].type};},{L});
 console.log('5) étape 3 validée → statut « manchonnée » + événement:',JSON.stringify(out));
-const c5=out.status==='manchonnee'&&out.d3&&out.ev;
+const c5=out.status==='soudee'&&out.d3&&out.ev; /* 05/11 soir : manchonnée seulement à 4/4 */
 // 6) MIGRATION : une soudure déclarée à l'ancienne (statut seul) coche ses sous-étapes à l'ouverture
 await page.evaluate(({L,PNG})=>{const j=window.TRACE.lines[L].cond.A.joints[3];j.status='soudee';j.events=[{type:'soudee',by:'ethan',at:new Date(),data:{procede:'tig'},photos:[PNG]}];delete j.steps;window.TRACE.renderAll();},{L,PNG});
 await open(3);await page.waitForTimeout(500);
@@ -68,7 +68,7 @@ out=await page.evaluate(()=>{const b=document.querySelector('#sheet [data-stepun
 await page.waitForTimeout(400);
 out=await page.evaluate(({L})=>{const j=window.TRACE.lines[L].cond.A.joints[1];return {refus:!(j.steps&&j.steps[1])===false&&!!(j.steps[1]&&j.steps[1].done),status:j.status};},{L});
 console.log('8a) étape 1 non annulable tant que la 3 est faite (ordre imposé):',JSON.stringify(out));
-const c8a=out.refus&&out.status==='manchonnee';
+const c8a=out.refus&&out.status==='soudee'; /* 05/11 soir : 3/4 = soudée */
 await page.evaluate(()=>{document.querySelectorAll('#sheet details').forEach(d=>d.open=true);document.querySelector('#sheet [data-stepundo="3"]').click();});
 await page.waitForTimeout(500);
 out=await page.evaluate(({L})=>{const j=window.TRACE.lines[L].cond.A.joints[1];

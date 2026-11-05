@@ -60,5 +60,11 @@ const dupId=await page.evaluate(()=>{const T=window.TRACE;const A=T.state.lines.
 o=await page.evaluate(()=>{const b=document.querySelector('#orphWarn');return {show:!!b&&b.classList.contains('show'),txt:b?b.textContent:''};});
 await page.click('#orphWarn');await wait(300);o.modal=await page.evaluate(()=>document.querySelector('#modal').textContent.slice(0,400));await page.evaluate(()=>{const b=document.querySelector('#modal [data-close]');if(b)b.click();});
 console.log('r8) numéro en double :',J({dupId,o}));C.r8=o.show&&o.txt.includes(dupId)&&/en double/.test(o.txt)&&/Numéros en double/.test(o.modal);
+/* r9 pastilles vers l'EXTÉRIEUR (Ethan 05/11 soir) : chaque pastille est plus loin de l'autre conduite que sa soudure */
+await page.evaluate(()=>{const T=window.TRACE;const A=T.state.lines.L1.cond.A;const e=A.els[Math.floor(A.els.length/2)];T.centerOn(e.to.x,e.to.y,40);});await wait(600);
+o=await page.evaluate(()=>{const T=window.TRACE;const L=T.state.lines.L1;if(!L.cond.R)return {skip:true};const P=T.pst();let ok=0,ko=0;
+  P.forEach(([id,c,i,mx,my])=>{if(id!=='L1')return;const cd=L.cond[c],od=L.cond[c==='A'?'R':'A'];const j=cd.joints[i];if(!j)return;const a=cd.els[j.idx].to;let r=null,bd=1e18;od.els.forEach(f=>{const q=f.to;const d=(q.x-a.x)**2+(q.y-a.y)**2;if(d<bd){bd=d;r=q;}});
+    const dj=Math.hypot(a.x-r.x,a.y-r.y),dp=Math.hypot(mx-r.x,my-r.y);if(dp>dj)ok++;else ko++;});return {ok,ko};});
+console.log('r9) pastilles vers l\'extérieur :',J(o));C.r9=!!o.skip||(o.ok>0&&o.ko===0);
 C.r7=logs.length===0;if(logs.length)console.log('console :',logs.slice(0,5));
 console.log('RESULTAT',J(C),Object.values(C).every(Boolean)?'TOUT VERT':'ÉCHEC');await browser.close();

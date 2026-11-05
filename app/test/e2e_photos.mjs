@@ -38,11 +38,12 @@ out=await J();const cam3=await page.evaluate(()=>window.__cam.slice());console.l
 await page.evaluate(({L,PNG})=>{const j=window.TRACE.lines[L].cond.A.joints[1];j.steps[3]={...(j.steps[3]||{}),photos:[PNG]};},{L,PNG});
 await open(1);await page.waitForTimeout(400);
 await page.evaluate(()=>{const p=document.querySelector('#sheet #st3-press');p.checked=true;document.querySelector('#sheet [data-stepok="3"]').click();});await page.waitForTimeout(600);
-out=await J();console.log('4b) étape 3 avec photo → validée, manchonnée:',JSON.stringify(out));const c4b=out.d3&&out.status==='manchonnee';
+out=await J();console.log('4b) étape 3 avec photo → validée, manchonnée:',JSON.stringify(out));const c4b=out.d3&&out.status==='soudee'; /* 05/11 soir : manchonnée seulement à 4/4 */
 // ── 5) étape 4 sans photo → passe (photo conseillée seulement)
 await page.evaluate(()=>{const st4=[...document.querySelectorAll('#sheet .dstep')][3];st4.open=true;});await page.waitForTimeout(200);
 await page.evaluate(()=>document.querySelector('#sheet [data-stepok="4"]').click());await page.waitForTimeout(600);
-out=await J();console.log('5) étape 4 sans photo → passe:',JSON.stringify(out));const c5=out.d4;
+out=await J();const hist=await page.evaluate(()=>{const h=[...document.querySelectorAll('#sheet ul.hist li')].map(li=>li.textContent);return {n:h.length,e1:h.some(t=>/Étape 1\/4/.test(t)),e2:h.some(t=>/Étape 2\/4/.test(t)),e3:h.some(t=>/Étape 3\/4 · Manchon posé/.test(t)),e4:h.some(t=>/Étape 4\/4/.test(t))};});
+console.log('5) étape 4 sans photo → passe, manchonnée, historique complet (05/11 soir) :',JSON.stringify({...out,hist}));const c5=out.d4&&out.status==='manchonnee'&&hist.e1&&hist.e2&&hist.e3&&hist.e4;
 // ── 6) consignes affichées dans la fiche
 const hints=await page.evaluate(()=>{const t=document.querySelector('#sheet').textContent;return {h2:/fils sertis \+ lecture du testeur/.test(t),h3:/manchon rétracté \+ manomètre/.test(t),h4:/Photo conseillée/.test(t)};});
 console.log('6) consignes « photo obligatoire » visibles:',JSON.stringify(hints));const c6=hints.h2&&hints.h3&&hints.h4;
