@@ -16,7 +16,7 @@ await page.click('#bSave');await page.waitForTimeout(200);await page.fill('#svNa
 await page.click('#svGo');await page.waitForTimeout(1200);await page.selectOption('#roleSel','ethan');await page.waitForTimeout(300);
 const snap=()=>page.evaluate(()=>{const T=window.TRACE;const L1=Object.values(T.lines).find(l=>!l.parent);const A=L1.cond.A;
   return {nEls:A.els.length,nJ:A.joints.length,ids:A.els.map(e=>e.id),idx:A.joints.map(j=>j.idx),welds:A.joints.map(j=>j.weldId),extra:A.joints.filter(j=>j.extra).map(j=>({id:j.weldId,idx:j.idx,m:j.m})),
-    lens:A.els.map(e=>+e.len.toFixed(2)),recs:(T.net.extraWelds||[]).map(r=>({el:r.el,m:r.m,weldId:r.weldId})),next:T.state.nextWeld,site:T.state.siteId};});
+    lens:A.els.map(e=>+e.len.toFixed(2)),recs:(T.net.extraWelds||[]).filter(r=>!r.del).map(r=>({el:r.el,m:r.m,weldId:r.weldId})),dels:(T.net.extraWelds||[]).filter(r=>r.del).map(r=>r.weldId),next:T.state.nextWeld,site:T.state.siteId};});
 let s0=await snap();console.log('0) état initial:',JSON.stringify({nEls:s0.nEls,nJ:s0.nJ,next:s0.next,first:s0.welds.slice(0,3)}));
 // ── 1) bouton présent, mode pose ; tap au milieu de la 2e barre (P2) de l'aller
 const btn=await page.$('#btnExtraWeld');console.log('1a) bouton « Soudure supplémentaire » présent:',!!btn);
@@ -70,7 +70,7 @@ const lst=await page.evaluate(()=>{const T=window.TRACE;T.state.tab='liste';T.re
 await page.evaluate(()=>{const T=window.TRACE;const L1=Object.values(T.lines).find(l=>!l.parent);const q=L1.cond.A.joints.findIndex(j=>j.extra);T.openJoint(L1.id,'A',q);});await page.waitForTimeout(400);
 const rm=await page.evaluate(()=>{const b=document.querySelector('#sheet [data-act="remove-extra"]');if(!b)return false;b.click();return true;});await page.waitForTimeout(500);
 const s5=await snap();console.log('5) liste taguée, retrait depuis la fiche → barre recollée, record effacé:',JSON.stringify({lst,rm,nEls:s5.nEls,nJ:s5.nJ,extra:s5.extra,recs:s5.recs,lens:s5.lens.slice(tgt.i,tgt.i+2),ids:s5.ids.slice(tgt.i,tgt.i+2)}));
-const c5=lst&&rm&&s5.nEls===s0.nEls&&s5.nJ===s0.nJ&&!s5.extra.length&&!s5.recs.length&&s5.ids[tgt.i]===tgt.id&&Math.abs(s5.lens[tgt.i]-tgt.len)<0.01;
+const c5=lst&&rm&&s5.nEls===s0.nEls&&s5.nJ===s0.nJ&&!s5.extra.length&&!s5.recs.length&&s5.dels.length===1&& /* 05/11 soir : le retrait garde l'enregistrement, marqué del (rien n'est effacé) */s5.ids[tgt.i]===tgt.id&&Math.abs(s5.lens[tgt.i]-tgt.len)<0.01;
 // ── 6) une soudure ajoutée AVEC données n'a pas de bouton retirer
 await page.evaluate(()=>document.querySelector('#btnExtraWeld').click());await page.waitForTimeout(200);await page.evaluate(([x,y])=>window.TRACE.centerOn(x,y,60),[tgt.wx,tgt.wy]);await page.waitForTimeout(300);await tapAt(tgt.wx,tgt.wy);
 const s6=await page.evaluate(()=>{const T=window.TRACE;const L1=Object.values(T.lines).find(l=>!l.parent);const q=L1.cond.A.joints.findIndex(j=>j.extra);const j=L1.cond.A.joints[q];j.status='soudee';j.events=[{type:'soudee',by:'ethan',at:new Date(),photos:[]}];T.openJoint(L1.id,'A',q);return {n:L1.cond.A.joints.filter(j=>j.extra).length,id:j.weldId};});

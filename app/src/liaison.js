@@ -51,7 +51,7 @@ function realChantier(id){if(!A)return false;if(isDemo(id))return true;const n=s
   if(n&&n.source&&n.source!=='traceur')return true; /* import DXF / PDF : une étude se dessine toujours dans le traceur */
   const f=(n&&n.fiche)||m||{};if(f.chef||f.conducteur)return true; /* chantier staffé (planning) */
   const st=A.state.homeStats&&A.state.homeStats[id];if(st&&+st.total>0)return true; /* soudures déclarées au serveur */
-  if(n&&Array.isArray(n.extraWelds)&&n.extraWelds.length)return true;return false;}
+  if(n&&Array.isArray(n.extraWelds)&&n.extraWelds.some(x=>x&&!x.del))return true;return false;}
 /* 'demo' | 'chantier' | 'etude' | null (inconnu : ni copie ni méta sur l'appareil) */
 export function lzKind(id){if(!A)return null;if(isDemo(id))return 'demo';if(realChantier(id))return 'chantier';const n=siteOf(id);const tr=n&&n.traceur;if(tr&&tr.ctx==='etude')return 'etude';
   const e=etudeMark(id);if(e&&e.aff&&!e.delie)return 'etude';return (n||metaOf(id))?'chantier':null;}

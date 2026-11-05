@@ -151,7 +151,7 @@ export function activityOn(site,aff,o){o=o||{};const ids=lineIdsOf(site,aff);con
   (o.rows||[]).forEach(r=>{if(!r||!W.has(r.weld_id))return;const d=r.data||{};if((r.status&&r.status!=='a_souder')||(d.events&&d.events.length)||(d.photos&&d.photos.length))done.add(r.weld_id);});
   (o.joints||[]).forEach(j=>{if(!j||!W.has(j.weldId))return;if((j.status&&j.status!=='a_souder')||(j.events&&j.events.length)||(j.photos&&j.photos.length)||(j.wire&&j.wire!=='a_raccorder'))done.add(j.weldId);});
   if(done.size)items.push(done.size+' soudure'+(done.size>1?'s':'')+' enregistrée'+(done.size>1?'s':'')+' ('+[...done].slice(0,4).join(', ')+(done.size>4?'…':'')+')');
-  const ex=(Array.isArray(site&&site.extraWelds)?site.extraWelds:[]).filter(x=>x&&ids.has(String(x.line)));if(ex.length)items.push(ex.length+' soudure(s) ajoutée(s) sur place');
+  const ex=(Array.isArray(site&&site.extraWelds)?site.extraWelds:[]).filter(x=>x&&!x.del&&ids.has(String(x.line)));if(ex.length)items.push(ex.length+' soudure(s) ajoutée(s) sur place');
   const H=(site&&site.mutu&&Array.isArray(site.mutu.hist))?site.mutu.hist:[];const ent=[...H].reverse().find(h=>h&&h.aff===String(aff||'')&&!h.undoneAt);const tsIn=new Set((ent&&ent.added&&ent.added.ts)||[]); /* TS repris de l'étude au rattachement : pas une saisie sur le chantier */
   const ts=((site&&site.ts&&site.ts.items)||[]).filter(it=>it&&it.etat!=='marche'&&ids.has(String(it.line))&&!tsIn.has(it.id));if(ts.length)items.push(ts.length+' modification(s) qualifiée(s) (TS / pour mémoire)');
   const ph=((site&&site.phasage&&site.phasage.phases)||[]).filter(p=>p&&(p.tr||[]).some(t=>t&&ids.has(String(t.line))));if(ph.length)items.push(ph.length+' phase(s) du phasage');

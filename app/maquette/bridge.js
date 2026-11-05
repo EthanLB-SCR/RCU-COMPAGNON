@@ -89,5 +89,5 @@ export function siteFromTraceur({id,name,supplier,serie,lines,built,rules,bg,pre
 }
 // soudures d'un chantier existant (pour l'appariement) : [{line,cond,m,weldId,status}]
 export function weldsOfSite(site,remoteWelds){const st={};(remoteWelds||[]).forEach(r=>{st[r.weld_id]=r.status;});const out=[];(site.lines||[]).forEach(L=>{if(!L.cond)return;['A','R'].forEach(c=>{const cd=L.cond[c];if(!cd)return;(cd.welds||[]).forEach(w=>out.push({line:L.id,cond:c,m:w.m,weldId:w.weldId,status:st[w.weldId]||'a_souder',sig:sigOf(w.between)}));});});
-  const have=new Set(out.map(w=>w.weldId));(Array.isArray(site.extraWelds)?site.extraWelds:[]).forEach(x=>{if(x&&x.weldId&&x.line&&x.cond&&!have.has(x.weldId))out.push({line:x.line,cond:x.cond,m:+x.m,weldId:x.weldId,status:st[x.weldId]||'a_souder',sig:'P|P',extra:true});}); /* 05/11 (lot 3) : soudure ajoutée sur place → la coupe du tracé à ce PK reprend son numéro */
+  const have=new Set(out.map(w=>w.weldId));(Array.isArray(site.extraWelds)?site.extraWelds:[]).forEach(x=>{if(x&&!x.del&&x.weldId&&x.line&&x.cond&&!have.has(x.weldId))out.push({line:x.line,cond:x.cond,m:+x.m,weldId:x.weldId,status:st[x.weldId]||'a_souder',sig:'P|P',extra:true});}); /* 05/11 (lot 3) : soudure ajoutée sur place → la coupe du tracé à ce PK reprend son numéro */
   return out;}
