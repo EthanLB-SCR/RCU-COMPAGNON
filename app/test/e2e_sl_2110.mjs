@@ -28,7 +28,7 @@ const G0=await geo(page);
 await page.evaluate(()=>{window.TRACE.state.tab='plan';window.TRACE.renderAll();});await page.waitForTimeout(200);
 await page.click('#btnMenu');await page.waitForTimeout(200);await page.click('#btnPose');await page.waitForTimeout(250); /* 01/11 soir : ☰ › ＋ Poser sur le plan… */let o=await page.evaluate(()=>{const b=document.querySelector('#modal [data-pose-mode="slide"]');return b?{t:b.textContent.replace(/\s+/g,' ').trim(),dis:b.disabled}:null;});
 await shot(page,'1_menu');await page.click('#modal [data-pose-mode="slide"]');await page.waitForTimeout(300);let B=await bar(page);
-console.log('c1) ＋ :',JSON.stringify({o,B}));C.c1=!!o&&!o.dis&&/Coulisser une soudure/.test(o.t)&&!!B&&/touche la soudure/.test(B.txt);
+console.log('c1) ＋ :',JSON.stringify({o,B}));C.c1=!!o&&!o.dis&&/Coulisser une soudure|Décaler une soudure/.test(o.t) /* 05/11 : libellé « Décaler » (mot du terrain) */&&!!B&&/touche la soudure/.test(B.txt);
 // ── c2) S-0003 (entre P2 et P3, deux barres pleines) seule : +0,5 → P2 ferait 12,5 m → refusé ; −0,5 → P3 ferait 12,5 m → refusé
 await tapWeld(page,'A','S-0003');B=await bar(page);const pk=B;
 await sl(page,'d|0.1');await sl(page,'d|0.1');await sl(page,'d|0.1');await sl(page,'d|0.1');await sl(page,'d|0.1');B=await bar(page);const plus=B;const gPlus=await geo(page);

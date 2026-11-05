@@ -38,7 +38,7 @@ const tag=(k,T)=>{const e=(T||[]).find(x=>x[0]===k);return e?`<span class="af-ta
 const typLab=k=>(DB_TYPES.find(t=>t[0]===k)||DB_TYPES[DB_TYPES.length-1])[1];
 const natLab=k=>(NATURES.find(n=>n[0]===k)||[k,k||''])[1];
 /* ── accès ── */
-const okRights=c=>!!(c('planning.edit')||(c('affaires.edit')&&(c('pointage.validate')||c('qse.manage')))); /* le compte s'ouvre dans Pilotage : il faut aussi l'onglet (app.js okX) — l'administrateur a tout */
+const okRights=c=>!!(c('planning.edit')||c('affaires.edit')); /* 05/11 (relevé du tournage) : le chargé d'affaires (resp. commercial) voit aussi le compte d'un chantier */ /* le compte s'ouvre dans Pilotage : il faut aussi l'onglet (app.js okX) — l'administrateur a tout */
 export const ccCan=ctx=>!!(ctx&&okRights(k=>ctx.can(k)));
 export const ccBureauOK=()=>{try{return feat('comptechantier')&&okRights(k=>can(k));}catch(e){return false;}}; /* tuile du Bureau du chantier (next.js) : la personne connectée */
 export function ccBureauTile(id,tile){try{return id&&ccBureauOK()?tile('__compte','Compte chantier','💶','bons, dépenses, heures',0):'';}catch(e){return '';}}

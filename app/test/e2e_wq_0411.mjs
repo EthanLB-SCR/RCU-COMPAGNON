@@ -41,5 +41,12 @@ await stub(false,50);o.n=await page.evaluate(()=>window.TRACE.wq.flush());await 
 o.sent=await sentOf(id2);o.q3=await qk();o.badge2=await page.evaluate(()=>(document.getElementById('cloudBadge')||{}).textContent||'');
 console.log('q2) envoi raté → gardé, rechargé, renvoyé :',J(o));
 C.q2=/Pas de réseau/.test(o.toast)&&/1 soudure en attente/.test(o.badge)&&o.q.length===1&&o.afterPull==='soudee'&&o.reload==='soudee'&&o.q2.length===1&&o.n===1&&o.sent.length===1&&o.sent[0].ev.includes('soudee')&&!o.q3.length&&/enregistré/.test(o.badge2);
+/* q4 (05/11) : version serveur de départ envoyée (_base ← updated_at reçu) et mise à jour après l'envoi (fusion côté serveur : sql/welds_fusion_0511.sql) */
+await stub(false,30);await page.evaluate(()=>{window.TRACE.wq.syncStub('weldAt',()=>'2026-11-05T10:00:00.222222+00:00');});const id3=(await jo(3)).id;
+await page.evaluate(id=>{window.TRACE.wq.remoteApply([{weld_id:id,status:'a_souder',data:{events:[]},updated_at:'2026-11-05T09:00:00.111111+00:00'}]);},id3);
+await declare(3);await wait(1200);
+o={base:await page.evaluate(id=>{const r=(window.__sent||[]).filter(x=>x.weldId===id);return r.length?r[r.length-1]._srvAt||null:'(pas envoyé)';},id3),after:await page.evaluate(()=>window.TRACE.state.lines.L1.cond.A.joints[3]._srvAt||null)};
+console.log('q4) _base envoyé puis mis à jour :',J(o));
+C.q4=o.base==='2026-11-05T09:00:00.111111+00:00'&&o.after==='2026-11-05T10:00:00.222222+00:00';
 C.q3=!logs.length;if(logs.length)console.log('console :',logs);
 console.log('RÉSULTATS',J(C));console.log('RESULTAT:',Object.values(C).every(Boolean)?'TOUT VERT':'ÉCHEC '+Object.keys(C).filter(k=>!C[k]).join(' '));await browser.close();process.exit(Object.values(C).every(Boolean)?0:1);

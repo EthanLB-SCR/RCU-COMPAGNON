@@ -44,7 +44,7 @@ export const POSTES=Object.fromEntries(POSTES_DEF.map(p=>[p[0],p[1]]));
 export const POSTE_FAM=Object.fromEntries(POSTES_DEF.map(p=>[p[0],p[2]]));
 export const POSTE_SHORT=Object.fromEntries(POSTES_DEF.map(p=>[p[0],p[3]]));
 const LEGACY={bureau:'charge_affaires',terrassier:'autre'}; // anciens postes v1 (08/10 matin) ; « admin » = drapeau administrateur, voir normAccount
-export const TYPES={salarie:'Salarié SCR',interim:'Intérimaire / invité',visiteur:'Visiteur'};
+export const TYPES={salarie:'Salarié SCR',interim:'Intérimaire / invité',visiteur:'Visiteur',stagiaire:'Stagiaire (lecture seule)'}; // 05/11 (lot 6) : voit tout ce que son poste voit, n'enregistre rien
 export const posteLabel=p=>POSTES[p]||(p==='admin'?'Administrateur':p||'');
 export const famColor=p=>FAM_COLOR[POSTE_FAM[p]]||FAM_COLOR.exterieur;
 /* ---------- DROITS ---------- */
@@ -126,6 +126,7 @@ export const TYPE_CAP={
  salarie:null,
  interim:pick('plan.view',...STEP_PERMS,'weld.step1.for','weld.extra','weld.transfer','dh.measure','conv.post','pointage.self','qse.sign','undo.own'), // undo.own avec 0 crédit = toujours une demande au chef
  visiteur:pick('plan.view','export.doe'), // un visiteur regarde (plan, export) : il ne touche à rien, pas même la conversation (Ethan 08/10)
+ stagiaire:pick('plan.view','export.doe','team.view','affaires.view','site.versions'), // 05/11 (lot 6) : regarde tout ce que son poste regarde ; AUCUNE écriture (bloquée aussi dans sync.js)
 };
 export const ADMIN_SEED=['elebihan@scr-soudure.fr']; // Ethan : administrateur d'office, quoi qu'il arrive côté serveur
 /* ---------- droits des postes : défauts SCR + écarts (serveur app_settings.poste_rights, miroir sur l'appareil) ---------- */

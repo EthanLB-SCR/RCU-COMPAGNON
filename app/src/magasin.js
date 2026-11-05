@@ -112,7 +112,7 @@ const CSS=`.mag-root{min-width:0}
 .mag-tg .mag-tgn{flex:0 1 auto;min-width:0;margin-left:auto;font-size:12.5px;font-weight:600;color:var(--ink2);text-align:right;overflow-wrap:anywhere}
 .mag-sec{padding:0 4px}
 .mag-lh{display:flex;align-items:baseline;gap:8px;margin:16px 0 4px;flex-wrap:wrap}.mag-lh b{font-size:16px}.mag-lh span{font-size:12px;color:var(--muted)}
-.mag-bar{position:sticky;bottom:8px;z-index:5;display:flex;align-items:center;gap:10px;justify-content:space-between;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:8px 10px;margin-top:12px;box-shadow:0 -4px 18px rgba(0,0,0,.10)}
+.mag-bar{position:sticky;bottom:8px;outline:6px solid var(--page,#f9f9f7);z-index:5;display:flex;align-items:center;gap:10px;justify-content:space-between;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:8px 10px;margin-top:12px;box-shadow:0 -4px 18px rgba(0,0,0,.10)}
 .mag-root .mag-bar .btn{min-height:52px;font-size:16px;font-weight:700;padding:0 18px;flex:none}
 .mag-bn{font-size:15px}.mag-bn b{font-size:20px}
 .mag-st{display:inline-block;font-size:12px;font-weight:700;border-radius:999px;padding:2px 9px;white-space:nowrap;vertical-align:middle}

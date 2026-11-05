@@ -101,6 +101,8 @@ export function navetteSheet(N,name){const cells={};const merges=[];const height
   r++;heights[r]=42;['A','B','C','D','E','F','G','H','I','J'].forEach(c=>S(c+r,null,'sigbox'));merges.push('A'+r+':H'+r);merges.push('I'+r+':J'+r);
   // indemnités de trajet (nombre d'allers-retours par cas) — SOMME.SI sur la colonne cachée K (cas de la ligne)
   r+=2;const ind0=r;[['INDEM TRAJET 15€',2,'i15'],['INDEM TRAJET 30€',3,'i30'],['INDEM TRAJET 50€',4,'i50']].forEach(([t,c,s],i)=>{S('A'+(ind0+i),t,s);S('B'+(ind0+i),null,s);merges.push('A'+(ind0+i)+':B'+(ind0+i));S('C'+(ind0+i),null,'iv','SUMIF(K'+first+':K'+lastRow+','+c+',B'+first+':B'+lastRow+')');});
+  /* 05/11 (relevé du tournage, Ethan : « cas 1 (petits déplacements) : un panier repas chaque midi ») : nombre de paniers = jours travaillés AVEC pointage en cas 1 */
+  {const pan=(N.lines||[]).filter(L=>L.kind==='day'&&+L.casN===1&&L.worked&&+L.hours>0).length;const rr=ind0+3;S('A'+rr,'PANIERS REPAS (CAS 1)','i15');S('B'+rr,null,'i15');merges.push('A'+rr+':B'+rr);S('C'+rr,pan,'iv');}
   // compteurs (à droite, comme le modèle) : cases vertes = à remplir par les RH
   r=ind0;const box=(lab,v,st,f,stl)=>{S('H'+r,lab,stl||'bx');S('I'+r,v,st||'bv',f);const R=r;r++;return R;};
   /* 13/10 (f) : compteur d'heures (règles d'Ethan) — les heures sup entrent MAJORÉES (125 % × 1,25 ; 150 % × 1,5) jusqu'au plafond, le surplus est payé ;
