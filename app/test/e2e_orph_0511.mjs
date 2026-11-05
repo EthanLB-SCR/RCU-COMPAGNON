@@ -66,5 +66,18 @@ o=await page.evaluate(()=>{const T=window.TRACE;const L=T.state.lines.L1;if(!L.c
   P.forEach(([id,c,i,mx,my])=>{if(id!=='L1')return;const cd=L.cond[c],od=L.cond[c==='A'?'R':'A'];const j=cd.joints[i];if(!j)return;const a=cd.els[j.idx].to;let r=null,bd=1e18;od.els.forEach(f=>{const q=f.to;const d=(q.x-a.x)**2+(q.y-a.y)**2;if(d<bd){bd=d;r=q;}});
     const dj=Math.hypot(a.x-r.x,a.y-r.y),dp=Math.hypot(mx-r.x,my-r.y);if(dp>dj)ok++;else ko++;});return {ok,ko};});
 console.log('r9) pastilles vers l\'extérieur :',J(o));C.r9=!!o.skip||(o.ok>0&&o.ko===0);
+/* r10 transfert refusé entre deux soudures au même numéro (Nantes 05/11 : la 2e écriture vidait la 1re) ; r11 transfert normal : la soudure vidée garde une copie */
+await page.evaluate(()=>{const b=document.querySelector('#modal [data-close]');if(b)b.click();window.TRACE.closeSheet&&window.TRACE.closeSheet();});
+const t10=await page.evaluate(()=>{const T=window.TRACE;const A=T.state.lines.L1.cond.A;const js=A.joints.filter(j=>!j.extra&&j.status==='a_souder'&&A.els[j.idx]&&A.els[j.idx].kind==='pipe'&&A.els[j.idx+1]&&A.els[j.idx+1].kind==='pipe');const a=js[0],b=js[1],c2=js[2];
+  a.status='soudee';a.events=[{type:'soudee',at:new Date(),by:'t',data:{},photos:[]}];const keep=b.weldId;b.weldId=a.weldId;const pb=A.els[b.idx].to;return {ia:A.joints.indexOf(a),ib:A.joints.indexOf(b),ic:A.joints.indexOf(c2),keep,id:a.weldId,pb,pc:A.els[c2.idx].to,idc:c2.weldId};});
+const transferTo=async(ia,p)=>{await page.evaluate(i=>window.TRACE.openJoint('L1','A',i),ia);await wait(350);await page.evaluate(()=>{const b=document.querySelector('#sheet [data-act="transfer"]');if(b)b.click();});await wait(300);
+  await page.evaluate(q=>window.TRACE.centerOn(q.x,q.y,60),p);await wait(400);await tapAt(p.x,p.y);};
+await transferTo(t10.ia,t10.pb);
+o=await page.evaluate(t=>{const A=window.TRACE.state.lines.L1.cond.A;return {a:A.joints[t.ia].status,b:A.joints[t.ib].status,toast:document.querySelector('#toast').textContent};},t10);
+await page.evaluate(t=>{const T=window.TRACE;const A=T.state.lines.L1.cond.A;A.joints[t.ib].weldId=t.keep;const b=document.querySelector('#transferBar');T.state.transfer=null;if(b)b.style.display='none';},t10);
+console.log('r10) même numéro → refusé :',J(o));C.r10=o.a==='soudee'&&o.b==='a_souder'&&/même numéro/.test(o.toast);
+await transferTo(t10.ia,t10.pc);await wait(300);
+o=await page.evaluate(t=>{const A=window.TRACE.state.lines.L1.cond.A;const a=A.joints[t.ia],c2=A.joints[t.ic];const tr=(a.events||[]).find(e=>e.type==='transfert');return {a:a.status,c:c2.status,vers:tr&&tr.data&&tr.data.vers,copie:!!(tr&&tr.data&&tr.data.copie&&tr.data.copie.status==='soudee')};},t10);
+console.log('r11) transfert : copie gardée sur la soudure vidée :',J(o));C.r11=o.a==='a_souder'&&o.c==='soudee'&&o.vers===t10.idc&&o.copie;
 C.r7=logs.length===0;if(logs.length)console.log('console :',logs.slice(0,5));
 console.log('RESULTAT',J(C),Object.values(C).every(Boolean)?'TOUT VERT':'ÉCHEC');await browser.close();
