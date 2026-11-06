@@ -1064,7 +1064,7 @@ body.cm-win{margin:0;background:#ecebe5;height:100vh;display:flex;flex-direction
   .eq-vrow>.eq-row{flex:1;width:auto}
   .eq-vrow>.eq-acts{flex:none;margin:0}
   .eq-vrow>.eq-form{flex-basis:100%}
-  .eq-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 12px}
+  .eq-form:not(.card){display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 12px} /* 05/11 soir (tournage n° 9) : les FICHES (card eq-form : bon de commande, véhicule, affaire) restent sur toute la largeur */
   .eq-form>.eq-acts{grid-column:1/-1}
   .eq-trow{grid-template-columns:34px minmax(0,1.2fr) minmax(0,1.6fr) 110px 200px;grid-template-areas:"av p h d e"}
   .eq-c-d{text-align:left}.eq-c-e{justify-self:start}

@@ -24,7 +24,8 @@ let s=await A();const X=s.j.find(j=>j.x);await page.evaluate(()=>window.TRACE.cl
 const xi=s.j.findIndex(j=>j.id===(X&&X.id));await page.evaluate(i=>{const T=window.TRACE;const n=T.state.lines.L1.cond.A.joints.length;T.openJoint('L1','A',(i+1)%n);},xi);await wait(250);await page.evaluate(i=>window.TRACE.openJoint('L1','A',i),xi);await wait(350);
 await page.click('#sheet [data-act="j-del"]');await wait(500);const s1=await A();await page.evaluate(()=>window.TRACE.extraReplay());await wait(500);const s1b=await A();
 let o={X:X&&X.id,recs:s1.recs,gone:!s1.j.some(j=>j.id===(X&&X.id)),goneReplay:!s1b.j.some(j=>j.id===(X&&X.id))};console.log('r1) retrait = del:true :',J(o));
-C.r1=!!X&&o.gone&&o.goneReplay&&s1.recs.length===1&&s1.recs[0].id===X.id&&s1.recs[0].del;
+o.rw=await page.evaluate(id=>(window.TRACE.net.removedWelds||[]).filter(r=>r.weldId===id).map(r=>({tol:r.tol,extra:!!r.extra})),X&&X.id);console.log('r1b) retrait aussi noté pour le Concepteur :',J(o.rw));
+C.r1=!!X&&o.gone&&o.goneReplay&&s1.recs.length===1&&s1.recs[0].id===X.id&&s1.recs[0].del&&o.rw.length===1&&o.rw[0].tol===0.1&&o.rw[0].extra;
 /* r2 */
 const jm=await page.evaluate(()=>{const A=window.TRACE.state.lines.L1.cond.A;const k=A.joints.findIndex(j=>{const a=A.els[j.idx],b=A.els[j.idx+1];return a&&b&&a.kind==='pipe'&&b.kind==='pipe';});return A.joints[k].m;});
 await page.evaluate(m=>{const T=window.TRACE;T.net.extraWelds.push({line:'L1',cond:'A',el:'P99',m,weldId:'S-0900',by:'test',at:new Date().toISOString()});T.extraReplay();},jm);await wait(900);

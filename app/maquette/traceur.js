@@ -190,7 +190,7 @@ export function buildConduit(o){
     const q={...p,id:p.id+'b',m0:m,m1:p.m1,L:L2,path:[[g2.x,g2.y],[g2.x1,g2.y1]],x:g2.x,y:g2.y,th:g2.th,std:false,cut:true,ref:rf(L2)};
     Object.assign(p,{m1:m,L:L1,path:[p.path[0],[g1.x1,g1.y1]],std:false,cut:true,ref:rf(L1),extraAfter:sp.weldId||true});pieces.splice(i+1,0,q);
     notes.push({kind:'info',m,txt:`soudure ajoutée sur place ${sp.weldId||''} au PK ${fmt(+sp.m)} m : barre coupée là, les autres ne bougent pas`});});
-  (o.merges||[]).forEach(mg=>{const m=uOf(+mg.m);pieces.sort((a,b)=>a.m0-b.m0);const i=pieces.findIndex((p,k)=>p.kind==='tube'&&pieces[k+1]&&pieces[k+1].kind==='tube'&&Math.abs(p.m1-m)<0.35);
+  (o.merges||[]).forEach(mg=>{const m=uOf(+mg.m);pieces.sort((a,b)=>a.m0-b.m0);const i=pieces.findIndex((p,k)=>p.kind==='tube'&&pieces[k+1]&&pieces[k+1].kind==='tube'&&Math.abs(p.m1-m)<(+mg.tol||0.35));
     if(i<0){notes.push({kind:'warn',m,txt:`soudure retirée sur place ${mg.weldId||''} (PK ${fmt(+mg.m)} m) : n'est plus entre deux barres — gardée`});return;}
     const p=pieces[i],q=pieces[i+1];const L=p.L+q.L;if(L>bar+0.01){notes.push({kind:'warn',m,txt:`soudure retirée sur place ${mg.weldId||''} : les deux barres feraient ${fmt(L)} m (plus de ${fmt(bar)} m) — gardée`});return;}
     const std=Math.abs(L-bar)<0.01;Object.assign(p,{m1:q.m1,L,path:p.path.concat(q.path.slice(1)),std,cut:!std,ref:`R-${p.dn}/${Math.round(p.casing*1000)}`+(std?` · barre ${bar} m`:` · barre coupée ${fmt(L)} m`),extraAfter:undefined});pieces.splice(i+1,1);

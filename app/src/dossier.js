@@ -120,8 +120,8 @@ function pieceOpen(k,o){o=o||{};const net=A.net();const def=OBLIG.find(x=>x[0]==
 export function dxCss(){if(typeof document==='undefined'||document.getElementById('css-lot-dx'))return;const st=document.createElement('style');st.id='css-lot-dx';st.textContent=`
 .dx .card.dx-top{border-radius:16px;padding:12px}
 .dx-sum{display:flex;align-items:center;gap:12px}
-.dx-n{flex:none;min-width:68px;height:58px;border-radius:14px;display:grid;place-items:center;font-weight:700;font-size:15px;background:#fdeae7;color:#8a1f1f}
-.dx-n.ok{background:#e6f5ec;color:#15673a}.dx-n.warn{background:#fff4d6;color:#7a5200}.dx-n b{font-size:24px;letter-spacing:-.02em}
+.dx .dx-n{flex:none;min-width:68px;height:58px;border-radius:14px;display:grid;place-items:center;font-weight:700;font-size:15px;background:#fdeae7;color:#8a1f1f}
+.dx .dx-n.ok{background:#e6f5ec;color:#15673a}.dx .dx-n.warn{background:#fff4d6;color:#7a5200}.dx .dx-n b{font-size:24px;letter-spacing:-.02em}
 .dx-sum .tx{flex:1;min-width:0}.dx-sum .tx b{display:block;font-size:15px}.dx-sum .tx small{display:block;font-size:12.5px;color:var(--ink2);margin-top:2px;overflow-wrap:anywhere}
 .dx-bar{height:6px;border-radius:3px;background:var(--plane);overflow:hidden;margin-top:10px}.dx-bar i{display:block;height:100%;border-radius:3px;background:var(--bad)}.dx-bar i.ok{background:var(--ok)}.dx-bar i.warn{background:var(--warn)}
 .dx-drive{margin-top:10px}.dx-drive .hint{margin-top:6px;overflow-wrap:anywhere}.dx-drv2{margin-top:6px;min-height:40px}
