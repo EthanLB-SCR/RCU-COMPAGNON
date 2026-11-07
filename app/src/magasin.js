@@ -476,6 +476,8 @@ function tasks(me,ctx){ensure(ctx);const L=[];const D=dems();
 // vers Parc → 📦 Magasin → Demandes (le segment « magasin » de l'onglet Parc)
 function goGestion(ctx){S.seg='dem';S.mcur=null;S.art=null;const A=ctx.api;try{if(A&&A.homeTab)A.homeTab('parc');}catch(e){}const b=document.querySelector('#eq-app [data-act=parcseg][data-v=magasin]');if(b&&!b.classList.contains('active'))b.click();}
 
+/* 07/11 nuit (Monde 3D) : résumé du stock par famille (lecture seule) — rayonnages du magasin dans le dépôt */
+export function magStock(){try{const C=cat();const st=stocks(C);const F={};let n=0,bas=0,rup=0;Object.values(C).forEach(a=>{if(!a||a.actif===false)return;n++;const s=st[a.ref]||0;const c=aCmd(a,s);const f=a.famille||'Divers';const x=F[f]||(F[f]={f,n:0,bas:0,rup:0});x.n++;if(s<=0&&+a.tampon>0){x.rup++;rup++;}else if(c>0){x.bas++;bas++;}});return {n,bas,rup,familles:Object.values(F).sort((a,b)=>b.n-a.n)};}catch(e){return null;}}
 export default {id:'mag',feat:'magasin',kinds:KINDS,
   moiSubs:(me,ctx)=>{if(!canAsk(me))return [];const n=dems().filter(d=>d.byKey===me.id&&d.statut==='prete').length;return [['mag','Mes demandes',n,false]];}, /* 31/10 (Ethan) : une seule tuile « Mes demandes » côté Compagnon (avec le Magasin, la demande va au dépôt) */
   view:(sub,me,ctx)=>sub==='mag'?vDem(me,ctx):null,

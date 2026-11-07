@@ -10,4 +10,5 @@ import packScr from './packscr.js'; MODS.push(packScr); // 14/10 nuit : import d
 import docsOblig from './docsoblig.js'; MODS.push(docsOblig); // 14/10 après-midi (lot D) : documents de l'entreprise (assurances, Kbis, URSSAF…) — SCR, alerte avant échéance
 import demandes from './demandes.js'; MODS.push(demandes); // 31/10 (lot CC) : commandes V1 sans magasin — demandes de matériel (Compagnon → Mes demandes) et suivi des remises (Pilotage)
 import compteCh from './comptech.js'; MODS.push(compteCh); // 31/10 (lot CC) : compte chantier — bons, dépenses, heures par poste (Pilotage, Bureau du chantier)
+import monde from './monde.js'; MODS.push(monde); // 07/11 nuit : Monde 3D (Labo, éteint par défaut) — accueil « mon bureau », Équipe, Pilotage, Commerce
 export function initModules(){MODS.forEach(m=>{try{espaceExt(m);}catch(e){console.warn('module',m&&m.id,e);}});}

@@ -13,7 +13,7 @@ import {POSTES_DEF,FAM_COLOR,POSTE_FAM} from './acces.js';
 import {docsFor,docsTodo,docsListHTML,docOpen,docsAdminHTML,docAdminOpen,docNewOpen,docsLateHTML,docsAll,docById,KINDS as DOC_KINDS,docTaskInfo,docDueShort,docDue,docsLatePeople} from './docs.js'; // documents d'entreprise à lire et signer (nuit 09→10/10) ; 19/10 (QF) : échéances partout, retards de l'équipe
 import {qhsTodo,qhsMyKey,qhsRecapHTML,qhsTriggerOpen,qhsRuns} from './qhs.js'; // quart d'heure sécurité (10/10)
 import {controlesOf,controleNC,controleReportHTML} from './accueil.js'; // contrôles chantier : suivi direction (10/10)
-import {affView,affAct,affInput,affAll,affState,calcAffaire,factTotaux,affFiles,affEstImportee} from './affaires.js';
+import {affView,affAct,affInput,affAll,affState,calcAffaire,factTotaux,affFiles,affEstImportee,affSet} from './affaires.js';
 import {dpgfFile} from './commerce.js'; // 13/10 : le dossier de A à Z // volet commerce (nuit 09→10/10)
 import {flotteView,flotteAct,flotteInput,vehAll,vehAlertes,vehDe,monVehiculeHTML,flottePhoto} from './flotte.js'; // parc véhicules (nuit 09→10/10)
 import {cmdView,cmdAct,cmdInput,dbListHTML,dbTodo,dbDe,cmdAll,dbAll,cmdState} from './commandes.js'; // bons de commande & débours (nuit 09→10/10)
@@ -64,8 +64,14 @@ const EXTS=()=>EXT.filter(m=>!m.feat||featOn(m.feat)); /* modules branchés, hor
         act(v,el,me,ctx) (data-act="x" data-v="<id>|…"), input(champ,el,me,ctx,type) (data-xin="<id>|<champ>") } */
 const EXT=[];
 export function espaceExt(m){if(m&&m.id&&!EXT.some(x=>x.id===m.id)){EXT.push(m);if(m.kinds&&A)regLoad(m.kinds).catch(()=>{});}}
-const extCtx=me=>({me,render:()=>render(),toast:t=>A.toast&&A.toast(t),can:p=>can(me,p),viewing:()=>viewing(),people:(DATA&&DATA.personnes)||[],sites:((DATA&&DATA.chantiers)||[]).filter(c=>!c.bureau&&!c.etude).map(c=>({id:c.id,name:c.nom})),go:k=>goX(k),sub:k=>goSub(k),api:A,personKey,nomC});
+const extCtx=me=>({me,render:()=>render(),toast:t=>A.toast&&A.toast(t),can:p=>can(me,p),viewing:()=>viewing(),people:(DATA&&DATA.personnes)||[],sites:((DATA&&DATA.chantiers)||[]).filter(c=>!c.bureau&&!c.etude).map(c=>({id:c.id,name:c.nom})),go:k=>goX(k),sub:k=>goSub(k),api:A,personKey,nomC,...m3dCtx()});
 const extSubs=me=>EXTS().flatMap(m=>{try{return (m.moiSubs&&m.moiSubs(me,extCtx(me)))||[];}catch(e){console.warn(e);return [];}});
+/* 07/11 nuit (Monde 3D, Labo — src/monde.js) : ce dont les scènes 3D ont besoin (lecture seule, sauf le bureau personnalisé et l'attente d'une affaire) */
+function m3dCtx(){return {chantiers:(DATA&&DATA.chantiers)||[],planDe:(id,d)=>{try{return DATA?planDe(id,d):[];}catch(e){return [];}},today:()=>DATA?DATA.today:todayIso(),secteurDe:p=>{try{return secteurDe(p);}catch(e){return '';}},mySecteur:p=>{try{return mySecteur(p);}catch(e){return '';}},SECTEURS,
+  avSVG:(p,t)=>{try{return KIT?avatarSVG(avM(p,'travail').cfg,t):null;}catch(e){return null;}},famOf:p=>POSTE_FAM[p.poste]||'terrain',posteLabel:p=>(POSTES_DEF.find(d=>d[0]===p.poste)||[])[1]||p.poste||'',
+  peopleData:k=>PEOPLE[k]||{},stat:id=>{try{return A.siteStat?A.siteStat(id):null;}catch(e){return null;}},savePart:(k,part,v)=>savePeoplePart(k,part,v),affaires:()=>{try{return affAll();}catch(e){return [];}},affSet:(n,patch)=>affSet(n,patch)};}
+const m3dTop=(tab,me)=>EXTS().map(m=>{try{return m.hubTop?m.hubTop(tab,me,Object.assign(extCtx(me),{row:hubRow}))||'':'';}catch(e){console.warn(e);return '';}}).join('');
+const m3dAccueil=(me,o)=>{for(const m of EXTS()){if(!m.accueil)continue;try{const r=m.accueil(me,extCtx(me),o);if(r)return r;}catch(e){console.warn(e);}}return null;};
 /* ── DATA : l'état de l'appli, dans la forme attendue par les gabarits de la maquette ── */
 function buildData(){
   const now=new Date();const today=TODAY();const nowHM=pad(now.getHours())+':'+pad(now.getMinutes()); /* TODAY() : date du jour, ou date figée par un test */
@@ -1459,15 +1465,24 @@ const notifHTML=(x,i)=>`<button class="ac-notif ${x.sev}" data-act="notif" data-
 const ktHTML=(x,i)=>`<button class="ac-kt ${x.sev}" data-act="notif" data-v="${i}"><span class="ic">${x.ic}</span><span class="tx"><b>${esc(x.kl||x.t)}</b><small>${esc(x.kv||x.s||'')}</small>${x.wait?`<span class="ac-wait">⏳ on attend ${esc(x.wait)}</span>`:''}</span></button>`;
 const extBanner=me=>EXTS().map(m=>{try{return (m.banner&&m.banner(me,extCtx(me)))||'';}catch(e){console.warn(e);return '';}}).join(''); /* 19/10 (QF) : carte NON bloquante d'un module en tête de l'accueil (bienvenue : documents à signer sous 7 jours) */
 function vAccueil(me){NOTIFS=notifsFor(me);const A2=NOTIFS.map((x,i)=>[x,i]).filter(([x])=>x.act),K=NOTIFS.map((x,i)=>[x,i]).filter(([x])=>!x.act);const today=todayIso();
-  return `<h1 class="ac-hi">Bonjour ${esc(me.prenom)} 👋</h1><div class="ac-date">${esc(fJourLong(today))} · semaine ${numSemaine(today)}${secteurDe(me)?' · secteur '+esc(SECTEURS[secteurDe(me)]||secteurDe(me)):''}</div>
+  const hello=`<h1 class="ac-hi">Bonjour ${esc(me.prenom)} 👋</h1><div class="ac-date">${esc(fJourLong(today))} · semaine ${numSemaine(today)}${secteurDe(me)?' · secteur '+esc(SECTEURS[secteurDe(me)]||secteurDe(me)):''}</div>`;
+  const todoH=`<div class="ac-h"><b>À faire</b><span class="st ${A2.length?'or':'ok'}">${A2.length?A2.length+' action'+(A2.length>1?'s':'')+' attendue'+(A2.length>1?'s':'')+' de toi':'✓ à jour'}</span></div>
+    ${A2.length?A2.map(([x,i])=>notifHTML(x,i)).join(''):'<div class="ac-empty">✓ Tu es à jour — rien n\'attend de toi.</div>'}`;
+  const knowH=`<div class="ac-h"><b>À savoir</b><span>${K.length?'raccourcis · '+K.length:'rien de nouveau'}</span></div>
+    ${K.length?`<div class="ac-kgrid">${K.map(([x,i])=>ktHTML(x,i)).join('')}</div>`:'<div class="eq-s" style="padding:2px">Rien de nouveau de ton côté.</div>'}`;
+  const spacesH=`<div class="span"><div class="ac-h"><b>Espaces</b><span>selon ton poste</span></div><div class="ac-spaces">${spacesFor(me).map(x=>{const mi=icoMod(x.k,29);return `<button class="ac-tile t-${x.k}" data-act="tabgo" data-v="${x.go}">${x.n?`<span class="n">${x.n}</span>`:''}<span class="ic${mi?' trMod':''}">${mi||x.ic}</span><b>${esc(x.t)}</b></button>`;}).join('')}</div></div>`;
+  const tailH=`<div class="span"><button class="btn block" data-act="accnew" style="border-color:#e9a1a1;margin-top:6px">⚠ Déclarer un accident ou un presque-accident</button></div>
+    <p class="ac-foot">L'accueil s'adapte à ton poste et à tes droits. « À faire » = tout ce qui attend une action de toi ; « À savoir » = l'info sans geste à faire.</p>`;
+  /* 07/11 nuit (Monde 3D, Labo, éteint par défaut) : « mon bureau » en 3D — mêmes notifications (mêmes data-act), la vue classique reste à un clic */
+  const M3=m3dAccueil(me,{todo:A2,know:K,spaces:spacesFor(me),sem:numSemaine(today),side:{hello,pointer:()=>heroAccueil(me)+cPointer(me,false),todoHTML:todoH,knowHTML:knowH}});
+  if(M3&&M3.html)return `${extBanner(me)}${M3.html}<div class="ac-two">${spacesH}</div>
+    ${tailH}`;
+  return `${M3&&M3.top||''}${hello}
     ${extBanner(me)}<div class="ac-two"><div>${heroAccueil(me)}${cPointer(me,false)}</div><div>
-    <div class="ac-h"><b>À faire</b><span class="st ${A2.length?'or':'ok'}">${A2.length?A2.length+' action'+(A2.length>1?'s':'')+' attendue'+(A2.length>1?'s':'')+' de toi':'✓ à jour'}</span></div>
-    ${A2.length?A2.map(([x,i])=>notifHTML(x,i)).join(''):'<div class="ac-empty">✓ Tu es à jour — rien n\'attend de toi.</div>'}
-    <div class="ac-h"><b>À savoir</b><span>${K.length?'raccourcis · '+K.length:'rien de nouveau'}</span></div>
-    ${K.length?`<div class="ac-kgrid">${K.map(([x,i])=>ktHTML(x,i)).join('')}</div>`:'<div class="eq-s" style="padding:2px">Rien de nouveau de ton côté.</div>'}</div>
-    <div class="span"><div class="ac-h"><b>Espaces</b><span>selon ton poste</span></div><div class="ac-spaces">${spacesFor(me).map(x=>{const mi=icoMod(x.k,29);return `<button class="ac-tile t-${x.k}" data-act="tabgo" data-v="${x.go}">${x.n?`<span class="n">${x.n}</span>`:''}<span class="ic${mi?' trMod':''}">${mi||x.ic}</span><b>${esc(x.t)}</b></button>`;}).join('')}</div></div></div>
-    <div class="span"><button class="btn block" data-act="accnew" style="border-color:#e9a1a1;margin-top:6px">⚠ Déclarer un accident ou un presque-accident</button></div>
-    <p class="ac-foot">L'accueil s'adapte à ton poste et à tes droits. « À faire » = tout ce qui attend une action de toi ; « À savoir » = l'info sans geste à faire.</p>`;}
+    ${todoH}
+    ${knowH}</div>
+    ${spacesH}</div>
+    ${tailH}`;}
 const fJourLong=s=>{const d=D(s);return ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'][d.getDay()]+' '+d.getDate()+' '+['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'][d.getMonth()]+' '+d.getFullYear();};
 /* ── TABLEAU DE BORD DU CHANTIER (refonte ⑤) : l'état de CHAQUE module, lu dans la copie de l'appareil — ✓ complet · ! il manque un truc · ✗ bloquant · ○ pas commencé ── */
 const DASH_DEF=[['plan','Plan d\'ensemble','📐','plan','Plan'],['soud','Soudures & contrôles','🎖','liste','Soudures'],['act','Activité de la semaine','🚩','plan','Activité'],['hydro','Hydraulique · épreuves','🌊','hydro','Hydraulique'],['phas','Phasage','📅','phasage','Phasage'],['stock','Stock & livraisons','🚚','stock','Stock & livr.'],['ts','Travaux supplémentaires','📄','ts','TS'],['doe','DOE · photos','📷','export','DOE · photos'],['conv','Conversation & tâches','💬','conv','Conversation'],['qse','QSE · accueils','⛑️','qse','QSE'],['admin','Dossier administratif','🗂','admin','Dossier admin'],['eq','Équipe & planning','👥',null,'Équipe'],['pt','Pointages','⏱',null,'Pointages'],['undo','Annulations','↩','conv','Annulations'],['meteo','Météo','🌦',null,'Météo'],['vers','Versions & synchro','🔄','plan','Synchro'],['pts','Points de contrôle · photos','📍','points','Points']]; /* [clé, libellé, icône, onglet du chantier, libellé court (tuile)] */ /* 20/10 (lot PA) : pts */
@@ -1643,7 +1658,7 @@ function vAgenda(me){const k=S.agWeek||0,js=semaineDe(k),wk=weekKey(js[0]);ensur
     <div class="eq-agdays eq-wkzone">${js.map(d=>{const Ej=E.filter(e=>e.d===d);const sites=planDe(me.id,d).filter(id=>!site(id).bureau);const today=d===todayIso();return `<div class="card eq-agday${today?' today':''}" id="ag-d-${d}"><div class="eq-plhead"><span class="eq-grow"><span class="eq-big">${esc(fJourLong(d))}</span>${sites.length?`<span class="eq-s">📍 ${sites.map(id=>esc(site(id).nom)).join(' · ')}</span>`:''}</span>${!own||(nw&&nw.d===d)?'':`<button class="btn sm" data-act="agnew" data-v="${d}">＋</button>`}</div>
       ${Ej.map(ligne).join('')||(nw&&nw.d===d?'':'<div class="eq-s eq-plvide">'+(own?'Rien de prévu — ＋ pour ajouter':'Rien de prévu')+'</div>')}${nw&&nw.d===d?form(d):''}</div>`;}).join('')}</div>`;}
 /* ── 12/10 soir : COMMERCE (onglet) ── */
-function vCommerce(me){if(!featOn('commerce'))return `<h2 class="vt">Affaires</h2><div class="card muted">Option pas ouverte pour toi.</div>`;const sub=vSub(me);if(sub!==null)return sub;if(!can(me,'affaires.view'))return `<h2 class="vt">Affaires</h2><div class="card"><div class="eq-s">Pas d'accès aux affaires (droit « Affaires » du poste).</div></div>`;return affView(me,affCtx(me));}
+function vCommerce(me){if(!featOn('commerce'))return `<h2 class="vt">Affaires</h2><div class="card muted">Option pas ouverte pour toi.</div>`;const sub=vSub(me);if(sub!==null)return sub;if(!can(me,'affaires.view'))return `<h2 class="vt">Affaires</h2><div class="card"><div class="eq-s">Pas d'accès aux affaires (droit « Affaires » du poste).</div></div>`;return ((affState()||{}).view==='list'?m3dTop('commerce',me):'')+affView(me,affCtx(me));}
 /* ── 12/10 soir : PARC (onglet) — flotte, magasin, matériel ── */
 function vParc(me){const sub=vSub(me);if(sub!==null)return sub;const magTab=(can(me,'mag.manage')||me.admin)&&featOn('magasin'); /* 31/10 (un onglet = un module) : le Magasin a son onglet quand la personne y a accès */let seg=S.parcLock==='magasin'?(S.parcSeg==='materiel'?'materiel':'magasin'):(S.parcSeg||(can(me,'mag.manage')&&!can(me,'flotte.manage')?'magasin':'flotte')); /* 14/10 nuit : le référent magasin arrive sur Magasin */if(S.parcLock!=='magasin'&&(magTab||seg==='materiel')&&seg!=='flotte')seg='flotte';const segs=S.parcLock==='magasin'?[['magasin',icoMod('magasin',17)+'Magasin'],['materiel','🔧 Matériel']]:(magTab?[]:featOn('magasin')?[['flotte',icoMod('flotte',17)+'Flotte'],['magasin',icoMod('magasin',17)+'Magasin']]:[]); /* 31/10 (Ethan : « le matériel, plutôt dans Magasin que dans Flotte ») : Matériel = une rubrique du Magasin ; Flotte = les véhicules */const bar=segs.length?`<div class="eq-filtres">${segs.map(([k,t])=>`<button class="chip${seg===k?' active':''}" data-act="parcseg" data-v="${k}">${t}</button>`).join('')}</div>`:'';
   for(const m of EXT){if(!m.parcSeg)continue;try{const h=m.parcSeg(seg,me,extCtx(me),bar);if(h!=null)return h;}catch(e){console.warn(e);}}
@@ -2150,7 +2165,7 @@ function vExpl(me){const sub=vSub(me);if(sub!==null)return sub;if(S.hubSeg==='se
   const row=hubRow;const chef=!can(me,'planning.edit')&&!['rh','direction'].includes(accueilType(me)); /* 05/11 soir (tournage n° 12) : RH / direction sans droit planning ≠ chef de chantier */const sect=mySecteur(me);const js=semaineDe(S.plWeek||0),wk=weekKey(js[0]);const aff=(PLANNING[wk]||{}).aff||{};const gens=plGens().filter(p=>!sect||secteurDe(p)===sect||!secteurDe(p));const places=gens.filter(p=>js.every(d=>isFerie(d)||((aff[p.id]||{})[d]||[]).length)).length;
   const nObj=(()=>{const t=todayIso();return DATA.chantiers.filter(c=>!c.bureau).reduce((a,c)=>a+missionsOf(netOf(c.id),t).length,0);})();const nF=(can(me,'planning.edit')||can(me,'affaires.edit')||me.admin)?dbTodo().length:0;
   const achats=can(me,'planning.edit')||can(me,'affaires.edit')||me.admin;const rh=accueilType(me)==='rh'||accueilType(me)==='direction'||me.admin;
-  return `<h2 class="vt">Pilotage <span class="hint">· ${chef?'chef de chantier':sect?'secteur '+esc(SECTEURS[sect]||sect):'tous les secteurs'} · semaine ${numSemaine(js[0])}</span></h2>
+  return m3dTop('pilotage',me)+`<h2 class="vt">Pilotage <span class="hint">· ${chef?'chef de chantier':sect?'secteur '+esc(SECTEURS[sect]||sect):'tous les secteurs'} · semaine ${numSemaine(js[0])}</span></h2>
     <div class="eq-kpis">${chef?kpi(equipeIds(me).size,'dans ton équipe'):kpi(places+'/'+gens.length,'placés toute la semaine',places<gens.length?'bad':'ok')}${kpi((nV+nM)||0,'pointages à valider',nM?'bad':(nV?'warn':''))}${featOn('objectifs')?kpi(nObj,'objectifs du jour posés',nObj?'':'warn'):''}${kpi(nA,'demandes d\'annulation',nA?'warn':'ok')}</div>
     ${hubSec('📅','Planning & objectifs','placer, viser, composer',[
       !featOn('planning')?'':chef?row('Mon planning et mon équipe','Qui est avec toi, quels jours, sur quels chantiers — fait par ton conducteur',ICO.cal,'#fdebe3','orga'):row('Planning de la semaine','Qui est où chaque jour · 🔍 chercher quelqu\'un · placer en 3 touchers · nouvelle personne · équipes · copier la semaine dernière',ICO.cal,'#fdebe3','plan',nP?nP+' à placer S'+numSemaine(semaineDe(1)[0]):null,'bad') /* 01/11 soir (Ethan) : UN SEUL planning — le détaillé y est fondu (plus de pli « Plus d'options ») */,
@@ -2196,7 +2211,7 @@ function vSecu(me){const sub=vSub(me);if(sub!==null)return sub;const row=hubRow;
       row('Habilitations de l\'équipe','Échéances, recyclages à programmer',ICO.badge,'#fff4d6','habsEq',hab||null,'bad')].concat(extHub('secu',me)))}`;}
 function hubEntreprise(me){const row=hubRow;const t=accueilType(me);const dir=t==='direction'||t==='rh'||me.admin;const q=can(me,'qse.manage')||me.admin;
   const nInfo=docsAll().filter(d=>d.kind==='info').length;const nDocsTodo=q?(()=>{const all=DATA.personnes.map(p=>p._acc).filter(Boolean);return all.filter(a=>docsTodo(a).length).length;})():0;
-  return `<h2 class="vt">SCR <span class="hint">· notre équipe, nos documents, nos actus</span></h2>
+  return m3dTop('entreprise',me)+`<h2 class="vt">SCR <span class="hint">· notre équipe, nos documents, nos actus</span></h2>
     ${hubSec('👥','Les gens','',[
       row('Annuaire','Toute l\'entreprise par poste : fiche, téléphone, adresse, ancienneté',ICO.home,'#ececea','annu',DATA.personnes.filter(p=>p.active).length)])}
     ${hubSec('📄','Documents & communication','',[

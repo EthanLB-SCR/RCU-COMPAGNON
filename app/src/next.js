@@ -10,7 +10,8 @@ import {initAccueil,accueilStanding,accueilParcours,ficheAccueilHTML,controleNew
 import {qhsFor,qhsBlockHTML,qhsParcours,qhsTriggerOpen,qhsRuns,qhsSheetHTML,qhsCancel,qhsMyKey,qhsSigned,qhsCloseOpen,qhsSigsOf} from './qhs.js'; // quart d'heure sécurité (10/10)
 import {ccBureauTile} from './comptech.js'; // 31/10 (lot CC) : tuile « 💶 Compte chantier » du Bureau (conducteur, bureau, direction ; option « comptechantier »)
 import {initDossier,dosTopHTML,dosBind,dosCount,dosHeadRefresh,OBLIG_KEYS} from './dossier.js'; // 31/10 (lot DX) : Dossier du chantier V1 — pièces obligatoires, compteur, Drive
-import {pxDossierHTML,pxDossierBind,pxImportFiles} from './plansexe.js'; // 31/10 (lot DX) : plans d'exé (planches, indices, zones) — option « plansexe »
+import {pxDossierHTML,pxDossierBind,pxImportFiles} from './plansexe.js';
+import {mondeFor,raccordeHTML} from './monde.js'; // 07/11 nuit (Monde 3D, Labo, éteint par défaut) : réseau « raccordé » en tête du Bureau du chantier // 31/10 (lot DX) : plans d'exé (planches, indices, zones) — option « plansexe »
 let A=null; // API fournie par app.js (state, NET, sync, openModal, toast, esc…)
 const FEATS=[
  // ['admin', …] : Dossier administratif DÉFINITIF depuis le 09/10 — onglet « Dossier » (droit dossier.edit) : DT / DICT, plans exé, qualifications, PGC, PPSPS, planning, habilitations, BL, accueil ; fichiers au serveur ; un BL importé au stock s'y classe tout seul.
@@ -80,7 +81,8 @@ function renderBureau(){const el=document.getElementById('bureau');if(!el)return
       <div class="ac-stats"><div class="ac-stat"><b>${B.chef?esc(B.chef.split(' ')[0]):'—'}</b><small>chef de chantier</small></div><div class="ac-stat"><b>${B.conducteur?esc(B.conducteur.split(' ')[0]):'—'}</b><small>conducteur</small></div>${B.meteo?`<div class="ac-stat"><b>${mk[0]} ${B.meteo.t} °C</b><small>${esc(B.meteo.tenue||B.meteo.label)}</small></div>`:''}${(()=>{try{if(!(A.can&&A.can('dossier.edit'))||!allowed('admin')||!nOn('admin'))return '';const dc=dosCount(NET);return `<button type="button" class="ac-stat dx-stat" data-bur="admin" title="Pièces obligatoires du dossier en règle — ouvrir le Dossier"><b>🗂 ${dc.ok}/${dc.tot}</b><small>pièces du dossier</small></button>`;}catch(e){return '';}})()}</div>
       <div class="kv" style="font-size:12.5px">${f.horaires?`<span>🕗 ${esc(f.horaires)}</span>`:''}<span>📍 rassemblement : ${esc(f.rassemblement||'base vie')}</span>${A.ncFiche?A.ncFiche(NET):''}</div>
       ${pres}</div></section>`; /* 20/10 (lot NC) : ncTag = « créé à la main · sans tracé » ; ncFiche = ville, client, début prévu, fournisseur, note, « ✎ Fiche » */
-  el.innerHTML=`<div class="eq-app ac-bureau">${hero}
+  const rac=(()=>{try{return mondeFor(A.current&&A.current())?raccordeHTML(B,NET.name):'';}catch(e){console.warn('raccordé',e);return '';}})();
+  el.innerHTML=`<div class="eq-app ac-bureau">${rac}${hero}
     ${today.length?`<div class="ac-h"><b>Ce qui t'attend ici</b><span>${today.length} point${today.length>1?'s':''}</span></div>${today.join('')}`:'<div class="okbox" style="margin:10px 0">✓ Rien n’attend de toi sur ce chantier aujourd’hui.</div>'}
     ${B.dash?`<div class="ac-h"><b>Ce qui coince</b><span>${B.bad.length} bloquant${B.bad.length>1?'s':''} · ${B.warn.length} à surveiller</span></div>${(B.bad.concat(B.warn).slice(0,6)).map(x=>`<button class="ac-notif ${B.bad.includes(x)?'bad':'warn'}" data-bur="${esc(x.tab||'plan')}"><span class="tx"><b>${esc(x.lab)} — ${esc(x.v)}</b>${x.s?`<small>${esc(x.s)}</small>`:''}</span>${chk(B.bad.includes(x)?'bad':'warn')}</button>`).join('')||'<div class="ac-empty">✓ Rien ne coince.</div>'}
       <div class="ac-h"><b>Checklist du chantier</b><span>✓ complet · ! manque · ✗ bloquant · ○ pas commencé</span></div><div class="ac-kgrid">${B.dash.map(d=>tile(d.tab||(d.key==='eq'?'__orga':d.key==='pt'?'__valid':'plan'),d.short||d.lab,d.ic,d.v,d.n,d.k)).join('')}</div>`:''}
