@@ -1,20 +1,24 @@
 // monde3d/depot.js — LE DÉPÔT (siège d'un secteur) : open space avec le poste de chacun, réunion, café, accueil + salle d'attente (affaires), magasin (rayons par famille,
 // préparation des demandes, quai), vestiaire (terrain), parking (chaque véhicule avec son conducteur), parc à tubes, enseigne. Plusieurs dépôts côte à côte : on survole de l'un à l'autre.
-import { THREE, PAL, mat, rbox, box, cyl, sph, plane, grp, add, figure, pickable, label } from './core.js';
-import { buildPod } from './bureau.js';
+import { THREE, PAL, mat, rbox, box, cyl, sph, plane, grp, add, figure, pickable, label, bake } from './core.js';
+import { buildPod, podSize } from './bureau.js';
+import { figurine } from './perso.js';
 import { plant, objet, poster } from './props.js';
 import { sofa, coffeeTable, counter, meetingTable, tv, coffeeMachine, waterCooler, lockers, bench, rack, pallet, parcel, forklift, dockDoor, tree, bush, lampPost, sign, flagPole, van, truck, pickup, car, excavator, miniExcavator, pipeStack, skip, worker } from './props2.js';
 import { chair } from './props.js';
 const C = PAL;
 const SEVC = { bad: C.bq, warn: C.att, or: C.att, info: C.retour, ok: C.ok };
 export const VEH_KIND = t => { const s = String(t || '').toLowerCase(); if (/benne|camion|poids|porteur|plateau/.test(s)) return 'truck'; if (/pelle|engin|mini/.test(s)) return 'pelle'; if (/pick|4x4/.test(s)) return 'pickup'; if (/fonction|voiture|vl|berline|citadine|chef|conducteur|cdc/.test(s)) return 'car'; return 'van'; };
+/** un visiteur (client, fournisseur, sous-traitant) de la salle d'attente : tenue de ville, veste à la couleur de l'attente */
+const visiteur = (i, col) => { const f = i % 2 === 1; return { genre: f ? 'femme' : 'homme', peau: ['p2', 'p4', 'p1', 'p5', 'p3', 'p6'][i % 6], cheveux: f ? ['long', 'chignon', 'milong'][i % 3] : ['court', 'degarni', 'brosse'][i % 3], couleur: ['brun', 'blond', 'gris', 'noir', 'chatain', 'roux'][i % 6], barbe: !f && i % 3 === 0 ? 'courte' : 'aucune', lunettes: i % 4 === 2 ? 'rect' : 'aucune', haut: 'blazer', hautCouleur: '#' + new THREE.Color(col).getHexString(), bas: 'pantalon', basCouleur: '#3A404B', chaussures: 'ville', casque: false }; };
 const FAM_COL = { direction: 0x6b4bd6, encadrement: 0x1f6fd0, terrain: 0xeb6834, support: 0x2a9d5c };
 /** mesure du dépôt selon ses gens / véhicules */
 export function depotDims(d) {
   const off = d.people.filter(p => p.fam !== 'terrain'), ter = d.people.filter(p => p.fam === 'terrain');
   const cols = Math.max(2, Math.min(7, Math.ceil(off.length / 2))); const rows = Math.max(1, Math.ceil(off.length / cols));
-  const offW = cols * 4.6 + 2, offD = rows * 4.6 + 2; const bldW = offW + 14 + 20, bldD = Math.max(offD, 22) + 10; const bays = Math.max(8, d.vehicles.length + 2); const parkW = Math.max(bldW, Math.ceil(bays / 2) * 3.4 + 4);
-  return { off, ter, cols, rows, offW, offD, bldW, bldD, bays, parkW, siteW: Math.max(bldW, parkW) + 24, siteD: bldD + 40 };
+  const [RW, RD] = podSize(); const CW = 2.2; const bands = Math.ceil(rows / 2); /* bureaux fermés : deux rangées face à face de part et d'autre d'un couloir */
+  const offW = cols * RW + 1, offD = bands * (2 * RD + CW) + 1; const bldW = offW + 14 + 20, bldD = Math.max(offD, 22) + 10; const bays = Math.max(8, d.vehicles.length + 2); const parkW = Math.max(bldW, Math.ceil(bays / 2) * 3.4 + 4);
+  return { off, ter, cols, rows, RW, RD, CW, bands, offW, offD, bldW, bldD, bays, parkW, siteW: Math.max(bldW, parkW) + 24, siteD: bldD + 40 };
 }
 /**
  * d = {k, nom, ville, siege, people:[{id,prenom,posteLabel,fam,svg,prefs,today:{where,chantierNom},vehId}], vehicles:[{id,immat,label,type,alerts,conducteurId,conducteurNom,out,chantierNom}],
@@ -40,13 +44,16 @@ export function buildDepot(d, o) {
   const doorX = bld.x + M.offW + 7; wall(bld.x + (doorX - 2 - bld.x) / 2, bld.z + bld.d, doorX - 2 - bld.x, 0.3); wall(doorX + 2 + (bld.x + bld.w - doorX - 2) / 2, bld.z + bld.d, bld.x + bld.w - doorX - 2, 0.3);
   g.add(box(4.2, 2.6, 0.2, C.verre, { x: doorX, y: 0.25, z: bld.z + bld.d, rough: 0.2, op: 0.6 }), box(4.6, 0.18, 1.6, C.violet, { x: doorX, y: 2.75, z: bld.z + bld.d + 0.6 }), cyl(0.06, 0.06, 2.75, C.metal, { x: doorX - 2.1, y: 0, z: bld.z + bld.d + 1.3, seg: 8 }), cyl(0.06, 0.06, 2.75, C.metal, { x: doorX + 2.1, y: 0, z: bld.z + bld.d + 1.3, seg: 8 })); // entrée vitrée + auvent
   for (let i = 1; i < 4; i++) g.add(cyl(0.12, 0.12, 2.9, C.blanc, { x: bld.x + 0.4 + i * (bld.w - 0.8) / 4, y: 0.25, z: bld.z + 0.5, seg: 10 }));
-  // ── OPEN SPACE
+  // ── BUREAUX FERMÉS : une pièce par personne, portes sur le couloir (deux rangées face à face par couloir)
   const offX = bld.x + 1.5, offZ = bld.z + 1.5;
   g.add(rbox(M.offW, 0.02, M.offD, 0xEDE9F8, { r: 0.05, x: offX + M.offW / 2, y: 0.25, z: offZ + M.offD / 2, shadow: false }));
-  const pods = {}; M.off.forEach((p, i) => { const c = i % M.cols, r = Math.floor(i / M.cols); const px = offX + 1 + 2.1 + c * 4.6, pz = offZ + 1 + 2.0 + r * 4.6; const pod = buildPod({ prefs: p.prefs, person: p, mode: 'depot', todo: p.todo || [], present: p.today && p.today.where === 'depot', screen: null }); pod.position.set(px, 0.27, pz); pickable(pod, { type: 'person', id: p.id }, p.prenom + ' · ' + (p.posteLabel || '') + (p.today && p.today.where === 'chantier' ? ' · sur ' + (p.today.chantierNom || 'chantier') : p.today && p.today.where === 'depot' ? ' · au dépôt' : ' · absent')); g.add(pod); pods[p.id] = [px, pz];
-    if (p.today && p.today.where !== 'depot') { const t = label(p.today.where === 'chantier' ? '🦺 ' + (p.today.chantierNom || 'sur chantier') : p.today.where === 'conge' ? 'en congé' : 'absent', { cls: p.today.where === 'chantier' ? 'nuit' : 'soft', x: px + 0.1, y: 1.5, z: pz - 0.9, min: 22 }); g.add(t); } });
-  cams.bureaux = [offX + M.offW / 2, 0, offZ + M.offD / 2, Math.max(M.offW, M.offD) * 0.42];
-  const plantsAt = [[offX + 0.6, offZ + 0.6, 'ficus'], [offX + M.offW - 0.6, offZ + 0.6, 'palmier'], [offX + 0.6, offZ + M.offD - 0.6, 'monstera']]; plantsAt.forEach(([x, z, k]) => { const pl = plant(k); pl.position.set(x, 0.27, z); g.add(pl); });
+  for (let b = 0; b < M.bands; b++) { const cz = offZ + 0.5 + b * (2 * M.RD + M.CW) + M.RD; g.add(rbox(M.offW - 0.4, 0.012, M.CW - 0.3, 0xD9D3E8, { r: 0.04, x: offX + M.offW / 2, y: 0.27, z: cz + M.CW / 2, shadow: false })); for (let k = 0; k < M.cols; k++) g.add(box(0.5, 0.004, 0.08, 0xC9C2DC, { x: offX + 0.5 + M.RW / 2 + k * M.RW, y: 0.282, z: cz + M.CW / 2, shadow: false })); }
+  const pods = {}; M.off.forEach((p, i) => { const c = i % M.cols, r = Math.floor(i / M.cols); const band = Math.floor(r / 2), side = r % 2; const px = offX + 0.5 + M.RW / 2 + c * M.RW, pz = offZ + 0.5 + band * (2 * M.RD + M.CW) + (side === 0 ? M.RD / 2 : M.RD + M.CW + M.RD / 2);
+    const here = p.today && p.today.where === 'depot'; const pod = buildPod({ prefs: p.prefs, person: p, mode: 'depot', todo: p.todo || [], present: here, screen: null }); pod.position.set(px, 0.272, pz); if (side === 1) pod.rotation.y = Math.PI;
+    pickable(pod, { type: 'person', id: p.id }, p.prenom + ' · ' + (p.posteLabel || '') + (p.today && p.today.where === 'chantier' ? ' · sur ' + (p.today.chantierNom || 'chantier') : here ? ' · au dépôt' : ' · absent')); g.add(pod); pods[p.id] = [px, pz];
+    if (!here) { const t = label(p.today && p.today.where === 'chantier' ? '🦺 ' + (p.today.chantierNom || 'sur chantier') : p.today && p.today.where === 'conge' ? 'en congé' : 'absent', { cls: p.today && p.today.where === 'chantier' ? 'nuit' : 'soft', x: px, y: 1.6, z: pz, min: 22 }); g.add(t); } });
+  cams.bureaux = [offX + M.offW / 2, 0, offZ + M.offD / 2, Math.max(M.offW * 0.62, M.offD) * 0.5];
+  const plantsAt = []; for (let b = 0; b < M.bands; b++) { const cz = offZ + 0.5 + b * (2 * M.RD + M.CW) + M.RD + M.CW / 2; plantsAt.push([offX + 0.3, cz, 'ficus'], [offX + M.offW - 0.3, cz, 'palmier']); } plantsAt.forEach(([x, z, k]) => { const pl = plant(k); pl.scale.setScalar(0.8); pl.position.set(x, 0.27, z); g.add(pl); });
   // ── RÉUNION + CAFÉ (à droite de l'open space)
   const mx = offX + M.offW + 1, mz = bld.z + 1.5, mw = 12, md = 10;
   g.add(rbox(mw, 0.02, md, 0xEAF1F9, { r: 0.05, x: mx + mw / 2, y: 0.25, z: mz + md / 2, shadow: false }), box(0.12, 1.1, md, C.verre, { x: mx, y: 0.27, z: mz + md / 2, rough: 0.2, op: 0.5 }), box(mw, 1.1, 0.12, C.verre, { x: mx + mw / 2, y: 0.27, z: mz + md, rough: 0.2, op: 0.5 }));
@@ -60,7 +67,7 @@ export function buildDepot(d, o) {
   const sf1 = sofa(2.4, C.violet); sf1.position.set(ax + 2.2, 0.27, az + 2.2); g.add(sf1); const sf2 = sofa(2.4, C.violet); sf2.position.set(ax + 2.2, 0.27, az + ad - 1.6); sf2.rotation.y = Math.PI; g.add(sf2); const cft = coffeeTable(); cft.position.set(ax + 2.2, 0.27, az + ad / 2 + 0.3); g.add(cft);
   const pl2 = plant('palmier'); pl2.position.set(ax + 0.7, 0.27, az + ad - 0.7); g.add(pl2); const pl3 = plant('monstera'); pl3.position.set(ax + 4.4, 0.27, az + 0.8); g.add(pl3); g.add(rbox(4.2, 0.02, ad - 2.4, 0xE6E1F6, { r: 0.05, x: ax + 2.2, y: 0.27, z: az + ad / 2 + 0.3, shadow: false })); const ps = poster('tube', { w: 0.8, h: 1.1 }); ps.position.set(ax + aw - 0.2, 1.4, az + ad / 2); ps.rotation.y = -Math.PI / 2; g.add(ps);
   const wait = (d.affaires || []).filter(a => a.attente && a.attente.de); const ATT = { client: [C.violet, 'Attente client'], fournisseur: [C.att, 'Attente fournisseur'], soustraitant: [C.ok, 'Attente sous-traitant'] };
-  wait.slice(0, 6).forEach((a, i) => { const col = (ATT[a.attente.de] || ATT.client)[0]; const w = worker(col, 1.65); const sx = ax + 1.2 + (i % 3) * 0.75, sz = i < 3 ? az + 2.0 : az + ad - 1.4; w.position.set(sx, 0.27, sz); w.children[4].material = mat(col); pickable(w, { type: 'affaire', num: a.num }, a.nom + ' — ' + (ATT[a.attente.de] || ATT.client)[1] + (a.attente.rel ? ' · relance le ' + a.attente.rel.split('-').reverse().join('/') : '')); g.add(w); const late = a.attente.rel && o.today && a.attente.rel < o.today; g.add(label((late ? '⚠ ' : '') + a.nom, { cls: late ? 'bad' : 'soft', x: sx, y: 2.0, z: sz, min: 24 })); });
+  wait.slice(0, 6).forEach((a, i) => { const col = (ATT[a.attente.de] || ATT.client)[0]; const w = figurine(visiteur(i, col), { pose: 'assis' }); const sx = ax + 2.2 + [-0.77, 0.03, 0.83][i % 3], sz = i < 3 ? az + 2.2 + 0.02 : az + ad - 1.6 - 0.02; w.position.set(sx, 0.27 + 0.05, sz); if (i >= 3) w.rotation.y = Math.PI; pickable(w, { type: 'affaire', num: a.num }, a.nom + ' — ' + (ATT[a.attente.de] || ATT.client)[1] + (a.attente.rel ? ' · relance le ' + a.attente.rel.split('-').reverse().join('/') : '')); g.add(w); const late = a.attente.rel && o.today && a.attente.rel < o.today; g.add(label((late ? '⚠ ' : '') + a.nom, { cls: late ? 'bad' : 'soft', x: sx, y: 2.0, z: sz, min: 24 })); });
   g.add(label(wait.length ? wait.length + ' affaire' + (wait.length > 1 ? 's' : '') + ' en attente' : 'Salle d\'attente', { cls: wait.length ? 'warn' : 'soft', x: ax + aw / 2, y: 1.9, z: az + ad / 2, min: 6, max: 23.9, cx: 0.5 }));
   pickable(sf1, { type: 'tabgo', k: 'commerce' }, 'Salle d\'attente des affaires — ouvrir le Commerce'); pickable(sf2, { type: 'tabgo', k: 'commerce' }, 'Salle d\'attente des affaires — ouvrir le Commerce'); cams.attente = [ax + aw / 2, 0, az + ad / 2, 7];
   // ── MAGASIN
@@ -85,7 +92,7 @@ export function buildDepot(d, o) {
   const vx = sx0, vz = sz0 + sd + 1, vw = sw, vd = bld.z + bld.d - vz - 1; g.add(rbox(vw, 0.02, vd, 0xF1E6D2, { r: 0.05, x: vx + vw / 2, y: 0.25, z: vz + vd / 2, shadow: false }));
   const nL = Math.min(M.ter.length || 1, Math.floor((vw - 1) / 0.42)); const lk = lockers(Math.max(nL, 4), M.ter.map(p => FAM_COL[p.fam] || C.lav2)); lk.position.set(vx + vw / 2, 0.27, vz + 0.6); g.add(lk);
   const bn = bench(); bn.position.set(vx + vw / 2 - 2, 0.27, vz + 2.6); g.add(bn); const bn2 = bench(); bn2.position.set(vx + vw / 2 + 2, 0.27, vz + 2.6); g.add(bn2);
-  const terHere = M.ter.filter(p => p.today && p.today.where === 'depot' && !p.vehId); terHere.slice(0, 10).forEach((p, i) => { const f = figure(p.svg, 1.75); f.position.set(vx + 1.5 + i * 1.1, 0.27, vz + vd - 1.6); pickable(f, { type: 'person', id: p.id }, p.prenom + ' · ' + (p.posteLabel || '') + ' · au dépôt'); g.add(f); });
+  const terHere = M.ter.filter(p => p.today && p.today.where === 'depot' && !p.vehId); terHere.slice(0, 10).forEach((p, i) => { const f = figurine(p.av, { pose: 'debout' }); f.position.set(vx + 1.5 + i * 1.1, 0.27, vz + vd - 1.6); f.rotation.y = 0.45 + (i % 3 - 1) * 0.25; pickable(f, { type: 'person', id: p.id }, p.prenom + ' · ' + (p.posteLabel || '') + ' · au dépôt'); g.add(f); });
   g.add(label('Vestiaire · ' + M.ter.length + ' compagnon' + (M.ter.length > 1 ? 's' : '') + ' · ' + M.ter.filter(p => p.today && p.today.where === 'chantier').length + ' sur chantier', { cls: 'soft', x: vx + vw / 2, y: 2.4, z: vz + vd / 2, min: 5, max: 22 }));
   // ── PARKING : une place par véhicule, le conducteur du jour à côté ; place vide = véhicule sorti (sur chantier)
   const pkz = bld.z + bld.d + 3, pkw = M.parkW - 4; const bays = Math.max(M.bays, 8); const perRow = Math.ceil(bays / 2);
@@ -98,8 +105,8 @@ export function buildDepot(d, o) {
     const kind = VEH_KIND(v.type); let m; if (kind === 'truck') m = truck(col, { load: true }); else if (kind === 'pelle') m = miniExcavator(C.orange); else if (kind === 'pickup') m = pickup(col); else if (kind === 'car') m = car(col); else m = van(col, { ladder: i % 2 === 0, stripe: C.violet });
     m.position.set(x, 0, z); m.rotation.y = Math.PI / 2 + (i < perRow ? Math.PI : 0); pickable(m, { type: 'vehicle', id: v.id }, (v.label || v.immat) + (v.typeLabel ? ' · ' + v.typeLabel : '') + (v.conducteurNom ? ' · ' + v.conducteurNom : '') + (sev === 'bad' ? ' · alerte' : sev === 'warn' ? ' · à surveiller' : '')); g.add(m);
     g.add(label(v.immat || v.label, { cls: sev || 'soft', x, y: 2.9, z: z + 0.2, min: 16, html: `<span class="ic" style="background:${sev === 'bad' ? '#A3221F' : sev === 'warn' ? '#C08A2E' : '#0E6B5C'}"></span>${escapeTxt(v.immat || v.label || '')}${v.typeLabel ? `<small>${escapeTxt(v.typeLabel)}</small>` : ''}` }));
-    if (sev) { const bc = sph(0.16, sev === 'bad' ? C.bq : C.att, { x, y: 2.35, z, emis: sev === 'bad' ? C.bq : C.att, ei: 1.2, seg: 10, shadow: false }); g.add(bc); g.userData.beacons = (g.userData.beacons || []).concat([bc]); }
-    const drv = d.people.find(p => p.id === v.conducteurId); if (drv && drv.today && drv.today.where === 'depot') { const f = figure(drv.svg, 1.75); f.position.set(x + 1.6, 0, z + 1.3); pickable(f, { type: 'person', id: drv.id }, drv.prenom + ' · ' + (drv.posteLabel || '') + ' · conduit ' + (v.immat || '')); g.add(f); } else if (v.conducteurNom) g.add(label(v.conducteurNom, { cls: 'soft', x: x + 1.4, y: 0.5, z: z + 1.6, min: 22 })); });
+    if (sev) { const bc = sph(0.16, sev === 'bad' ? C.bq : C.att, { x, y: 2.35, z, emis: sev === 'bad' ? C.bq : C.att, ei: 1.2, seg: 10, shadow: false }); bc.userData.noBake = true; g.add(bc); g.userData.beacons = (g.userData.beacons || []).concat([bc]); }
+    const drv = d.people.find(p => p.id === v.conducteurId); if (drv && drv.today && drv.today.where === 'depot') { const f = figurine(drv.av, { pose: 'debout' }); f.position.set(x + 1.6, 0, z + 1.3); f.rotation.y = 0.6; pickable(f, { type: 'person', id: drv.id }, drv.prenom + ' · ' + (drv.posteLabel || '') + ' · conduit ' + (v.immat || '')); g.add(f); } else if (v.conducteurNom) g.add(label(v.conducteurNom, { cls: 'soft', x: x + 1.4, y: 0.5, z: z + 1.6, min: 22 })); });
   for (let i = vehs.length; i < bays; i++) { const [x, z] = bayAt(i); if (i === vehs.length) g.add(label('place libre', { cls: 'soft', x, y: 0.3, z, min: 20 })); }
   [[bx - pkw / 2 - 2, pkz + 1], [bx + pkw / 2 + 2, pkz + 1], [bx, pkz + 17]].forEach(([x, z]) => { const lp = lampPost(4); lp.position.set(x, 0, z); g.add(lp); });
   cams.parking = [bx, 0, pkz + 8.5, Math.max(pkw * 0.3, 9)];
@@ -109,6 +116,7 @@ export function buildDepot(d, o) {
   const bsh = [[bld.x - 2, bld.z + 4], [bld.x - 2, bld.z + 12], [bld.x - 2, bld.z + 20]]; bsh.forEach(([x, z]) => { const b = bush(1.2); b.position.set(x, 0, z); g.add(b); });
   // ── panneau d'accueil du dépôt (KPI) devant l'entrée
   const K = d.kpi || {}; const kp = label('', { cls: 'nuit big', x: bld.x - 4, y: 3.5, z: bld.z + bld.d + 2, max: 12, html: `${escapeTxt(d.nom)}<small>${K.presents != null ? K.presents + ' présents' : ''}${K.chantiers != null ? ' · ' + K.chantiers + ' chantiers actifs' : ''}${K.alertes ? ' · <b style="color:#F6C6C1">' + K.alertes + ' alerte' + (K.alertes > 1 ? 's' : '') + '</b>' : ''}</small>` }); g.add(kp);
+  bake(g); /* tout ce qui ne se clique pas (sol, murs, arbres, marquages…) fusionné par matière */
   g.userData.cams = Object.assign(cams, { all: [bx, 0, bz + 8, Math.max(M.bldW + 16, M.bldD + 30) * 0.42], entree: [doorX, 0, bld.z + bld.d, 9] }); g.userData.pods = pods; g.userData.vehAt = vehAt; g.userData.dims = M; g.userData.bld = bld;
   return g;
 }

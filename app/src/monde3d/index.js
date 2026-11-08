@@ -1,7 +1,8 @@
 // monde3d/index.js — le MONDE 3D monté dans une page : scènes (mon bureau, dépôts, flotte, magasin, commerce, pilotage, chantier), panneau latéral (fiches, listes), personnalisation.
 // mountMonde3D(host, DATA, opts) → handle {setScene, go, dispose}. Le tout est autonome : même code dans le prototype jouable et dans l'appli (monde.js fournit DATA et les actions).
 import { THREE, PAL, createViewer, injectCSS, escapeHtml as esc, label, figure } from './core.js';
-import { buildPod, normPrefs, CATALOG, SLOTS, ITEMS_FOR, PREFS0 } from './bureau.js';
+import { buildPod, normPrefs, CATALOG, SLOTS, ITEMS_FOR, PREFS0, POSTE_CAM } from './bureau.js';
+import { ACCENTS } from './props.js';
 import { buildWorld } from './depot.js';
 import { buildDioramas, buildNetwork } from './chantiers.js';
 export { normPrefs, PREFS0, CATALOG, SLOTS, ITEMS_FOR };
@@ -76,11 +77,23 @@ export function mountMonde3D(host, DATA, opts) {
     else { html = depotCard(d) + (H.sel && H.sel.type === 'person' ? personCard(personOf(H.sel.id)) : H.sel && H.sel.type === 'vehicle' ? vehicleCard((d.vehicles || []).find(v => v.id === H.sel.id)) : H.sel && H.sel.type === 'affaire' ? affaireCard((DATA.affaires || []).find(a => a.num === H.sel.num)) : H.sel && H.sel.type === 'stock' ? stockCard(H.sel.f) : H.sel && H.sel.type === 'demande' ? demandeCard(H.sel.id) : H.sel && H.sel.type === 'liste' ? listeCard(H.sel.id) : '') + card('Bureaux · ' + (d.people || []).filter(p => p.fam !== 'terrain').length, peopleList(d, p => p.fam !== 'terrain')) + card('Terrain · ' + (d.people || []).filter(p => p.fam === 'terrain').length, peopleList(d, p => p.fam === 'terrain')); }
     setSide(html);
   }
+  /* les écrans du poste (accueil) : chiffres et listes réels, chaque tuile / ligne = une action de l'appli */
+  function posteData() {
+    const me = DATA.me || {}; const T = (DATA.notifs && DATA.notifs.todo) || []; const mySect = me.secteur || ''; const D0 = DATA.depots || []; const dep = D0.find(d => d.k === mySect) || D0[0] || null;
+    const CH = DATA.chantiers || []; const isMine = c => [c.conducteurId, c.chefId, c.conducteur, c.chef].some(x => x && me.id && x === me.id); let mine = CH.filter(isMine); if (!mine.length) mine = CH.filter(c => !mySect || !c.secteur || c.secteur === mySect);
+    const terrain = dep ? (dep.people || []).filter(p => p.today && p.today.where === 'chantier').length : 0; const vehAl = dep ? (dep.vehicles || []).filter(v => (v.alerts || []).length).length : 0;
+    const d = todayStr ? new Date(todayStr + 'T12:00:00') : new Date(); const date = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+    return { prenom: me.prenom || '', date: date.charAt(0).toUpperCase() + date.slice(1), accent: '#' + new THREE.Color(ACCENTS[H.prefs.accent] || 0x8E7AD6).getHexString(),
+      tiles: [{ v: mine.length, l: 'chantiers', pick: { type: 'tabgo', k: 'chantier' }, label: 'Mes chantiers — ouvrir Chantier' }, { v: T.length, l: 'à faire', col: T.length ? '#FFD978' : '#9FE3CC', pick: T.length ? { type: 'notif', i: T[0].i } : null, label: T.length ? 'Ouvrir : ' + T[0].t : 'Rien à faire' }, { v: terrain, l: 'sur le terrain', pick: { type: 'tabgo', k: 'equipe' }, label: 'Qui est où — ouvrir Équipe' }, { v: vehAl, l: 'véhicules à voir', col: vehAl ? '#FF8A80' : '#9FE3CC', pick: { type: 'tabgo', k: 'flotte' }, label: 'Véhicules à surveiller — ouvrir la Flotte' }],
+      todoN: T.length, todo: T.slice(0, 4).map(t => ({ t: t.t, s: t.s, sev: t.sev, pick: { type: 'notif', i: t.i } })),
+      n: mine.length, chantiers: mine.slice(0, 5).map(c => ({ nom: c.nom, ville: c.ville, pct: c.pct, team: (c.team || []).length, alerts: (c.alerts || []).length, pick: { type: 'chantier', id: c.id } })), more: { pick: { type: 'tabgo', k: 'chantier' }, label: 'Tous les chantiers — ouvrir Chantier' } };
+  }
+  function framePoste() { const a = V.size && V.size[1] ? V.size[0] / V.size[1] : 1.5; V.frame(POSTE_CAM.c, Math.max(POSTE_CAM.half, POSTE_CAM.w / (2 * a)), POSTE_CAM.az, POSTE_CAM.el); H.zoomPoste = true; }
   function sceneBureau(personId, mode) {
     V.clear(); const p = personId ? personOf(personId) : DATA.me; const prefs = mode === 'visit' ? normPrefs(p && p.prefs) : H.prefs; const shortcuts = (DATA.spaces || []).filter(s => prefs.raccourcis.includes(s.k)).slice(0, 6);
-    const pod = buildPod({ prefs, person: p, mode: mode || 'home', todo: mode === 'visit' ? [] : (DATA.notifs && DATA.notifs.todo) || [], know: mode === 'visit' ? [] : (DATA.notifs && DATA.notifs.know) || [], shortcuts, icons: ICONS, screen: mode === 'visit' ? null : DATA.screen || null, lights: true, present: true });
-    V.add(pod); V.shadowBounds(0, 0, 8); V.frame([0.2, 0.9, 0.2], 3.1, 0.75, 0.58, true); H.pod = pod;
-    chips(mode === 'visit' ? [{ k: 'back', t: '‹ Retour au dépôt', go: () => setScene('monde') }, { k: 'who', t: '🪑 Bureau de ' + esc(p ? p.prenom : ''), on: true }] : [{ k: 'home', t: '🪑 Mon bureau', on: true }, { k: 'perso', t: '🎨 Personnaliser', cls: H.perso ? 'on' : '', go: () => { H.perso = !H.perso; refreshBureauUI(mode, p); } }, { k: 'depot', t: '🏢 Aller au dépôt', go: () => setScene('monde') }]);
+    const pod = buildPod({ prefs, person: p, mode: mode || 'home', todo: mode === 'visit' ? [] : (DATA.notifs && DATA.notifs.todo) || [], know: mode === 'visit' ? [] : (DATA.notifs && DATA.notifs.know) || [], shortcuts, icons: ICONS, screen: mode === 'visit' ? null : DATA.screen || null, poste: mode === 'visit' ? null : posteData(), lights: true, present: true, visitor: mode === 'visit' ? DATA.me : null }); H.zoomPoste = false;
+    V.add(pod); V.shadowBounds(0, 0, 4.6); V.frame([0.1, 0.85, 0.3], 3.05, 0.75, 0.56, true); H.pod = pod;
+    chips(mode === 'visit' ? [{ k: 'back', t: '‹ Retour au dépôt', go: () => setScene('monde') }, { k: 'who', t: '🪑 Bureau de ' + esc(p ? p.prenom : ''), on: true }] : [{ k: 'home', t: '🪑 Mon bureau', on: true, go: () => { V.frame([0.1, 0.85, 0.3], 3.05, 0.75, 0.56); H.zoomPoste = false; } }, { k: 'poste', t: '💻 Mon écran', go: framePoste }, { k: 'perso', t: '🎨 Personnaliser', cls: H.perso ? 'on' : '', go: () => { H.perso = !H.perso; refreshBureauUI(mode, p); } }, { k: 'depot', t: '🏢 Aller au dépôt', go: () => setScene('monde') }]);
     refreshBureauUI(mode, p);
   }
   function refreshBureauUI(mode, p) {
@@ -121,6 +134,7 @@ export function mountMonde3D(host, DATA, opts) {
   V.onHover = txt => { hover.textContent = txt || ''; hover.style.display = txt ? '' : 'none'; };
   function handle(type, arg, pick) {
     if (type === 'person') { H.sel = { type: 'person', id: arg }; if (H.scene === 'monde' || H.scene === 'flotte' || H.scene === 'magasin' || H.scene === 'commerce') { const p = personOf(arg); const c = H.world && H.world.centers[H.depotK]; if (p && c && c.pods[arg]) { const [px, pz] = c.pods[arg]; V.flyTo([px + c.x, 0.8, pz + c.z], 4.5, 900); } refreshWorldUI(H.scene); } else if (H.scene === 'pilotage') refreshPilUI(); act('person', arg); return; }
+    if (type === 'poste') { framePoste(); return; }
     if (type === 'visit') { H.sel = null; H.visitId = arg; setScene('visit'); return; }
     if (type === 'vehicle') { H.sel = { type: 'vehicle', id: arg }; const c = H.world && H.world.centers[H.depotK]; if (c && c.vehAt[arg]) { const [x, z] = c.vehAt[arg]; V.flyTo([x + c.x, 0.5, z + c.z], 5, 900); } refreshWorldUI(H.scene); return; }
     if (type === 'vehicle_remise') { act('vehicle_remise', arg); return; }
@@ -137,7 +151,7 @@ export function mountMonde3D(host, DATA, opts) {
     act(type, arg, pick);
   }
   host.querySelectorAll('[data-z]').forEach(b => b.onclick = () => { const z = b.dataset.z; if (z === '0') setScene(H.scene); else V.zoomBy(z === '+' ? 1.35 : 1 / 1.35); });
-  function setScene(k) { H.scene = k; if (k === 'bureau') sceneBureau(null, 'home'); else if (k === 'visit') sceneBureau(H.visitId, 'visit'); else if (k === 'pilotage') scenePilotage(); else if (k === 'chantier') sceneChantier(); else sceneWorld(k); V.start(); }
+  function setScene(k) { H.scene = k; const studio = k === 'bureau' || k === 'visit'; V.scene.background = studio ? null : new THREE.Color(0xEEF0F7); V.host.classList.toggle('m3d-studio', studio); if (k === 'bureau') sceneBureau(null, 'home'); else if (k === 'visit') sceneBureau(H.visitId, 'visit'); else if (k === 'pilotage') scenePilotage(); else if (k === 'chantier') sceneChantier(); else sceneWorld(k); V.start(); }
   setScene(opts.scene || 'bureau');
   return { setScene, go: (type, arg) => handle(type, arg), dispose: () => V.dispose(), viewer: V, state: H, setData: d => { Object.assign(DATA, d); setScene(H.scene); } };
 }

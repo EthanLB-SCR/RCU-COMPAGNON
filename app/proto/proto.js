@@ -3,6 +3,7 @@ import { mountMonde3D, normPrefs } from '../src/monde3d/index.js';
 import * as PROPS from '../src/monde3d/props.js';
 import * as PROPS2 from '../src/monde3d/props2.js';
 import * as CORE from '../src/monde3d/core.js';
+import * as PERSO from '../src/monde3d/perso.js';
 import { avatarConfig, avatarSVG } from '../src/avatar.js';
 import bain from '../src/data_bain.json';
 const TODAY = '2026-11-07';
@@ -12,7 +13,7 @@ const FAM = { resp_exploitation: 'encadrement', conducteur: 'encadrement', chef:
 const AVP = { resp_exploitation: 'responsable', conducteur: 'conducteur', chef: 'chef', soudeur: 'soudeur', manchonneur: 'manchonneur', tuyauteur: 'tuyauteur', chauffeur_engin: 'chauffeur', gerant: 'bureau' };
 // [id, prénom, poste, secteur, genre, prefs (facultatif), où aujourd'hui]
 const P = [
-  ['ethan', 'Ethan', 'resp_exploitation', 'ouest', 'h', { bureau: 'nuit', chaise: 'gaming', mur: 'lavande', sol: 'parquet', tapis: 'violet', fenetre: 'ville', ecrans: 2, lampe: 'articulee', accent: 'violet', slots: { W3: 'horloge', W4: 'guirlande', L1: 'poster_tube', L3: 'tableau', D1: 'lampe', D2: 'cadre_famille', D3: 'mug', D4: 'casque', F1: 'plante_monstera', F2: 'chien', F3: 'portemanteau', F4: 'console', F5: 'ballon' }, raccourcis: ['chantier', 'pilotage', 'commerce', 'magasin', 'flotte', 'equipe'] }, 'depot'],
+  ['ethan', 'Ethan', 'resp_exploitation', 'ouest', 'h', { bureau: 'noyer', chaise: 'bureau', mur: 'sable', sol: 'parquet', tapis: 'berbere', fenetre: 'ville', ecrans: 2, lampe: 'articulee', accent: 'violet', slots: { W3: 'horloge', W4: 'guirlande', L1: 'poster_tube', L3: 'medaille', D1: 'lampe', D2: 'cadre_famille', D3: 'mug', D4: 'casque', F1: 'portemanteau', F2: 'chien', F3: 'plante_monstera', F4: 'poubelle', F5: 'ballon' }, raccourcis: ['chantier', 'pilotage', 'commerce', 'magasin', 'flotte', 'equipe'] }, 'depot'],
   ['marc', 'Marc', 'gerant', 'ouest', 'h', { bureau: 'noyer', chaise: 'fauteuil', mur: 'sable', sol: 'noir', tapis: 'berbere', fenetre: 'campagne', ecrans: 1, lampe: 'champignon', accent: 'ambre', slots: { W3: 'medaille', L1: 'poster_carte', L3: 'poster_chantier', D1: 'lampe', D2: 'globe', D3: 'livres', F1: 'plante_ficus', F3: 'portemanteau', F4: 'poubelle' } }, 'depot'],
   ['sophie', 'Sophie', 'conducteur', 'ouest', 'f', { bureau: 'blanc', chaise: 'bureau', mur: 'menthe', sol: 'beton', tapis: 'rond', fenetre: 'mer', ecrans: 2, lampe: 'boule', accent: 'menthe', slots: { W3: 'horloge', L1: 'poster_vague', L3: 'poster_plage', D1: 'lampe', D2: 'cadre_vacances', D3: 'plante_succulente', D4: 'thermos', F1: 'plante_palmier', F2: 'chat', F4: 'imprimante' } }, 'depot'],
   ['julien', 'Julien', 'conducteur', 'ouest', 'h', { bureau: 'bois', chaise: 'bureau', mur: 'ciel', sol: 'parquet', tapis: 'rayures', fenetre: 'montagne', ecrans: 'portable', lampe: 'articulee', accent: 'bleu', slots: { W3: 'basket', L1: 'poster_montagne', L3: 'poster_moto', D1: 'lampe', D3: 'mug', D4: 'radio', F1: 'plante_cactus', F2: 'velo', F5: 'skate' } }, 'chantier:c1'],
@@ -38,7 +39,7 @@ const CH = [
 const PEAU = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'], CHEV = ['court', 'degarni', 'chauve', 'court', 'court', 'long'], COUL = ['noir', 'brun', 'chatain', 'brun', 'noir', 'blond'], BARBE = ['aucune', '3j', 'courte', 'aucune'];
 const people = P.map(([id, prenom, poste, secteur, g, prefs, where], i) => { let cfg; try { cfg = avatarConfig({ poste: AVP[poste] || 'bureau', genre: g === 'f' ? 'femme' : 'homme', peau: PEAU[i % 6], cheveux: g === 'f' ? (i % 2 ? 'long' : 'carre') : CHEV[i % 5], couleur: COUL[i % 6], barbe: g === 'f' ? 'aucune' : BARBE[i % 4], lunettes: i % 5 === 3 ? 'rondes' : 'aucune' }, { vue: 'travail', meteo: 'frais' }); } catch (e) { cfg = null; }
   const svg = cfg ? avatarSVG(cfg, 240) : null; const w = where.startsWith('chantier:') ? { where: 'chantier', chantierId: where.slice(9), chantierNom: (CH.find(c => c.id === where.slice(9)) || {}).nom } : { where };
-  return { id, prenom, nom: '', poste, posteLabel: LAB[poste] || poste, fam: FAM[poste] || 'terrain', secteur, svg, prefs: prefs ? normPrefs(prefs) : null, today: w, todo: FAM[poste] === 'terrain' ? null : (i * 7) % 5 }; });
+  return { id, prenom, nom: '', poste, posteLabel: LAB[poste] || poste, fam: FAM[poste] || 'terrain', secteur, svg, av: cfg, prefs: prefs ? normPrefs(prefs) : null, today: w, todo: FAM[poste] === 'terrain' ? null : (i * 7) % 5 }; });
 const pById = id => people.find(p => p.id === id);
 CH.forEach(c => { c.team = people.filter(p => p.today.chantierId === c.id); c.chefNom = c.chef ? pById(c.chef).prenom : null; c.conducteurNom = c.conducteur ? pById(c.conducteur).prenom : null; });
 // véhicules : type (la liste de l'appli), immat fictive, conducteur, état
@@ -75,4 +76,4 @@ function mount() { const data = dataFor(meSel.value); if (H) H.dispose(); H = mo
 NAV.forEach(([k, t]) => { const b = document.createElement('button'); b.textContent = t; b.dataset.k = k; b.onclick = () => { cur = k; mount(); }; nav.appendChild(b); });
 meSel.onchange = () => mount();
 mount();
-window.PROTO = { people, vehicles, depots, PROPS, PROPS2, CORE, get H() { return H; } };
+window.PROTO = { people, vehicles, depots, PROPS, PROPS2, CORE, PERSO, get H() { return H; } };

@@ -5,6 +5,8 @@ import * as THREE from 'three';
 import { MapControls } from 'three/examples/jsm/controls/MapControls.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 export { THREE };
 /* ── palette (charte Tracé + tons de décor) ── */
 export const PAL = {
@@ -24,9 +26,23 @@ export function mat(color, o) {
   if (o.side) m.side = o.side;
   MATS.set(key, m); return m;
 }
+/** une matière partagée (gardée au cache, jamais libérée au changement de scène) */
+export function cachedMat(key, make) { let m = MATS.get(key); if (!m) { m = make(); MATS.set(key, m); } return m; }
+/* ── occlusion douce (fausse) : dégradés au pied des murs et sous les meubles — donne la profondeur d'une maquette sans post-traitement ── */
+let AO_TEX = null, BLOB_TEX = null;
+function aoTex() { if (AO_TEX) return AO_TEX; const c = document.createElement('canvas'); c.width = 4; c.height = 128; const g = c.getContext('2d'); const G = g.createLinearGradient(0, 0, 0, 128); G.addColorStop(0, 'rgba(0,0,0,1)'); G.addColorStop(0.35, 'rgba(0,0,0,.45)'); G.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = G; g.fillRect(0, 0, 4, 128); AO_TEX = new THREE.CanvasTexture(c); return AO_TEX; }
+function blobTex() { if (BLOB_TEX) return BLOB_TEX; const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'); const G = g.createRadialGradient(64, 64, 4, 64, 64, 62); G.addColorStop(0, 'rgba(0,0,0,1)'); G.addColorStop(0.55, 'rgba(0,0,0,.55)'); G.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = G; g.fillRect(0, 0, 128, 128); BLOB_TEX = new THREE.CanvasTexture(c); return BLOB_TEX; }
+const aoMat = (op, tex) => cachedMat('ao|' + op + '|' + tex, () => new THREE.MeshBasicMaterial({ color: 0x1B1530, map: tex === 'b' ? blobTex() : aoTex(), transparent: true, opacity: op, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+/** bande d'ombre au pied d'un mur : longueur len (le long de x), largeur w ; le côté sombre est en z = 0 (contre le mur), le dégradé part vers +z */
+export function aoStrip(len, w, o) { o = o || {}; const m = new THREE.Mesh(new THREE.PlaneGeometry(len, w), aoMat(o.op || 0.2, 'a')); m.rotation.x = -Math.PI / 2; m.geometry.translate(0, -w / 2, 0); m.position.set(o.x || 0, o.y == null ? 0.004 : o.y, o.z || 0); if (o.ry) m.rotation.z = o.ry; m.renderOrder = 1; m.userData.noPick = true; return m; }
+/** bande d'ombre verticale sur un mur (pied du mur ou angle) : len de large, h de haut, sombre en bas */
+export function aoWall(len, h, o) { o = o || {}; const m = new THREE.Mesh(new THREE.PlaneGeometry(len, h), aoMat(o.op || 0.14, 'a')); m.geometry.rotateZ(Math.PI); m.geometry.translate(0, h / 2, 0); m.position.set(o.x || 0, o.y || 0, o.z || 0); if (o.ry) m.rotation.y = o.ry; m.renderOrder = 1; return m; }
+/** ombre douce posée au sol (sous un meuble) */
+export function blob(w, d, o) { o = o || {}; const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), aoMat(o.op || 0.22, 'b')); m.rotation.x = -Math.PI / 2; m.position.set(o.x || 0, o.y == null ? 0.005 : o.y, o.z || 0); if (o.ry) m.rotation.z = o.ry; m.renderOrder = 1; return m; }
 /* ── briques ── */
 const GEOS = new Map();
-function rboxGeo(w, h, d, r) { const key = ['rb', w, h, d, r].map(v => Math.round(v * 1000)).join('|'); let g = GEOS.get(key); if (!g) { g = new RoundedBoxGeometry(w, h, d, 2, Math.min(r, w / 2, h / 2, d / 2)); GEOS.set(key, g); } return g; }
+const CACHED_GEO = new WeakSet();
+function rboxGeo(w, h, d, r) { const key = ['rb', w, h, d, r].map(v => Math.round(v * 1000)).join('|'); let g = GEOS.get(key); if (!g) { g = new RoundedBoxGeometry(w, h, d, 2, Math.min(r, w / 2, h / 2, d / 2)); GEOS.set(key, g); CACHED_GEO.add(g); } return g; }
 /** boîte à coins arrondis posée sur y=0 (centre en x,z) */
 export function rbox(w, h, d, color, o) { o = o || {}; const m = new THREE.Mesh(rboxGeo(w, h, d, o.r == null ? Math.min(0.04, w / 4, h / 4, d / 4) : o.r), o.mat || mat(color, o)); m.position.set(o.x || 0, (o.y || 0) + h / 2, o.z || 0); if (o.ry) m.rotation.y = o.ry; m.castShadow = o.shadow !== false; m.receiveShadow = true; return m; }
 export function box(w, h, d, color, o) { o = o || {}; const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), o.mat || mat(color, o)); m.position.set(o.x || 0, (o.y || 0) + h / 2, o.z || 0); if (o.ry) m.rotation.y = o.ry; m.castShadow = o.shadow !== false; m.receiveShadow = true; return m; }
@@ -35,6 +51,27 @@ export function sph(r, color, o) { o = o || {}; const m = new THREE.Mesh(new THR
 export function plane(w, d, color, o) { o = o || {}; const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), o.mat || mat(color, o)); m.rotation.x = -Math.PI / 2; m.position.set(o.x || 0, o.y || 0, o.z || 0); if (o.ry) m.rotation.z = o.ry; m.receiveShadow = true; return m; }
 export function grp(x, y, z, ry) { const g = new THREE.Group(); g.position.set(x || 0, y || 0, z || 0); if (ry) g.rotation.y = ry; return g; }
 export const add = (parent, ...objs) => { objs.forEach(o => { if (o) parent.add(o); }); return parent; };
+/**
+ * « cuire » un ensemble statique : fusionne les maillages qui partagent la même matière (même ombre, même ordre de rendu) en un seul.
+ * Les objets cliquables (userData.pick), les figurines et ceux marqués noBake restent à part. Divise le nombre d'appels de dessin par 5 à 10.
+ */
+export function bake(root) {
+  root.updateMatrixWorld(true); const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(); const groups = new Map();
+  root.traverse(m => {
+    if (!m.isMesh || m.isInstancedMesh || Array.isArray(m.material) || m.userData.pick || m.userData.noBake || !m.geometry || !m.geometry.attributes.position) return;
+    for (let p = m.parent; p && p !== root; p = p.parent) if (p.userData.pick || p.userData.noBake || p.userData.figurine || p.userData.bill) return;
+    const k = m.material.uuid + '|' + (m.castShadow ? 1 : 0) + (m.receiveShadow ? 1 : 0) + '|' + m.renderOrder + '|' + (m.visible ? 1 : 0); let L = groups.get(k); if (!L) groups.set(k, L = []); L.push(m);
+  });
+  const tmp = new THREE.Matrix4();
+  groups.forEach(L => {
+    if (L.length < 2) return;
+    const geos = L.map(m => { const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone(); g.applyMatrix4(tmp.multiplyMatrices(inv, m.matrixWorld)); Object.keys(g.attributes).forEach(a => { if (a !== 'position' && a !== 'normal' && a !== 'uv') g.deleteAttribute(a); }); if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2)); if (!g.attributes.normal) g.computeVertexNormals(); g.morphAttributes = {}; return g; });
+    let merged = null; try { merged = mergeGeometries(geos, false); } catch (e) { merged = null; } geos.forEach(g => g.dispose()); if (!merged) return;
+    const mesh = new THREE.Mesh(merged, L[0].material); mesh.castShadow = L[0].castShadow; mesh.receiveShadow = L[0].receiveShadow; mesh.renderOrder = L[0].renderOrder; mesh.userData.baked = true; root.add(mesh);
+    L.forEach(m => { if (m.parent) m.parent.remove(m); if (!CACHED_GEO.has(m.geometry)) m.geometry.dispose(); });
+  });
+  return root;
+}
 /** un objet cliquable : ce que fait le clic, l'étiquette au survol */
 export function pickable(obj, action, aria) { obj.traverse(c => { if (c.isMesh) { c.userData.pick = action; c.userData.aria = aria; } }); obj.userData.pick = action; obj.userData.aria = aria; return obj; }
 /* ── textures peintes (post-it, écrans, affiches) ── */
@@ -48,7 +85,7 @@ export function avatarTexture(svg) {
   const c = document.createElement('canvas'); c.width = 256; c.height = 448; const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   const img = new Image(); img.onload = () => { const g = c.getContext('2d'); g.clearRect(0, 0, 256, 448); g.drawImage(img, 0, 0, 256, 448); t.needsUpdate = true; };
   img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg.replace(/<svg([^>]*)>/, (m, a) => '<svg' + a.replace(/\s(width|height)="[^"]*"/g, '') + ' width="256" height="448">'));
-  AVT.set(svg, t); return t;
+  AVT.set(svg, t); KEEP_TEX.add(t); return t;
 }
 export const BILL = [];
 /** personnage debout (h en m), pieds en (0,0,0) du groupe rendu ; crop = part du haut gardée (assis derrière un bureau) */
@@ -72,24 +109,31 @@ export const escapeHtml = s => String(s == null ? '' : s).replace(/[&<>"']/g, c 
 export function createViewer(host, o) {
   o = o || {};
   host.classList.add('m3d-host'); host.innerHTML = '';
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' }); renderer.setClearColor(0x000000, 0);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = o.exposure || 1.05; renderer.outputColorSpace = THREE.SRGBColorSpace;
   host.appendChild(renderer.domElement);
   const labels = new CSS2DRenderer(); labels.domElement.className = 'm3d-labels'; host.appendChild(labels.domElement);
   const scene = new THREE.Scene(); scene.background = new THREE.Color(o.bg == null ? 0xEEF0F7 : o.bg);
+  const V0 = {};
   const cam = new THREE.OrthographicCamera(-10, 10, 10, -10, -500, 1000); cam.zoom = 1; cam.up.set(0, 1, 0);
-  const hemi = new THREE.HemisphereLight(0xFFFFFF, 0xCFC9E0, 1.15); scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xFFF4E6, 2.35); sun.position.set(14, 24, 10); sun.castShadow = true; sun.shadow.mapSize.set(o.shadowMap || 2048, o.shadowMap || 2048); sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.02; sun.shadow.radius = 4; scene.add(sun); scene.add(sun.target);
+  /* lumière d'ambiance « studio » (reflets doux sur toutes les matières) : calculée une fois par visionneuse */
+  try { const pm = new THREE.PMREMGenerator(renderer); V0.env = pm.fromScene(new RoomEnvironment(), 0.04).texture; scene.environment = V0.env; scene.environmentIntensity = o.env == null ? 0.3 : o.env; pm.dispose(); } catch (e) { }
+  const hemi = new THREE.HemisphereLight(0xFFFFFF, 0xCFC9E0, o.env === 0 ? 1.15 : 0.72); scene.add(hemi);
+  const sun = new THREE.DirectionalLight(0xFFF1E0, 2.6); sun.position.set(14, 24, 10); sun.castShadow = true; sun.shadow.mapSize.set(o.shadowMap || 2048, o.shadowMap || 2048); sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.02; sun.shadow.radius = 4; scene.add(sun); scene.add(sun.target);
   const fill = new THREE.DirectionalLight(0xDCE6FF, 0.55); fill.position.set(-12, 10, -8); scene.add(fill);
   const controls = new MapControls(cam, renderer.domElement); controls.enableDamping = true; controls.dampingFactor = 0.12; controls.screenSpacePanning = false; controls.minPolarAngle = 0.3; controls.maxPolarAngle = 1.3; controls.zoomSpeed = 1.1; controls.minZoom = o.minZoom || 0.35; controls.maxZoom = o.maxZoom || 9; controls.enableRotate = o.rotate !== false; controls.rotateSpeed = 0.6;
   controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }; controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
   const root = new THREE.Group(); scene.add(root);
-  const V = { scene, cam, renderer, labels, controls, root, sun, host, pickables: [], onPick: null, onHover: null, hovered: null, tween: null, alive: true, size: [1, 1], t0: performance.now(), anim: [] };
+  const V = { scene, cam, renderer, labels, controls, root, sun, host, pickables: [], onPick: null, onHover: null, hovered: null, tween: null, alive: true, size: [1, 1], t0: performance.now(), anim: [], env: V0.env, hemi };
   const ray = new THREE.Raycaster(); const ptr = new THREE.Vector2(); let down = null;
   const pickAt = (cx, cy) => { const r = renderer.domElement.getBoundingClientRect(); ptr.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1); ray.setFromCamera(ptr, cam); const hits = ray.intersectObjects(V.pickables, true); for (const h of hits) { let ob = h.object; while (ob && !ob.userData.pick) ob = ob.parent; if (ob) { V.lastHit = h; return ob; } } V.lastHit = null; return null; };
   renderer.domElement.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
-  renderer.domElement.addEventListener('pointerup', e => { if (!down) return; const d = Math.hypot(e.clientX - down.x, e.clientY - down.y); const dt = performance.now() - down.t; down = null; if (d > 6 || dt > 600) return; const ob = pickAt(e.clientX, e.clientY); if (ob && V.onPick) V.onPick(ob.userData.pick, ob, V.lastHit); else if (!ob && V.onPick) V.onPick(null, null, null); });
-  renderer.domElement.addEventListener('pointermove', e => { if (down) return; const ob = pickAt(e.clientX, e.clientY); if (ob !== V.hovered) { setHover(V, ob); } });
+  /* écrans à zones (poste de travail) : ob.userData.zoneAt(uv) → n° de zone ; la zone porte sa propre action et sa bulle */
+  const zoneOf = (ob, hit) => { if (!ob || !ob.userData.zoneAt) return -1; try { return ob.userData.zoneAt(hit && hit.uv); } catch (e) { return -1; } };
+  renderer.domElement.addEventListener('pointerup', e => { if (!down) return; const d = Math.hypot(e.clientX - down.x, e.clientY - down.y); const dt = performance.now() - down.t; down = null; if (d > 6 || dt > 600) return; const ob = pickAt(e.clientX, e.clientY); if (ob && V.onPick) { const zi = zoneOf(ob, V.lastHit); const z = zi >= 0 ? ob.userData.zones[zi] : null; V.onPick(z && z.pick ? Object.assign({ fromScreen: true }, z.pick) : ob.userData.pick, ob, V.lastHit); } else if (!ob && V.onPick) V.onPick(null, null, null); });
+  renderer.domElement.addEventListener('pointermove', e => { if (down) return; const ob = pickAt(e.clientX, e.clientY); if (ob !== V.hovered) { setHover(V, ob); }
+    const zi = zoneOf(ob, V.lastHit); if (V.zoneOb && V.zoneOb !== ob && V.zoneOb.userData.onZone) V.zoneOb.userData.onZone(-1);
+    if (ob && ob.userData.zoneAt) { if (V.zoneOb !== ob || V.zoneI !== zi) { V.zoneOb = ob; V.zoneI = zi; if (ob.userData.onZone) ob.userData.onZone(zi); if (V.onHover) V.onHover(zi >= 0 ? ob.userData.zones[zi].label : ob.userData.aria, ob); } } else { V.zoneOb = null; V.zoneI = -1; } });
   renderer.domElement.addEventListener('pointerleave', () => setHover(V, null));
   V.resize = () => { const w = host.clientWidth || 800, h = host.clientHeight || 500; V.size = [w, h]; renderer.setSize(w, h, false); labels.setSize(w, h); const a = w / h; const half = V.half || 12; cam.left = -half * a; cam.right = half * a; cam.top = half; cam.bottom = -half; cam.updateProjectionMatrix(); };
   V.ro = new ResizeObserver(() => V.resize()); V.ro.observe(host);
@@ -101,7 +145,7 @@ export function createViewer(host, o) {
   V.shadowBounds = (cx, cz, r) => { sun.target.position.set(cx, 0, cz); sun.position.set(cx + 14, 24, cz + 10); const s = sun.shadow.camera; s.left = -r; s.right = r; s.top = r; s.bottom = -r; s.near = 1; s.far = 80; s.updateProjectionMatrix(); };
   V.add = (...objs) => { objs.forEach(ob => { root.add(ob); ob.traverse(c => { if (c.userData.pick && c.isMesh && !V.pickables.includes(c)) V.pickables.push(c); }); }); };
   V.zoomBy = f => { cam.zoom = Math.max(controls.minZoom, Math.min(controls.maxZoom, cam.zoom * f)); cam.updateProjectionMatrix(); };
-  V.clear = () => { V.tween = null; setHover(V, null); V.pickables.length = 0; BILL.length = 0; V.anim.length = 0; while (root.children.length) { const c = root.children.pop(); disposeDeep(c); } };
+  V.clear = () => { V.tween = null; V.zoneOb = null; V.zoneI = -1; setHover(V, null); V.pickables.length = 0; BILL.length = 0; V.anim.length = 0; while (root.children.length) { const c = root.children.pop(); disposeDeep(c); } };
   V.setPick = f => { V.onPick = f; };
   const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
   const camDir = new THREE.Vector3();
@@ -117,7 +161,7 @@ export function createViewer(host, o) {
     renderer.render(scene, cam); labels.render(scene, cam);
   }
   V.start = () => { if (V.started) return; V.started = true; V.resize(); loop(); };
-  V.dispose = () => { V.alive = false; try { V.ro.disconnect(); } catch (e) { } controls.dispose(); V.clear(); renderer.dispose(); try { host.innerHTML = ''; } catch (e) { } };
+  V.dispose = () => { V.alive = false; try { V.ro.disconnect(); } catch (e) { } controls.dispose(); V.clear(); try { if (V.env) V.env.dispose(); } catch (e) { } renderer.dispose(); try { host.innerHTML = ''; } catch (e) { } };
   V.snapshot = () => renderer.domElement.toDataURL('image/png');
   return V;
 }
@@ -129,13 +173,16 @@ function setHover(V, ob) {
   if (ob) { ob.traverse(c => { if (c.isMesh && !c.isInstancedMesh && c.material && c.material.isMeshStandardMaterial && !c.material.map) { c.userData.m0 = c.material; c.userData.em0 = 1; const m = c.material.clone(); m.emissive = new THREE.Color(PAL.violet); m.emissiveIntensity = 0.22; c.material = m; } }); }
   if (V.onHover) V.onHover(ob ? ob.userData.aria : null, ob);
 }
-export function disposeDeep(o) { o.traverse(c => { if (c.isMesh) { if (c.geometry && !GEOS.has(c.geometry)) { } if (c.material && !isCached(c.material)) { if (c.material.map && !AVT.has(c.material.map)) c.material.map.dispose(); c.material.dispose(); } } if (c.isCSS2DObject && c.element && c.element.parentNode) c.element.parentNode.removeChild(c.element); }); }
+export function disposeDeep(o) { o.traverse(c => { if (c.isMesh) { (Array.isArray(c.material) ? c.material : [c.material]).forEach(m => { if (!m || isCached(m)) return; if (m.map && m.map.isTexture && !KEEP_TEX.has(m.map)) m.map.dispose(); m.dispose(); }); } if (c.isCSS2DObject && c.element && c.element.parentNode) c.element.parentNode.removeChild(c.element); }); }
+/** textures à garder d'une scène à l'autre (avatars, textures partagées) */
+export const KEEP_TEX = new WeakSet();
 function isCached(m) { for (const v of MATS.values()) if (v === m) return true; return false; }
 /* ── styles des étiquettes et du conteneur ── */
 export function injectCSS() {
   if (typeof document === 'undefined' || document.getElementById('m3d-core-css')) return; const s = document.createElement('style'); s.id = 'm3d-core-css'; s.textContent = `
 .m3d-host{position:relative;overflow:hidden;border-radius:14px;background:#EEF0F7;touch-action:none;user-select:none;-webkit-user-select:none}
 .m3d-host canvas{display:block;width:100%!important;height:100%!important}
+.m3d-host.m3d-studio{background:radial-gradient(ellipse 75% 70% at 50% 42%,#FFFFFF 0%,#F2F0F7 48%,#E2DFEC 100%)}
 .m3d-labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
 .m3d-lab{font-family:${FONT};font-size:12.5px;line-height:16px;font-weight:700;color:#1B1530;background:rgba(255,255,255,.94);border:1px solid #D6CEF2;border-radius:999px;padding:3px 9px;white-space:nowrap;box-shadow:0 2px 6px rgba(43,27,90,.10);pointer-events:none;transform-origin:50% 100%}
 .m3d-lab.big{font-size:14px;line-height:18px;padding:5px 12px;border-width:1.5px;border-color:#5E46B8}
