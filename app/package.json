@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "build:maquette": "vite build -c vite.maquette.config.js",
-    "build:all": "vite build && vite build -c vite.maquette.config.js"
+    "build:all": "vite build && vite build -c vite.maquette.config.js && vite build -c vite.monde.config.js",
+    "build:monde": "vite build -c vite.monde.config.js"
   },
   "keywords": [],
   "author": "",
@@ -22,6 +23,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",
     "fflate": "^0.8.2",
-    "qrcode-generator": "^1.4.4"
+    "qrcode-generator": "^1.4.4",
+    "three": "^0.187.0"
   }
 }

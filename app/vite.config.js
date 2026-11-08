@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync } from 'node:fs'
 // Tampon de version affiché sur l'écran de connexion et dans le menu du compte : « jj/mm/aaaa · 6 hex ».
 // L'empreinte ne dépend QUE du contenu des sources (src/* + index.html) → deux builds des mêmes sources le même jour sont identiques bit à bit.
-const srcHash = () => { const h = createHash('md5'); readdirSync('src').sort().forEach(f => h.update(readFileSync('src/' + f))); h.update(readFileSync('index.html')); return h.digest('hex').slice(0, 6) }
+const srcHash = () => { const h = createHash('md5'); const walk = d => readdirSync(d, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name)).forEach(e => { if (e.isDirectory()) walk(d + '/' + e.name); else h.update(readFileSync(d + '/' + e.name)) }); walk('src'); /* 08/11 : sous-dossiers (src/monde3d) */ h.update(readFileSync('index.html')); return h.digest('hex').slice(0, 6) }
 const BUILD = (process.env.BUILD_DATE || new Date().toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' })) + ' · ' + srcHash()
 // 31/10 (lot MO, charte « Tracé ») : le gros script inline (≈ 4,9 Mo) passe en FIN de <body> → l'écran de chargement (en tête de <body>) s'affiche pendant qu'il arrive.
 // Un <script type="module"> est différé où qu'il soit : il s'exécute toujours après la lecture complète du document (rien ne change pour l'appli).

@@ -476,8 +476,12 @@ function tasks(me,ctx){ensure(ctx);const L=[];const D=dems();
 // vers Parc → 📦 Magasin → Demandes (le segment « magasin » de l'onglet Parc)
 function goGestion(ctx){S.seg='dem';S.mcur=null;S.art=null;const A=ctx.api;try{if(A&&A.homeTab)A.homeTab('parc');}catch(e){}const b=document.querySelector('#eq-app [data-act=parcseg][data-v=magasin]');if(b&&!b.classList.contains('active'))b.click();}
 
-/* 07/11 nuit (Monde 3D) : résumé du stock par famille (lecture seule) — rayonnages du magasin dans le dépôt */
-export function magStock(){try{const C=cat();const st=stocks(C);const F={};let n=0,bas=0,rup=0;Object.values(C).forEach(a=>{if(!a||a.actif===false)return;n++;const s=st[a.ref]||0;const c=aCmd(a,s);const f=a.famille||'Divers';const x=F[f]||(F[f]={f,n:0,bas:0,rup:0});x.n++;if(s<=0&&+a.tampon>0){x.rup++;rup++;}else if(c>0){x.bas++;bas++;}});return {n,bas,rup,familles:Object.values(F).sort((a,b)=>b.n-a.n)};}catch(e){return null;}}
+/* 07/11 nuit (Monde 3D) : résumé du stock par famille (lecture seule) — rayonnages du magasin dans le dépôt ; + listes par métier et demandes en cours (08/11) */
+export function magStock(){try{const C=cat();const st=stocks(C);const F={};let n=0,bas=0,rup=0;Object.values(C).forEach(a=>{if(!a||a.actif===false)return;n++;const s=st[a.ref]||0;const c=aCmd(a,s);const f=a.famille||'Divers';const x=F[f]||(F[f]={f,n:0,bas:0,rup:0,articles:[]});x.n++;const isRup=s<=0&&+a.tampon>0,isBas=!isRup&&c>0;if(isRup){x.rup++;rup++;}else if(isBas){x.bas++;bas++;}if(x.articles.length<40)x.articles.push({n:a.label||a.ref,q:s,u:a.unite||'u',bas:isBas||isRup});});
+  Object.values(F).forEach(x=>x.articles.sort((p,q)=>(q.bas?1:0)-(p.bas?1:0)));
+  const listes=(conf().listes||[]).filter(x=>x&&Array.isArray(x.lignes)&&x.lignes.length).map(x=>({id:x.id,nom:x.titre||x.label||x.id,metier:(x.metiers||[]).join(', ')||x.metier||'',n:x.lignes.length,articles:x.lignes.slice(0,12).map(l=>({n:(C[l.ref]&&C[l.ref].label)||l.label||l.ref,q:l.qteMax||l.qte||null}))}));
+  const demandes=dems().filter(d=>d.statut!=='annulee'&&d.statut!=='remise').map(d=>({id:d.id,statut:d.statut,par:d.byName||'',chantier:d.imputation&&d.imputation.type==='chantier'?d.imputation.label:d.imputation&&d.imputation.type==='vehicule'?'🚐 '+d.imputation.label:'',n:(d.lignes||[]).length,urgent:!!d.urgent,lignes:(d.lignes||[]).slice(0,10).map(l=>({n:l.label||l.ref,q:l.qte}))}));
+  return {n,bas,rup,familles:Object.values(F).sort((a,b)=>b.n-a.n),listes,demandes};}catch(e){return null;}}
 export default {id:'mag',feat:'magasin',kinds:KINDS,
   moiSubs:(me,ctx)=>{if(!canAsk(me))return [];const n=dems().filter(d=>d.byKey===me.id&&d.statut==='prete').length;return [['mag','Mes demandes',n,false]];}, /* 31/10 (Ethan) : une seule tuile « Mes demandes » côté Compagnon (avec le Magasin, la demande va au dépôt) */
   view:(sub,me,ctx)=>sub==='mag'?vDem(me,ctx):null,

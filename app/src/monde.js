@@ -11,6 +11,7 @@
 // · Rien n'est retiré : chaque scène est une vue de plus ; la vue classique reste à un clic ; les objets ouvrent EXACTEMENT ce qu'ouvrent les boutons classiques
 //   (mêmes data-act : notif, tabgo, accnew, af…).
 import {magStock} from './magasin.js';
+import {glAvailable,glSlot,glDispose,networkOf} from './monde_gl.js'; // 08/11 : vraie 3D (three.js) ; les scènes SVG ci-dessous restent le secours sans WebGL
 const KEY='trace:monde';
 let CFG=null,API=null,LOADED=false;
 export const SECT0={ouest:'Ouest',idf:'Île-de-France',sudouest:'Sud-Ouest',sudest:'Sud-Est'};
@@ -22,7 +23,7 @@ function norm(v){const o=v&&typeof v==='object'&&!Array.isArray(v)?v:{};const de
   return {v:1,on:!!o.on,testeurs:Array.isArray(o.testeurs)?[...new Set(o.testeurs.filter(x=>typeof x==='string'&&x).map(x=>x.toLowerCase()))].slice(0,500):[],depots,magasin:typeof o.magasin==='string'?o.magasin:'',at:o.at||null,by:o.by||''};}
 function loadLocal(){try{return norm(JSON.parse(localStorage.getItem(KEY)||'null'));}catch(e){return norm(null);}}
 export const mondeCfg=()=>CFG||(CFG=loadLocal());
-export function initMonde(api){API=api||API;CFG=loadLocal();bindOnce();}
+export function initMonde(api){API=api||API;CFG=loadLocal();} /* écouteurs (glisser / zoomer) branchés seulement quand une scène 3D s'affiche : bindOnce() dans viewport() */
 export async function loadMonde(){const A=API;if(!A||!A.sync||!A.sync.getSetting||!A.state||!A.state.cloudUser)return false;
   try{const v=await A.sync.getSetting('monde');if(v&&typeof v==='object'){const before=JSON.stringify(mondeCfg());CFG=norm(v);try{localStorage.setItem(KEY,JSON.stringify(CFG));}catch(e){}return JSON.stringify(CFG)!==before;}}catch(e){console.warn(e);}return false;}
 export async function saveMonde(patch){const A=API;const next=norm(Object.assign({},mondeCfg(),patch,{at:new Date().toISOString(),by:(A&&A.userName&&A.userName())||''}));let where='appareil';
@@ -34,7 +35,7 @@ export function mondeFor(p){const c=mondeCfg();if(!c.on||!p||!wide())return fals
 /* PC en « ⤢ Affichage large (ordinateur) » seulement : en colonne (téléphone ou PC en affichage normal), rien ne change */
 export const wide=()=>{if(typeof window==='undefined'||(window.innerWidth||0)<900)return false;const app=document.getElementById('app');return !!app&&app.classList.contains('wide');};
 let CTX0=null;
-function ensureLoaded(ctx){if(ctx)CTX0=ctx;if(!API&&ctx&&ctx.api)initMonde(ctx.api);bindOnce();try{if(window.TRACE&&!window.TRACE.monde)window.TRACE.monde={cfg:()=>mondeCfg(),ctx:()=>CTX0,cam:()=>CAM,world:()=>W}; /* tests */}catch(e){}if(LOADED)return;LOADED=true;loadMonde().then(ch=>{if(ch&&ctx&&ctx.render)ctx.render();}).catch(()=>{});}
+function ensureLoaded(ctx){if(ctx)CTX0=ctx;if(!API&&ctx&&ctx.api)initMonde(ctx.api);try{if(window.TRACE&&!window.TRACE.monde)window.TRACE.monde={cfg:()=>mondeCfg(),ctx:()=>CTX0,cam:()=>CAM,world:()=>W}; /* tests */}catch(e){}if(LOADED||!(API&&API.state&&API.state.cloudUser))return;LOADED=true; /* une lecture par session, une fois connecté */loadMonde().then(ch=>{if(ch&&ctx&&ctx.render)ctx.render();}).catch(()=>{LOADED=false;});}
 /* vue classique / 3D par module (préférence de l'appareil) */
 const VK='trace:monde:vue';
 const vueOf=k=>{try{return (JSON.parse(localStorage.getItem(VK)||'{}')||{})[k]||'3d';}catch(e){return '3d';}};
@@ -67,7 +68,7 @@ const CAM={};
 const camOf=(id,def)=>{if(!CAM[id])CAM[id]=Object.assign({s:1,tx:0,ty:0,min:0.55,max:7},def||{});return CAM[id];};
 const camAttr=id=>{const c=CAM[id]||{s:1,tx:0,ty:0};return `translate(${f1(c.tx)} ${f1(c.ty)}) scale(${Math.round(c.s*1000)/1000})`;};
 /** viewport glissable : id (une caméra par scène), W × H (viewBox), contenu, hauteur en px, caméra de départ */
-function viewport(id,W,H,inner,o){o=o||{};const c=camOf(id,o.home);if(!c.home)c.home={s:c.s,tx:c.tx,ty:c.ty};
+function viewport(id,W,H,inner,o){bindOnce();o=o||{};const c=camOf(id,o.home);if(!c.home)c.home={s:c.s,tx:c.tx,ty:c.ty};
   return `<div class="m3d-vp" data-m3d="${esc(id)}" data-w="${W}" data-h="${H}" style="height:${o.h||560}px"><svg class="m3d-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="group" aria-label="${esc(o.aria||'Vue 3D')}"><rect width="${W}" height="${H}" fill="${o.bg||'#EEF2F7'}"/><g class="m3d-cam" transform="${camAttr(id)}">${inner}</g></svg>
     <div class="m3d-zoom" aria-label="Zoom"><button type="button" data-m3dz="+" aria-label="Zoomer">+</button><button type="button" data-m3dz="-" aria-label="Dézoomer">−</button><button type="button" data-m3dz="0" aria-label="Recentrer">⟲</button></div>
     <div class="m3d-tip">Glisse pour te déplacer · molette ou pincer pour zoomer</div></div>`;}
@@ -404,12 +405,12 @@ function bindPick(){if(bindPick.done||typeof document==='undefined')return;bindP
   document.addEventListener('click',e=>{const sv=e.target&&e.target.closest&&e.target.closest('svg[data-m3dpick]');if(!sv||!PICK)return;e.preventDefault();e.stopPropagation();const m=sv.getScreenCTM();if(!m)return;
     const pt=sv.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;const q=pt.matrixTransform(m.inverse());const [lon,lat]=FINV(q.x,q.y);const c=mondeCfg();const k=PICK;PICK='';
     saveMonde({depots:Object.assign({},c.depots,{[k]:Object.assign({},c.depots[k]||{},{lat:Math.round(lat*1e4)/1e4,lon:Math.round(lon*1e4)/1e4})})}).then(r=>{if(LASTCTX){if(r&&r.error)LASTCTX.toast(r.error);LASTCTX.render();}});},true);}
-function cfgView(me,ctx){LASTCTX=ctx;bindPick();if(!me.admin)return '<div class="card"><div class="eq-s">Réservé à l\'administrateur.</div></div>';const c=mondeCfg();const S=Object.assign({},SECT0,ctx.SECTEURS||{});
+function cfgView(me,ctx){LASTCTX=ctx;ensureLoaded(ctx);bindPick();if(!me.admin)return '<div class="card"><div class="eq-s">Réservé à l\'administrateur.</div></div>';const c=mondeCfg();const S=Object.assign({},SECT0,ctx.SECTEURS||{});
   const gens=ctx.people.filter(p=>p.active!==false&&p.poste!=='visiteur').sort((a,b)=>(b.id===me.id)-(a.id===me.id)||ctx.nomC(a).localeCompare(ctx.nomC(b)));const T=new Set(c.testeurs);const isT=p=>idsOf(p).some(x=>T.has(x));
   const marks=Object.keys(S).map(k=>{const d=c.depots[k];if(!d||d.lat==null||d.lon==null)return '';const g=FXY(d.lon,d.lat);return `<circle cx="${f1(g[0])}" cy="${f1(g[1])}" r="9" fill="${C.violet}" stroke="#fff" stroke-width="2"/><text x="${f1(g[0]+13)}" y="${f1(g[1]+5)}" font-size="15" font-weight="700" fill="${C.nuit}">${esc(d.nom||S[k])}</text>`;}).join('');
   const inp=(k,f,lab,t)=>`<div><label class="f">${lab}</label><input class="f" type="${t||'text'}"${t==='number'?' step="any" inputmode="decimal"':''} value="${esc(c.depots[k]&&c.depots[k][f]!=null?c.depots[k][f]:'')}" data-xin="monde|dep|${k}|${f}"></div>`;
   return `<h2 class="vt">🌍 Monde 3D <span class="hint">· Labo · réglages</span></h2>
-  <div class="card"><div class="m3d-btns" style="align-items:center"><button class="btn${c.on?' primary':''}" type="button" data-act="x" data-v="monde|on|${c.on?0:1}" style="min-height:48px">${c.on?'🟢 Allumé — éteindre':'⚪ Éteint — allumer'}</button><span class="hint">Éteint : personne ne voit rien de nouveau. Allumé : seulement les testeurs, sur PC (fenêtre ≥ 900 px). Au téléphone, rien ne change.</span></div></div>
+  <div class="card"><div class="m3d-btns" style="align-items:center"><button class="btn${c.on?' primary':''}" type="button" data-act="x" data-v="monde|on|${c.on?0:1}" style="min-height:48px">${c.on?'🟢 Allumé — éteindre':'⚪ Éteint — allumer'}</button><span class="hint">Éteint : personne ne voit rien de nouveau. Allumé : seulement les testeurs, sur PC (fenêtre ≥ 900 px). Au téléphone, rien ne change.</span></div>${statutHTML(me)}</div>
   <div class="card"><h3 style="margin-top:0">Testeurs · ${gens.filter(isT).length}</h3><div class="m3d-objs">${gens.map(p=>`<button type="button" class="${isT(p)?'on':''}" data-act="x" data-v="monde|tst|${esc(p.id)}" aria-pressed="${isT(p)}">${esc(ctx.nomC(p))}${p.id===me.id?' (moi)':''}</button>`).join('')}</div></div>
   <div class="card"><h3 style="margin-top:0">Dépôts</h3><div class="hint" style="margin:0 0 8px">Un dépôt par secteur. Les personnes y sont rattachées par le secteur de leur fiche ; sa taille suit le nombre de personnes. Pour le placer : « 📍 Placer », puis clique sur la carte (ou tape latitude / longitude).</div>
     ${Object.keys(S).map(k=>`<div class="m3d-box" style="margin-bottom:8px"><h4>Secteur ${esc(S[k])}</h4><div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">${inp(k,'nom','Nom')}${inp(k,'ville','Ville')}${inp(k,'lat','Latitude','number')}${inp(k,'lon','Longitude','number')}</div>
@@ -417,7 +418,7 @@ function cfgView(me,ctx){LASTCTX=ctx;bindPick();if(!me.admin)return '<div class=
     <svg viewBox="100 80 800 520" data-m3dpick="1" style="width:100%;max-width:560px;display:block;margin:8px auto 0;cursor:${PICK?'crosshair':'default'};background:#E4EDF6;border-radius:12px" role="img" aria-label="Carte de France des dépôts">${pg(FR.map(([a,b])=>FXY(a,b)),'#F3F1EA','#CFC9E0',1.5)}${pg(CORSE.map(([a,b])=>FXY(a,b)),'#F3F1EA','#CFC9E0',1.5)}${marks}</svg></div>`;}
 /* ═══ ACTIONS (data-act="x" data-v="monde|…") et CHAMPS (data-xin="monde|…") ═══ */
 function act(v,el,me,ctx){const q=String(v).split('|');const k=q[0],a=q[1]||'',b=q[2]||'';const R=()=>ctx.render();
-  if(k==='vue'){setVue(a,b==='3d'?'3d':'classique');R();return;}
+  if(k==='vue'){setVue(a,b==='3d'?'3d':'classique');if(b!=='3d')glDispose();R();return;}
   if(k==='perso'){PERSO=a==='1';R();return;}
   if(k==='pd'||k==='pm'||k==='po'){if(ctx.viewing()){ctx.toast('Lecture seule : tu vois l\'appli comme quelqu\'un d\'autre');return;}const data=ctx.peopleData(me.id)||{};const pf=prefsOf(data);
     if(k==='pd'&&DESK[a])pf.d=a;else if(k==='pm'&&MUR[a])pf.m=a;else if(k==='po'&&OBJ.some(x=>x[0]===a))pf.o=pf.o.includes(a)?pf.o.filter(x=>x!==a):pf.o.concat([a]);else return;
@@ -432,23 +433,47 @@ function act(v,el,me,ctx){const q=String(v).split('|');const k=q[0],a=q[1]||'',b
   if(k==='att'){if(ctx.viewing()){ctx.toast('Lecture seule : tu vois l\'appli comme quelqu\'un d\'autre');return;}const A0=(ctx.affaires()||[]).find(x=>affNum(x)===a);if(!A0)return;const at=A0.attente||{};
     if(!b)ctx.affSet(a,{attente:null});else{const d=new Date();d.setDate(d.getDate()+7);ctx.affSet(a,{attente:{de:b,rel:at.rel||d.toISOString().slice(0,10),note:at.note||'',at:new Date().toISOString(),by:ctx.nomC(me)}});}
     COM.sel=a;R();return;}
+  if(k==='wide'){try{const b=document.getElementById('homeWide');if(b)b.click();else{try{localStorage.setItem('trace:wide','1');}catch(e){}const a=document.getElementById('app');if(a)a.classList.add('wide');}}catch(e){}setTimeout(R,60);return;}
   if(k==='cfg'){ctx.go('x:monde:cfg');return;}
   if(!me.admin)return;
-  if(k==='on'){saveMonde({on:a==='1'}).then(r=>{ctx.toast(r.error?r.error:a==='1'?'🌍 Monde 3D allumé pour les testeurs (PC)':'Monde 3D éteint');R();});return;}
+  if(k==='on'){saveMonde({on:a==='1'}).then(r=>{ctx.toast(r.error?r.error:(a==='1'?'🌍 Monde 3D allumé pour les testeurs (PC)':'Monde 3D éteint')+(r.where==='serveur'?' — enregistré pour tout le monde':' — sur cet appareil seulement'));R();});return;}
   if(k==='tst'){const c=mondeCfg();const p=ctx.people.find(x=>x.id===a);if(!p)return;const ids=idsOf(p);const T=new Set(c.testeurs);const on=ids.some(x=>T.has(x));ids.forEach(x=>{if(on)T.delete(x);else T.add(x);});saveMonde({testeurs:[...T]}).then(r=>{if(r.error)ctx.toast(r.error);R();});return;}
   if(k==='mag'){saveMonde({magasin:mondeCfg().magasin===a?'':a}).then(r=>{if(r.error)ctx.toast(r.error);R();});return;}
   if(k==='pick'){PICK=PICK===a?'':a;R();return;}}
 function input(champ,el,me,ctx,type){if(type!=='change')return;const q=String(champ).split('|');const k=q[0],a=q[1]||'',b=q[2]||'';
   if(k==='rel'||k==='note'){if(ctx.viewing())return;const A0=(ctx.affaires()||[]).find(x=>affNum(x)===a);if(!A0||!A0.attente)return;const at=Object.assign({},A0.attente);if(k==='rel')at.rel=String(el.value||'').slice(0,10);else at.note=String(el.value||'').slice(0,140);ctx.affSet(a,{attente:at});ctx.render();return;}
   if(k==='dep'&&me.admin&&['nom','ville','lat','lon'].includes(b)){const c=mondeCfg();const dep=Object.assign({},c.depots[a]||{});dep[b]=String(el.value||'').trim();saveMonde({depots:Object.assign({},c.depots,{[a]:dep})}).then(r=>{if(r.error)ctx.toast(r.error);ctx.render();});}}
+/* ═══ DIAGNOSTIC (07/11 : « je ne vois aucune différence alors que j'ai bien allumé ») — option allumée, administrateur ou testeur : dire ce qui manque ═══ */
+const isTesteur=p=>{const T=new Set(mondeCfg().testeurs);return idsOf(p).some(x=>T.has(x));};
+const appWide=()=>{try{const a=document.getElementById('app');return !!a&&a.classList.contains('wide');}catch(e){return false;}};
+function manques(me){const c=mondeCfg();const L=[];if(!c.on)L.push(['on','l\'option est éteinte']);if(!isTesteur(me))L.push(['tst','tu n\'es pas dans les testeurs']);
+  if(typeof window!=='undefined'&&(window.innerWidth||0)<900)L.push(['fen','la fenêtre fait moins de 900 px de large']);if(!appWide())L.push(['wide','l\'affichage large (ordinateur) n\'est pas activé']);return L;}
+function diagHTML(me){const c=mondeCfg();if(!c.on||!(me.admin||isTesteur(me)))return '';css();const L=manques(me);if(!L.length)return '';
+  const b=[];if(L.some(x=>x[0]==='wide'))b.push(`<button type="button" class="btn primary" data-act="x" data-v="monde|wide">⤢ Passer en affichage large</button>`);if(L.some(x=>x[0]==='tst')&&me.admin)b.push(`<button type="button" class="btn${b.length?'':' primary'}" data-act="x" data-v="monde|tst|${esc(me.id)}">Me mettre testeur</button>`);if(me.admin)b.push(`<button type="button" class="btn" data-act="x" data-v="monde|cfg">⚙ Réglages</button>`);
+  return `<div class="card m3d-diag" style="border:1px solid #C9BEF0;background:#F5F2FD;margin:0 0 12px"><b>🌍 Monde 3D allumé, mais pas encore visible ici :</b> ${L.map(x=>esc(x[1])).join(' · ')}.${L.some(x=>x[0]==='fen')?' Agrandis la fenêtre.':''}<div class="m3d-btns" style="margin-top:8px">${b.join('')}</div></div>`;}
+function statutHTML(me){const L=manques(me).filter(x=>x[0]!=='on');const w=typeof window!=='undefined'?window.innerWidth||0:0;const ok=k=>!L.some(x=>x[0]===k);const c=mondeCfg();
+  return `<div class="hint" style="margin-top:8px">Toi : ${ok('tst')?'✓':'✗'} testeur · ${ok('wide')?'✓':'✗'} affichage large · ${ok('fen')?'✓':'✗'} fenêtre ${w} px${c.at?' · réglage enregistré le '+esc(new Date(c.at).toLocaleString('fr-FR'))+(c.by?' par '+esc(c.by):''):''}${API&&API.state&&API.state.cloudUser?'':' · <b>hors connexion : enregistré sur cet appareil seulement</b>'}</div>`;}
 /* ═══ BRANCHEMENTS (espace.js) ═══ */
-function hubTop(tab,me,ctx){if(!mondeFor(me))return '';ensureLoaded(ctx);const k=tab==='entreprise'?'eq':tab==='pilotage'?'pil':tab==='commerce'?'com':'';if(!k)return '';if(vueOf(k)==='classique')return switch3D(k);
+function hubTop(tab,me,ctx){ensureLoaded(ctx);if(!mondeFor(me))return '';const k=tab==='entreprise'?'eq':tab==='pilotage'?'pil':tab==='commerce'?'com':tab==='parc'?'fl':tab==='magasin'?'mag':'';if(!k)return '';if(vueOf(k)==='classique')return switch3D(k);
+  if(glAvailable()){const kind={eq:'monde',pil:'pilotage',com:'commerce',fl:'flotte',mag:'magasin'}[k];return glBar(k)+glSlot(kind,me,ctx,{cfg:mondeCfg()});}
+  if(k==='fl'||k==='mag')return '';
   try{return k==='eq'?mondeCard(me,ctx):k==='pil'?pilCard(me,ctx):comCard(me,ctx);}catch(e){console.warn('monde',e);return '';}}
-function accueil(me,ctx,o){if(!mondeFor(me))return null;ensureLoaded(ctx);if(vueOf('acc')==='classique')return {top:switch3D('acc')};
+const glBar=k=>`<div class="m3d-btns" style="justify-content:flex-end;margin:0 0 8px"><button type="button" class="m3d-switch" data-act="x" data-v="monde|vue|${k}|classique" title="Revenir à l'affichage habituel">☰ Vue classique</button></div>`;
+/** le Bureau du chantier (next.js) : le vrai réseau en 3D ; sans WebGL ou sans contexte, le réseau « raccordé » en SVG */
+export function chantier3D(B,NET,A){if(!glAvailable()||!CTX0)return raccordeHTML(B,NET&&NET.name);const me=A.current&&A.current();if(!me)return raccordeHTML(B,NET&&NET.name);const p=CTX0.people.find(x=>idsOf({id:x.id,acc:x.acc,email:x.email,_acc:x._acc}).some(y=>idsOf(me).includes(y)))||CTX0.people[0];if(!p)return raccordeHTML(B,NET&&NET.name);
+  const D=((B&&B.dash)||[]).filter(d=>d&&d.key!=='meteo').map(d=>({key:d.key,lab:d.short||d.lab,k:d.k||'off',v:d.v||'',tab:racTab(d)}));const team=(B.eq||[]);
+  const extra={cfg:mondeCfg(),network:networkOf(A.state&&A.state.lines),checklist:D,chantier:{id:NET.id,nom:NET.name,pct:B.pc,total:null,team:CTX0.people.filter(x=>team.some(n=>String(n).trim().toLowerCase()===String(x.prenom||'').trim().toLowerCase()||String(n).trim().toLowerCase()===CTX0.nomC(x).trim().toLowerCase())).map(x=>({id:x.id,prenom:x.prenom,posteLabel:CTX0.posteLabel(x),svg:CTX0.avSVG(x,240)})),chaufferie:'CHAUFFERIE'},
+    onBur:t=>{if(t==='__orga'){if(A.goExpl)A.goExpl('orga');return;}if(t==='__valid'){if(A.goExpl)A.goExpl('valid');return;}if(A.tabAllowed&&!A.tabAllowed(t)){A.toast('Onglet non accessible avec tes droits');return;}A.state.tab=t;A.renderAll();},onWeld:id=>{A.toast('Soudure '+id+' : ouvre-la depuis le plan ou la liste');},onClassic:()=>{setVue('ch','classique');A.renderAll();}};
+  if(vueOf('ch')==='classique')return switch3D('ch');return glSlot('chantier',p,CTX0,extra);}
+function accueil(me,ctx,o){ensureLoaded(ctx);if(!mondeFor(me)){const h=diagHTML(me);return h?{top:h}:null;}if(vueOf('acc')==='classique')return {top:switch3D('acc')};
+  if(glAvailable()){const side=o.side||{};return {html:`<div class="m3d-acc3d">${o.side&&o.side.hello||''}${glBar('acc')}${glSlot('bureau',me,ctx,{cfg:mondeCfg(),todo:o.todo,know:o.know,spaces:o.spaces,sideHTML:()=>(typeof side.pointer==='function'?side.pointer():side.pointer||'')+(side.todoHTML||'')+(side.knowHTML||'')})}</div>`};}
   try{const data=ctx.peopleData(me.id)||{};const d=new Date((ctx.today()||'')+'T12:00:00');const M=['JANV.','FÉVR.','MARS','AVRIL','MAI','JUIN','JUIL.','AOÛT','SEPT.','OCT.','NOV.','DÉC.'];
     const jour=isNaN(d.getTime())?null:{n:String(d.getDate()),mois:M[d.getMonth()],sem:'semaine '+(o.sem||'')};
     return {html:accueilCard({me,pref:prefsOf(data),av:ctx.avSVG(me,150),todo:o.todo,know:o.know,spaces:o.spaces,jour,poste:ctx.posteLabel(me),side:o.side})};}catch(e){console.warn('monde',e);return null;}}
-function hubRows(tab,me,ctx){if(tab!=='entreprise'||!me.admin||!ctx.row)return [];const c=mondeCfg();const T=new Set(c.testeurs);const n=ctx.people.filter(p=>idsOf(p).some(x=>T.has(x))).length;
+function hubRows(tab,me,ctx){if(tab!=='entreprise'||!me.admin||!ctx.row)return [];ensureLoaded(ctx);const c=mondeCfg();const T=new Set(c.testeurs);const n=ctx.people.filter(p=>idsOf(p).some(x=>T.has(x))).length;
   return [ctx.row('🌍 Monde 3D · Labo',(c.on?'Allumé · '+n+' testeur'+(n>1?'s':''):'Éteint')+' · dépôts, testeurs, magasin','🌍','#E6E1F6','x:monde:cfg',null)];}
 function xview(k,me,ctx){return k==='cfg'?cfgView(me,ctx):null;}
-export default {id:'monde',hub:'entreprise',hubTop,accueil,hubRows,xview,act,input};
+function moiSubs(me,ctx){ensureLoaded(ctx);if(!mondeFor(me)||!glAvailable())return [];return [['bureau3d','🪑 Mon bureau 3D',0,false]];}
+function view(sub,me,ctx){if(sub!=='bureau3d'||!mondeFor(me)||!glAvailable())return null;return `<h2 class="vt">Mon bureau 3D <span class="hint">· couleurs, matières, objets, raccourcis</span></h2><div class="hint" style="margin:0 0 8px">Ce que tu arranges ici est ton accueil, et ce que tes collègues voient de toi dans le dépôt.</div>`+glSlot('bureau',me,ctx,{cfg:mondeCfg(),perso:true,todo:[],know:[],spaces:(ctx.spaces||[])});}
+export function setChantierVue(v){setVue('ch',v==='3d'?'3d':'classique');if(v!=='3d')glDispose();}
+export default {id:'monde',hub:'entreprise',hubTop,accueil,hubRows,xview,act,input,moiSubs,view};

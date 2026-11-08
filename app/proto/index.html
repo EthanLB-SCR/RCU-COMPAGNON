@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tracé · Monde 3D — prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700;800&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<style>
+body{margin:0;background:#F5F4FA;color:#1B1530;font-family:Barlow,'Segoe UI',system-ui,sans-serif}
+.pt-top{display:flex;align-items:center;gap:12px;padding:10px 18px;background:#fff;border-bottom:3px solid #2B1B5A;flex-wrap:wrap}
+.pt-logo{width:40px;height:40px;border-radius:10px;background:#2B1B5A;display:flex;align-items:center;justify-content:center}
+.pt-title{font-family:'Barlow Semi Condensed',system-ui,sans-serif;font-size:21px;font-weight:700}.pt-title span{font-weight:500;color:#5E46B8}
+.pt-nav{display:flex;gap:6px;flex-wrap:wrap;margin-left:12px}
+.pt-nav button{border:1px solid #CFC9E0;background:#fff;border-radius:999px;padding:8px 13px;min-height:40px;font:inherit;font-size:14px;font-weight:700;color:#2B1B5A;cursor:pointer}
+.pt-nav button.on{background:#2B1B5A;color:#fff;border-color:#2B1B5A}
+.pt-me{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13.5px;color:#57526B}
+.pt-me select{min-height:40px;border:1px solid #CFC9E0;border-radius:10px;padding:0 10px;font:inherit;font-size:14px;color:#1B1530;background:#fff}
+.pt-badge{padding:5px 10px;border-radius:999px;background:#ECEAF2;color:#4A4560;font-size:12.5px;font-weight:700}
+.pt-main{padding:14px 18px 24px}
+.pt-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#1B1530;color:#fff;padding:10px 16px;border-radius:12px;font-weight:600;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:80vw}
+.pt-toast.on{opacity:1}
+.m3d-stage{height:calc(100vh - 110px)!important;min-height:520px}.m3d-side{max-height:calc(100vh - 110px)!important}
+</style>
+</head>
+<body>
+<header class="pt-top">
+  <div class="pt-logo"><svg viewBox="0 0 100 100" width="28" height="28"><g transform="translate(14 14) scale(0.72)"><circle cx="50" cy="50" r="48" fill="#fff"/><circle cx="50" cy="50" r="40" fill="#2B1B5A"/><circle cx="50" cy="50" r="24" fill="#fff"/><circle cx="50" cy="50" r="17" fill="#2B1B5A"/><circle cx="22.3" cy="34" r="4" fill="#fff"/><circle cx="77.7" cy="34" r="4" fill="#fff"/></g></svg></div>
+  <div class="pt-title">Tracé <span id="pt-mod">Accueil</span></div>
+  <nav class="pt-nav" id="pt-nav"></nav>
+  <div class="pt-me"><span class="pt-badge">Prototype · données fictives</span><label>Je suis <select id="pt-me"></select></label></div>
+</header>
+<main class="pt-main"><div id="m3d"></div></main>
+<div class="pt-toast" id="pt-toast"></div>
+<script type="module" src="./proto.js"></script>
+</body>
+</html>
