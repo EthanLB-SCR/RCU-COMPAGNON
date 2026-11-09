@@ -1159,6 +1159,7 @@ function avSide(me){ // Poste · Visage · Tenue · Récompenses
   const m=avMe(me),g=m.groupes;
   let tenue='';
   if(m.verrou)tenue+=`<div class="eq-box"><b>Tenue de chantier et casque imposés, adaptés à la météo du jour</b><span class="eq-s">${esc(m.epi)}</span></div>`;
+  if(!m.tenueVisible&&g.accessoires&&g.accessoires.length)tenue+=avGrp('En main',avTh(g.accessoires,'hanches','xl')); /* 09/11 (Ethan) : en tenue de travail aussi, on choisit ce qu'on tient — l'outil du métier par défaut */
   if(m.tenueVisible)tenue+=avGrp('Haut',avTh(g.hauts,'buste','l'))+avGrp('Teinte du haut',avSw(g.hautTeintes))+avGrp('Bas',avTh(g.bas,'jambes','l'))+avGrp('Teinte du bas',avSw(g.basTeintes))
     +avGrp('Chaussures',avTh(g.chaussures,'pieds','l'))+avGrp('Teinte des chaussures',avSw(g.chaussuresTeintes))+avGrp('Accessoire',avTh(g.accessoires,'hanches','xl'));
   tenue+=avGrp('Casque',avTh(g.casques,'casque','l'))+avGrp('Sur la tête',avTh(g.coiffes,'tete','l'));

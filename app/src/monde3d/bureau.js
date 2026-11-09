@@ -38,7 +38,7 @@ export const CATALOG = [
 /* la pièce : 4,4 × 3,8 m ; vu de ma chaise (regard vers +z) : x positif = à ma GAUCHE */
 const W = 4.4, D = 3.8, H = 2.7, T = 0.14, W2 = W / 2, D2 = D / 2; export const ROOM = { W, D, H, T };
 const TOP = 0.74;
-const LAY = { face: { desk: { x: 0.3, z: -0.8, w: 2.1, d: 0.85, retour: { w: 0.75, d: 0.66, side: 1, dir: -1 } }, seat: [0.3, -1.5], board: { x: -1.1, y: 1.6, w: 1.5, h: 0.9 }, mon: { c: [0.2, -0.68], ry: Math.PI } } }; /* écrans un peu à droite du centre du plateau, dans l'axe de la chaise ; board = le tableau blanc « À savoir » (centre) */
+const LAY = { face: { desk: { x: 0.3, z: -0.8, w: 2.1, d: 0.85, retour: { w: 0.75, d: 0.66, side: 1, dir: -1 } }, seat: [0.3, -1.5], board: { z: -0.15, y: 1.6, w: 1.4, h: 0.86 }, mon: { c: [0.2, -0.68], ry: Math.PI } } }; /* écrans un peu à droite du centre du plateau, dans l'axe de la chaise ; board = le tableau blanc « À savoir » (centre) */
 /** le retour du bureau (à ma gauche) : son rectangle au sol → là où se posent les post-its */
 const RET = (() => { const D0 = LAY.face.desk, r = D0.retour; const x1 = D0.x + D0.w / 2, x0 = x1 - r.w; const zc = D0.z + (r.dir || 1) * (D0.d / 2 + r.d / 2); return { x0, x1, xc: (x0 + x1) / 2, z0: zc - r.d / 2, z1: zc + r.d / 2, zc }; })();
 /** positions des post-its sur le retour : lus en se tournant vers la gauche (le « haut » du papier vers +x) ; jusqu'à 20 en grand, au-delà plus petits et plus serrés */
@@ -88,7 +88,7 @@ export const VUES = {
   /* un écran à la fois : œil dans l'axe de l'écran (gauche = x+, droite = x−), face à sa dalle, l'écran remplit la vue */
   ecran1: { eye: [LAY.face.mon.c[0] + 0.32 + 0.11, 1.12, LAY.face.mon.c[1] + 0.05 - 0.6], at: [LAY.face.mon.c[0] + 0.32, 1.07, LAY.face.mon.c[1] + 0.05], fov: 46, fit: [0.7, 0.46] },
   ecran2: { eye: [LAY.face.mon.c[0] - 0.32 - 0.11, 1.12, LAY.face.mon.c[1] + 0.05 - 0.6], at: [LAY.face.mon.c[0] - 0.32, 1.07, LAY.face.mon.c[1] + 0.05], fov: 46, fit: [0.7, 0.46] },
-  savoir: { eye: [LAY.face.board.x, 1.72, D2 - 1.55], at: [LAY.face.board.x, LAY.face.board.y, D2], fov: 48 }, /* le tableau blanc « À savoir », bien en face */
+  savoir: { eye: [W2 - 1.6, 1.68, LAY.face.board.z], at: [W2, LAY.face.board.y, LAY.face.board.z], fov: 48, fit: [1.62, 1.04] }, /* le tableau blanc « À savoir » — 09/11 : sur le mur à ma gauche (Ethan), on tourne la tête vers lui */
   notes: { eye: [RET.xc - 0.38, 1.72, RET.zc + 0.06], at: [RET.xc + 0.04, TOP, RET.zc - 0.02], fov: 50 }, /* mes post-its sur le retour : je tourne la tête à gauche et je baisse les yeux */
   visite: { eye: [LAY.face.desk.x - 1.0, 1.62, LAY.face.desk.z + 1.7], at: [LAY.face.seat[0] - 0.1, 1.1, LAY.face.seat[1] - 0.1], fov: 58 } /* depuis la droite du bureau (côté sans retour), un peu en hauteur : on voit la personne au-dessus de ses écrans */
 };
@@ -159,8 +159,8 @@ export function buildPod(P) {
   else { const lw = DOOR_DEPOT.x1 - DOOR_DEPOT.x0 - 0.04; const leaf = grp(DOOR_DEPOT.x0 + 0.02, 0, D2 - 0.02, 1.75); leaf.add(box(lw, cut - 0.005, 0.045, 0xE9DCC4, { x: lw / 2 }), box(lw, 0.012, 0.045, SECTION, { x: lw / 2, y: cut - 0.012, shadow: false })); g.add(leaf); g.add(box(DOOR_DEPOT.x1 - DOOR_DEPOT.x0, 0.012, T, 0xB9B3CC, { x: (DOOR_DEPOT.x0 + DOOR_DEPOT.x1) / 2, z: D2 + T / 2, shadow: false })); }
   // mur d'en face, à ma droite : le tableau blanc « À savoir » (chaque info écrite au feutre) ; en visite : un tableau vierge (le meuble bas est devenu un objet libre « Meuble bas »)
   if (full) {
-    const E3 = mode === 'home' && P.poste ? ecran('veleda', P.poste) : null; const wb = whiteboard(BD.w, BD.h, E3 ? E3.tex : null); wb.position.set(BD.x, BD.y, D2 - 0.03); wb.rotation.y = Math.PI; const face = wb.userData.face;
-    (g.userData.fixed = g.userData.fixed || []).push({ surf: 'wall:front', ob: wb }); if (E3 && face) { face.userData.zones = E3.zones; face.userData.zoneAt = uv => zoneAt(E3.zones, E3.size, uv); face.userData.onZone = i => E3.redraw(i); face.userData.ecran = E3; pickable(face, { type: 'focus', k: 'savoir' }, 'À savoir — se rapprocher'); } onFront.add(wb);
+    const E3 = mode === 'home' && P.poste ? ecran('veleda', P.poste) : null; const wb = whiteboard(BD.w, BD.h, E3 ? E3.tex : null); wb.position.set(W2 - 0.03, BD.y, BD.z); wb.rotation.y = -Math.PI / 2; const face = wb.userData.face; /* 09/11 : mur à ma gauche (x+), face à la pièce */
+    (g.userData.fixed = g.userData.fixed || []).push({ surf: 'wall:right', ob: wb }); if (E3 && face) { face.userData.zones = E3.zones; face.userData.zoneAt = uv => zoneAt(E3.zones, E3.size, uv); face.userData.onZone = i => E3.redraw(i); face.userData.ecran = E3; pickable(face, { type: 'focus', k: 'savoir' }, 'À savoir — se rapprocher'); } if (mode === 'home') full4.right.add(wb); /* en visite, ce mur est coupé bas (on regarde par-dessus) : pas de tableau qui flotterait */
   }
   // tapis
   const r = rug(pf.tapis, accent, hex(CC.tapis)); r.position.set(0.1, 0.001, 0.55); g.add(r);
