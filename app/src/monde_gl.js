@@ -1,13 +1,15 @@
 // monde_gl.js — le MONDE 3D (WebGL, three.js) branché sur l'appli (nuit du 07 au 08/11/2026, Labo, option « Monde 3D » éteinte par défaut — réglages dans monde.js).
 // Ici : construire les DONNÉES du monde à partir de l'espace (personnes, planning, véhicules, stock, affaires, chantiers, réseau du chantier), poser la scène dans la page,
 // et traduire chaque clic 3D en action classique de l'appli (fiche, chantier, module, notification…). Sans WebGL : monde.js garde ses scènes SVG.
-import { mountMonde3D, normPrefs } from './monde3d/index.js';
+import { mountMonde3D, normPrefs, normNotes, setImagePrefix } from './monde3d/index.js';
+import { SUPABASE_URL } from './sync.js';
+setImagePrefix(SUPABASE_URL + '/storage/v1/object/sign/photos/bureau3d/'); /* 08/11 nuit : images du bureau (tapis de souris, cadres, affiches) = fichiers du stockage ; la fiche ne garde que l'adresse */
 import { magStock } from './magasin.js';
 import { vehAll, vehAlertes, vehType } from './flotte.js';
 let GL = null; export function glAvailable() { if (GL != null) return GL; try { const c = document.createElement('canvas'); GL = !!(window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl'))); } catch (e) { GL = false; } return GL; }
 const SECT0 = { ouest: 'Ouest', idf: 'Île-de-France', sudouest: 'Sud-Ouest', sudest: 'Sud-Est' };
 const POSTE_FAM = p => (p && p.fam) || 'terrain';
-let HOST = null, H = null, KIND = null, SIG = '', LAST = 0, PENDING = null;
+let HOST = null, H = null, KIND = null, SIG = '', LAST = 0, PENDING = null, OVERK = null; /* OVERK : « Ma journée » ouvert — reste ouvert si la pièce est reconstruite (pointage → nouvelles données) */
 /** la cellule à poser dans le HTML rendu ; la scène est montée juste après le rendu (requestAnimationFrame) */
 export function glSlot(kind, me, ctx, extra) {
   PENDING = { kind, me, ctx, extra: extra || {} }; requestAnimationFrame(mountPending); return `<div class="m3d-slot" data-m3d-kind="${kind}" style="min-height:640px"></div>`;
@@ -19,13 +21,25 @@ function mountPending() {
   let data; try { data = buildData(P.kind, P.me, P.ctx, P.extra); } catch (e) { console.warn('monde3d data', e); slot.innerHTML = '<div class="card"><div class="eq-s">Monde 3D : données indisponibles (' + String(e && e.message || e) + ')</div></div>'; return; }
   const sig = JSON.stringify([P.kind, data.me && data.me.id, data.people.length, data.vehicles.length, (data.notifs.todo || []).length, (data.notifs.know || []).length, data.affaires.length, data.chantiers.length, data.checklist.length, (data.network.lines || []).length, data.stock && data.stock.n, data.depots.map(d => d.k + d.nom + d.people.length).join(), JSON.stringify(data.me && data.me.prefs)]);
   const scene = P.kind;
-  if (H && HOST.querySelector('canvas') && KIND === scene && sig === SIG && Date.now() - LAST < 120000) return; /* même scène, mêmes données : on garde la 3D telle quelle (pas de reconstruction à chaque re-rendu) */
+  if (H && HOST.querySelector('canvas') && KIND === scene && sig === SIG && Date.now() - LAST < 120000) { try { if (H.setOpts) H.setOpts({ homeChips: P.extra.homeChips || null }); } catch (e) { } return; } /* même scène, mêmes données : on garde la 3D telle quelle (pas de reconstruction à chaque re-rendu) ; seul ce qui vient par-dessus (pointage) est rafraîchi */
   if (H) { try { H.dispose(); } catch (e) { } H = null; }
   KIND = scene; SIG = sig; LAST = Date.now();
   const ctx = P.ctx, me = P.me, extra = P.extra;
   try{if(window.TRACE)window.TRACE.monde3d=()=>H;}catch(e){} /* tests */
-  H = mountMonde3D(HOST, data, { scene, perso: !!extra.perso, sideHTML: extra.sideHTML || null, onPrefs: prefs => { try { const d = ctx.peopleData(me.id) || {}; ctx.savePart(me.id, 'avatar', Object.assign({}, d.avatar || {}, { bureau3d: prefs })); } catch (e) { console.warn(e); } }, onAction: (type, arg, x) => act(type, arg, x, me, ctx, extra) });
+  const cloud = () => !!(ctx.api && ctx.api.state && ctx.api.state.cloudUser);
+  H = mountMonde3D(HOST, data, { scene, perso: !!extra.perso, sideHTML: extra.sideHTML || null, homeChips: extra.homeChips || null, initOver: OVERK, onOver: k => { OVERK = k; },
+    onPrefs: prefs => { try { const d = ctx.peopleData(me.id) || {}; ctx.savePart(me.id, 'avatar', Object.assign({}, d.avatar || {}, { bureau3d: cloud() ? noInlineImages(prefs) : prefs })); } catch (e) { console.warn(e); } },
+    onNotes: notes => { if (ctx.viewing && ctx.viewing()) { if (ctx.toast) ctx.toast('Lecture seule : tu vois l\'appli comme quelqu\'un d\'autre'); return; } saveNotes(me.id, notes, ctx); },
+    uploadImage: dataUrl => uploadImage(dataUrl, me, ctx), onAction: (type, arg, x) => act(type, arg, x, me, ctx, extra) });
 }
+/* ── mes post-its : privés, gardés sur CE poste (localStorage), jamais dans la fiche que voient les collègues ── */
+const NKEY = id => 'trace:notes3d:' + id;
+function loadNotes(id) { try { return normNotes(JSON.parse(localStorage.getItem(NKEY(id)) || '[]')); } catch (e) { return []; } }
+function saveNotes(id, notes, ctx) { try { localStorage.setItem(NKEY(id), JSON.stringify(normNotes(notes))); } catch (e) { if (ctx && ctx.toast) ctx.toast('Notes non enregistrées sur ce poste (stockage du navigateur plein ?)'); } }
+/* ── images du bureau : déposées au stockage (bucket photos, dossier bureau3d/<personne>), la fiche garde l'adresse signée ; hors connexion (démo) : l'image reste dans la fiche locale ── */
+async function uploadImage(dataUrl, me, ctx) { const A = ctx.api; if (ctx.viewing && ctx.viewing()) return null; if (!A || !A.sync || !A.sync.uploadDoc || !(A.state && A.state.cloudUser)) return dataUrl; try { const blob = await (await fetch(dataUrl)).blob(); return await A.sync.uploadDoc('bureau3d', String(me.id).replace(/[^\w-]+/g, '_'), 'image.jpg', blob); } catch (e) { console.warn('bureau3d image', e); return null; } }
+/** connecté : jamais d'image en clair dans la fiche (elle est lue par toute l'équipe à chaque synchro) */
+function noInlineImages(p) { const r = JSON.parse(JSON.stringify(p || {})); const inl = v => typeof v === 'string' && v.startsWith('data:'); if (inl(r.tapis_souris_img)) { r.tapis_souris_img = null; if (r.tapis_souris === 'image') r.tapis_souris = 'noir'; } (r.objets || []).forEach(o => { if (inl(o.img)) delete o.img; }); return r; }
 export function glDispose() { if (H) { try { H.dispose(); } catch (e) { } H = null; KIND = null; } }
 /* ── actions 3D → actions classiques ── */
 function classic(act, v) { const root = document.getElementById('eq-app') || document.body; const b = document.createElement('button'); b.type = 'button'; b.dataset.act = act; b.dataset.v = v == null ? '' : String(v); b.style.display = 'none'; root.appendChild(b); try { b.click(); } finally { setTimeout(() => { try { b.remove(); } catch (e) { } }, 0); } }
@@ -35,7 +49,7 @@ function act(type, arg, x, me, ctx, extra) {
     case 'person': classic('fiche', arg); return;
     case 'site': if (A && A.openSite) A.openSite(arg); return;
     case 'notif': classic('notif', arg); return;
-    case 'tabgo': { const k = String(arg || ''); if (['commerce', 'parc', 'magasin', 'expl', 'entreprise', 'sites', 'espace', 'affaire', 'secu'].includes(k)) classic('tabgo', k); else if (k === 'chantier') classic('tabgo', 'sites'); else if (k === 'pilotage') classic('tabgo', 'expl'); else if (k === 'flotte') classic('tabgo', 'parc'); else if (k === 'equipe') classic('tabgo', 'entreprise'); else if (k === 'compagnon') classic('tabgo', 'espace'); else if (k === 'planning') ctx.go('plan'); else if (k === 'prod') ctx.go('prod'); else if (k === 'valid') ctx.go('valid'); else if (k === 'reception') classic('tabgo', 'parc'); else ctx.go(k); return; }
+    case 'tabgo': { const k = String(arg || ''); if (['commerce', 'parc', 'magasin', 'expl', 'entreprise', 'sites', 'espace', 'affaire', 'secu', 'admin'].includes(k)) classic('tabgo', k); else if (k === 'chantier') classic('tabgo', 'sites'); else if (k === 'pilotage') classic('tabgo', 'expl'); else if (k === 'flotte') classic('tabgo', 'parc'); else if (k === 'equipe') classic('tabgo', 'entreprise'); else if (k === 'compagnon') classic('tabgo', 'espace'); else if (k === 'planning') ctx.go('plan'); else if (k === 'prod') ctx.go('prod'); else if (k === 'valid') ctx.go('valid'); else if (k === 'reception') classic('tabgo', 'parc'); else ctx.go(k); return; }
     case 'vehicle': classic('tabgo', 'parc'); setTimeout(() => classic('fl', 'open|' + arg), 80); return;
     case 'vehicle_remise': classic('tabgo', 'parc'); setTimeout(() => classic('fl', 'open|' + arg), 80); return;
     case 'affaire': classic('tabgo', 'commerce'); setTimeout(() => classic('af', 'open|' + arg), 80); return;
@@ -73,11 +87,13 @@ export function buildData(kind, me, ctx, extra) {
   const depots = Object.keys(S).filter(k => k !== 'autres').map(k => { const d = cfg.depots[k] || {}; const pp = people.filter(p => p.secteur === k); return { k, nom: d.nom || ('Dépôt ' + S[k]), ville: d.ville || '', siege: !!d.siege, people: pp, vehicles: vehicles.filter(v => v.secteur === k), stock: cfg.magasin === k && stock ? stock : { n: 0, bas: 0, rup: 0, familles: [], demandes: [], listes: [] }, affaires: affaires.filter(a => !a.secteur || a.secteur === k), kpi: { presents: pp.filter(p => p.today.where === 'depot').length, chantiers: chantiers.filter(c => c.secteur === k).length, alertes: vehicles.filter(v => v.secteur === k && v.alerts.some(a => a.sev === 'bad')).length } }; }).filter(d => d.people.length || cfg.depots[d.k]);
   if (!depots.length) depots.push({ k: mySect || 'ouest', nom: 'Dépôt', ville: '', siege: true, people, vehicles, stock: stock || { n: 0, bas: 0, rup: 0, familles: [], demandes: [], listes: [] }, affaires, kpi: { presents: people.filter(p => p.today.where === 'depot').length, chantiers: chantiers.length, alertes: 0 } });
   const meP = people.find(p => p.id === me.id) || personOut(me, ctx, today, prefsOf); meP.prefs = meP.prefs || normPrefs(null); meP.secteur = meP.secteur || mySect;
-  const notifs = { todo: (extra.todo || []).map(([x, i]) => ({ i, t: x.t, s: x.s, sev: x.sev })), know: (extra.know || []).map(([x, i]) => ({ i, kl: x.kl || x.t, kv: x.kv || x.s, sev: x.sev })) };
-  const spaces = (extra.spaces || []).map(s => ({ k: s.k === 'sites' ? 'chantier' : s.k === 'expl' ? 'pilotage' : s.k === 'parc' ? 'flotte' : s.k === 'entreprise' ? 'equipe' : s.k === 'espace' ? 'compagnon' : s.k, t: s.t, n: s.n || 0 }));
+  const notifs = { todo: (extra.todo || []).map(([x, i]) => ({ i, t: x.t, s: x.s, sev: x.sev, ic: typeof x.ic === 'string' && !/^</.test(x.ic) ? x.ic : '', when: x.when || '' })), know: (extra.know || []).map(([x, i]) => ({ i, kl: x.kl || x.t, kv: x.kv || x.s, sev: x.sev, ic: typeof x.ic === 'string' && !/^</.test(x.ic) ? x.ic : '', wait: x.wait || '' })) };
+  /* 08/11 : clé du module d'après sa destination (go) — les clés courtes (moi, com, aff, mag, ent, adm) n'ouvraient rien */
+  const KGO = { sites: 'chantier', expl: 'pilotage', espace: 'compagnon', parc: 'flotte', entreprise: 'equipe' };
+  const spaces = (extra.spaces || []).map(s => { const g = s.go || s.k; return { k: KGO[g] || g, t: s.t, n: s.n || 0 }; });
   const mine = chantiers.filter(c => !mySect || !c.secteur || c.secteur === mySect);
   const screen = { date: today.split('-').reverse().join('/'), tiles: [{ v: mine.length, l: 'chantiers' }, { v: notifs.todo.length, l: 'à faire', col: '#FFD978' }, { v: people.filter(p => (!mySect || p.secteur === mySect) && p.today.where === 'chantier').length, l: 'sur le terrain' }], foot: notifs.todo.slice(0, 3).map(t => t.t) };
-  return { me: meP, today, secteurs: S, depots, people, vehicles, stock, affaires, chantiers: mine, notifs, spaces, screen, network: extra.network || { lines: [] }, checklist: extra.checklist || [], chantier: extra.chantier || null };
+  return { me: meP, notes: kind === 'bureau' ? loadNotes(me.id) : [], today, secteurs: S, depots, people, vehicles, stock, affaires, chantiers: mine, notifs, spaces, screen, network: extra.network || { lines: [] }, checklist: extra.checklist || [], chantier: extra.chantier || null };
 }
 /** le réseau du chantier ouvert, dans la forme attendue par la scène 3D (éléments du plan, soudures par état) */
 export function networkOf(lines) {
