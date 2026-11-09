@@ -15,11 +15,11 @@ const W = 1024, H = 600;
  * Une zone = { x0, y0, x1, y1 (pixels de l'écran), pick:{type,…}, label }.
  */
 export function ecran(kind, D) {
-  const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d'); const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+  const SC = 2; const c = document.createElement('canvas'); c.width = W * SC; c.height = H * SC; const g = c.getContext('2d'); const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 16; /* 09/11 : dessin en double définition (2048 × 1200) — net quand on zoome ; les zones restent en 1024 × 600 */
   const zones = []; const zone = (x, y, w, h, pick, label) => { zones.push({ x0: x, y0: y, x1: x + w, y1: y + h, pick, label }); return zones.length - 1; };
   const st = { scroll: 0, max: 0 }; /* défilement (liste « À faire ») : pixels d'écran */
   const draw = hv => {
-    zones.length = 0; g.clearRect(0, 0, W, H); g.textBaseline = 'alphabetic'; g.textAlign = 'left'; D = D || {}; D._st = st;
+    zones.length = 0; g.setTransform(SC, 0, 0, SC, 0, 0); g.clearRect(0, 0, W, H); g.textBaseline = 'alphabetic'; g.textAlign = 'left'; D = D || {}; D._st = st;
     if (kind === 'chantiers') drawChantiers(g, D || {}, zone, hv); else if (kind === 'afaire') drawAfaire(g, D || {}, zone, hv); else if (kind === 'asavoir') drawAsavoir(g, D || {}, zone, hv); else if (kind === 'veleda') drawVeleda(g, D || {}, zone, hv); else if (kind === 'verrou') drawVerrou(g, D || {}); else if (kind === 'modules') drawModules(g, D || {}, zone, hv); else drawTableau(g, D || {}, zone, hv);
     tex.needsUpdate = true;
   };
@@ -69,7 +69,7 @@ function drawIcon(g, k, cx, cy, size, color) { const P = iconPaths(k); g.save();
 function drawModules(g, D, zone, hv) {
   g.fillStyle = '#F5F4FA'; g.fillRect(0, 0, W, H); /* le fond de l'appli */
   g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, W, 64); g.fillStyle = '#2B1B5A'; g.fillRect(0, 62, W, 3); g.fillStyle = '#2B1B5A'; g.font = `800 28px ${FONT}`; g.fillText('Tracé', 30, 43); g.fillStyle = '#5E46B8'; g.font = `600 22px ${FONT}`; g.fillText('Espaces', 128, 43); g.textAlign = 'right'; g.fillStyle = '#57526B'; g.font = `600 20px ${FONT}`; g.fillText(D.date || '', W - 30, 43); g.textAlign = 'left';
-  const L = (D.modules || []).slice(0, 8); const cols = 4, rows = Math.max(1, Math.ceil(L.length / cols)); const gx = 22, gy = 20, tw = (W - 2 * 30 - (cols - 1) * gx) / cols, th = Math.min(220, (H - 64 - 44 - (rows - 1) * gy) / rows);
+  const L = (D.modules || []).slice(0, 12); const cols = 4, /* 09/11 : tous les espaces de la personne (jusqu'à 12, sur 3 rangées) — la grille « Espaces » sous la pièce n'existe plus */ rows = Math.max(1, Math.ceil(L.length / cols)); const gx = 22, gy = 20, tw = (W - 2 * 30 - (cols - 1) * gx) / cols, th = Math.min(220, (H - 64 - 44 - (rows - 1) * gy) / rows);
   L.forEach((m, i) => { const c = i % cols, r = Math.floor(i / cols); const x = 30 + c * (tw + gx), y = 84 + r * (th + gy); const zi = zone(x, y, tw, th, m.pick, 'Ouvrir ' + m.t); const on = zi === hv;
     g.save(); g.shadowColor = 'rgba(20,20,10,.10)'; g.shadowBlur = 24; g.shadowOffsetY = 8; rr(g, x, y, tw, th, 28); g.fillStyle = on ? '#EFEBFA' : '#FFFFFF'; g.fill(); g.restore(); if (on) { g.lineWidth = 4; g.strokeStyle = '#5E46B8'; rr(g, x, y, tw, th, 28); g.stroke(); }
     const sq = Math.round(th * 0.44); const sx = x + tw / 2 - sq / 2, sy = y + 24; rr(g, sx, sy, sq, sq, Math.round(sq * 0.25)); g.fillStyle = '#2B1B5A'; g.fill();

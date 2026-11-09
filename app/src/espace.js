@@ -1475,8 +1475,7 @@ function vAccueil(me){NOTIFS=notifsFor(me);const A2=NOTIFS.map((x,i)=>[x,i]).fil
     <p class="ac-foot">L'accueil s'adapte à ton poste et à tes droits. « À faire » = tout ce qui attend une action de toi ; « À savoir » = l'info sans geste à faire.</p>`;
   /* 07/11 nuit (Monde 3D, Labo, éteint par défaut) : « mon bureau » en 3D — mêmes notifications (mêmes data-act), la vue classique reste à un clic */
   const M3=m3dAccueil(me,{todo:A2,know:K,spaces:spacesFor(me),sem:numSemaine(today),side:{hello,pointer:()=>heroAccueil(me)+cPointer(me,false),todoHTML:todoH,knowHTML:knowH}});
-  if(M3&&M3.html)return `${extBanner(me)}${M3.html}<div class="ac-two">${spacesH}</div>
-    ${tailH}`;
+  if(M3&&M3.html)return `${extBanner(me)}${M3.html}`; /* 09/11 (Ethan) : accueil 3D = la pièce seule, grand écran — les espaces sont sur l'écran de gauche, « Déclarer un accident » est une puce de la scène (⚠ Accident), la vue classique les garde */
   return `${M3&&M3.top||''}${hello}
     ${extBanner(me)}<div class="ac-two"><div>${heroAccueil(me)}${cPointer(me,false)}</div><div>
     ${todoH}

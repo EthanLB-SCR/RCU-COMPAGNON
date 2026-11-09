@@ -27,7 +27,7 @@ function mountPending() {
   const ctx = P.ctx, me = P.me, extra = P.extra;
   try{if(window.TRACE)window.TRACE.monde3d=()=>H;}catch(e){} /* tests */
   const cloud = () => !!(ctx.api && ctx.api.state && ctx.api.state.cloudUser);
-  H = mountMonde3D(HOST, data, { scene, perso: !!extra.perso, sideHTML: extra.sideHTML || null, homeChips: extra.homeChips || null, initOver: OVERK, onOver: k => { OVERK = k; },
+  H = mountMonde3D(HOST, data, { scene, perso: !!extra.perso, sideHTML: extra.sideHTML || null, homeChips: extra.homeChips || null, topRight: extra.topRight || null, initOver: OVERK, onOver: k => { OVERK = k; },
     onPrefs: prefs => { try { const d = ctx.peopleData(me.id) || {}; ctx.savePart(me.id, 'avatar', Object.assign({}, d.avatar || {}, { bureau3d: cloud() ? noInlineImages(prefs) : prefs })); } catch (e) { console.warn(e); } },
     onNotes: notes => { if (ctx.viewing && ctx.viewing()) { if (ctx.toast) ctx.toast('Lecture seule : tu vois l\'appli comme quelqu\'un d\'autre'); return; } saveNotes(me.id, notes, ctx); },
     uploadImage: dataUrl => uploadImage(dataUrl, me, ctx), onAction: (type, arg, x) => act(type, arg, x, me, ctx, extra) });
@@ -62,6 +62,7 @@ function act(type, arg, x, me, ctx, extra) {
     case 'weld': if (extra.onWeld) extra.onWeld(arg); return;
     case 'line': return;
     case 'classic': if (extra.onClassic) extra.onClassic(); return;
+    case 'appact': if (['accnew'].includes(String(arg))) classic(String(arg)); return; /* 09/11 : une action de l'appli posée en puce dans la scène (⚠ Accident = le même bouton que l'accueil classique) */
     default: return;
   }
 }

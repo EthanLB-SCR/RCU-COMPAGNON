@@ -84,10 +84,10 @@ const SECTION = 0x2B2640; const SEAT_DY = { bureau: 0.04, gaming: 0.04, fauteuil
 /** vues « dans la peau » (repère de la pièce) : œil, point regardé, angle */
 export const VUES = {
   chaise: { eye: [LAY.face.seat[0] - 0.1, 1.86, LAY.face.seat[1] - 0.34], at: [LAY.face.seat[0] - 0.15, 0.8, 1.1], fov: 76 }, /* dans l'axe du bureau : les écrans au centre, la pièce derrière */
-  ecran: { eye: [LAY.face.mon.c[0], 1.3, LAY.face.mon.c[1] - 1.0], at: [LAY.face.mon.c[0], 0.98, LAY.face.mon.c[1] + 0.05], fov: 56 },
+  ecran: { eye: [LAY.face.mon.c[0], 1.32, LAY.face.mon.c[1] - 1.0], at: [LAY.face.mon.c[0], 1.07, LAY.face.mon.c[1] + 0.05], fov: 56, fit: [1.46, 0.52] }, /* fit : largeur × hauteur (m) à faire tenir dans la vue — l'angle se calcule d'après la forme de l'écran (09/11 : les deux écrans prennent la majorité de la vue) */
   /* un écran à la fois : œil dans l'axe de l'écran (gauche = x+, droite = x−), face à sa dalle, l'écran remplit la vue */
-  ecran1: { eye: [LAY.face.mon.c[0] + 0.32 + 0.11, 1.08, LAY.face.mon.c[1] + 0.05 - 0.6], at: [LAY.face.mon.c[0] + 0.32, 0.98, LAY.face.mon.c[1] + 0.05], fov: 46 },
-  ecran2: { eye: [LAY.face.mon.c[0] - 0.32 - 0.11, 1.08, LAY.face.mon.c[1] + 0.05 - 0.6], at: [LAY.face.mon.c[0] - 0.32, 0.98, LAY.face.mon.c[1] + 0.05], fov: 46 },
+  ecran1: { eye: [LAY.face.mon.c[0] + 0.32 + 0.11, 1.12, LAY.face.mon.c[1] + 0.05 - 0.6], at: [LAY.face.mon.c[0] + 0.32, 1.07, LAY.face.mon.c[1] + 0.05], fov: 46, fit: [0.7, 0.46] },
+  ecran2: { eye: [LAY.face.mon.c[0] - 0.32 - 0.11, 1.12, LAY.face.mon.c[1] + 0.05 - 0.6], at: [LAY.face.mon.c[0] - 0.32, 1.07, LAY.face.mon.c[1] + 0.05], fov: 46, fit: [0.7, 0.46] },
   savoir: { eye: [LAY.face.board.x, 1.72, D2 - 1.55], at: [LAY.face.board.x, LAY.face.board.y, D2], fov: 48 }, /* le tableau blanc « À savoir », bien en face */
   notes: { eye: [RET.xc - 0.38, 1.72, RET.zc + 0.06], at: [RET.xc + 0.04, TOP, RET.zc - 0.02], fov: 50 }, /* mes post-its sur le retour : je tourne la tête à gauche et je baisse les yeux */
   visite: { eye: [LAY.face.desk.x - 1.0, 1.62, LAY.face.desk.z + 1.7], at: [LAY.face.seat[0] - 0.1, 1.1, LAY.face.seat[1] - 0.1], fov: 58 } /* depuis la droite du bureau (côté sans retour), un peu en hauteur : on voit la personne au-dessus de ses écrans */
