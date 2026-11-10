@@ -22,7 +22,7 @@ await home('htEnt');await click('[data-act="xgo"][data-v^="x:rh:"]');await W(800
 await click('[data-act="x"][data-v="rh|tab|abs"]');await W(600);await click('[data-act="x"][data-v="rh|new|rhabs"]');await W(500);
 await T(()=>{const s=document.getElementById('rh-p');s.value=[...s.options].find(o=>/Ethan/.test(o.textContent)).value;document.getElementById('rh-type').value='cp';document.getElementById('rh-du').value='2026-11-16';document.getElementById('rh-au').value='2026-11-18';document.getElementById('rh-au').dispatchEvent(new Event('change'));});
 const r3j=await T(()=>document.getElementById('rh-jours').value);await click('#rh-ok');await W(800);const r3=await txt();const abs=await T(()=>window.TRACE.rh.rows('rhabs'));
-console.log('r3)',J({jours:r3j,n:abs.length,id:abs[0]&&abs[0].id,dash:/Ressources humaines/.test(r3a)}));C.r3=/Ressources humaines/.test(r3a)&&r3j==='3'&&abs.length===1&&/\|/.test(abs[0].id)&&abs[0].type==='cp'&&+abs[0].jours===3&&/Congés payés · 16\/11\/2026 → 18\/11\/2026 · 3 j/.test(r3)&&/Pris/.test(r3);
+console.log('r3)',J({jours:r3j,n:abs.length,id:abs[0]&&abs[0].id,dash:/Ressources humaines/.test(r3a)}));C.r3=/Ressources humaines/.test(r3a)&&r3j==='3'&&abs.length===1&&/\|/.test(abs[0].id)&&abs[0].type==='cp'&&+abs[0].jours===3&&/Congés payés · 16\/11\/2026 → 18\/11\/2026 · 3 j/.test(r3)&&/Jours d'absence en 2026/.test(r3)&&!/Solde/.test(r3); /* 10/11 (Ethan) : pas de solde de congés ici, c'est la paie qui calcule */
 // r4) contravention reçue il y a 40 j sans conducteur → tableau de bord « à désigner », tâche À faire ; désignation → statut « désignée »
 await click('[data-act="x"][data-v="rh|tab|pv"]');await W(500);await click('[data-act="x"][data-v="rh|new|rhpv"]');await W(500);
 await T(()=>{document.getElementById('rh-recu').value='2026-10-01';document.getElementById('rh-date').value='2026-09-28';document.getElementById('rh-lieu').value='Rennes';document.getElementById('rh-infraction').value='Excès de vitesse';document.getElementById('rh-montant').value='90';});await click('#rh-ok');await W(800);
@@ -45,5 +45,12 @@ const other=await T(()=>{const c=window.TRACE.monde.ctx();const p=c.people.find(
 await T(id=>{const Tr=window.TRACE;Tr.state.userId=id;Tr.renderHome();},other);await W(800);await home('htEnt');await W(800);
 const r7=await T(()=>({row:(document.querySelector('[data-act="xgo"][data-v^="x:rh:"]')||{}).textContent||''}));await click('[data-act="xgo"][data-v^="x:rh:"]');await W(700);await click('[data-act="x"][data-v="rh|tab|abs"]');await W(600);const r7t=await txt();r7.plus=await T(()=>!!document.querySelector('[data-act="x"][data-v="rh|new|rhabs"]'));r7.mine=/mon dossier/.test(r7t);r7.ethan=/Congés payés · 16\/11/.test(r7t);
 console.log('r7)',J(r7));C.r7=/Mon dossier RH/.test(r7.row)&&!r7.plus&&r7.mine&&!r7.ethan;
+// r9) un responsable d'exploitation sans droit RH : rubrique « Ressources humaines » limitée, ＋ absence possible, pas d'onglet Contraventions
+/* faute de responsable d'exploitation dans les personnages de démo : le droit « rh.abs » est accordé au poste soudeur par le réglage des droits par poste (comme le ferait l'administrateur) */
+await T(()=>{localStorage.setItem('trace:posteRights',JSON.stringify({soudeur:{'rh.abs':true}}));});await page.reload();await W(1500);{const s=await page.$('#loginSkip');if(s&&await s.isVisible())await s.click();await W(700);}
+const rex=await T(()=>{const Tr=window.TRACE;Tr.state.userId='karim';Tr.renderHome();return 'l:karim';});await W(800);
+if(rex){await home('htEnt');await W(800);await click('[data-act="xgo"][data-v^="x:rh:"]');await W(700);
+  const r9={pv:await T(()=>!!document.querySelector('[data-act="x"][data-v="rh|tab|pv"]'))};await click('[data-act="x"][data-v="rh|tab|abs"]');await W(600);r9.plus=await T(()=>!!document.querySelector('[data-act="x"][data-v="rh|new|rhabs"]'));r9.ethan=/Congés payés · 16\/11/.test(await txt());
+  console.log('r9)',J({rex,...r9}));C.r9=!r9.pv&&r9.plus&&r9.ethan;}else{console.log('r9) pas de responsable d\'exploitation autre qu\'Ethan dans les données : étape passée');C.r9=true;}
 C.r8=!logs.length;if(logs.length)console.log('logs',J(logs.slice(0,3)));
 const ko=Object.keys(C).filter(k=>!C[k]);console.log('RESULTAT',J(C),ko.length?'ECHEC '+ko.join(','):'TOUT VERT');await browser.close();

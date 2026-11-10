@@ -15,6 +15,8 @@ const nomDe=p=>p?((p.prenom||'')+' '+(p.nom||'')).trim()||p.id:'?';
 /* ── droits ── */
 const rhVoir=(me,ctx)=>!!me&&(me.admin||ctx.can('rh.voir')||ctx.can('rh.edit'));
 const rhEdit=(me,ctx)=>!!me&&(me.admin||ctx.can('rh.edit'));
+const absEdit=(me,ctx)=>rhEdit(me,ctx)||(!!me&&ctx.can('rh.abs')); /* 10/11 (Ethan) : absences et congés = responsable d'exploitation, RH, assistante RH */
+const absVoir=(me,ctx)=>rhVoir(me,ctx)||absEdit(me,ctx);
 const keyOf=(p,ctx)=>p?(ctx.personKey?ctx.personKey(p):(p.email||p.id)).toLowerCase():'';
 const mine=(r,me,ctx)=>!!me&&String(r.id||'').split('|')[0]===keyOf(me,ctx);
 /* ── registres ── */
@@ -26,13 +28,6 @@ export const MUT_REGIMES=[['isole','Isolé'],['duo','Duo'],['famille','Famille']
 export const MUT_MOTIFS=[['cdd','CDD / mission courte'],['conjoint','Couvert par le conjoint'],['autre','Autre couverture obligatoire'],['apprenti','Apprenti / temps très partiel'],['']];
 /** nombre de jours ouvrés entre deux dates (lun → ven), fériés non déduits — la RH ajuste la valeur si besoin */
 export function joursOuvres(d1,d2){if(!d1)return 0;const a=new Date(d1+'T12:00:00'),b=new Date((d2||d1)+'T12:00:00');if(isNaN(a)||isNaN(b)||b<a)return 0;let n=0;for(let t=new Date(a);t<=b;t.setDate(t.getDate()+1)){const w=t.getDay();if(w>=1&&w<=5)n++;}return n;}
-/** acquisition de congés payés : 2,08 j ouvrés par mois travaillé (25 j / an) — hypothèse à confirmer par la RH */
-export const CP_PAR_MOIS=2.08;
-/** période de référence des congés : du 1er juin N-1 au 31 mai N */
-export function periodeCP(d){const y=+String(d||todayIso()).slice(0,4),m=+String(d||todayIso()).slice(5,7);const y0=m>=6?y:y-1;return {du:y0+'-06-01',au:(y0+1)+'-05-31',label:(y0)+'-'+(y0+1)};}
-export function soldeCP(abs,p,ref){const P=periodeCP(ref);const pris=abs.filter(a=>a.type==='cp'&&a.du>=P.du&&a.du<=P.au).reduce((s,a)=>s+(+a.jours||0),0);
-  const deb=p&&p.entree&&p.entree>P.du?p.entree:P.du;const fin=ref&&ref<P.au?ref:P.au;const mois=Math.max(0,(+fin.slice(0,4)-+deb.slice(0,4))*12+(+fin.slice(5,7)-+deb.slice(5,7))+(+fin.slice(8,10)>=+deb.slice(8,10)?1:0));
-  const acquis=Math.min(25,Math.round(mois*CP_PAR_MOIS*100)/100);return {acquis,pris,solde:Math.round((acquis-pris)*100)/100,periode:P};}
 /** échéance de désignation du conducteur d'une contravention : 45 jours après réception */
 export function pvEcheance(pv){if(!pv||!pv.recu)return null;const d=new Date(pv.recu+'T12:00:00');d.setDate(d.getDate()+45);return d.toISOString().slice(0,10);}
 const DEF={
@@ -47,12 +42,12 @@ const DEF={
 };
 const KINDS=Object.keys(DEF);
 let loaded=false;function hook(ctx){if(ctx&&ctx.api)A=ctx.api;if(!loaded){loaded=true;regLoad(KINDS.concat(['accident','cpth','vehicule'])).catch(()=>{});}
-  try{if(typeof window!=='undefined'&&window.TRACE&&!window.TRACE.rh)window.TRACE.rh={rows:kind=>rows(kind),solde:(abs,p,ref)=>soldeCP(abs,p,ref),jours:joursOuvres,pvEch:pvEcheance,def:()=>DEF};}catch(e){}}
+  try{if(typeof window!=='undefined'&&window.TRACE&&!window.TRACE.rh)window.TRACE.rh={rows:kind=>rows(kind),jours:joursOuvres,pvEch:pvEcheance,def:()=>DEF};}catch(e){}}
 const rows=kind=>regAll(kind).filter(r=>r&&!r.deleted).sort(DEF[kind].sort);
 const persOf=(ctx,id)=>(ctx.people||[]).find(p=>p.id===id)||null;
 const activePeople=ctx=>(ctx.people||[]).filter(p=>p.active!==false&&!p.invite).sort((a,b)=>nomDe(a).localeCompare(nomDe(b),'fr'));
 /** les lignes que « me » a le droit de voir : tout pour la RH, les siennes sinon */
-const visible=(kind,me,ctx)=>rhVoir(me,ctx)?rows(kind):rows(kind).filter(r=>r.p===me.id||mine(r,me,ctx));
+const visible=(kind,me,ctx)=>(kind==='rhabs'?absVoir(me,ctx):rhVoir(me,ctx))?rows(kind):rows(kind).filter(r=>r.p===me.id||mine(r,me,ctx));
 /* ── rendu ── */
 const sel=(id,opts,val,blank)=>`<select class="f" id="${id}">${blank?`<option value="">${esc(blank)}</option>`:''}${opts.map(o=>`<option value="${esc(o[0])}"${String(val||'')===String(o[0])?' selected':''}>${esc(o[1])}</option>`).join('')}</select>`;
 const btn=(k,v,t,cls)=>`<button class="btn${cls?' '+cls:''}" data-act="x" data-v="${ID}|${esc(k)}${v!=null?'|'+esc(v):''}">${t}</button>`;
@@ -109,9 +104,9 @@ function habOpenFile(pid,type,ctx){const p=persOf(ctx,pid);const h=p&&(habsDe(p)
 const TABS=[['home','🏠','Tableau de bord'],['nav','🧾','Navettes'],['abs','🏖','Absences · congés'],['hab','🎖','Habilitations'],['form','🎓','Formation'],['pv','🚔','Contraventions'],['mut','🩺','Mutuelle'],['acc','⚠','Accidents']];
 const tabs=(cur,me,ctx)=>`<div class="eq-tabs rh-tabs" style="display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px">${TABS.filter(t=>rhVoir(me,ctx)||['home','abs','hab','form','mut'].includes(t[0])).map(t=>`<button class="btn sm${cur===t[0]?' primary':''}" data-act="x" data-v="${ID}|tab|${t[0]}">${t[1]} ${t[2]}</button>`).join('')}</div>`;
 const card=(h,body)=>`<div class="card">${h?`<h3 style="margin-top:0">${h}</h3>`:''}${body}</div>`;
-const row=(r,kind,me,ctx,extra)=>{const p=persOf(ctx,r.p);const D=DEF[kind];return `<div class="eq-row"><span class="eq-grow"><span class="eq-t">${rhVoir(me,ctx)&&p?`<b>${esc(nomDe(p))}</b> · `:''}${esc(D.label(r))}</span>${extra||r.note?`<span class="eq-s">${esc(extra||'')}${extra&&r.note?' · ':''}${esc(r.note||'')}</span>`:''}</span>${rhEdit(me,ctx)?btn('edit',kind+'|'+r.id,'✏️','sm'):''}</div>`;};
+const row=(r,kind,me,ctx,extra)=>{const p=persOf(ctx,r.p);const D=DEF[kind];return `<div class="eq-row"><span class="eq-grow"><span class="eq-t">${rhVoir(me,ctx)&&p?`<b>${esc(nomDe(p))}</b> · `:''}${esc(D.label(r))}</span>${extra||r.note?`<span class="eq-s">${esc(extra||'')}${extra&&r.note?' · ':''}${esc(r.note||'')}</span>`:''}</span>${(kind==='rhabs'?absEdit(me,ctx):rhEdit(me,ctx))?btn('edit',kind+'|'+r.id,'✏️','sm'):''}</div>`;};
 const list=(kind,me,ctx,L,extraOf)=>L.length?`<div class="eq-list">${L.map(r=>row(r,kind,me,ctx,extraOf?extraOf(r):'')).join('')}</div>`:'<div class="eq-s" style="margin:6px 0">Rien pour l\'instant.</div>';
-const addBtn=(kind,me,ctx)=>rhEdit(me,ctx)?`<div class="eq-acts" style="margin:0 0 8px">${btn('new',kind,'＋ '+DEF[kind].one.charAt(0).toUpperCase()+DEF[kind].one.slice(1),'primary')}</div>`:'';
+const addBtn=(kind,me,ctx)=>(kind==='rhabs'?absEdit(me,ctx):rhEdit(me,ctx))?`<div class="eq-acts" style="margin:0 0 8px">${btn('new',kind,'＋ '+DEF[kind].one.charAt(0).toUpperCase()+DEF[kind].one.slice(1),'primary')}</div>`:'';
 const warnSrv=()=>KINDS.some(k=>regMissing(k))?'<div class="warnbox" style="margin-bottom:8px">Le serveur ne connaît pas encore les registres RH : les lignes restent sur cet appareil jusqu\'à ce que <code>sql/rh_1011.sql</code> soit passé dans Supabase.</div>':'';
 function vHome(me,ctx){const voir=rhVoir(me,ctx);const P=voir?activePeople(ctx):[me];const abs=visible('rhabs',me,ctx),pv=visible('rhpv',me,ctx),fo=visible('rhform',me,ctx),mu=visible('rhmut',me,ctx);const today=todayIso();
   const absNow=abs.filter(a=>a.du<=today&&(a.au||a.du)>=today);const pvTodo=pv.filter(x=>x.statut==='recue');const pvLate=pvTodo.filter(x=>{const e=pvEcheance(x);return e&&e<today;});
@@ -130,10 +125,11 @@ function vNav(me,ctx){const months=[];const d=new Date();for(let i=0;i<6;i++){co
     ${months.map(ym=>`<details class="eq-fold"${ym===months[0]?' open':''}><summary><b>${esc(lab(ym).charAt(0).toUpperCase()+lab(ym).slice(1))}</b></summary><div class="eq-acts" style="margin:6px 0"><button class="btn primary" data-act="gdnavall" data-v="${ym}">⬇ Toutes les navettes de ${esc(lab(ym))}</button></div>
       <div class="eq-list">${P.map(p=>`<div class="eq-row"><span class="eq-grow"><span class="eq-t">${esc(nomDe(p))}</span></span><button class="btn sm" data-act="gdnavx" data-v="${esc(p.id)}|${ym}">⬇ xlsx</button></div>`).join('')}</div></details>`).join('')}
     <div class="hint" style="margin-top:8px">Le détail (cas de déplacement, nuits, repas, heures à reporter) est dans Grands déplacements.</div><div class="eq-acts"><button class="btn" data-act="xgo" data-v="gd">Ouvrir Grands déplacements</button></div>`);}
-function vAbs(me,ctx){const voir=rhVoir(me,ctx);const L=visible('rhabs',me,ctx);const P=voir?activePeople(ctx):[me];const today=todayIso();const y=today.slice(0,4);
-  const tot=P.map(p=>{const mine2=L.filter(a=>a.p===p.id);const S=soldeCP(mine2,p,today);const byT={};mine2.filter(a=>a.du.slice(0,4)===y).forEach(a=>{byT[a.type]=(byT[a.type]||0)+(+a.jours||0);});return {p,S,byT,n:mine2.length};}).filter(x=>voir?true:true);
-  return `${warnSrv()}${addBtn('rhabs',me,ctx)}${card('Soldes de congés · période '+tot[0].S.periode.label,`<div class="eq-s" style="margin-bottom:6px">Acquis : ${CP_PAR_MOIS} j ouvrés par mois de présence (25 j par an), du 1er juin au 31 mai. Pris : les congés payés enregistrés sur la période. ${voir?'Réglage à confirmer avec la RH ; les entrées en cours d\'année comptent depuis la date d\'entrée de la fiche.':''}</div>
-    <div style="overflow:auto"><table class="rc ch-tab"><tr><th>Personne</th><th class="r">Acquis</th><th class="r">Pris</th><th class="r">Solde</th>${ABS_TYPES.filter(t=>t[0]!=='cp').slice(0,5).map(t=>`<th class="r">${esc(t[1])} ${y}</th>`).join('')}</tr>${tot.map(x=>`<tr><td>${esc(nomDe(x.p))}</td><td class="r">${x.S.acquis}</td><td class="r">${x.S.pris}</td><td class="r"><b style="color:${x.S.solde<0?'#A3221F':'inherit'}">${x.S.solde}</b></td>${ABS_TYPES.filter(t=>t[0]!=='cp').slice(0,5).map(t=>`<td class="r">${x.byT[t[0]]||''}</td>`).join('')}</tr>`).join('')}</table></div>`)}
+function vAbs(me,ctx){const voir=absVoir(me,ctx);const L=visible('rhabs',me,ctx);const P=voir?activePeople(ctx):[me];const today=todayIso();const y=today.slice(0,4);
+  const tot=P.map(p=>{const m=L.filter(a=>a.p===p.id&&String(a.du||'').slice(0,4)===y);const byT={};m.forEach(a=>{byT[a.type]=(byT[a.type]||0)+(+a.jours||0);});return {p,byT,n:m.reduce((s,a)=>s+(+a.jours||0),0)};}).filter(x=>voir?x.n>0:true);
+  const T=ABS_TYPES.filter(t=>tot.some(x=>x.byT[t[0]]));
+  return `${warnSrv()}${addBtn('rhabs',me,ctx)}${card('Jours d\'absence en '+y,`<div class="eq-s" style="margin-bottom:6px">Le compte (jours ouvrés du lundi au vendredi, corrigeable à la saisie) sert au planning et à la navette ; les soldes de congés restent dans le logiciel de paie.</div>
+    ${tot.length?`<div style="overflow:auto"><table class="rc ch-tab"><tr><th>Personne</th>${T.map(t=>`<th class="r">${esc(t[1])}</th>`).join('')}<th class="r">Total</th></tr>${tot.map(x=>`<tr><td>${esc(nomDe(x.p))}</td>${T.map(t=>`<td class="r">${x.byT[t[0]]||''}</td>`).join('')}<td class="r"><b>${x.n}</b></td></tr>`).join('')}</table></div>`:'<div class="eq-s">Aucune absence enregistrée cette année.</div>'}`)}
     ${card('Absences enregistrées',list('rhabs',me,ctx,L))}`;}
 function vHab(me,ctx){const voir=rhVoir(me,ctx);const P=voir?activePeople(ctx):[me];
   const rowsH=[];P.forEach(p=>habsDe(p).forEach(x=>{if(x.h||x.etat==='absente')rowsH.push({p,...x});}));const alert=rowsH.filter(x=>x.etat!=='valide');
@@ -163,14 +159,14 @@ function tasks(me,ctx){hook(ctx);if(!rhVoir(me,ctx))return [];const today=todayI
   return out;}
 const addDays=(d,n)=>{const t=new Date(d+'T12:00:00');t.setDate(t.getDate()+n);return t.toISOString().slice(0,10);};
 export default {id:ID,kinds:KINDS,hub:'entreprise',
-  hubRows(tab,me,ctx){hook(ctx);if(tab!=='entreprise')return [];const voir=rhVoir(me,ctx);const today=todayIso();const n=voir?rows('rhpv').filter(x=>x.statut==='recue').length+rows('rhmut').filter(x=>x.statut==='attente').length:0;
-    return [ctx.row(voir?'Ressources humaines':'Mon dossier RH',voir?'Navettes, absences et congés, habilitations, formation, contraventions, mutuelle, accidents':'Mes absences, mes habilitations, mes formations, ma mutuelle','👥','#efeafb','x:'+ID+':'+TAB,n||null,n?'warn':'')];},
+  hubRows(tab,me,ctx){hook(ctx);if(tab!=='entreprise')return [];const voir=rhVoir(me,ctx)||absEdit(me,ctx);const today=todayIso();const n=voir?rows('rhpv').filter(x=>x.statut==='recue').length+rows('rhmut').filter(x=>x.statut==='attente').length:0;
+    return [ctx.row(voir?'Ressources humaines':'Mon dossier RH',voir?(rhVoir(me,ctx)?'Navettes, absences et congés, habilitations, formation, contraventions, mutuelle, accidents':'Absences et congés de l\'équipe ; mon dossier'):'Mes absences, mes habilitations, mes formations, ma mutuelle','👥','#efeafb','x:'+ID+':'+TAB,n||null,n?'warn':'')];},
   xview(k,me,ctx){hook(ctx);TAB=k||TAB||'home';return view(TAB,me,ctx);},
   tasks,
   act(v,el,me,ctx){hook(ctx);const parts=String(v).split('|');const k=parts[0];
     if(k==='tab'){TAB=parts[1]||'home';ctx.go('x:'+ID+':'+TAB);return;}
     if(k==='habfile'){habOpenFile(parts[1],parts[2],ctx);return;}
-    if(!rhEdit(me,ctx)){ctx.toast('Réservé à la RH / direction / administrateur');return;}
+    const kindOf=parts[1]||'';const okW=kindOf==='rhabs'?absEdit(me,ctx):rhEdit(me,ctx);if(!okW){ctx.toast(kindOf==='rhabs'?'Réservé au responsable d\'exploitation, à la RH et à l\'assistante RH':'Réservé à la RH / direction / administrateur');return;}
     if(k==='new'){modal(parts[1],null,me,ctx);return;}
     if(k==='newp'){modal(parts[1],null,me,ctx);setTimeout(()=>{const s=document.getElementById('rh-p');if(s)s.value=parts[2];},30);return;}
     if(k==='edit'){modal(parts[1],parts.slice(2).join('|'),me,ctx);return;}

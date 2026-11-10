@@ -81,6 +81,7 @@ export const PERMS=[
  ['planning.edit','Planning : placer les équipes sur les chantiers de la semaine, fiche chantier (secteur, chef, conducteur)','Équipe'], // 09/10 soir : conducteurs, responsables d'exploitation, direction — pas le chef de chantier (planning imposé)
  ['rh.voir','RH : voir les contrats (heures / semaine), compteurs d\'heures et cas de déplacement forcés — d\'office : gérant, direction, RH','Équipe'], // 13/10 (Ethan) : « visibles que par le gérant et la direction, moi et RH »
  ['rh.edit','RH : modifier les contrats, compteurs d\'heures (soldes, plafond, repos, primes, import) et cas de déplacement forcés — d\'office : RH','Équipe'], // « … et modifiables que par moi et RH » (Ethan = administrateur)
+ ['rh.abs','RH : saisir les absences et congés de l\'équipe (module Ressources humaines) — d\'office : responsables d\'exploitation, RH, assistante RH','Équipe'], // 10/11 (Ethan)
  ['affaires.view','Affaires : voir les affaires, chiffrages, situations et facturation','Commerce'], // nuit 09→10/10 : volet commerce (chargés d'affaires, direction, exploitation)
  ['affaires.edit','Affaires : créer et modifier (affaire, DCE, chiffrage, situations, facturation)','Commerce'],
  ['prix.edit','Base de prix SCR : modifier (taux, cadences, fournitures, paramètres, paniers) — d\'office : le gérant ; les autres au cas par cas','Commerce'], // 13/10 (Ethan) : « consultable et modifiable par moi, Jérôme et le gérant »
@@ -119,7 +120,8 @@ export const DEFAULT_RIGHTS={
 };
 Object.keys(DEFAULT_RIGHTS).forEach(k=>{if(k!=='gerant')DEFAULT_RIGHTS[k]={...DEFAULT_RIGHTS[k],'prix.edit':false};}); // base de prix : le gérant d'office ; l'administrateur a tout ; Jérôme & co : ajustement personnel
 const RH_VOIR=['gerant','dir_adjointe','dir_technique','resp_rh','assist_rh','charge_dev_rh'],RH_EDIT=['resp_rh','assist_rh','charge_dev_rh']; /* mêmes listes côté serveur : sql/retours_13-10f.sql, can_rh() */
-Object.keys(DEFAULT_RIGHTS).forEach(k=>{DEFAULT_RIGHTS[k]={...DEFAULT_RIGHTS[k],'rh.voir':RH_VOIR.includes(k),'rh.edit':RH_EDIT.includes(k)};}); // contrats, compteurs, cas forcés : gérant + direction voient, RH modifient ; l'administrateur (Ethan) a tout
+Object.keys(DEFAULT_RIGHTS).forEach(k=>{DEFAULT_RIGHTS[k]={...DEFAULT_RIGHTS[k],'rh.voir':RH_VOIR.includes(k),'rh.edit':RH_EDIT.includes(k)};});
+const RH_ABS=['resp_exploitation','resp_rh','assist_rh','charge_dev_rh'];Object.keys(DEFAULT_RIGHTS).forEach(k=>{DEFAULT_RIGHTS[k]={...DEFAULT_RIGHTS[k],'rh.abs':RH_ABS.includes(k)};}); /* 10/11 (Ethan) : absences et congés saisis par le responsable d'exploitation, la RH et l'assistante RH — même liste côté serveur : sql/rh_1011.sql, can_rh() */ // contrats, compteurs, cas forcés : gérant + direction voient, RH modifient ; l'administrateur (Ethan) a tout
 Object.keys(DEFAULT_RIGHTS).forEach(k=>{DEFAULT_RIGHTS[k]={...DEFAULT_RIGHTS[k],'mag.manage':k==='referent_magasin'};}); // 14/10 nuit : magasin = le référent magasin d'office ; l'administrateur a tout ; les autres par ajustement (Administrateur)
 // plafond par type de compte : un intérimaire garde le pur opérationnel, un visiteur regarde
 export const TYPE_CAP={

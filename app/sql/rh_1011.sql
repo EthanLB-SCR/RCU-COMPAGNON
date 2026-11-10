@@ -1,11 +1,29 @@
 -- sql/rh_1011.sql — 10/11/2026 : module Tracé Ressources humaines.
 -- Quatre registres de plus dans public.registre : rhabs (absences et congés), rhpv (contraventions), rhform (plan de formation), rhmut (mutuelle).
--- Écriture : droit RH « modifier » (RH, direction, administrateur). Lecture : RH / direction / administrateur, et la personne elle-même pour SES lignes
+-- Écriture : droit RH « modifier » (RH, direction, administrateur) ; absences et congés aussi avec le droit « rh.abs » (responsables d'exploitation, RH, assistante RH).
+-- Lecture : RH / direction / administrateur (absences : + rh.abs), et la personne elle-même pour SES lignes
 -- (identifiant = <sa clé>|<n°>). Tout le reste de registre_set et de la politique de lecture est repris tel quel de retours_20-10.sql.
 -- À passer dans Supabase (SQL Editor) APRÈS retours_20-10.sql. Sans ce fichier, l'appli garde les lignes RH sur l'appareil et le dit.
 do $do$ begin
   if not exists (select 1 from pg_proc where proname = 'can_rh') then raise exception 'Passe d''abord sql/retours_20-10.sql (fonction can_rh absente).'; end if;
 end $do$;
+-- can_rh : reprise de retours_14-10a.sql + le droit « rh.abs » (absences et congés) d'office pour les responsables d'exploitation, la RH et l'assistante RH
+create or replace function public.can_rh(p_perm text) returns boolean language sql stable security definer set search_path = public as $$
+  select public.is_admin() or exists (
+    select 1 from public.profiles p
+    left join public.app_settings s on s.key = 'poste_rights'
+    where p.id = auth.uid() and p.active
+      and case
+        when coalesce(p.rights, '{}'::jsonb) ? p_perm then coalesce((p.rights->>p_perm)::boolean, false)
+        when s.value is not null and jsonb_typeof(s.value -> p.poste) = 'object' and (s.value -> p.poste) ? p_perm then coalesce((s.value -> p.poste ->> p_perm)::boolean, false)
+        else coalesce(p.poste, '') = any (case p_perm
+          when 'rh.voir' then array['gerant','dir_adjointe','dir_technique','resp_rh','assist_rh','charge_dev_rh']
+          when 'rh.edit' then array['resp_rh','assist_rh','charge_dev_rh']
+          when 'rh.abs' then array['resp_exploitation','resp_rh','assist_rh','charge_dev_rh'] -- 10/11 : absences et congés
+          else array[]::text[] end)
+      end
+  );
+$$;
 create or replace function public.registre_set(p_kind text, p_id text, p_patch jsonb, p_mode text default 'merge') returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare v_old jsonb; v_new jsonb; v_row jsonb; mgr boolean; k text; v_st text; v_me text; v_cond text; v_a text;
@@ -94,7 +112,9 @@ begin
       if v_old is not null and lower(coalesce(v_old->>'byKey','')) <> v_me then raise exception 'déclaration d''une autre personne : réservé à l''encadrement'; end if;
       if coalesce(p_patch->>'status','declare') <> 'declare' or p_mode = 'replace' then raise exception 'le traitement d''une déclaration est réservé à la RH / direction / QSE'; end if;
     end if;
-  elsif p_kind in ('rhabs','rhpv','rhform','rhmut') then -- 10/11 (RH) : absences et congés, contraventions, plan de formation, mutuelle = droit RH « modifier » (RH, direction, administrateur)
+  elsif p_kind = 'rhabs' then -- 10/11 (RH) : absences et congés = responsable d'exploitation, RH, assistante RH (droit « rh.abs ») ou droit RH « modifier »
+    if not (public.can_rh('rh.edit') or public.can_rh('rh.abs')) then raise exception 'absences et congés : réservé au responsable d''exploitation, à la RH et à l''assistante RH'; end if;
+  elsif p_kind in ('rhpv','rhform','rhmut') then -- 10/11 (RH) : contraventions, plan de formation, mutuelle = droit RH « modifier » (RH, direction, administrateur)
     if not public.can_rh('rh.edit') then raise exception 'ressources humaines : droit RH « modifier » nécessaire (RH, direction, administrateur)'; end if;
   else
     raise exception 'registre inconnu : %', p_kind;
@@ -124,6 +144,7 @@ create policy registre_read on public.registre for select using (
   and (kind <> 'vrec' or public.is_admin() or coalesce(public.my_role(),'') in ('chef','bureau') or lower(coalesce(data->>'conducteurKey','')) = coalesce(public.my_key(), '')
        or (data ? 'lache' and lower(coalesce(data->'a'->>'key','')) in ('', coalesce(public.my_key(), ''))))
   and (kind <> 'magdem' or public.is_admin() or coalesce(public.my_role(),'') in ('chef','bureau') or public.can_mag() or lower(split_part(id, '|', 1)) = coalesce(public.my_key(), ''))
-  and (kind not in ('rhabs','rhpv','rhform','rhmut') or public.is_admin() or public.can_rh('rh.voir') or public.can_rh('rh.edit') or lower(split_part(id, '|', 1)) = coalesce(public.my_key(), ''))
+  and (kind not in ('rhpv','rhform','rhmut') or public.is_admin() or public.can_rh('rh.voir') or public.can_rh('rh.edit') or lower(split_part(id, '|', 1)) = coalesce(public.my_key(), ''))
+  and (kind <> 'rhabs' or public.is_admin() or public.can_rh('rh.voir') or public.can_rh('rh.edit') or public.can_rh('rh.abs') or lower(split_part(id, '|', 1)) = coalesce(public.my_key(), ''))
 );
 -- contrôle : select kind, count(*) from public.registre where kind like 'rh%' group by 1;
