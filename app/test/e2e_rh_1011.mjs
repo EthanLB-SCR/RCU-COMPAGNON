@@ -12,7 +12,15 @@ const asEthan=async()=>{await T(()=>{const Tr=window.TRACE;Tr.state.userId='etha
 const home=async id=>{await T(i=>{const b=document.getElementById(i);if(b)b.click();},id);await W(600);};
 const click=async(sel)=>{const ok=await T(s=>{const b=document.querySelector(s);if(b)b.click();return !!b;},sel);await W(500);return ok;};
 const txt=()=>T(()=>(document.getElementById('eq-app')||document.body).textContent.replace(/\s+/g,' '));
-// r1) Entreprise : rubrique « Ressources humaines », « Visite des dépôts » ; plus de 3D en tête d'Équipe ; Pilotage sans 3D
+// r0) 10/11 soir (Ethan : « je ne vois pas le module RH ») : « RH » parmi les espaces de l'accueil — écran des modules en 3D, tuile en vue classique ; la tuile ouvre le module (onglet Équipe, sous-vue RH, retour)
+await home('htHome');await W(1500);const r0={gl:await T(()=>{const H=window.TRACE.monde3d&&window.TRACE.monde3d();const sp=H&&H.state&&H.state.DATA&&H.state.DATA.spaces||[];return sp.filter(x=>x.k==='rh').map(x=>x.t);})};
+await click('[data-act="x"][data-v="monde|vue|acc|classique"]');await W(1200);
+r0.tile=await T(()=>{const b=[...document.querySelectorAll('.ac-tile')].find(b=>/^RH$/.test(b.querySelector('b')?.textContent||''));return b?{go:b.dataset.v,act:b.dataset.act,cls:b.className}:null;});
+await T(()=>{const b=[...document.querySelectorAll('.ac-tile')].find(b=>/^RH$/.test(b.querySelector('b')?.textContent||''));if(b)b.click();});await W(1200);
+r0.after=await T(()=>({tab:window.TRACE.state.homeTab,h2:(document.querySelector('#eq-app h2')||{}).textContent||'',back:!!document.querySelector('#eq-app .ac-back'),txt:(document.getElementById('eq-app')||{}).textContent.replace(/\s+/g,' ').slice(0,200)}));
+await click('[data-act="x"][data-v="monde|vue|acc|3d"]');await W(600); /* on remet la 3D pour la suite */
+console.log('r0)',J(r0));C.r0=r0.gl.join()==='RH'&&!!r0.tile&&r0.tile.go==='x:rh:home'&&r0.tile.act==='tabgo'&&/t-rh/.test(r0.tile.cls)&&r0.after.tab==='entreprise'&&r0.after.back&&/Ressources humaines/.test(r0.after.h2+' '+r0.after.txt);
+// r1) Entreprise : rubrique « Ressources humaines » (en tête, dans « Les gens »), « Visite des dépôts » ; plus de 3D en tête d'Équipe ; Pilotage sans 3D
 await home('htEnt');await W(1500);const r1=await T(()=>({rh:!!document.querySelector('[data-act="xgo"][data-v^="x:rh:"]'),visite:!!document.querySelector('[data-act="xgo"][data-v="x:monde:depot"]'),slot:!!document.querySelector('#eq-app .m3d-slot')}));
 await home('htExpl');await W(1200);r1.pilSlot=await T(()=>!!document.querySelector('#eq-app .m3d-slot'));console.log('r1)',J(r1));C.r1=r1.rh&&r1.visite&&!r1.slot&&!r1.pilSlot;
 // r2) la rubrique « Visite des dépôts » monte la 3D du dépôt

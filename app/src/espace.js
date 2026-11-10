@@ -1469,6 +1469,7 @@ function spacesFor(me){const L=[{k:'sites',t:'Chantier',ic:SVG.pin,go:'sites',n:
   if((can(me,'flotte.manage')||me.admin)&&me.poste!=='visiteur'&&featOn('parc'))L.push({k:'parc',t:'Flotte',ic:SVG.truck,go:'parc'});
   if((can(me,'mag.manage')||me.admin)&&me.poste!=='visiteur'&&featOn('magasin'))L.push({k:'mag',t:'Magasin',ic:SVG.box,go:'magasin'}); /* 31/10 : Magasin = son propre onglet */
   if(can(me,'team.view')&&me.poste!=='visiteur')L.push({k:'ent',t:'Équipe',ic:SVG.team,go:'entreprise'}); /* 13/10 (Ethan) : « Entreprise » → « SCR » — l'onglet de la boîte : notre équipe, nos documents, nos actus */
+  if((can(me,'pointage.self')||can(me,'team.view'))&&me.poste!=='visiteur'&&EXTS().some(m=>m.id==='rh'))L.push({k:'rh',t:'RH',ic:SVG.users,go:'x:rh:home'}); /* 10/11 (Ethan : « je ne vois pas le module RH ») : Tracé Ressources humaines a sa tuile — gestion pour la RH / le resp. d'exploitation, « mon dossier » pour les autres */
   /* 12/10 (Ethan) : plus de tuile Traceur à l'accueil — il s'ouvre depuis l'affaire (dessiner le projet) et depuis le chantier (modifier son réseau) */
   if(me.admin)L.push({k:'adm',t:'Réglages',ic:SVG.sld,go:'admin'});
   return L;}
@@ -2170,7 +2171,7 @@ function vSub(me){const x=S.xsub;if(!x)return null;const back=t=>`<button class=
   return null;}
 const hubRow=(t,s,ic,bg,go,n,nc,soon)=>`<button class="ac-row${soon?' soon':''}" data-act="${soon?'sim':'xgo'}" data-v="${esc(soon?t:go)}"><span class="ic" style="background:${bg}">${ic}</span><span class="tx"><b>${esc(t)}</b><small>${esc(s)}</small></span>${n?`<span class="ac-n ${nc||''}">${n}</span>`:''}${soon?'<span class="eq-tag">bientôt</span>':''}<span class="chev">${CHEV}</span></button>`;
 const hubSec=(ic,t,s,rows)=>{const R=rows.filter(Boolean);return R.length?`<section class="eq-hubsec"><div class="ac-h"><b>${ic} ${esc(t)}</b>${s?`<span>${esc(s)}</span>`:''}</div><div class="eq-hubrows">${R.join('')}</div></section>`:'';};
-const extHub=(tab,me)=>EXTS().flatMap(m=>{try{return (m.hubRows&&m.hubRows(tab,me,Object.assign(extCtx(me),{row:hubRow})))||[];}catch(e){console.warn(e);return [];}}); /* 14/10 nuit : lignes de hub des modules */
+const extHub=(tab,me,f)=>EXTS().filter(m=>!f||f(m)).flatMap(m=>{try{return (m.hubRows&&m.hubRows(tab,me,Object.assign(extCtx(me),{row:hubRow})))||[];}catch(e){console.warn(e);return [];}}); /* 14/10 nuit : lignes de hub des modules */
 const kpi=(v,l,k)=>`<div class="eq-kpi ${k||''}"><b>${v}</b><small>${esc(l)}</small></div>`;
 function vExpl(me){const sub=vSub(me);if(sub!==null)return sub;if(S.hubSeg==='secu')return vSecu(me);
   NOTIFS=notifsFor(me);const nV=NOTIFS.filter(n=>n.act&&n.ic===ICO.check).reduce((a,n)=>a+(parseInt(n.t)||0),0),nM=NOTIFS.filter(n=>n.act&&n.ic===ICO.clock).reduce((a,n)=>a+(parseInt(n.t)||0),0),nA=NOTIFS.filter(n=>n.act&&n.ic===ICO.undo).reduce((a,n)=>a+(parseInt(n.t)||0),0),nP=NOTIFS.filter(n=>n.act&&n.ic===ICO.cal).reduce((a,n)=>a+(parseInt(n.t.replace(/^[^:]*:\s*/,''))||0),0);
@@ -2225,11 +2226,11 @@ function hubEntreprise(me){const row=hubRow;const t=accueilType(me);const dir=t=
   const nInfo=docsAll().filter(d=>d.kind==='info').length;const nDocsTodo=q?(()=>{const all=DATA.personnes.map(p=>p._acc).filter(Boolean);return all.filter(a=>docsTodo(a).length).length;})():0;
   return m3dTop('entreprise',me)+`<h2 class="vt">SCR <span class="hint">· notre équipe, nos documents, nos actus</span></h2>
     ${hubSec('👥','Les gens','',[
-      row('Annuaire','Toute l\'entreprise par poste : fiche, téléphone, adresse, ancienneté',ICO.home,'#ececea','annu',DATA.personnes.filter(p=>p.active).length)])}
+      row('Annuaire','Toute l\'entreprise par poste : fiche, téléphone, adresse, ancienneté',ICO.home,'#ececea','annu',DATA.personnes.filter(p=>p.active).length)].concat(extHub('entreprise',me,m=>m.id==='rh')) /* 10/11 : Ressources humaines en tête, pas dans « Administratif » */)}
     ${hubSec('📄','Documents & communication','',[
       q?row('Documents d\'entreprise','Règlement intérieur, notes de service, flash info, documents d\'accueil — qui a signé, qui est à relancer (échéance 7 jours)',ICO.doc,'#e8f0fb','docs',nDocsTodo||null,'bad'):row('Documents d\'entreprise','Règlement intérieur, notes de service, flash info — ce que tu dois lire et signer',ICO.doc,'#e8f0fb','docs'),
       row('Communication interne','Infos publiées à tout le monde : actualités, résultats, événements — à lire, sans signature',ICO.msg,'#e3f3f3','info',nInfo||null)])}
-    ${extHub('entreprise',me).length?hubSec('🗂','Administratif','',extHub('entreprise',me)) /* 31/10 : Accueil RH passé dans Documents d'entreprise ; restent les documents administratifs (offres) et le pack */:''}
+    ${extHub('entreprise',me,m=>m.id!=='rh').length?hubSec('🗂','Administratif','',extHub('entreprise',me,m=>m.id!=='rh')) /* 31/10 : Accueil RH passé dans Documents d'entreprise ; restent les documents administratifs (offres) et le pack */:''}
     ${hubSec('🛠','Outils','',[
       me.admin?`<button class="ac-row" data-act="tabgo" data-v="admin"><span class="ic" style="background:#15140f;color:#fff">⚙</span><span class="tx"><b>Administration</b><small>Comptes et accès · postes · qui peut quoi · 🧪 bac à sable</small></span><span class="chev">${CHEV}</span></button>`:''])}`;}
 /* ── 10/10 (retour Ethan) : SUIVI DES CONTRÔLES CHANTIER — « la direction et le responsable d'exploitation ont un visuel de qui a fait des contrôles, à quelle fréquence ; on va mettre des objectifs là-dessus » ── */
@@ -2348,7 +2349,7 @@ const cmdCtx=me=>({comptesHTML:()=>cComptesChantier(me),canEdit:(can(me,'plannin
 const ACT={
   x(v,el){const me=pers(S.me);if(!me)return;const i=String(v).indexOf('|');const id=i<0?v:v.slice(0,i);const m=EXTS().find(y=>y.id===id);if(m&&m.act)m.act(i<0?'':v.slice(i+1),el,me,extCtx(me));}, /* 14/10 nuit : actions des modules branchés */
   tab(v){S.tab=v;S.fiche=null;S.sub='moi';if(A.homeTab)A.homeTab(v==='entreprise'?'entreprise':'espace');else render()},
-  tabgo(v,el){if(v==='traceur'){if(A.traceur)A.traceur(el&&el.dataset?el.dataset.aff:'');return;} /* 12/10 : depuis l'affaire → le chantier tracé se lie à l'affaire */if(v==='admin'||v==='sites'||v==='expl'||v==='secu'||v==='espace'||v==='entreprise'||v==='commerce'||v==='affaire'||v==='parc'||v==='magasin'){if(v==='expl'||v==='secu'||v==='affaire')S.xsub=null; /* 31/10 matin : + Affaire */if(A.homeTab)A.homeTab(v);return;}},
+  tabgo(v,el){if(String(v||'').startsWith('x:')){goX(v);return;} /* 10/11 : une tuile peut ouvrir directement un module (RH) */if(v==='traceur'){if(A.traceur)A.traceur(el&&el.dataset?el.dataset.aff:'');return;} /* 12/10 : depuis l'affaire → le chantier tracé se lie à l'affaire */if(v==='admin'||v==='sites'||v==='expl'||v==='secu'||v==='espace'||v==='entreprise'||v==='commerce'||v==='affaire'||v==='parc'||v==='magasin'){if(v==='expl'||v==='secu'||v==='affaire')S.xsub=null; /* 31/10 matin : + Affaire */if(A.homeTab)A.homeTab(v);return;}},
   notif(v){const n=NOTIFS[+v];if(n&&n.go)n.go();},
   af(v,el){const me=pers(S.me);if(!can(me,'affaires.view'))return;affAct(v,el,affCtx(me));},
   cmd(v,el){const me=pers(S.me);if(viewing()&&!/^(open|back|tab|etat)\|/.test(String(v))){viewOnly();return;}cmdAct(v,el,cmdCtx(me));},
