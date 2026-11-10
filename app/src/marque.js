@@ -21,10 +21,11 @@ export const MODULES = {
   flotte: { label: 'Flotte', desc: 'Véhicules : remise, états des lieux, cartes, mouvements' },
   magasin: { label: 'Magasin', desc: 'Demandes de matériel, stock du dépôt, réception, inventaire, matériel' },
   compagnon: { label: 'Compagnon', desc: 'Mon pointage, mes documents à signer, mes demandes, mon véhicule, mon avatar' },
-  equipe: { label: 'Équipe', desc: 'Personnes, accueil RH, fiches de poste, droits' }
+  equipe: { label: 'Équipe', desc: 'Personnes, accueil RH, fiches de poste, droits' },
+  rh: { label: 'Ressources humaines', desc: 'Navettes, absences et congés, habilitations, formation, contraventions, mutuelle, accidents' } /* 10/11 soir (Ethan) : Tracé Ressources humaines, module à part entière */
 };
 /* 31/10 : modules qu'une entreprise peut ne pas prendre (réglage « modules », Administrateur → 🏢 Entreprise) — Chantier, Compagnon et Équipe sont toujours là */
-export const MODULES_OPTION = ['concepteur', 'pilotage', 'commerce', 'affaire', 'flotte', 'magasin'];
+export const MODULES_OPTION = ['concepteur', 'pilotage', 'commerce', 'affaire', 'flotte', 'magasin', 'rh'];
 // Réglage « entreprise » (logo + nom affichés à droite du bandeau) : réglage partagé app_settings « entreprise » (admin), copie sur l'appareil
 export const ENT_KEY = 'trace:entreprise';
 export function entLocal() { try { const v = JSON.parse(localStorage.getItem(ENT_KEY) || 'null'); return v && typeof v === 'object' ? v : null } catch (e) { return null } }

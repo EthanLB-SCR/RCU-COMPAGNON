@@ -1469,7 +1469,7 @@ function spacesFor(me){const L=[{k:'sites',t:'Chantier',ic:SVG.pin,go:'sites',n:
   if((can(me,'flotte.manage')||me.admin)&&me.poste!=='visiteur'&&featOn('parc'))L.push({k:'parc',t:'Flotte',ic:SVG.truck,go:'parc'});
   if((can(me,'mag.manage')||me.admin)&&me.poste!=='visiteur'&&featOn('magasin'))L.push({k:'mag',t:'Magasin',ic:SVG.box,go:'magasin'}); /* 31/10 : Magasin = son propre onglet */
   if(can(me,'team.view')&&me.poste!=='visiteur')L.push({k:'ent',t:'Équipe',ic:SVG.team,go:'entreprise'}); /* 13/10 (Ethan) : « Entreprise » → « SCR » — l'onglet de la boîte : notre équipe, nos documents, nos actus */
-  if((can(me,'pointage.self')||can(me,'team.view'))&&me.poste!=='visiteur'&&EXTS().some(m=>m.id==='rh'))L.push({k:'rh',t:'RH',ic:SVG.users,go:'x:rh:home'}); /* 10/11 (Ethan : « je ne vois pas le module RH ») : Tracé Ressources humaines a sa tuile — gestion pour la RH / le resp. d'exploitation, « mon dossier » pour les autres */
+  if((can(me,'pointage.self')||can(me,'team.view'))&&me.poste!=='visiteur'&&EXTS().some(m=>m.id==='rh')&&(!A.moduleOn||A.moduleOn('rh')))L.push({k:'rh',t:'RH',ic:SVG.users,go:'rh'}); /* 10/11 soir (Ethan) : Tracé Ressources humaines = un module, son onglet — gestion pour la RH / le resp. d'exploitation, « mon dossier » pour les autres */
   /* 12/10 (Ethan) : plus de tuile Traceur à l'accueil — il s'ouvre depuis l'affaire (dessiner le projet) et depuis le chantier (modifier son réseau) */
   if(me.admin)L.push({k:'adm',t:'Réglages',ic:SVG.sld,go:'admin'});
   return L;}
@@ -2140,7 +2140,7 @@ export function espaceMesSites(){if(!DATA)DATA=buildData();const acc=A.current()
 /* 12/10 soir (Ethan) : « Entreprise est un fourre-tout » → six onglets : Aujourd'hui · Chantiers (cartes + Équipes & heures + Sécurité) · Moi · Commerce · Parc · Entreprise (annuaire, documents, communication, présentation).
    HUB_OF : l'onglet d'accueil de chaque sous-vue (retour « ‹ … » et re-rendu). */
 const HUB_OF={aff:'commerce',flotte:'parc',annu:'entreprise',docs:'entreprise',info:'entreprise',presentation:'entreprise',qhs:'expl',controles:'expl',accident:'expl',habsEq:'expl',cmd:'affaire',comptes:'affaire',frais:'affaire'}; /* 31/10 : Sécurité dans Pilotage ; achats et comptes dans Affaire */
-const HUB_LABEL={expl:'Pilotage',secu:'Pilotage',commerce:'Commerce',affaire:'Affaire',parc:'Flotte',entreprise:'Équipe'}; /* 31/10 : un onglet = un module */
+const HUB_LABEL={expl:'Pilotage',secu:'Pilotage',commerce:'Commerce',affaire:'Affaire',parc:'Flotte',entreprise:'Équipe',rh:'Ressources humaines'}; /* 31/10 : un onglet = un module */
 const xsubHome=x=>!x?null:String(x).startsWith('dash:')?'expl':String(x).startsWith('x:')?((EXTS().find(m=>m.id===String(x).split(':')[1])||{}).hub||'expl'):(HUB_OF[x]||'expl');
 function vSub(me){const x=S.xsub;if(!x)return null;const back=t=>`<button class="ac-back" data-act="xsub" data-v="">‹ ${S.tab==='parc'&&S.parcLock==='magasin'?'Magasin':HUB_LABEL[S.tab]||'Pilotage'}</button>${t?`<h2 class="vt">${t}</h2>`:''}`;
   if(String(x).startsWith('x:')){const [,id,...r]=String(x).split(':');const m=EXTS().find(y=>y.id===id);let h='';try{h=m&&m.xview?m.xview(r.join(':'),me,extCtx(me)):'';}catch(e){console.warn(e);h=`<div class="card"><div class="eq-s">Erreur d'affichage : ${esc(e.message)}</div></div>`;}return back('')+(h||'');}
@@ -2226,11 +2226,11 @@ function hubEntreprise(me){const row=hubRow;const t=accueilType(me);const dir=t=
   const nInfo=docsAll().filter(d=>d.kind==='info').length;const nDocsTodo=q?(()=>{const all=DATA.personnes.map(p=>p._acc).filter(Boolean);return all.filter(a=>docsTodo(a).length).length;})():0;
   return m3dTop('entreprise',me)+`<h2 class="vt">SCR <span class="hint">· notre équipe, nos documents, nos actus</span></h2>
     ${hubSec('👥','Les gens','',[
-      row('Annuaire','Toute l\'entreprise par poste : fiche, téléphone, adresse, ancienneté',ICO.home,'#ececea','annu',DATA.personnes.filter(p=>p.active).length)].concat(extHub('entreprise',me,m=>m.id==='rh')) /* 10/11 : Ressources humaines en tête, pas dans « Administratif » */)}
+      row('Annuaire','Toute l\'entreprise par poste : fiche, téléphone, adresse, ancienneté',ICO.home,'#ececea','annu',DATA.personnes.filter(p=>p.active).length)])}
     ${hubSec('📄','Documents & communication','',[
       q?row('Documents d\'entreprise','Règlement intérieur, notes de service, flash info, documents d\'accueil — qui a signé, qui est à relancer (échéance 7 jours)',ICO.doc,'#e8f0fb','docs',nDocsTodo||null,'bad'):row('Documents d\'entreprise','Règlement intérieur, notes de service, flash info — ce que tu dois lire et signer',ICO.doc,'#e8f0fb','docs'),
       row('Communication interne','Infos publiées à tout le monde : actualités, résultats, événements — à lire, sans signature',ICO.msg,'#e3f3f3','info',nInfo||null)])}
-    ${extHub('entreprise',me,m=>m.id!=='rh').length?hubSec('🗂','Administratif','',extHub('entreprise',me,m=>m.id!=='rh')) /* 31/10 : Accueil RH passé dans Documents d'entreprise ; restent les documents administratifs (offres) et le pack */:''}
+    ${extHub('entreprise',me).length?hubSec('🗂','Administratif','',extHub('entreprise',me)) /* 31/10 : Accueil RH passé dans Documents d'entreprise ; restent les documents administratifs (offres) et le pack */:''}
     ${hubSec('🛠','Outils','',[
       me.admin?`<button class="ac-row" data-act="tabgo" data-v="admin"><span class="ic" style="background:#15140f;color:#fff">⚙</span><span class="tx"><b>Administration</b><small>Comptes et accès · postes · qui peut quoi · 🧪 bac à sable</small></span><span class="chev">${CHEV}</span></button>`:''])}`;}
 /* ── 10/10 (retour Ethan) : SUIVI DES CONTRÔLES CHANTIER — « la direction et le responsable d'exploitation ont un visuel de qui a fait des contrôles, à quelle fréquence ; on va mettre des objectifs là-dessus » ── */
@@ -2275,6 +2275,9 @@ function badge(me,k){
   return n?` <span class="eq-badge${r?' eq-rouge':''}">${n}</span>`:'';
 }
 function fix(me){const s=subsFor(me).map(x=>x[0]);if(s.length&&!s.includes(S.sub))S.sub=s[0];const we=[0,6].includes(D(todayIso()).getDay())?1:0;if(S.plWeek===undefined)S.plWeek=we;if(S.objWeek===undefined)S.objWeek=we;if(S.planSem===undefined)S.planSem=we;} /* 11/10 : le week-end, « cette semaine » n'a plus de jours devant elle → planning, objectifs et Ta semaine s'ouvrent sur la semaine qui arrive (c'est aussi pour ça que la météo — prévisions à 7 jours — n'y apparaissait pas le dimanche) */
+/* 10/11 soir (Ethan : « un module Ressources humaines, dans mes modules ») : l'onglet RH = tracerh.js, qui a ses rubriques (tableau de bord, navettes, absences…) ; une sous-vue x:rh:<k> est sa rubrique */
+function vRh(me){const m=EXTS().find(x=>x.id==='rh');if(!m)return `<div class="card"><div class="eq-s">Module Ressources humaines indisponible.</div></div>`;const x=String(S.xsub||'');const k=x.startsWith('x:rh:')?x.slice(5):'home';
+  try{return m.xview(k,me,extCtx(me))||'';}catch(e){console.warn(e);return `<div class="card"><div class="eq-s">Erreur d'affichage : ${esc(e.message)}</div></div>`;}}
 function vue(me){
   if(S.tab==='entreprise')return vEntreprise(me);
   if(S.tab==='accueil')return vAccueil(me);
@@ -2282,6 +2285,7 @@ function vue(me){
   if(S.tab==='commerce')return vCommerce(me);
   if(S.tab==='affaire')return vAffaire(me); /* 31/10 : module Affaire */
   if(S.tab==='parc')return vParc(me);
+  if(S.tab==='rh')return vRh(me); /* 10/11 soir : module Ressources humaines */
   switch(S.sub){
     case 'moi':return vMoi(me);
     case 'planning':return vPlanning(me);
@@ -2316,7 +2320,7 @@ function render(){
   ROOT.scrollTop=sy;if(sk===LAST_SK)scrollBack(snap);else scrollTop0();LAST_SK=sk;LAST_FICHE=S.fiche||null;if(S.plQ&&$id('pl-tray'))plFilterTray(S.plQ);if(S.plQ&&$id('pi-q'))piFilter(S.plQ); /* la recherche du planning survit au re-rendu */
 }
 /* 31/10 (tutoriels par option) : clé de l'écran affiché — « module » (hub) ou « module:option » (rubrique de Compagnon, sous-vue d'un hub, segment) */
-export function espaceViewKey(){const T=({moi:'compagnon',expl:S.hubSeg==='secu'?'pilotage':'pilotage',affaire:'affaire',commerce:'commerce',parc:S.parcLock==='magasin'?'magasin':'flotte',entreprise:'equipe',accueil:'accueil'})[S.tab]||null;if(!T)return null;
+export function espaceViewKey(){const T=({moi:'compagnon',expl:S.hubSeg==='secu'?'pilotage':'pilotage',affaire:'affaire',commerce:'commerce',parc:S.parcLock==='magasin'?'magasin':'flotte',entreprise:'equipe',accueil:'accueil',rh:'rh'})[S.tab]||null;if(!T)return null;
   if(S.xsub){const x=String(S.xsub);return T+':'+(x.startsWith('x:')?x.split(':').slice(0,2).join(':'):x.startsWith('dash:')?'dash':x.split(':')[0]);}
   if(S.tab==='commerce'){try{const as=affState();if(as&&as.view==='fiche'&&as.cur)return 'commerce:aff';}catch(e){}} /* 31/10 (lot cm) : une affaire ouverte depuis la liste = son tutoriel */
   if(S.tab==='expl'&&S.hubSeg==='secu')return 'pilotage:secu';
@@ -2334,7 +2338,7 @@ function scrollBack(o){if(!o)return;try{if(ROOT&&o.root)ROOT.scrollTop=o.root;if
   if(o.sheet&&S.fiche&&S.fiche===LAST_FICHE){const sh=document.querySelector('#eq-app .eq-sheet');if(sh)sh.scrollTop=o.sheet;}Object.entries(o.ids).forEach(([id,y])=>{const el=document.getElementById(id);if(el)el.scrollTop=y;});}catch(e){}}
 function scrollTop0(){try{if(ROOT)ROOT.scrollTop=0;if(ROOT&&ROOT.parentElement)ROOT.parentElement.scrollTop=0;window.scrollTo(0,0);}catch(e){}}
 // point d'entrée : app.js appelle espaceRender(#homeBody, 'moi' | 'entreprise') ; relance le chargement serveur si pas encore fait
-export function espaceRender(el,tab){ROOT=el;const tab0=S.tab,seg0=S.hubSeg,lock0=S.parcLock;const seg=tab==='secu'?'secu':tab==='expl'?'eq':null;if(seg)S.hubSeg=seg;S.parcLock=tab==='magasin'?'magasin':null; /* 31/10 : onglet Magasin = la vue Parc verrouillée sur son segment */if(tab==='magasin')tab='parc';S.tab=tab==='secu'?'expl':['entreprise','accueil','expl','commerce','affaire','parc'].includes(tab)?tab:'moi';if(S.parcLock!==lock0)S.xsub=null;const home=xsubHome(S.xsub);if(S.xsub&&!(home===S.tab||(home==='secu'&&S.tab==='expl'&&S.hubSeg==='secu')))S.xsub=null; /* une sous-vue ne survit que dans son onglet ; un re-rendu (modale fermée, données reçues) ne renvoie pas au hub */if(S.tab!==tab0||S.hubSeg!==seg0)S.fiche=null; /* 13/10 : une fiche ouverte reste ouverte quand des données arrivent (registre enregistré, ex. compteurs d'heures) — elle se ferme en changeant d'onglet */S.corr=null;S.edit=false;render();if(!LOADED&&!loading){loading=true;espaceLoad().catch(e=>console.warn(e)).finally(()=>{loading=false;});}}
+export function espaceRender(el,tab){ROOT=el;const tab0=S.tab,seg0=S.hubSeg,lock0=S.parcLock;const seg=tab==='secu'?'secu':tab==='expl'?'eq':null;if(seg)S.hubSeg=seg;S.parcLock=tab==='magasin'?'magasin':null; /* 31/10 : onglet Magasin = la vue Parc verrouillée sur son segment */if(tab==='magasin')tab='parc';S.tab=tab==='secu'?'expl':['entreprise','accueil','expl','commerce','affaire','parc','rh'].includes(tab)?tab:'moi';if(S.parcLock!==lock0)S.xsub=null;const home=xsubHome(S.xsub);if(S.xsub&&!(home===S.tab||(home==='secu'&&S.tab==='expl'&&S.hubSeg==='secu')))S.xsub=null; /* une sous-vue ne survit que dans son onglet ; un re-rendu (modale fermée, données reçues) ne renvoie pas au hub */if(S.tab!==tab0||S.hubSeg!==seg0)S.fiche=null; /* 13/10 : une fiche ouverte reste ouverte quand des données arrivent (registre enregistré, ex. compteurs d'heures) — elle se ferme en changeant d'onglet */S.corr=null;S.edit=false;render();if(!LOADED&&!loading){loading=true;espaceLoad().catch(e=>console.warn(e)).finally(()=>{loading=false;});}}
 let loading=false;
 export function espaceOpenFiche(key){S.fiche=key;render();}
 export function espaceSub(k){if(k==='orga'){S.tab='expl';S.xsub='orga';if(A.homeTab){A.homeTab('expl');return;}render();return;}S.tab='moi';S.sub=k;render();}
@@ -2349,7 +2353,7 @@ const cmdCtx=me=>({comptesHTML:()=>cComptesChantier(me),canEdit:(can(me,'plannin
 const ACT={
   x(v,el){const me=pers(S.me);if(!me)return;const i=String(v).indexOf('|');const id=i<0?v:v.slice(0,i);const m=EXTS().find(y=>y.id===id);if(m&&m.act)m.act(i<0?'':v.slice(i+1),el,me,extCtx(me));}, /* 14/10 nuit : actions des modules branchés */
   tab(v){S.tab=v;S.fiche=null;S.sub='moi';if(A.homeTab)A.homeTab(v==='entreprise'?'entreprise':'espace');else render()},
-  tabgo(v,el){if(String(v||'').startsWith('x:')){goX(v);return;} /* 10/11 : une tuile peut ouvrir directement un module (RH) */if(v==='traceur'){if(A.traceur)A.traceur(el&&el.dataset?el.dataset.aff:'');return;} /* 12/10 : depuis l'affaire → le chantier tracé se lie à l'affaire */if(v==='admin'||v==='sites'||v==='expl'||v==='secu'||v==='espace'||v==='entreprise'||v==='commerce'||v==='affaire'||v==='parc'||v==='magasin'){if(v==='expl'||v==='secu'||v==='affaire')S.xsub=null; /* 31/10 matin : + Affaire */if(A.homeTab)A.homeTab(v);return;}},
+  tabgo(v,el){if(String(v||'').startsWith('x:')){goX(v);return;} /* 10/11 : une tuile peut ouvrir directement un module (RH) */if(v==='traceur'){if(A.traceur)A.traceur(el&&el.dataset?el.dataset.aff:'');return;} /* 12/10 : depuis l'affaire → le chantier tracé se lie à l'affaire */if(v==='admin'||v==='sites'||v==='expl'||v==='secu'||v==='espace'||v==='entreprise'||v==='commerce'||v==='affaire'||v==='parc'||v==='magasin'||v==='rh'){if(v==='expl'||v==='secu'||v==='affaire')S.xsub=null; /* 31/10 matin : + Affaire */if(A.homeTab)A.homeTab(v);return;}},
   notif(v){const n=NOTIFS[+v];if(n&&n.go)n.go();},
   af(v,el){const me=pers(S.me);if(!can(me,'affaires.view'))return;affAct(v,el,affCtx(me));},
   cmd(v,el){const me=pers(S.me);if(viewing()&&!/^(open|back|tab|etat)\|/.test(String(v))){viewOnly();return;}cmdAct(v,el,cmdCtx(me));},

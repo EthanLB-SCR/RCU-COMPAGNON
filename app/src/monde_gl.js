@@ -54,7 +54,7 @@ function act(type, arg, x, me, ctx, extra) {
     case 'person': classic('fiche', arg); return;
     case 'site': if (A && A.openSite) A.openSite(arg); return;
     case 'notif': classic('notif', arg); return;
-    case 'tabgo': { const k = String(arg || ''); if (['commerce', 'parc', 'magasin', 'expl', 'entreprise', 'sites', 'espace', 'affaire', 'secu', 'admin'].includes(k)) classic('tabgo', k); else if (k === 'chantier') classic('tabgo', 'sites'); else if (k === 'pilotage') classic('tabgo', 'expl'); else if (k === 'flotte') classic('tabgo', 'parc'); else if (k === 'equipe') classic('tabgo', 'entreprise'); else if (k === 'compagnon') classic('tabgo', 'espace'); else if (k === 'planning') ctx.go('plan'); else if (k === 'prod') ctx.go('prod'); else if (k === 'valid') ctx.go('valid'); else if (k === 'reception') classic('tabgo', 'parc'); else if (k === 'rh') ctx.go('x:rh:home'); else ctx.go(k); return; }
+    case 'tabgo': { const k = String(arg || ''); if (['commerce', 'parc', 'magasin', 'expl', 'entreprise', 'sites', 'espace', 'affaire', 'secu', 'admin', 'rh'].includes(k)) classic('tabgo', k); else if (k === 'chantier') classic('tabgo', 'sites'); else if (k === 'pilotage') classic('tabgo', 'expl'); else if (k === 'flotte') classic('tabgo', 'parc'); else if (k === 'equipe') classic('tabgo', 'entreprise'); else if (k === 'compagnon') classic('tabgo', 'espace'); else if (k === 'planning') ctx.go('plan'); else if (k === 'prod') ctx.go('prod'); else if (k === 'valid') ctx.go('valid'); else if (k === 'reception') classic('tabgo', 'parc'); else ctx.go(k); return; }
     case 'vehicle': classic('tabgo', 'parc'); setTimeout(() => classic('fl', 'open|' + arg), 80); return;
     case 'vehicle_remise': classic('tabgo', 'parc'); setTimeout(() => classic('fl', 'open|' + arg), 80); return;
     case 'affaire': classic('tabgo', 'commerce'); setTimeout(() => classic('af', 'open|' + arg), 80); return;
@@ -95,7 +95,7 @@ export function buildData(kind, me, ctx, extra) {
   const meP = people.find(p => p.id === me.id) || personOut(me, ctx, today, prefsOf); meP.prefs = meP.prefs || normPrefs(null); meP.secteur = meP.secteur || mySect;
   const notifs = { todo: (extra.todo || []).map(([x, i]) => ({ i, t: x.t, s: x.s, sev: x.sev, ic: typeof x.ic === 'string' && !/^</.test(x.ic) ? x.ic : '', when: x.when || '' })), know: (extra.know || []).map(([x, i]) => ({ i, kl: x.kl || x.t, kv: x.kv || x.s, sev: x.sev, ic: typeof x.ic === 'string' && !/^</.test(x.ic) ? x.ic : '', wait: x.wait || '' })) };
   /* 08/11 : clé du module d'après sa destination (go) — les clés courtes (moi, com, aff, mag, ent, adm) n'ouvraient rien */
-  const KGO = { sites: 'chantier', expl: 'pilotage', espace: 'compagnon', parc: 'flotte', entreprise: 'equipe', 'x:rh:home': 'rh' };
+  const KGO = { sites: 'chantier', expl: 'pilotage', espace: 'compagnon', parc: 'flotte', entreprise: 'equipe' };
   const spaces = (extra.spaces || []).map(s => { const g = s.go || s.k; return { k: KGO[g] || g, t: s.t, n: s.n || 0 }; });
   const mine = chantiers.filter(c => !mySect || !c.secteur || c.secteur === mySect);
   const screen = { date: today.split('-').reverse().join('/'), tiles: [{ v: mine.length, l: 'chantiers' }, { v: notifs.todo.length, l: 'à faire', col: '#FFD978' }, { v: people.filter(p => (!mySect || p.secteur === mySect) && p.today.where === 'chantier').length, l: 'sur le terrain' }], foot: notifs.todo.slice(0, 3).map(t => t.t) };

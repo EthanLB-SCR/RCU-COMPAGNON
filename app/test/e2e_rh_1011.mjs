@@ -17,16 +17,17 @@ await home('htHome');await W(1500);const r0={gl:await T(()=>{const H=window.TRAC
 await click('[data-act="x"][data-v="monde|vue|acc|classique"]');await W(1200);
 r0.tile=await T(()=>{const b=[...document.querySelectorAll('.ac-tile')].find(b=>/^RH$/.test(b.querySelector('b')?.textContent||''));return b?{go:b.dataset.v,act:b.dataset.act,cls:b.className}:null;});
 await T(()=>{const b=[...document.querySelectorAll('.ac-tile')].find(b=>/^RH$/.test(b.querySelector('b')?.textContent||''));if(b)b.click();});await W(1200);
-r0.after=await T(()=>({tab:window.TRACE.state.homeTab,h2:(document.querySelector('#eq-app h2')||{}).textContent||'',back:!!document.querySelector('#eq-app .ac-back'),txt:(document.getElementById('eq-app')||{}).textContent.replace(/\s+/g,' ').slice(0,200)}));
+r0.after=await T(()=>({tab:window.TRACE.state.homeTab,h2:(document.querySelector('#eq-app h2')||{}).textContent||'',back:!!document.querySelector('#eq-app .ac-back'),on:(document.querySelector('#homeTabs button.on')||{}).id,band:(document.getElementById('tbHomeModName')||{}).textContent||'',txt:(document.getElementById('eq-app')||{}).textContent.replace(/\s+/g,' ').slice(0,200)}));
+await click('#tbHomeMod');await W(500);r0.menu=await T(()=>[...document.querySelectorAll('#modal .modList button')].map(b=>b.textContent.replace(/\s+/g,' ').trim()).filter(t=>/Ressources humaines/.test(t)));await T(()=>{const b=document.querySelector('#modal [data-close]');if(b)b.click();});await W(300);
 await click('[data-act="x"][data-v="monde|vue|acc|3d"]');await W(600); /* on remet la 3D pour la suite */
-console.log('r0)',J(r0));C.r0=r0.gl.join()==='RH'&&!!r0.tile&&r0.tile.go==='x:rh:home'&&r0.tile.act==='tabgo'&&/t-rh/.test(r0.tile.cls)&&r0.after.tab==='entreprise'&&r0.after.back&&/Ressources humaines/.test(r0.after.h2+' '+r0.after.txt);
+console.log('r0)',J(r0));C.r0=r0.gl.join()==='RH'&&!!r0.tile&&r0.tile.go==='rh'&&r0.tile.act==='tabgo'&&/t-rh/.test(r0.tile.cls)&&r0.after.tab==='rh'&&!r0.after.back&&r0.after.on==='htRh'&&r0.after.band==='Ressources humaines'&&/Ressources humaines/.test(r0.after.h2)&&r0.menu.length===1&&/^Tracé Ressources humaines/.test(r0.menu[0]);
 // r1) Entreprise : rubrique « Ressources humaines » (en tête, dans « Les gens »), « Visite des dépôts » ; plus de 3D en tête d'Équipe ; Pilotage sans 3D
-await home('htEnt');await W(1500);const r1=await T(()=>({rh:!!document.querySelector('[data-act="xgo"][data-v^="x:rh:"]'),visite:!!document.querySelector('[data-act="xgo"][data-v="x:monde:depot"]'),slot:!!document.querySelector('#eq-app .m3d-slot')}));
+await home('htEnt');await W(1500);const r1=await T(()=>({rh:(()=>{const b=document.getElementById('htRh');return !!b&&b.style.display!=='none'&&!document.querySelector('[data-act="xgo"][data-v^="x:rh:"]');})(),visite:!!document.querySelector('[data-act="xgo"][data-v="x:monde:depot"]'),slot:!!document.querySelector('#eq-app .m3d-slot')}));
 await home('htExpl');await W(1200);r1.pilSlot=await T(()=>!!document.querySelector('#eq-app .m3d-slot'));console.log('r1)',J(r1));C.r1=r1.rh&&r1.visite&&!r1.slot&&!r1.pilSlot;
 // r2) la rubrique « Visite des dépôts » monte la 3D du dépôt
 await home('htEnt');await click('[data-act="xgo"][data-v="x:monde:depot"]');await W(2500);const r2=await T(()=>({slot:(document.querySelector('#eq-app .m3d-slot')||{}).dataset?.m3dKind,h2:(document.querySelector('#eq-app h2')||{}).textContent||''}));console.log('r2)',J(r2));C.r2=r2.slot==='monde'&&/Visite des dépôts/.test(r2.h2);
 // r3) RH : tableau de bord puis absences — une absence CP de 3 jours → solde, liste
-await home('htEnt');await click('[data-act="xgo"][data-v^="x:rh:"]');await W(800);const r3a=await txt();
+await home('htRh');await W(800);const r3a=await txt();
 await click('[data-act="x"][data-v="rh|tab|abs"]');await W(600);await click('[data-act="x"][data-v="rh|new|rhabs"]');await W(500);
 await T(()=>{const s=document.getElementById('rh-p');s.value=[...s.options].find(o=>/Ethan/.test(o.textContent)).value;document.getElementById('rh-type').value='cp';document.getElementById('rh-du').value='2026-11-16';document.getElementById('rh-au').value='2026-11-18';document.getElementById('rh-au').dispatchEvent(new Event('change'));});
 const r3j=await T(()=>document.getElementById('rh-jours').value);await click('#rh-ok');await W(800);const r3=await txt();const abs=await T(()=>window.TRACE.rh.rows('rhabs'));
@@ -51,13 +52,13 @@ console.log('r6)',J({sst:/SST/.test(r6a)&&/04\/11\/2026/.test(r6a),mut:/Dispens�
 // r7) une personne sans droit RH : « Mon dossier RH », ses lignes seulement, pas de bouton ＋
 const other=await T(()=>{const c=window.TRACE.monde.ctx();const p=c.people.find(q=>q.poste==='soudeur'&&q.active!==false);return p?p.id:null;});
 await T(id=>{const Tr=window.TRACE;Tr.state.userId=id;Tr.renderHome();},other);await W(800);await home('htEnt');await W(800);
-const r7=await T(()=>({row:(document.querySelector('[data-act="xgo"][data-v^="x:rh:"]')||{}).textContent||''}));await click('[data-act="xgo"][data-v^="x:rh:"]');await W(700);await click('[data-act="x"][data-v="rh|tab|abs"]');await W(600);const r7t=await txt();r7.plus=await T(()=>!!document.querySelector('[data-act="x"][data-v="rh|new|rhabs"]'));r7.mine=/mon dossier/.test(r7t);r7.ethan=/Congés payés · 16\/11/.test(r7t);
-console.log('r7)',J(r7));C.r7=/Mon dossier RH/.test(r7.row)&&!r7.plus&&r7.mine&&!r7.ethan;
+await home('htRh');await W(700);const r7={row:await T(()=>(document.querySelector('#eq-app h2')||{}).textContent||'')};await click('[data-act="x"][data-v="rh|tab|abs"]');await W(600);const r7t=await txt();r7.plus=await T(()=>!!document.querySelector('[data-act="x"][data-v="rh|new|rhabs"]'));r7.mine=/mon dossier/.test(r7t);r7.ethan=/Congés payés · 16\/11/.test(r7t);
+console.log('r7)',J(r7));C.r7=/Ressources humaines · mon dossier/.test(r7.row)&&!r7.plus&&r7.mine&&!r7.ethan;
 // r9) un responsable d'exploitation sans droit RH : rubrique « Ressources humaines » limitée, ＋ absence possible, pas d'onglet Contraventions
 /* faute de responsable d'exploitation dans les personnages de démo : le droit « rh.abs » est accordé au poste soudeur par le réglage des droits par poste (comme le ferait l'administrateur) */
 await T(()=>{localStorage.setItem('trace:posteRights',JSON.stringify({soudeur:{'rh.abs':true}}));});await page.reload();await W(1500);{const s=await page.$('#loginSkip');if(s&&await s.isVisible())await s.click();await W(700);}
 const rex=await T(()=>{const Tr=window.TRACE;Tr.state.userId='karim';Tr.renderHome();return 'l:karim';});await W(800);
-if(rex){await home('htEnt');await W(800);await click('[data-act="xgo"][data-v^="x:rh:"]');await W(700);
+if(rex){await home('htRh');await W(800);
   const r9={pv:await T(()=>!!document.querySelector('[data-act="x"][data-v="rh|tab|pv"]'))};await click('[data-act="x"][data-v="rh|tab|abs"]');await W(600);r9.plus=await T(()=>!!document.querySelector('[data-act="x"][data-v="rh|new|rhabs"]'));r9.ethan=/Congés payés · 16\/11/.test(await txt());
   console.log('r9)',J({rex,...r9}));C.r9=!r9.pv&&r9.plus&&r9.ethan;}else{console.log('r9) pas de responsable d\'exploitation autre qu\'Ethan dans les données : étape passée');C.r9=true;}
 C.r8=!logs.length;if(logs.length)console.log('logs',J(logs.slice(0,3)));

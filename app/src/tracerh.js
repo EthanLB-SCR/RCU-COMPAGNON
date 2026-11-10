@@ -158,9 +158,7 @@ function tasks(me,ctx){hook(ctx);if(!rhVoir(me,ctx))return [];const today=todayI
   const wk=rows('rhform').filter(x=>x.statut==='prevu'&&x.du&&x.du>=today&&x.du<=addDays(today,7));if(wk.length)out.push({act:false,sev:'info',ic:'🎓',t:wk.length+' formation'+(wk.length>1?'s':'')+' cette semaine',s:wk.map(x=>(persOf(ctx,x.p)||{prenom:'?'}).prenom+' : '+x.titre).join(' · ').slice(0,120),go:()=>{TAB='form';ctx.go('x:'+ID+':form');}});
   return out;}
 const addDays=(d,n)=>{const t=new Date(d+'T12:00:00');t.setDate(t.getDate()+n);return t.toISOString().slice(0,10);};
-export default {id:ID,kinds:KINDS,hub:'entreprise',
-  hubRows(tab,me,ctx){hook(ctx);if(tab!=='entreprise')return [];const voir=rhVoir(me,ctx)||absEdit(me,ctx);const today=todayIso();const n=voir?rows('rhpv').filter(x=>x.statut==='recue').length+rows('rhmut').filter(x=>x.statut==='attente').length:0;
-    return [ctx.row(voir?'Ressources humaines':'Mon dossier RH',voir?(rhVoir(me,ctx)?'Navettes, absences et congés, habilitations, formation, contraventions, mutuelle, accidents':'Absences et congés de l\'équipe ; mon dossier'):'Mes absences, mes habilitations, mes formations, ma mutuelle','👥','#efeafb','x:'+ID+':'+TAB,n||null,n?'warn':'')];},
+export default {id:ID,kinds:KINDS,hub:'rh', /* 10/11 soir (Ethan) : module à part entière — son onglet « RH » (app.js / espace.js : vRh), plus une ligne du hub Équipe */
   xview(k,me,ctx){hook(ctx);TAB=k||TAB||'home';return view(TAB,me,ctx);},
   tasks,
   act(v,el,me,ctx){hook(ctx);const parts=String(v).split('|');const k=parts[0];
