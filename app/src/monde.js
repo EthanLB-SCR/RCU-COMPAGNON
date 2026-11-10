@@ -11,7 +11,7 @@
 // · Rien n'est retiré : chaque scène est une vue de plus ; la vue classique reste à un clic ; les objets ouvrent EXACTEMENT ce qu'ouvrent les boutons classiques
 //   (mêmes data-act : notif, tabgo, accnew, af…).
 import {magStock} from './magasin.js';
-import {glAvailable,glSlot,glDispose,networkOf} from './monde_gl.js'; // 08/11 : vraie 3D (three.js) ; les scènes SVG ci-dessous restent le secours sans WebGL
+import {glAvailable,glSlot,glDispose,networkOf,notesOf,glGo,glKind,noteDue,fmtRappel,nowLocal16} from './monde_gl.js'; // 08/11 : vraie 3D (three.js) ; les scènes SVG ci-dessous restent le secours sans WebGL
 const KEY='trace:monde';
 let CFG=null,API=null,LOADED=false;
 export const SECT0={ouest:'Ouest',idf:'Île-de-France',sudouest:'Sud-Ouest',sudest:'Sud-Est'};
@@ -490,4 +490,13 @@ function xview(k,me,ctx){return k==='cfg'?cfgView(me,ctx):null;}
 function moiSubs(me,ctx){ensureLoaded(ctx);if(!mondeFor(me)||!glAvailable())return [];return [['bureau3d','🪑 Mon bureau 3D',0,false]];}
 function view(sub,me,ctx){if(sub!=='bureau3d'||!mondeFor(me)||!glAvailable())return null;return `<h2 class="vt">Mon bureau 3D <span class="hint">· couleurs, matières, objets, raccourcis</span></h2><div class="hint" style="margin:0 0 8px">Ce que tu arranges ici est ton accueil, et ce que tes collègues voient de toi dans le dépôt.</div>`+glSlot('bureau',me,ctx,{cfg:mondeCfg(),perso:true,todo:[],know:[],spaces:(ctx.spaces||[])});}
 export function setChantierVue(v){setVue('ch',v==='3d'?'3d':'classique');if(v!=='3d')glDispose();}
-export default {id:'monde',hub:'entreprise',hubTop,accueil,hubRows,xview,act,input,moiSubs,view};
+/* 10/11 (Ethan : « sur les post-it, une heure de rappel ; quand l'heure arrive, un petit rappel ») — côté appli : une ligne « À faire » par rappel arrivé,
+   et toutes les 30 s un toast + une notification système (si autorisée, appli en arrière-plan) quand la 3D n'est pas à l'écran (sinon c'est elle qui prévient). Notes = celles de cet appareil. */
+let RAP_ME=null;const RAP_SEEN=new Set();let RAP_T=null;
+const rapDues=me=>{if(!me)return [];const now=nowLocal16();return notesOf(me.id).filter(n=>noteDue(n,now));};
+function rapTick(){try{if(!RAP_ME)return;const now=nowLocal16();rapDues(RAP_ME).forEach(n=>{if(RAP_SEEN.has(n.id+'|'+n.r))return;RAP_SEEN.add(n.id+'|'+n.r);const t='🔔 Rappel : '+n.t.split(/\r?\n/)[0].slice(0,80);if(glKind()!=='bureau'&&API&&API.toast)API.toast(t);
+  try{if('Notification' in window&&Notification.permission==='granted'&&document.hidden)new Notification('Tracé · rappel',{body:n.t.slice(0,120),tag:'trace-rappel-'+n.id});}catch(e){}});}catch(e){console.warn(e);}}
+function rapWatch(me){RAP_ME=me||RAP_ME;if(!RAP_T)RAP_T=setInterval(rapTick,30000);}
+function tasks(me,ctx){ensureLoaded(ctx);rapWatch(me);return rapDues(me).map(n=>({act:true,sev:'warn',ic:'🔔',t:'Rappel : '+n.t.split(/\r?\n/)[0].slice(0,80),s:'post-it de ton bureau · prévu '+fmtRappel(n.r)+' · ouvre-le pour le marquer vu ou le reporter',when:'maintenant',
+  go:()=>{if(glGo('note',n.id))return;ctx.render();setTimeout(()=>glGo('note',n.id),600);}}));}
+export default {id:'monde',hub:'entreprise',hubTop,accueil,hubRows,xview,act,input,moiSubs,view,tasks};

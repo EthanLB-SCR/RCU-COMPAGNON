@@ -20,7 +20,7 @@ export function ecran(kind, D) {
   const st = { scroll: 0, max: 0 }; /* défilement (liste « À faire ») : pixels d'écran */
   const draw = hv => {
     zones.length = 0; g.setTransform(SC, 0, 0, SC, 0, 0); g.clearRect(0, 0, W, H); g.textBaseline = 'alphabetic'; g.textAlign = 'left'; D = D || {}; D._st = st;
-    if (kind === 'chantiers') drawChantiers(g, D || {}, zone, hv); else if (kind === 'afaire') drawAfaire(g, D || {}, zone, hv); else if (kind === 'asavoir') drawAsavoir(g, D || {}, zone, hv); else if (kind === 'veleda') drawVeleda(g, D || {}, zone, hv); else if (kind === 'verrou') drawVerrou(g, D || {}); else if (kind === 'modules') drawModules(g, D || {}, zone, hv); else drawTableau(g, D || {}, zone, hv);
+    if (kind === 'chantiers') drawChantiers(g, D || {}, zone, hv); else if (kind === 'afaire') drawAfaire(g, D || {}, zone, hv); else if (kind === 'asavoir') drawAsavoir(g, D || {}, zone, hv); else if (kind === 'veleda') drawVeleda(g, D || {}, zone, hv); else if (kind === 'jour') drawJour(g, D || {}, zone, hv); else if (kind === 'verrou') drawVerrou(g, D || {}); else if (kind === 'modules') drawModules(g, D || {}, zone, hv); else drawTableau(g, D || {}, zone, hv);
     tex.needsUpdate = true;
   };
   draw(-1); const scrollBy = dy => { if (!st.max) return false; const before = st.scroll; st.scroll = Math.max(0, Math.min(st.max, st.scroll + dy * 1.6)); if (st.scroll !== before) draw(-1); return true; }; return { tex, zones, size: [W, H], redraw: draw, scrollBy, state: st };
@@ -138,14 +138,49 @@ function drawVeleda(g, D, zone, hv) {
   if (n > maxRows) { g.font = `600 26px ${HAND}`; g.fillStyle = '#5B6270'; const more = '+ ' + (n - maxRows) + ' autre' + (n - maxRows > 1 ? 's' : '') + ' chose' + (n - maxRows > 1 ? 's' : '') + ' à savoir ›'; const zi = D.morePick ? zone(36, y - 36, 500, 46, D.morePick, 'Tout voir') : -1; if (zi === hv) g.fillStyle = '#5E46B8'; g.fillText(more, 60, y - 4); }
   g.font = `500 20px ${HAND}`; g.fillStyle = '#9AA1AE'; g.textAlign = 'right'; g.fillText('clique une ligne pour l\'ouvrir', W - 44, H - 22); g.textAlign = 'left';
 }
+/* 10/11 (Ethan : « un tableau liège Ma journée : l'agenda du jour — rendez-vous connectés à Outlook ou ajoutés ici — et des tâches comme les notes, avec rappel »)
+   D = { date, now:'HH:MM', rdv:[{id, h, t, src, pick}], taches:[{id, t, c, done, due, r, pick}], addPick } — rendez-vous épinglés à gauche, tâches en mini post-its à droite */
+function drawJour(g, D, zone, hv) {
+  g.fillStyle = '#C9A46A'; g.fillRect(0, 0, W, H); /* liège : fond + grain */
+  let sd = 7; const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; }; for (let i = 0; i < 2600; i++) { g.fillStyle = rnd() < 0.5 ? 'rgba(90,60,25,.16)' : 'rgba(255,235,200,.16)'; const x = rnd() * W, y = rnd() * H; g.fillRect(x, y, 2 + rnd() * 3, 2 + rnd() * 2); }
+  const pin = (x, y, col) => { g.fillStyle = 'rgba(0,0,0,.25)'; g.beginPath(); g.arc(x + 2, y + 3, 9, 0, 7); g.fill(); g.fillStyle = col; g.beginPath(); g.arc(x, y, 9, 0, 7); g.fill(); g.fillStyle = 'rgba(255,255,255,.55)'; g.beginPath(); g.arc(x - 3, y - 3, 3, 0, 7); g.fill(); };
+  const card = (x, y, w, h, col, rot) => { g.save(); g.translate(x + w / 2, y + h / 2); g.rotate(rot || 0); g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(-w / 2 + 4, -h / 2 + 6, w, h); g.fillStyle = col; g.fillRect(-w / 2, -h / 2, w, h); g.restore(); };
+  // en-tête : étiquette blanche épinglée
+  card(36, 26, 420, 78, '#FFFFFF', -0.01); pin(52, 40, '#C8382F'); g.font = `700 46px ${HAND}`; g.fillStyle = '#1B1530'; g.fillText('Ma journée', 70, 84);
+  if (D.date) { card(W - 400, 30, 364, 60, '#FFF8E6', 0.012); pin(W - 386, 44, '#2456C8'); g.font = `600 28px ${HAND}`; g.fillStyle = '#4A4560'; g.fillText(fit(g, D.date, 320), W - 366, 72); }
+  // agenda (gauche) : une bande par rendez-vous, l'heure en gros ; le prochain est souligné
+  const R = (D.rdv || []).slice(0, 7), T = (D.taches || []).slice(0, 8); const now = D.now || '';
+  let y = 150; card(36, 122, 470, 24 + Math.max(1, R.length) * 58 + 10, '#FFFFFF', 0.004); pin(58, 136, '#2E7D55'); g.font = `700 24px ${HAND}`; g.fillStyle = '#5B6270'; g.fillText('AGENDA', 76, 144);
+  if (!R.length) { g.font = `600 30px ${HAND}`; g.fillStyle = '#9AA1AE'; g.fillText('Rien de prévu — ＋ pour ajouter', 60, 196); y += 58; }
+  let nextDone = false;
+  R.forEach(r => { const past = now && r.h && r.h < now; const isNext = !past && !nextDone; if (isNext) nextDone = true;
+    const zi = r.pick ? zone(40, y - 2, 462, 56, r.pick, (r.h || '') + ' ' + (r.t || '')) : -1; const on = zi >= 0 && zi === hv; if (on || isNext) { rr(g, 44, y, 454, 52, 10); g.fillStyle = on ? 'rgba(94,70,184,.14)' : 'rgba(46,125,85,.10)'; g.fill(); }
+    g.fillStyle = r.src === 'outlook' ? '#2456C8' : '#2E7D55'; g.fillRect(50, y + 8, 6, 36);
+    g.font = `800 30px ${HAND}`; g.fillStyle = past ? '#9AA1AE' : '#1B1530'; g.fillText(r.h || '—', 68, y + 38); g.font = `600 28px ${HAND}`; g.fillStyle = past ? '#9AA1AE' : '#1B1530'; g.fillText(fit(g, r.t || '', 330), 158, y + 38);
+    if (past) { g.strokeStyle = 'rgba(27,21,48,.35)'; g.lineWidth = 3; g.beginPath(); g.moveTo(158, y + 28); g.lineTo(158 + Math.min(330, g.measureText(r.t || '').width), y + 28); g.stroke(); } y += 58; });
+  // tâches (droite) : mini post-its épinglés, de travers ; faites = cochées et pâles ; rappel arrivé = cadre rouge et cloche
+  const NC = ['#FFDC4A', '#FFA9C0', '#8FC5FF', '#9FE39B', '#FFBE6E']; const cols = 2, cw = 212, chh = 150, x0 = 548, y0 = 122;
+  T.forEach((t, i) => { const cx = x0 + (i % cols) * (cw + 26), cy = y0 + Math.floor(i / cols) * (chh + 18); const rot = ((i * 37) % 11 - 5) * 0.012; const col = NC[t.c] || NC[0];
+    const zi = t.pick ? zone(cx, cy, cw, chh, t.pick, t.t) : -1; const on = zi >= 0 && zi === hv; card(cx, cy, cw, chh, t.done ? '#EDE9DF' : col, rot); if (on) { g.save(); g.translate(cx + cw / 2, cy + chh / 2); g.rotate(rot); g.strokeStyle = '#5E46B8'; g.lineWidth = 5; g.strokeRect(-cw / 2, -chh / 2, cw, chh); g.restore(); }
+    if (t.due) { g.save(); g.translate(cx + cw / 2, cy + chh / 2); g.rotate(rot); g.strokeStyle = '#C8382F'; g.lineWidth = 6; g.strokeRect(-cw / 2 + 3, -chh / 2 + 3, cw - 6, chh - 6); g.restore(); }
+    pin(cx + cw / 2, cy + 10, t.due ? '#C8382F' : t.done ? '#9AA1AE' : '#2456C8');
+    g.save(); g.translate(cx + cw / 2, cy + chh / 2); g.rotate(rot); g.font = `700 24px ${HAND}`; g.fillStyle = t.done ? '#9AA1AE' : '#1B1530'; const words = String(t.t || '').split(/\s+/); const lines = []; let cur = '';
+    words.forEach(w => { const tt = cur ? cur + ' ' + w : w; if (g.measureText(tt).width > cw - 30 && cur) { lines.push(cur); cur = w; } else cur = tt; }); if (cur) lines.push(cur); lines.slice(0, 3).forEach((l, k) => g.fillText(k === 2 && lines.length > 3 ? fit(g, l + '…', cw - 30) : l, -cw / 2 + 14, -chh / 2 + 56 + k * 30));
+    if (t.done) { g.strokeStyle = '#2E7D55'; g.lineWidth = 5; g.lineCap = 'round'; g.beginPath(); g.moveTo(-cw / 2 + 16, chh / 2 - 28); g.lineTo(-cw / 2 + 28, chh / 2 - 16); g.lineTo(-cw / 2 + 50, chh / 2 - 42); g.stroke(); }
+    else if (t.h || t.r) { g.font = `700 20px ${HAND}`; g.fillStyle = t.due ? '#C8382F' : '#4A4560'; g.fillText((t.due ? '🔔 ' : t.r ? '🔔 ' : '⏱ ') + (t.h || t.r || ''), -cw / 2 + 14, chh / 2 - 18); } g.restore(); });
+  if (!T.length) { card(x0, y0, 450, 90, '#FFF8E6', 0.01); pin(x0 + 225, y0 + 10, '#2456C8'); g.font = `600 28px ${HAND}`; g.fillStyle = '#9AA1AE'; g.fillText('Aucune tâche épinglée', x0 + 24, y0 + 60); }
+  // ＋ ajouter
+  const zi = D.addPick ? zone(W - 250, H - 78, 214, 56, D.addPick, 'Ajouter') : -1; rr(g, W - 250, H - 78, 214, 56, 28); g.fillStyle = zi >= 0 && zi === hv ? '#4A3A9C' : '#5E46B8'; g.fill(); g.font = `700 26px ${HAND}`; g.fillStyle = '#FFFFFF'; g.textAlign = 'center'; g.fillText('＋ tâche · rendez-vous', W - 143, H - 40); g.textAlign = 'left';
+}
 /** texture d'un post-it : texte manuscrit qui tient en entier (la taille de police baisse jusqu'à tenir ; au-delà, « … ») */
-export function postitTex(text, colHex, res) {
+export function postitTex(text, colHex, res, rap) {
   const S = res || 320; const c = document.createElement('canvas'); c.width = S; c.height = S; const g = c.getContext('2d');
   g.fillStyle = colHex || '#FFE978'; g.fillRect(0, 0, S, S); g.fillStyle = 'rgba(0,0,0,.055)'; g.fillRect(0, 0, S, S * 0.13); /* la bande de colle */
   const pad = S * 0.08, maxW = S - 2 * pad, top = S * 0.13 + pad * 0.9, maxH = S - top - pad * 0.7; const txt = String(text == null ? '' : text).trim();
   let fs = Math.round(S * 0.14), lines = []; for (; fs >= Math.round(S * 0.055); fs -= 2) { g.font = `700 ${fs}px ${HAND}`; lines = wrapLines(g, txt, maxW); if (lines.length * fs * 1.22 <= maxH) break; }
   const lh = fs * 1.22; const maxN = Math.max(1, Math.floor(maxH / lh)); if (lines.length > maxN) { lines = lines.slice(0, maxN); let last = lines[maxN - 1]; while (last.length && g.measureText(last + '…').width > maxW) last = last.slice(0, -1); lines[maxN - 1] = last + '…'; }
   g.fillStyle = '#1B1530'; g.textBaseline = 'top'; lines.forEach((l, i) => g.fillText(l, pad, top + i * lh));
+  if (rap && rap.label) { /* 10/11 : rappel — cloche et heure dans la bande de colle ; rouge quand l'heure est arrivée */ g.font = `700 ${Math.round(S * 0.07)}px ${FONT}`; g.textAlign = 'right'; g.textBaseline = 'middle'; g.fillStyle = rap.due ? '#C8382F' : 'rgba(27,21,48,.72)'; g.fillText('🔔 ' + rap.label, S - pad * 0.8, S * 0.065); g.textAlign = 'left'; if (rap.due) { g.strokeStyle = '#C8382F'; g.lineWidth = Math.max(3, S * 0.018); g.strokeRect(g.lineWidth / 2, g.lineWidth / 2, S - g.lineWidth, S - g.lineWidth); } }
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8; return tex;
 }
 function drawVerrou(g, D) {

@@ -2,6 +2,7 @@
 // Ici : construire les DONNÉES du monde à partir de l'espace (personnes, planning, véhicules, stock, affaires, chantiers, réseau du chantier), poser la scène dans la page,
 // et traduire chaque clic 3D en action classique de l'appli (fiche, chantier, module, notification…). Sans WebGL : monde.js garde ses scènes SVG.
 import { mountMonde3D, normPrefs, normNotes, setImagePrefix } from './monde3d/index.js';
+export { noteDue, fmtRappel, nowLocal16 } from './monde3d/bureau.js';
 import { SUPABASE_URL } from './sync.js';
 setImagePrefix(SUPABASE_URL + '/storage/v1/object/sign/photos/bureau3d/'); /* 08/11 nuit : images du bureau (tapis de souris, cadres, affiches) = fichiers du stockage ; la fiche ne garde que l'adresse */
 import { magStock } from './magasin.js';
@@ -40,6 +41,10 @@ function saveNotes(id, notes, ctx) { try { localStorage.setItem(NKEY(id), JSON.s
 async function uploadImage(dataUrl, me, ctx) { const A = ctx.api; if (ctx.viewing && ctx.viewing()) return null; if (!A || !A.sync || !A.sync.uploadDoc || !(A.state && A.state.cloudUser)) return dataUrl; try { const blob = await (await fetch(dataUrl)).blob(); return await A.sync.uploadDoc('bureau3d', String(me.id).replace(/[^\w-]+/g, '_'), 'image.jpg', blob); } catch (e) { console.warn('bureau3d image', e); return null; } }
 /** connecté : jamais d'image en clair dans la fiche (elle est lue par toute l'équipe à chaque synchro) */
 function noInlineImages(p) { const r = JSON.parse(JSON.stringify(p || {})); const inl = v => typeof v === 'string' && v.startsWith('data:'); if (inl(r.tapis_souris_img)) { r.tapis_souris_img = null; if (r.tapis_souris === 'image') r.tapis_souris = 'noir'; } (r.objets || []).forEach(o => { if (inl(o.img)) delete o.img; }); return r; }
+/* 10/11 : rappels des post-its, côté appli (ligne « À faire », toast quand la 3D n'est pas affichée) */
+export const notesOf = id => loadNotes(id);
+export function glGo(type, arg) { if (!H) return false; try { H.go(type, arg); return true; } catch (e) { return false; } }
+export const glKind = () => (H ? KIND : null);
 export function glDispose() { if (H) { try { H.dispose(); } catch (e) { } H = null; KIND = null; } }
 /* ── actions 3D → actions classiques ── */
 function classic(act, v) { const root = document.getElementById('eq-app') || document.body; const b = document.createElement('button'); b.type = 'button'; b.dataset.act = act; b.dataset.v = v == null ? '' : String(v); b.style.display = 'none'; root.appendChild(b); try { b.click(); } finally { setTimeout(() => { try { b.remove(); } catch (e) { } }, 0); } }
@@ -94,7 +99,7 @@ export function buildData(kind, me, ctx, extra) {
   const spaces = (extra.spaces || []).map(s => { const g = s.go || s.k; return { k: KGO[g] || g, t: s.t, n: s.n || 0 }; });
   const mine = chantiers.filter(c => !mySect || !c.secteur || c.secteur === mySect);
   const screen = { date: today.split('-').reverse().join('/'), tiles: [{ v: mine.length, l: 'chantiers' }, { v: notifs.todo.length, l: 'à faire', col: '#FFD978' }, { v: people.filter(p => (!mySect || p.secteur === mySect) && p.today.where === 'chantier').length, l: 'sur le terrain' }], foot: notifs.todo.slice(0, 3).map(t => t.t) };
-  return { me: meP, notes: kind === 'bureau' ? loadNotes(me.id) : [], today, secteurs: S, depots, people, vehicles, stock, affaires, chantiers: mine, notifs, spaces, screen, network: extra.network || { lines: [] }, checklist: extra.checklist || [], chantier: extra.chantier || null };
+  return { me: meP, notes: kind === 'bureau' ? loadNotes(me.id) : [], jour: extra.jour || { rdv: [] }, /* 10/11 : rendez-vous du jour fournis par l'appli (Outlook plus tard) */ today, secteurs: S, depots, people, vehicles, stock, affaires, chantiers: mine, notifs, spaces, screen, network: extra.network || { lines: [] }, checklist: extra.checklist || [], chantier: extra.chantier || null };
 }
 /** le réseau du chantier ouvert, dans la forme attendue par la scène 3D (éléments du plan, soudures par état) */
 export function networkOf(lines) {
