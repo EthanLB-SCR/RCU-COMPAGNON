@@ -149,8 +149,8 @@ await P.ctx.close();
 P=await open(CHEF,{width:390,height:844},true);await hub(P.page);await hubRow(P.page,/Pointages à valider/);
 o={t0:await txt(P.page)};
 await tap(P.page,'#eq-app [data-act=toutvalider]',900);
-await tapAct(P.page,'corr',K(TUY,F),400);o.form=await P.page.evaluate(()=>({t:document.getElementById('eq-corr-t').value,h:document.getElementById('eq-corr-h').value,dur:document.getElementById('eq-corr-dur').value,m:document.getElementById('eq-corr-m').value}));
-await shot(P,'pi_c3_cheffe_corriger_390','#eq-app .eq-form');
+await tapAct(P.page,'corr',K(TUY,F),400);o.form=await P.page.evaluate(()=>{const g=k=>document.getElementById('eq-c-'+k).value;return {h0:g('h0'),h1:g('h1'),p0:g('p0'),pd:g('pd'),m:g('m'),ecart:[...document.querySelectorAll('#eq-app .eq-corrform .eq-ecart')].map(e=>e.textContent.replace(/\s+/g,' ').trim())};}); /* 10/11 : formulaire unique début · fin · pause · durée · motif, pré-rempli avec le pointé */
+await shot(P,'pi_c3_cheffe_corriger_390','#eq-app .eq-corrform');
 await tap(P.page,'#eq-app [data-act=corrok]',900);
 await tapAct(P.page,'valider',K(MAN,F),900);
 await tapAct(P.page,'pi','saisie|'+K(NEUF,F),400);o.sform=await P.page.evaluate(()=>({h0:document.getElementById('pi-s-h0').value,h1:document.getElementById('pi-s-h1').value}));await shot(P,'pi_c3_cheffe_saisir_390','#eq-app .pi-form');await both(P,'c3 saisie');
@@ -159,8 +159,8 @@ await W(P.page,1500);
 o.after=await txt(P.page);await home(P.page,'htHome');o.notifs=(await notifs(P.page)).filter(t=>/pointage/.test(t));
 const rT=PTS[K(TUY,F)],rH=PTS[K(SOUD,F)],rM=PTS[K(MAN,F)],rL=PTS[K(NEUF,F)];
 console.log('c3) cheffe :',J({form:o.form,sform:o.sform,theo:{ev:rT.events.map(e=>e.t+'@'+e.at.slice(11)).join(),st:rT.status,corr:rT.corr,val:rT.val.map(v=>v.by)},hugo:rH.val.map(v=>v.by),marc:rM.val.map(v=>v.by),lucas:rL&&{st:rL.status,corr:rL.corr&&rL.corr.t,ev:rL.events.map(e=>e.t+'@'+e.at.slice(11)).join(),val:rL.val.map(v=>v.by)},head:(o.after.match(/Pointages de l'équipe · \d+ à valider/)||[''])[0],notifs:o.notifs}));
-C.c3=/fin ajoutée après coup par Marc/.test(o.t0)&&o.form.t==='pause'&&o.form.h==='12:00'&&o.form.dur==='60'&&o.form.m==='Pause non pointée'
-  &&rT.events.map(e=>e.t+'@'+e.at.slice(11)).join()==='start@07:30,pause@12:00,resume@13:00,end@16:30'&&rT.status==='corrige'&&rT.corr.by===CHEF.email&&rT.corr.t==='pause'&&rT.corr.fin==='13:00'&&rT.val.map(v=>v.by).join()===CHEF.email
+C.c3=/fin ajoutée après coup par Marc/.test(o.t0)&&o.form.h0==='07:30'&&o.form.h1==='16:30'&&o.form.p0==='12:00'&&o.form.pd==='60'&&o.form.m==='Pause non pointée'&&o.form.ecart.join('|')==='pointé 07:30|pointé 16:30|rien de pointé|pas de pause pointée' /* 10/11 : pré-rempli avec le pointé, pause de 1 h proposée */
+  &&rT.events.map(e=>e.t+'@'+e.at.slice(11)).join()==='start@07:30,pause@12:00,resume@13:00,end@16:30'&&rT.status==='corrige'&&rT.corr.by===CHEF.email&&rT.corr.t==='jour'&&rT.corr.chg.join()==='pause 12:00 → 13:00 (non pointée)'&&rT.corr.apres.pd===60&&rT.val.map(v=>v.by).join()===CHEF.email
   &&rH.val.map(v=>v.by).join()===CHEF.email&&rM.val.map(v=>v.by).join()===CHEF.email&&o.sform.h0==='07:30'&&o.sform.h1==='16:30'&&!!rL&&rL.status==='corrige'&&rL.corr.t==='saisie'&&rL.corr.by===CHEF.email&&rL.events.map(e=>e.t).join()==='start,pause,resume,end'&&rL.val.map(v=>v.by).join()===CHEF.email
   &&/Pointages de l'équipe · 0 à valider/.test(o.after)&&!o.notifs.length;
 await P.ctx.close();
@@ -174,7 +174,7 @@ await tap(P.page,'#eq-app [data-act=toutvalider]',900);await tapAct(P.page,'vali
 await tapAct(P.page,'valjour',JE,500);o.thu=await P.page.evaluate(()=>(document.querySelector('#eq-app [data-act=toutvalider]')||{}).textContent||'');await tap(P.page,'#eq-app [data-act=toutvalider]',900);await W(P.page,1500);
 o.after=(await txt(P.page)).match(/Pointages de l'équipe · \d+ à valider/)?.[0];
 console.log('c4) conducteur :',J({notifs:o.notifs,head:o.v.head,chips:o.v.chips,all:o.v.all,thu:o.thu,after:o.after,trace:/✅ chef : Chloé TESTCHEF/.test(o.v.t),vals:[SOUD,TUY,MAN,NEUF].map(u=>PTS[K(u,F)].val.map(v=>v.by.split('.')[0]).join('>')),thuV:[SOUD,TUY,MAN].map(u=>PTS[K(u,JE)].val.length)}));
-C.c4=o.notifs.some(t=>/^✓8 pointages à valider · 2 jours/.test(t))&&/8 à valider · après le chef de chantier/.test(o.v.head)&&o.v.chips.some(c=>/^jeu\. 05\/11 4$/.test(c))&&o.v.chips.some(c=>/^ven\. 06\/11 4$/.test(c))&&/Tout valider \(3\)/.test(o.v.all)&&/✅ chef : Chloé TESTCHEF/.test(o.v.t)&&/✏️ pause 12:00 → 13:00 — Pause non pointée · par Chloé TESTCHEF/.test(o.v.t)
+C.c4=o.notifs.some(t=>/^✓8 pointages à valider · 2 jours/.test(t))&&/8 à valider · après le chef de chantier/.test(o.v.head)&&o.v.chips.some(c=>/^jeu\. 05\/11 4$/.test(c))&&o.v.chips.some(c=>/^ven\. 06\/11 4$/.test(c))&&/Tout valider \(3\)/.test(o.v.all)&&/✅ chef : Chloé TESTCHEF/.test(o.v.t)&&/✏️ corrigé : pause 12:00 → 13:00 \(non pointée\) — Pause non pointée · par Chloé TESTCHEF/ /* 10/11 : trace du formulaire unique */.test(o.v.t)
   &&/Tout valider \(4\)/.test(o.thu)&&/· 0 à valider/.test(o.after||'')&&PTS[K(NEUF,JE)].val.map(v=>v.by).join()===COND.email /* chantier sans chef : validé directement par le conducteur */&&[SOUD,TUY,MAN,NEUF].every(u=>PTS[K(u,F)].val.map(v=>v.by).join()===CHEF.email+','+COND.email)&&[SOUD,TUY,MAN].every(u=>PTS[K(u,JE)].val.length===2);
 // ── c6 : planning simplifié (même conducteur, PC)
 await hubRow(P.page,/Planning de la semaine/);
@@ -246,7 +246,7 @@ await home(P.page,'htEspace');await tapAct(P.page,'sub','heures',500);await P.pa
 await P.page.evaluate(k=>{const b=document.querySelector(`#eq-app [data-act=jour][data-v="${k}"]`);if(b)b.click();},K(TUY,F));await W(P.page,400);o.theoDet=await P.page.evaluate(()=>(document.querySelector('#eq-app .eq-detail')||{}).textContent||'');
 console.log('c5) le gars voit :',J({hugo:o.et.slice(0,2),heures:/Validé par le conducteur/.test(o.heures),fin1:o.fin1,reprise:o.reprise&&o.reprise.t.slice(0,60),fin2:o.fin2&&o.fin2.unend,srvLundi:o.srvLundi,theoN:o.theoN,theoDet:o.theoDet.replace(/\s+/g,' ').slice(0,260)}));
 C.c5=o.et.some(t=>/^ven\. 06\/11/.test(t)&&/✓ déclaré›✓ chef Chloé›✓ conducteur/.test(t))&&/Validé par le conducteur/.test(o.heures)
-  &&!!o.fin1&&/Journée finie/.test(o.fin1.t)&&/envoyée pour validation/.test(o.fin1.t)&&/✓ déclaré›○ chef›○ conducteur/.test(o.fin1.t)&&o.fin1.unend&&!!o.reprise&&/Au travail/.test(o.reprise.t)&&!!o.fin2&&o.fin2.unend&&o.srvLundi==='start,pause,resume,end'&&o.theoN.some(t=>/corrigé/.test(t)&&/Chloé/.test(t))&&/✏️ pause 12:00 → 13:00 — Pause non pointée · par Chloé TESTCHEF/.test(o.theoDet)&&/✅ conducteur : Denis TESTCONDUC/.test(o.theoDet);
+  &&!!o.fin1&&/Journée finie/.test(o.fin1.t)&&/envoyée pour validation/.test(o.fin1.t)&&/✓ déclaré›○ chef›○ conducteur/.test(o.fin1.t)&&o.fin1.unend&&!!o.reprise&&/Au travail/.test(o.reprise.t)&&!!o.fin2&&o.fin2.unend&&o.srvLundi==='start,pause,resume,end'&&o.theoN.some(t=>/corrigé/.test(t)&&/Chloé/.test(t))&&/✏️ corrigé : pause 12:00 → 13:00 \(non pointée\) — Pause non pointée · par Chloé TESTCHEF/ /* 10/11 : trace du formulaire unique */.test(o.theoDet)&&/✅ conducteur : Denis TESTCONDUC/.test(o.theoDet);
 await P.ctx.close();
 
 // ── c7 : Nina voit « Demain » dans Moi (Compagnon) et sur l'accueil

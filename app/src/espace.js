@@ -810,23 +810,28 @@ function cHeuresPeriode(me){ // mes heures : total de la période puis un bloc p
     <div class="eq-leg hint"><span><i></i>travail</span><span><i style="background:var(--muted)"></i>inter-chantier</span><span><i style="background:var(--plane)"></i>pause</span><span>Touche un jour pour le détail.</span></div></div>
     <div class="eq-sems">${blocs||'<div class="card"><div class="eq-s">Aucun pointage sur cette période.</div></div>'}</div>`;
 }
+/* 10/11 (Ethan : « simplifie la correction : début, pause, fin, pré-rempli avec le pointé, et que ça ressorte l'écart ; même format que la saisie pour quelqu'un qui n'a rien pointé ») */
+const hmOf=at=>at?String(at).slice(11,16):'';
+function pointeDe(x){const c=calc(x);const pa=(x.events||[]).filter(e=>e.t==='pause').pop();const rs=pa?(x.events||[]).find(e=>e.t==='resume'&&e.at>pa.at):null;const pd=pa&&rs?Math.max(0,Math.round((new Date(rs.at)-new Date(pa.at))/60000)):0;
+  return {h0:c.debut?c.debut.slice(-5):'',h1:c.fin?c.fin.slice(-5):'',p0:pa?hmOf(pa.at):'',pd};}
+const ecartTxt=(a,b)=>{if(!a||!b)return '';const m=(+b.slice(0,2)*60+ +b.slice(3))-(+a.slice(0,2)*60+ +a.slice(3));if(!m)return 'comme pointé';const s=Math.abs(m);return (m>0?'+':'−')+(s>=60?Math.floor(s/60)+' h'+(s%60?' '+String(s%60).padStart(2,'0'):''):s+' min')+' / pointé';};
 function formCorr(x){
-  const c=calc(x),noPause=!c.manque&&c.fin&&c.total>=360&&!c.pa,def=noPause?'pause':'end',h=noPause?'12:00':c.fin?c.fin.slice(-5):finHabituelle(pers(x.p),x); /* 31/10 (lot PI) : la correction la plus probable est proposée (fin oubliée → fin habituelle ; pas de pause → pause de 12 h) */
-  return `<div class="eq-form">
-    <div><label class="f">Quoi corriger</label><select class="f" id="eq-corr-t">${['start','pause','resume','end'].map(t=>`<option value="${t}"${t===def?' selected':''}>${t==='pause'?'Pause (début + durée)':'Heure de '+EVT[t]}</option>`).join('')}</select></div>
-    <div><label class="f">Heure corrigée</label><input class="f" type="time" id="eq-corr-h" value="${h}"></div>
-    <div><label class="f">Durée de la pause <span class="dim">(si pause)</span></label><select class="f" id="eq-corr-dur">${[[30,'30 min'],[45,'45 min'],[60,'1 h'],[90,'1 h 30']].map(([v,t])=>`<option value="${v}"${v===60?' selected':''}>${t}</option>`).join('')}</select></div>
-    <div><label class="f">Motif</label><select class="f" id="eq-corr-m">${['Fin oubliée','Pause non pointée','Début pointé en retard','Mauvais chantier','Autre'].map(m=>`<option${(noPause?m==='Pause non pointée':c.manque&&m==='Fin oubliée')?' selected':''}>${m}</option>`).join('')}</select></div>
-    <div class="eq-acts"><button class="btn primary" data-act="corrok" data-v="${ptId(x)}">Enregistrer la correction</button><button class="btn" data-act="corrno">Annuler</button></div></div>`;
+  const P=pointeDe(x),p=pers(x.p),hab=finHabituelle(p,x),sansPause=!!P.h1&&!P.p0&&calc(x).total>=360,v={h0:P.h0,h1:P.h1||hab,p0:P.p0||'12:00',pd:P.pd||(sansPause?60:0)}; /* pré-rempli avec le pointé ; fin oubliée → fin habituelle, journée ≥ 6 h sans pause → pause de 1 h proposée (comme avant), l'écart est affiché à côté */
+  const F=(k,label,val,pointe)=>`<div><label for="eq-c-${k}">${label}</label><input class="f" type="time" id="eq-c-${k}" value="${esc(val)}" data-pointe="${esc(pointe||'')}" data-ecart="eq-e-${k}"><span class="eq-s eq-ecart" id="eq-e-${k}">${pointe?'pointé '+esc(pointe)+(val&&val!==pointe?' · <b>'+ecartTxt(pointe,val)+'</b>':''):'<span style="color:#9b2c22">rien de pointé</span>'}</span></div>`;
+  return `<div class="pi-form eq-corrform">${F('h0','Début',v.h0,P.h0)}${F('h1','Fin',v.h1,P.h1)}${F('p0','Pause à',v.p0,P.p0)}
+    <div><label for="eq-c-pd">Durée de la pause</label><select class="f" id="eq-c-pd">${[[0,'pas de pause'],[30,'30 min'],[45,'45 min'],[60,'1 h'],[90,'1 h 30']].map(([d,t])=>`<option value="${d}"${d===v.pd?' selected':''}>${t}</option>`).join('')}</select><span class="eq-s eq-ecart">${P.pd?'pointé '+fDuree(P.pd):P.p0?'pointé sans reprise':'pas de pause pointée'}</span></div>
+    <div class="full"><label for="eq-c-m">Motif</label><select class="f" id="eq-c-m">${['Fin oubliée','Pause non pointée','Début pointé en retard','Mauvais chantier','Autre'].map(m=>`<option${(!P.h1&&m==='Fin oubliée')||(P.h1&&!P.p0&&m==='Pause non pointée')?' selected':''}>${m}</option>`).join('')}</select></div>
+    <div class="full eq-acts" style="margin:0"><button class="btn primary" data-act="corrok" data-v="${ptId(x)}">Enregistrer la correction</button><button class="btn" data-act="corrno">Annuler</button></div></div>`;
 }
 function htmlVRow(x,titre,sous,ouvre){
   const c=calc(x),st=statutPt(x),id=ptId(x),p=pers(x.p),moi=pers(S.me),peut=aValider(x,moi),att=niveau(moi)===2&&attendChef(x),prod=prodTxt(prodJour([x.p],x.d));
   const sansPause=c.fin&&c.total>=360&&!c.pa;const plage=c.debut?fHeure(c.debut)+' → '+(c.fin?fHeure(c.fin):'—')+' · '+fDuree(c.total)+(c.pa?' · pause '+fDuree(c.pa):sansPause?' · <span class="eq-tag" style="color:#7a5200;background:#fff4d6;border-color:#f0c76a">⚠ pas de pause pointée</span>':'')+(c.it?' · inter '+fDuree(c.it):''):'';
-  return `<div class="eq-vrow"><div class="eq-row"${ouvre?` data-act="fiche" data-v="${p.id}"`:''}>${ouvre?avatar(p):''}<span class="eq-grow"><span class="eq-t">${titre}</span><span class="eq-s">${esc(sous?sous+' · ':'')}${plage}</span>
+  const revoir=!peut&&!c.enCours&&can(moi,'pointage.validate')&&(x.val||[]).length>0; /* 10/11 (Ethan) : un pointage déjà validé reste corrigeable, discrètement */
+  return `<div class="eq-vrow ${peut?'todo':revoir?'done':''}"><div class="eq-row"${ouvre?` data-act="fiche" data-v="${p.id}"`:''}>${ouvre?avatar(p):''}<span class="eq-grow"><span class="eq-t">${titre}</span><span class="eq-s">${esc(sous?sous+' · ':'')}${plage}</span>
     ${piAnoHTML(piAnomalies(x,piX()).filter(a=>!/pas de pause|fin manquante/.test(a[1])))}${piTrace(x,piX()) /* 31/10 (lot PI) : qui a validé, qui a corrigé quoi (corrections successives), fin indiquée après coup */}
     ${(()=>{const ms=missionsOf(netOf(x.site),x.d).filter(m=>espaceMissionFor(m,x.p,x.site,x.d));return ms.length?`<span class="eq-s">Objectif du jour : <b style="font-weight:600;color:var(--ink)">${esc(missionsTxt(ms))}</b> — ${esc(ms.map(m=>m.label).join(' · ')).slice(0,90)}${ms.every(m=>m.done)?' ✓':''}</span>`:'';})()}
     ${prod?`<span class="eq-s">Production du jour : <b style="font-weight:600;color:var(--ink)">${esc(prod)}</b></span>`:['soudeur','manchonneur'].includes(p.poste)&&c.fin&&(netOf(x.site)||{})._lines /* 31/10 (lot PI) : seulement si les fiches du chantier sont sur l'appareil (sinon fausse alerte) */?`<span class="eq-s" style="color:#9b2c22">⚠ aucune fiche de soudure ce jour-là — vérifie avant de valider</span>`:''}<span class="eq-s" style="margin-top:3px">${att&&!c.manque?etat('off','Attend le chef de chantier'):etat(st.k,st.mot)}</span></span></div>
-    ${peut&&S.corr!==id?`<div class="eq-acts">${c.manque?'':`<button class="btn primary" data-act="valider" data-v="${id}">✅ Valider</button>`}<button class="btn${c.manque?' primary':''}" data-act="corr" data-v="${id}">✏️ Corriger</button></div>`:''}
+    ${peut&&S.corr!==id?`<div class="eq-acts">${c.manque?'':`<button class="btn primary" data-act="valider" data-v="${id}">✅ Valider</button>`}<button class="btn${c.manque?' primary':''}" data-act="corr" data-v="${id}">✏️ Corriger</button></div>`:revoir&&S.corr!==id?`<div class="eq-acts"><button class="btn sm ghost" data-act="corr" data-v="${id}">↺ Revoir</button></div>`:''}
     ${S.corr===id?formCorr(x):''}</div>`;
 }
 function cValidation(me){
@@ -836,16 +841,21 @@ function cValidation(me){
   if(S.valMode==='jour'){
     const encP=me.poste==='chef'||me.poste==='conducteur',manq={};if(encP)for(let i=1;i<=7;i++){const dd=gdAddD(DATA.today,-i);if([0,6].includes(D(dd).getDay())||isFerie(dd))continue;const n=equipeSem(me,kOfDay(dd)).filter(p=>p.active&&can(p,'pointage.self')&&planDe(p.id,dd).length&&!ptDe(p.id,dd)).length;if(n)manq[dd]=n;} /* 31/10 (lot PI) : jours (7 derniers) où un gars placé n'a rien pointé : à saisir */
     const js=[...new Set(semaine().filter(d=>d<=DATA.today).concat(pend.map(x=>x.d)).concat(Object.keys(manq)).concat(S.valJour&&S.valJour<=DATA.today&&S.valJour>=gdAddD(DATA.today,-21)&&![0,6].includes(D(S.valJour).getDay())?[S.valJour]:[]))].sort(); /* 31/10 (lot PI) : + les jours d'avant qui attendent encore (le lundi : le vendredi), + les jours avec un pointage manquant, + le jour demandé */
-    const d=S.valJour&&js.includes(S.valJour)?S.valJour:(pend.map(x=>x.d).sort().pop()||Object.keys(manq).sort().pop()||DATA.today);
-    const duJour=pts.filter(x=>x.d===d).sort((a,b)=>a.site!==b.site?(a.site<b.site?1:-1):pers(a.p).nom<pers(b.p).nom?-1:1);
+    const d=S.valJour&&(js.includes(S.valJour)||(S.valJour<=DATA.today&&S.valJour>=gdAddD(DATA.today,-21)))?S.valJour:(pend.map(x=>x.d).sort().pop()||Object.keys(manq).sort().pop()||DATA.today); /* 10/11 : un jour atteint par ◀ ▶ (déjà validé) s'affiche aussi */
+    const duJour=pts.filter(x=>x.d===d).sort((a,b)=>pers(a.p).nom<pers(b.p).nom?-1:1);
     const ok=duJour.filter(x=>aValider(x,me)&&!piAnomalies(x,X).length),aVoir=duJour.filter(x=>aValider(x,me)&&piAnomalies(x,X).length); /* 31/10 (lot PI) : « Tout valider » = les lignes complètes et cohérentes ; une anomalie (fin manquante, pas de pause, > 12 h, fin après coup) se traite à part */
     const absents=encP?equipeSem(me,kOfDay(d)).filter(p=>can(p,'pointage.self')).filter(p=>p.active&&planDe(p.id,d).length&&!ptDe(p.id,d)):[]; /* placés ce jour-là, rien de pointé : à saisir (chef et conducteur) */
-    corps=`<div class="eq-filtres">${js.map(j=>{const n=pend.filter(x=>x.d===j).length;return `<button class="chip${j===d?' active':''}" data-act="valjour" data-v="${j}">${fJour(j)}${n?` <span class="eq-badge">${n}</span>`:''}${manq[j]?` <span class="eq-badge eq-rouge" title="pointage manquant">${manq[j]}</span>`:''}</button>`}).join('')}</div>
+    /* 10/11 (Ethan : « tout le monde rangé par chantier, par équipe ; les à valider bien en couleur, les déjà validés plus discrets ; celui qui n'a rien pointé apparaît "rien pointé, saisir ses heures" ») */
+    const siteAbs=p=>planDe(p.id,d)[0],rang=x=>aValider(x,me)?0:calc(x).enCours?1:(x.val||[]).length?3:2; /* 0 à valider · 1 en cours · 2 attend quelqu'un d'autre · 3 déjà validé (grisé, en bas) */
+    const groupes=[...new Set(duJour.map(x=>x.site).concat(absents.map(siteAbs)))].map(i=>{const g=duJour.filter(x=>x.site===i).sort((a,b)=>rang(a)-rang(b)||(nomC(pers(a.p))<nomC(pers(b.p))?-1:1)),ab=absents.filter(p=>siteAbs(p)===i);return {c:site(i),g,ab,n:g.filter(x=>aValider(x,me)).length+(d<DATA.today?ab.length:0)}}).sort((a,b)=>(b.n>0)-(a.n>0)||(a.c.nom<b.c.nom?-1:1)); /* les chantiers où il reste à faire d'abord */
+    const ligne=x=>htmlVRow(x,esc(nomC(pers(x.p)))+tagType(pers(x.p)),'',true);
+    const ligneAbs=p=>`<div class="eq-vrow${d<DATA.today?' todo':''}"><div class="eq-row">${avatar(p)}<span class="eq-grow"><span class="eq-t">${esc(nomC(p))}${tagType(p)}</span><span class="eq-s">placé${p.genre==='femme'?'e':''} sur ${esc(planDe(p.id,d).map(i=>site(i).nom).join(', '))} · <b style="color:#9b2c22">rien de pointé</b></span></span>${etat(d<DATA.today?'bad':'off','Pas de pointage')}</div>${d<DATA.today?piSaisieHTML(p,d,X):''}</div>`;
+    S.valShown=d;const ouvre=(j,k)=>{for(let i=1;i<=7;i++){const x=gdAddD(j,k*i);if(x>DATA.today||x<gdAddD(DATA.today,-21))return '';if(![0,6].includes(D(x).getDay())&&!isFerie(x))return x;}return '';},prec=ouvre(d,-1),suiv=ouvre(d,1); /* 10/11 (Ethan : « même quelqu'un de validé, il faut pouvoir revenir dessus ») : ◀ ▶ jour ouvré par jour ouvré, 3 semaines en arrière */
+    corps=`<div class="eq-filtres"><button class="chip" data-act="valjour" data-v="${prec}" aria-label="Jour précédent"${prec?'':' disabled'}>◀</button>${js.map(j=>{const n=pend.filter(x=>x.d===j).length;return `<button class="chip${j===d?' active':''}" data-act="valjour" data-v="${j}">${fJour(j)}${n?` <span class="eq-badge">${n}</span>`:''}${manq[j]?` <span class="eq-badge eq-rouge" title="pointage manquant">${manq[j]}</span>`:''}</button>`}).join('')}${js.includes(d)?'':`<button class="chip active" data-act="valjour" data-v="${d}">${fJour(d)}</button>`}<button class="chip" data-act="valjour" data-v="${suiv}" aria-label="Jour suivant"${suiv?'':' disabled'}>▶</button></div>
       ${ok.length?`<button class="btn primary eq-full" style="margin:0 0 6px" data-act="toutvalider" data-v="${ok.map(ptId).join(',')}">✅ Tout valider (${ok.length})</button>`:''}${aVoir.length?`<div class="hint" style="margin:0 0 6px">⚠ ${aVoir.length} ligne${aVoir.length>1?'s':''} à regarder à part (${esc([...new Set(aVoir.flatMap(x=>piAnomalies(x,X).map(a=>a[1])))].join(', '))}) : chacune a son bouton${ok.length?', « Tout valider » ne les prend pas':''}.</div>`:''}
-      <div class="eq-list">${[...new Set(duJour.map(x=>x.site))].map(i=>{const c=site(i),g=duJour.filter(x=>x.site===i); // une équipe par chantier
-        return `<div class="eq-grp-h">📍 ${esc(c.nom)} <span class="hint">· ${g.length} pointage${g.length>1?'s':''}${c.chef?' · chef de chantier : '+esc(nomC(pers(c.chef))):''}</span></div>`+g.map(x=>htmlVRow(x,esc(nomC(pers(x.p)))+tagType(pers(x.p)),'',true)).join('')}).join('')}
-      ${absents.map(p=>`<div class="eq-vrow"><div class="eq-row">${avatar(p)}<span class="eq-grow"><span class="eq-t">${esc(nomC(p))}</span><span class="eq-s">placé${p.genre==='femme'?'e':''} sur ${esc(planDe(p.id,d).map(i=>site(i).nom).join(', '))}</span></span>${etat(d<DATA.today?'bad':'off','Pas de pointage')}</div>${d<DATA.today?piSaisieHTML(p,d,X):''}</div>`).join('')}</div>
-      ${duJour.length?'':`<div class="eq-s">Aucun pointage ce jour-là.</div>`}`;
+      <div class="eq-list">${groupes.map(({c,g,ab,n})=>`<div class="eq-grp-h">📍 ${esc(c.nom)} <span class="hint">· ${c.chef?'chef de chantier : '+esc(nomC(pers(c.chef)))+' · ':''}${g.length+ab.length} personne${g.length+ab.length>1?'s':''} · ${n?`<b style="color:#7a5200">${n} à traiter</b>`:g.some(x=>rang(x)===1)?'en cours':'rien à faire'}</span></div>` // une équipe par chantier : à valider / rien pointé en couleur, en cours, puis les validés grisés
+        +g.filter(x=>rang(x)===0).map(ligne).join('')+ab.map(ligneAbs).join('')+g.filter(x=>rang(x)>0).map(ligne).join('')).join('')}</div>
+      ${duJour.length||absents.length?'':`<div class="eq-s">Aucun pointage ce jour-là.</div>`}`;
   }else{
     const gens=[...ids].map(pers).filter(p=>pts.some(x=>x.p===p.id&&(x.d>=semaine()[0]||pend.includes(x)) /* 31/10 (lot PI) : cette semaine, ou un jour d'avant qui attend */)).sort((a,b)=>(DATA.affectations[a.id]||'')<(DATA.affectations[b.id]||'')?1:-1); // rangés par chantier
     const cur=gens.find(p=>p.id===S.valPers)||gens.find(p=>pend.some(x=>x.p===p.id))||gens[0];
@@ -2472,26 +2482,26 @@ const ACT={
   opensite(v){const [id,tab]=String(v).split('|');if(A.openSite)A.openSite(id,tab||undefined);},
   jour(v){S.open[v]=!S.open[v];render()},
   valmode(v){S.valMode=v;S.corr=null;render()},
-  valjour(v){S.valJour=v;S.corr=null;render()},
+  valjour(v){if(!v)return;S.valJour=v;S.corr=null;render()},
   valpers(v){S.valPers=v;S.corr=null;render()},
   valider(v){const x=ptParId(v);if(!x)return;validerPt(x);render();msg('Pointage validé')},
   toutvalider(v){const l=v.split(',');let n=0;l.forEach(id=>{const x=ptParId(id);if(x){validerPt(x);n++}});render();msg(n+' pointage'+(n>1?'s':'')+' validé'+(n>1?'s':''))},
   corr(v){S.corr=v;render()},
   corrno(){S.corr=null;render()},
   corrok(v){
-    const x=ptParId(v);if(!x)return;const t=$id('eq-corr-t').value,h=$id('eq-corr-h').value,m=$id('eq-corr-m').value;
-    if(!h){msg('Indique une heure');return}
-    const c0=calc(x),dur=+(($id('eq-corr-dur')||{}).value||60),h2=addMinHM(h,dur);
-    if(t==='end'&&c0.debut&&h<=c0.debut.slice(-5)){msg('La fin est avant le début : vérifie l\'heure');return}
-    if(t==='pause'&&c0.fin&&h2>c0.fin.slice(-5)){msg('La pause dépasse la fin de journée ('+fHeure(c0.fin)+') : vérifie l\'heure ou la durée');return}
-    let avant=null;if(t==='pause'){ /* 31/10 (lot PI) : une pause = début + reprise (avant : la pause ajoutée sans reprise comptait tout le reste de la journée comme pause) */
-      const pa=x.events.filter(e=>e.t==='pause').pop();const rs=pa?x.events.find(e=>e.t==='resume'&&e.at>pa.at):null;avant=pa?pa.at.slice(-5):null;if(pa)pa.at=x.d+'T'+h;else x.events.push({t:'pause',at:x.d+'T'+h});if(rs)rs.at=x.d+'T'+h2;else x.events.push({t:'resume',at:x.d+'T'+h2});}
-    else{const e=x.events.filter(e=>e.t===t).pop();avant=e?e.at.slice(-5):null;
-    if(e)e.at=x.d+'T'+h;else x.events.push({t,at:x.d+'T'+h});}
+    const x=ptParId(v);if(!x)return;const g=k=>($id('eq-c-'+k)||{}).value||'';const h0=g('h0'),h1=g('h1'),p0=g('p0'),pd=+g('pd')||0,m=g('m');
+    if(!/^\d{2}:\d{2}$/.test(h0)||!/^\d{2}:\d{2}$/.test(h1)){msg('Indique le début et la fin');return}if(h1<=h0){msg('La fin est avant le début : vérifie les heures');return}
+    const r=pd?addMinHM(p0,pd):'';if(pd&&(!/^\d{2}:\d{2}$/.test(p0)||p0<=h0||r>=h1)){msg('La pause doit être entre le début et la fin');return}
+    const P=pointeDe(x),chg=[];const setEv=(t,h)=>{const e=x.events.filter(e=>e.t===t).pop();if(e)e.at=x.d+'T'+h;else x.events.push({t,at:x.d+'T'+h});};
+    if(h0!==P.h0){setEv('start',h0);chg.push('début '+h0+(P.h0?' au lieu de '+P.h0:''));}
+    if(h1!==P.h1){const e=x.events.filter(e=>e.t==='end').pop();if(e){e.at=x.d+'T'+h1;delete e.late;}else x.events.push({t:'end',at:x.d+'T'+h1});chg.push('fin '+h1+(P.h1?' au lieu de '+P.h1:' (manquante)'));}
+    if(pd){if(p0!==P.p0||pd!==P.pd){const pa=x.events.filter(e=>e.t==='pause').pop();const rs=pa?x.events.find(e=>e.t==='resume'&&e.at>pa.at):null;if(pa)pa.at=x.d+'T'+p0;else x.events.push({t:'pause',at:x.d+'T'+p0});if(rs)rs.at=x.d+'T'+r;else x.events.push({t:'resume',at:x.d+'T'+r});chg.push('pause '+p0+' → '+r+(P.p0?' au lieu de '+P.p0+(P.pd?' ('+fDuree(P.pd)+')':''):' (non pointée)'));}}
+    else if(P.p0){x.events=x.events.filter(e=>e.t!=='pause'&&e.t!=='resume');chg.push('pause retirée (pointée '+P.p0+')');}
+    if(!chg.length){msg('Rien à corriger : les heures sont celles pointées');return}
     x.events.sort((a,b)=>a.at<b.at?-1:a.at>b.at?1:0);
-    const at=DATA.today+'T'+DATA.now,prev=x.corr?Object.assign({},x.corr):null;if(prev)delete prev.hist;const hist=x.corr?(x.corr.hist||[]).concat([prev]).slice(-10):[]; /* 31/10 (lot PI) : trace — qui a corrigé, quand ; les corrections d'avant sont gardées */
-    x.status='corrige';x.corr=Object.assign({t,heure:h,avant,motif:m,by:S.me,at},t==='pause'?{fin:h2}:{},hist.length?{hist}:{});if(!x.val.some(v=>v.by===S.me)){const v2={by:S.me,at};if(A.via&&A.via())v2.via=A.via();x.val.push(v2);}savePointage(x);
-    S.corr=null;render();msg('Pointage corrigé et validé');
+    const at=DATA.today+'T'+DATA.now,prev=x.corr?Object.assign({},x.corr):null;if(prev)delete prev.hist;const hist=x.corr?(x.corr.hist||[]).concat([prev]).slice(-10):[]; /* trace : qui a corrigé, quand ; les corrections d'avant sont gardées */
+    x.status='corrige';x.corr=Object.assign({t:'jour',heure:h0+' → '+h1,chg,avant:P,apres:{h0,h1,p0:pd?p0:'',pd},motif:m,by:S.me,at},hist.length?{hist}:{});if(!x.val.some(v=>v.by===S.me)){const v2={by:S.me,at};if(A.via&&A.via())v2.via=A.via();x.val.push(v2);}savePointage(x);
+    S.corr=null;render();msg('Pointage corrigé et validé'+(chg.length>1?' ('+chg.length+' changements)':''));
   },
   demande(v){if(!DATA.demandes)return;const [id,e]=v.split('|');const d=DATA.demandes.find(d=>d.id===id);if(d){d.etat=e;render()}},
   edit(){S.edit=!S.edit;render()},
@@ -2582,7 +2592,7 @@ function bind(){if(bound)return;bound=true;
     if(k==='plpers'){const key=e.target.dataset.p,kk=e.target.dataset.k;savePeoplePart(key,kk,e.target.value||null);render();return}
     S[k]=e.target.value;render();});
   document.addEventListener('toggle',e=>{const t=e.target;if(!t||!t.dataset)return;if(t.dataset.gdnav)S.gdNav=t.open;if(t.dataset.gdaddr)S.gdAddrOpen=t.open;},true); /* 13/10 soir : navette / adresses à vérifier : ouvert ou fermé, gardé au re-rendu */
-  document.addEventListener('input',e=>{if(e.target.closest&&e.target.closest('#eq-app')&&extIn(e,'input'))return;if(e.target.id==='pl-q'){S.plQ=e.target.value;plFilterTray(S.plQ);return;}if(e.target.id==='pi-q'){S.plQ=e.target.value;piFilter(S.plQ);return;}if(e.target.id!=='eq-q')return;S.q=e.target.value;const l=$id('eq-annu-liste');if(l)l.innerHTML=listeEnt(pers(S.me));});
+  document.addEventListener('input',e=>{if(e.target.dataset&&e.target.dataset.ecart!==undefined){const el=$id(e.target.dataset.ecart);const pt=e.target.dataset.pointe||'';if(el)el.innerHTML=pt?'pointé '+esc(pt)+(e.target.value&&e.target.value!==pt?' · <b>'+ecartTxt(pt,e.target.value)+'</b>':''):'<span style="color:#9b2c22">rien de pointé</span>';return;} /* 10/11 : écart correction / pointé */if(e.target.closest&&e.target.closest('#eq-app')&&extIn(e,'input'))return;if(e.target.id==='pl-q'){S.plQ=e.target.value;plFilterTray(S.plQ);return;}if(e.target.id==='pi-q'){S.plQ=e.target.value;piFilter(S.plQ);return;}if(e.target.id!=='eq-q')return;S.q=e.target.value;const l=$id('eq-annu-liste');if(l)l.innerHTML=listeEnt(pers(S.me));});
   document.addEventListener('dragstart',e=>{const el=e.target.closest&&e.target.closest('#eq-app [data-drag]');if(!el)return;S.plSel=el.dataset.drag;try{e.dataTransfer.setData('text/plain',el.dataset.drag);e.dataTransfer.effectAllowed='move';}catch(x){}el.classList.add('dragging');});
   document.addEventListener('dragend',e=>{const el=e.target.closest&&e.target.closest('#eq-app [data-drag]');if(el)el.classList.remove('dragging');});
   document.addEventListener('dragover',e=>{const z=e.target.closest&&e.target.closest('#eq-app [data-drop]');if(!z)return;e.preventDefault();z.classList.add('over');});

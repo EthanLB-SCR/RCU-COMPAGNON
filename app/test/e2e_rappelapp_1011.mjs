@@ -16,6 +16,11 @@ await home('htHome');await W(3000);
 console.log('me',J(await page.evaluate(()=>{const H=window.TRACE.monde3d&&window.TRACE.monde3d();return H?{id:H.state.DATA.me&&H.state.DATA.me.id,notes:(H.state.DATA.notes||[]).length,keys:Object.keys(localStorage).filter(k=>/notes3d/.test(k))}:null;})));
 const todo=await page.evaluate(()=>{const H=window.TRACE.monde3d&&window.TRACE.monde3d();return H?(H.state.DATA.notifs.todo||[]).map(x=>x.t):null;});
 console.log('a1) À faire :',J(todo));C.a1=!!todo&&todo.filter(t=>/^Rappel :/.test(t)).length===1&&todo.some(t=>/Rappel : Appeler le fournisseur/.test(t));
+// a1b) un rendez-vous ajouté dans l'agenda de l'appli (10/11 : Ethan — « ça doit aller chercher mes rdv de l'agenda ») apparaît sur le tableau « Ma journée »
+await page.evaluate(()=>window.TRACE.monde.ctx().go('agenda'));await W(900);await page.evaluate(()=>{const b=document.querySelector('#eq-app [data-act="agnew"][data-v="2026-11-06"]');if(b)b.click();});await W(500);
+await page.evaluate(()=>{const g=k=>document.getElementById('ag-'+k);if(g('type'))g('type').value='rdv';g('title').value='Visite client Lycée';g('h0').value='14:00';g('h1').value='15:00';const ok=document.querySelector('#eq-app [data-act="agok"]');if(ok)ok.click();});await W(800);
+await page.evaluate(()=>{window.TRACE.showScreen('home');window.TRACE.renderHome();});await W(400);await home('htHome');await W(3000);
+const ag=await page.evaluate(()=>{const H=window.TRACE.monde3d&&window.TRACE.monde3d();return H?(H.state.DATA.jour&&H.state.DATA.jour.rdv||[]).map(r=>r.h+' '+r.t+' '+r.src):null;});console.log('a1b) agenda → tableau :',J(ag));C.a1b=!!ag&&ag.some(x=>/^14:00 Visite client Lycée app$/.test(x));
 // a2) dans le bureau 3D : le post-it arrivé s'agite (dueNotes), les deux autres non
 const due=await page.evaluate(()=>{const H=window.TRACE.monde3d();return (H.state.pod.userData.dueNotes||[]).map(w=>w.userData.noteId);});console.log('a2) agités :',J(due));C.a2=J(due)==='["na1"]';
 // a3) la ligne « À faire » ouvre le post-it en grand

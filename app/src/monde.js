@@ -11,6 +11,7 @@
 // · Rien n'est retiré : chaque scène est une vue de plus ; la vue classique reste à un clic ; les objets ouvrent EXACTEMENT ce qu'ouvrent les boutons classiques
 //   (mêmes data-act : notif, tabgo, accnew, af…).
 import {magStock} from './magasin.js';
+import {regAll} from './reg.js'; /* 10/11 : agenda du jour sur le tableau du bureau */
 import {glAvailable,glSlot,glDispose,networkOf,notesOf,glGo,glKind,noteDue,fmtRappel,nowLocal16} from './monde_gl.js'; // 08/11 : vraie 3D (three.js) ; les scènes SVG ci-dessous restent le secours sans WebGL
 const KEY='trace:monde';
 let CFG=null,API=null,LOADED=false;
@@ -480,7 +481,7 @@ export function chantier3D(B,NET,A){if(!glAvailable()||!CTX0)return raccordeHTML
     onBur:t=>{if(t==='__orga'){if(A.goExpl)A.goExpl('orga');return;}if(t==='__valid'){if(A.goExpl)A.goExpl('valid');return;}if(A.tabAllowed&&!A.tabAllowed(t)){A.toast('Onglet non accessible avec tes droits');return;}A.state.tab=t;A.renderAll();},onWeld:id=>{A.toast('Soudure '+id+' : ouvre-la depuis le plan ou la liste');},onClassic:()=>{setVue('ch','classique');A.renderAll();}};
   if(vueOf('ch')==='classique')return switch3D('ch');return glSlot('chantier',p,CTX0,extra);}
 function accueil(me,ctx,o){ensureLoaded(ctx);if(!mondeFor(me)){const h=diagHTML(me);return h?{top:h}:null;}if(vueOf('acc')==='classique')return {top:switch3D('acc')};
-  if(glAvailable()){css();const side=o.side||{};return {html:`<div class="m3d-acc3d">${o.side&&o.side.hello||''}${glSlot('bureau',me,ctx,{cfg:mondeCfg(),todo:o.todo,know:o.know,spaces:o.spaces,topRight:glBtn('acc','m3d-chip') /* 09/11 : « Vue classique » dans la scène, en haut à droite — plus de ligne vide entre le bonjour et la pièce */,homeChips:[{k:'jour',t:'⏱ Ma journée',html:()=>(typeof side.pointer==='function'?side.pointer():side.pointer||'')},{k:'acc',t:'⚠ Accident',act:'accnew',cls:'warn'}] /* 08/11 nuit (Ethan : « plein écran, on s'en fout du côté ») : plus de colonne ; « À faire » / « À savoir » sont sur les écrans et le tableau, le pointage du jour par-dessus la 3D */})}</div>`};}
+  if(glAvailable()){css();const side=o.side||{};return {html:`<div class="m3d-acc3d">${o.side&&o.side.hello||''}${glSlot('bureau',me,ctx,{cfg:mondeCfg(),todo:o.todo,know:o.know,spaces:o.spaces,topRight:glBtn('acc','m3d-chip') /* 09/11 : « Vue classique » dans la scène, en haut à droite — plus de ligne vide entre le bonjour et la pièce */,homeChips:[{k:'acc',t:'⚠ Accident',act:'accnew',cls:'warn'}],jour:{rdv:agendaJour(me,ctx)} /* 10/11 (Ethan) : plus de puce « ⏱ Ma journée » (le pointage reste dans Moi → Heures) ; les rendez-vous du jour viennent de l'agenda de l'appli (synchro Outlook comprise) */ /* 08/11 nuit (Ethan : « plein écran, on s'en fout du côté ») : plus de colonne ; « À faire » / « À savoir » sont sur les écrans et le tableau, le pointage du jour par-dessus la 3D */})}</div>`};}
   try{const data=ctx.peopleData(me.id)||{};const d=new Date((ctx.today()||'')+'T12:00:00');const M=['JANV.','FÉVR.','MARS','AVRIL','MAI','JUIN','JUIL.','AOÛT','SEPT.','OCT.','NOV.','DÉC.'];
     const jour=isNaN(d.getTime())?null:{n:String(d.getDate()),mois:M[d.getMonth()],sem:'semaine '+(o.sem||'')};
     return {html:accueilCard({me,pref:prefsOf(data),av:ctx.avSVG(me,150),todo:o.todo,know:o.know,spaces:o.spaces,jour,poste:ctx.posteLabel(me),side:o.side})};}catch(e){console.warn('monde',e);return null;}}
@@ -501,4 +502,8 @@ function rapTick(){try{if(!RAP_ME)return;const now=nowLocal16();rapDues(RAP_ME).
 function rapWatch(me){RAP_ME=me||RAP_ME;if(!RAP_T)RAP_T=setInterval(rapTick,30000);}
 function tasks(me,ctx){ensureLoaded(ctx);rapWatch(me);return rapDues(me).map(n=>({act:true,sev:'warn',ic:'🔔',t:'Rappel : '+n.t.split(/\r?\n/)[0].slice(0,80),s:'post-it de ton bureau · prévu '+fmtRappel(n.r)+' · ouvre-le pour le marquer vu ou le reporter',when:'maintenant',
   go:()=>{if(glGo('note',n.id))return;ctx.render();setTimeout(()=>glGo('note',n.id),600);}}));}
+/** rendez-vous du jour de la personne dans l'agenda de l'appli (registre « agenda » : visites, réunions, rendez-vous ; les lignes importées d'Outlook portent src:'outlook') */
+const AG_LAB={visite:'Visite de chantier',reunion:'Réunion',rdv:'Rendez-vous',bureau:'Bureau / dossier',autre:'Autre'};
+function agendaJour(me,ctx){try{const today=(ctx&&ctx.today&&ctx.today())||new Date().toISOString().slice(0,10);const sites=(ctx&&ctx.sites)||[];
+  return regAll('agenda').filter(e=>e&&e.p===me.id&&!e.deleted&&e.d===today).sort((a,b)=>String(a.h0||'').localeCompare(String(b.h0||''))).map(e=>{const st=e.site&&sites.find(s=>s.id===e.site);const t=e.title||(st?(AG_LAB[e.type]||'')+(st?' · '+st.name:''):'')||AG_LAB[e.type]||'Rendez-vous';return {id:e.id,h:e.h0||'',h1:e.h1||'',t:t+(e.note&&!e.title?' · '+e.note:''),src:e.src==='outlook'?'outlook':'app'};});}catch(err){console.warn(err);return [];}}
 export default {id:'monde',hub:'entreprise',hubTop,accueil,hubRows,xview,act,input,moiSubs,view,tasks};
