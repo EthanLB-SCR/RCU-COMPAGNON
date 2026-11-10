@@ -43,7 +43,7 @@ console.log('n4) qui est où :',J({target,n4a,n4b}));C.n4=!!target&&n4a.card&&n4
 await page.click('#eq-app [data-v="monde|siege|idf"]');await W(600);
 const n5a=await page.evaluate(()=>{const c=JSON.parse(localStorage.getItem('trace:monde')||'{}');return {idf:!!(c.depots&&c.depots.idf&&c.depots.idf.siege),ouest:!!(c.depots&&c.depots.ouest&&c.depots.ouest.siege),btn:!!document.querySelector('#eq-app [data-v="monde|siege|idf"][aria-pressed="true"]')};});
 const lone=await page.evaluate(()=>{const c=window.TRACE.monde.ctx();const p=c.people.find(x=>x.active!==false&&x.poste!=='visiteur'&&!c.secteurDe(x)&&!(c.mySecteur&&c.mySecteur(x)));return p?p.id:null;});
-await page.evaluate(()=>{window.TRACE.showScreen('home');window.TRACE.renderHome();});await W(400);await home('htEnt');await W(2600);
+await page.evaluate(()=>{window.TRACE.showScreen('home');window.TRACE.renderHome();});await W(400);await home('htEnt');await page.evaluate(()=>{const b=document.querySelector('#eq-app [data-act="xgo"][data-v="x:monde:depot"]');if(b)b.click();});await W(2600); /* 10/11 : le dépôt = rubrique « Visite des dépôts » */
 const n5b=await page.evaluate(id=>{const H=window.TRACE.monde3d();const D=H.state.DATA.depots||[];const where=k=>{for(const d of D)if((d.people||[]).some(p=>p.id===k))return d.k;return null;};return {lone:id?where(id):'(aucun)',target:null};},lone);
 n5b.target=await page.evaluate(id=>{const D=window.TRACE.monde3d().state.DATA.depots||[];for(const d of D)if((d.people||[]).some(p=>p.id===id))return d.k;return null;},target);
 console.log('n5) siège :',J({n5a,lone,n5b}));C.n5=n5a.idf&&!n5a.ouest&&n5a.btn&&(lone?n5b.lone==='idf':true)&&n5b.target==='idf';

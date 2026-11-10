@@ -7,7 +7,7 @@ await p.goto(U, { waitUntil: 'domcontentloaded' }); await p.waitForSelector('#pt
 await p.click('#pt-nav button[data-k="bureau"]'); await p.waitForTimeout(2500);
 const R = {}; const chip = re => p.evaluate(re => { const c = [...document.querySelectorAll('.m3d-chip')].find(x => new RegExp(re).test(x.textContent)); if (c) c.click(); return !!c; }, re);
 // j1) tableau blanc poussé vers le fond (z < -0.5) ; tableau liège présent, 3 rendez-vous de l'appli dessus, zone « ＋ »
-R.j1 = await p.evaluate(() => { const H = window.PROTO.H, pod = H.state.pod; const J = pod.userData.jour; const wb = (pod.userData.fixed || []).map(f => f.ob); const z = wb.map(o => o.position.z); return !!J && J.data.rdv.length === 3 && J.ecran.zones.some(zz => zz.pick && zz.pick.type === 'jourAdd') && z.some(v => v < -0.5) && z.some(v => v > -0.5 && v < 0); });
+R.j1 = await p.evaluate(() => { const H = window.PROTO.H, pod = H.state.pod; const J = pod.userData.jour; const wb = (pod.userData.fixed || []).map(f => f.ob).find(o => o.userData.face2); return !!J && J.data.rdv.length === 3 && J.ecran.zones.some(zz => zz.pick && zz.pick.type === 'jourAdd') && !!wb && J.face === wb.userData.face2 && wb.userData.parts.h1 > wb.userData.parts.h2; }); /* un seul grand tableau : « À savoir » en haut (plus grand), « Ma journée » en bas */
 // j2) puce « Agenda » → vue jour + panneau « Ma journée » avec le genre Tâche présélectionné
 await chip('Agenda'); await p.waitForTimeout(1500);
 R.j2 = await p.evaluate(() => window.PROTO.H.state.vue === 'jour' && /Ma journée/.test((document.querySelector('.m3d-over h4') || {}).textContent || '') && !!document.querySelector('[data-nkind="t"].primary') && !!document.querySelector('[data-note-h]'));

@@ -11,4 +11,5 @@ import docsOblig from './docsoblig.js'; MODS.push(docsOblig); // 14/10 après-mi
 import demandes from './demandes.js'; MODS.push(demandes); // 31/10 (lot CC) : commandes V1 sans magasin — demandes de matériel (Compagnon → Mes demandes) et suivi des remises (Pilotage)
 import compteCh from './comptech.js'; MODS.push(compteCh); // 31/10 (lot CC) : compte chantier — bons, dépenses, heures par poste (Pilotage, Bureau du chantier)
 import monde from './monde.js'; MODS.push(monde); // 07/11 nuit : Monde 3D (Labo, éteint par défaut) — accueil « mon bureau », Équipe, Pilotage, Commerce
+import tracerh from './tracerh.js'; MODS.push(tracerh); // 10/11 : Tracé Ressources humaines — navettes, absences et congés, habilitations, formation, contraventions, mutuelle, accidents
 export function initModules(){MODS.forEach(m=>{try{espaceExt(m);}catch(e){console.warn('module',m&&m.id,e);}});}

@@ -382,10 +382,14 @@ export function nameplate(text, sub, accent) {
   g.add(front, back); return g;
 }
 /** tableau blanc Velleda accroché au mur : cadre alu, surface brillante (texture tex), réglette avec trois feutres et une brosse. Origine = centre du tableau, face vers +z ; g.userData.face = la surface. */
-export function whiteboard(w, h, tex) {
-  const g = grp(); const alu = 0xC9CDD4;
+export function whiteboard(w, h, tex, o) {
+  const g = grp(); const alu = 0xC9CDD4; o = o || {};
   g.add(rbox(w + 0.05, h + 0.05, 0.028, alu, { r: 0.006, y: -h / 2 - 0.025, rough: 0.45, metal: 0.6 }));
-  const face = new THREE.Mesh(new THREE.PlaneGeometry(w, h), tex ? new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }) : mat(0xFFFFFF, { rough: 0.22 })); /* la surface écrite : blanche et nette quelle que soit la lumière (le reflet est dans la texture) */ face.position.set(0, 0, 0.0155); g.add(face); g.userData.face = face;
+  const mk = (t) => t ? new THREE.MeshBasicMaterial({ map: t, toneMapped: false }) : mat(0xFFFFFF, { rough: 0.22 });
+  if (o.tex2) { /* 10/11 (Ethan) : un seul grand tableau en deux parties — « À savoir » en haut, « Ma journée » en bas, un fin trait entre les deux */
+    const h1 = h * (o.split || 0.55), h2 = h - h1 - 0.015; const f1 = new THREE.Mesh(new THREE.PlaneGeometry(w, h1), mk(tex)); f1.position.set(0, h / 2 - h1 / 2, 0.0155); const f2 = new THREE.Mesh(new THREE.PlaneGeometry(w, h2), mk(o.tex2)); f2.position.set(0, -h / 2 + h2 / 2, 0.0155);
+    g.add(f1, f2, rbox(w, 0.012, 0.004, alu, { r: 0.002, y: h / 2 - h1 - 0.0135, z: 0.0165, rough: 0.45, metal: 0.6 })); g.userData.face = f1; g.userData.face2 = f2; g.userData.parts = { h1, h2 };
+  } else { const face = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mk(tex)); face.position.set(0, 0, 0.0155); g.add(face); g.userData.face = face; }
   const ty = -h / 2 - 0.03; g.add(rbox(w * 0.6, 0.02, 0.06, alu, { r: 0.004, y: ty, z: 0.035, rough: 0.45, metal: 0.6 }));
   [[-0.12, 0x2456C8], [-0.04, 0x1B1530], [0.04, 0xC9241C], [0.12, 0x2E7D55]].forEach(([x, c]) => { const pen = cyl(0.009, 0.009, 0.13, c, { seg: 10 }); pen.rotation.z = Math.PI / 2; pen.position.set(x * w, ty + 0.03, 0.04); g.add(pen); });
   g.add(rbox(0.11, 0.035, 0.05, 0x3A3550, { r: 0.006, x: w * 0.24, y: ty + 0.02, z: 0.035 }));

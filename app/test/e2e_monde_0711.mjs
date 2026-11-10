@@ -13,6 +13,7 @@ await page.goto(BASE+'/index.html');await W(600);await page.evaluate(()=>{localS
 await page.reload();await W(1200);{const s=await page.$('#loginSkip');if(s&&await s.isVisible())await s.click();await W(700);}
 const asEthan=async()=>{await page.evaluate(()=>{const T=window.TRACE;T.state.userId='ethan';T.renderHome();});await W(500);};await asEthan();
 const home=async id=>{await page.evaluate(i=>{const b=document.getElementById(i);if(b)b.click();},id);await W(500);};
+const visite=async()=>{await home('htEnt');await page.evaluate(()=>{const b=document.querySelector('#eq-app [data-act="xgo"][data-v="x:monde:depot"]');if(b)b.click();});await W(600);}; /* 10/11 (Ethan) : le dépôt n'est plus en tête d'Équipe, c'est la rubrique « Visite des dépôts » */
 const q=async()=>page.evaluate(()=>({slot:(document.querySelector('#eq-app .m3d-slot')||{}).dataset?.m3dKind||null,canvas:!!document.querySelector('#eq-app .m3d-slot canvas'),classic:!!document.querySelector('#eq-app .ac-hi'),svg:!!document.querySelector('#eq-app .m3d-card')}));
 const gl=async()=>page.evaluate(()=>{const H=window.TRACE.monde3d&&window.TRACE.monde3d();return H?{scene:H.state.scene,depot:H.state.depotK,prefs:H.state.prefs,picks:H.viewer.pickables.length}:null;});
 // ── m0) option éteinte : rien de nouveau ; la ligne de réglage existe pour l'administrateur
@@ -39,13 +40,13 @@ await page.click('#eq-app .m3d-side [data-ptab="piece"]');await W(300);await pag
 const o3=await page.evaluate(()=>{const H=window.TRACE.monde3d();const d=window.TRACE.monde.ctx().peopleData('l:ethan');return {mur:H.state.prefs.mur,sol:H.state.prefs.sol,saved:d&&d.avatar&&d.avatar.bureau3d&&d.avatar.bureau3d.mur,panel:!!document.querySelector('#eq-app .m3d-box.perso')};});
 console.log('m3) personnalisé :',J(o3));C.m3=o3.mur==='menthe'&&o3.sol==='beton'&&o3.saved==='menthe'&&o3.panel;
 // ── m4) Équipe : le dépôt (2 dépôts), survol vers l'autre, visite du bureau d'un collègue
-await home('htEnt');await W(3000);const o4a=await page.evaluate(()=>({slot:(document.querySelector('#eq-app .m3d-slot')||{}).dataset?.m3dKind,deps:document.querySelectorAll('#eq-app .m3d-chip[data-chip^="dep:"]').length,people:document.querySelectorAll('#eq-app .m3d-side .m3d-li[data-m3d="person"]').length}));const g4a=await gl();
+await visite();await W(3000);const o4a=await page.evaluate(()=>({slot:(document.querySelector('#eq-app .m3d-slot')||{}).dataset?.m3dKind,deps:document.querySelectorAll('#eq-app .m3d-chip[data-chip^="dep:"]').length,people:document.querySelectorAll('#eq-app .m3d-side .m3d-li[data-m3d="person"]').length}));const g4a=await gl();
 await page.click('#eq-app .m3d-chip[data-chip="dep:idf"]');await W(1500);const g4b=await gl();await page.click('#eq-app .m3d-chip[data-chip="dep:ouest"]');await W(1500);
 const firstOffice=await page.evaluate(()=>{const b=document.querySelector('#eq-app .m3d-side .m3d-li[data-m3d="person"]');return b?b.dataset.arg:null;});let g4c=null,g4d=null;
 if(firstOffice){await page.evaluate(id=>document.querySelector(`#eq-app .m3d-side .m3d-li[data-m3d="person"][data-arg="${id}"]`).click(),firstOffice);await W(800);g4c=await page.evaluate(()=>{const v=document.querySelector('#eq-app .m3d-side [data-m3d="visit"]');if(!v)return false;v.click();return true;});if(g4c){await W(2500);g4d=await gl();}}
 console.log('m4) dépôt :',J({o4a,g4a:g4a&&g4a.scene,dep0:g4a&&g4a.depot,dep1:g4b&&g4b.depot,g4c,g4d:g4d&&g4d.scene}));C.m4=o4a.slot==='monde'&&o4a.deps===2&&o4a.people>0&&g4a.scene==='monde'&&g4b.depot==='idf'&&(g4c===false||g4d&&g4d.scene==='visit');
 // ── m5) glisser la vue : la cible de la caméra bouge
-await home('htEnt');await W(2500);await page.evaluate(()=>{const H=window.TRACE.monde3d();if(H.state.scene!=='monde')H.setScene('monde');});await W(1500); /* 08/11 soir : la visite (m4) est une vue « dans la peau » qui reste ouverte tant qu'on n'en sort pas ; on revient au dépôt pour tester le glisser */
+await visite();await W(2500);await page.evaluate(()=>{const H=window.TRACE.monde3d();if(H.state.scene!=='monde')H.setScene('monde');});await W(1500); /* 08/11 soir : la visite (m4) est une vue « dans la peau » qui reste ouverte tant qu'on n'en sort pas ; on revient au dépôt pour tester le glisser */
 const t0=await page.evaluate(()=>{const H=window.TRACE.monde3d();return H.viewer.controls.target.toArray();});
 const box=await page.evaluate(()=>{const r=document.querySelector('#eq-app .m3d-slot canvas').getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};});
 await page.mouse.move(box.x,box.y);await page.mouse.down();await page.mouse.move(box.x+150,box.y+60,{steps:8});await page.mouse.up();await W(500);const t1=await page.evaluate(()=>{const H=window.TRACE.monde3d();return H.viewer.controls.target.toArray();});
@@ -53,7 +54,7 @@ console.log('m5) caméra :',J({t0,t1}));C.m5=Math.hypot(t1[0]-t0[0],t1[2]-t0[2])
 // ── m6) Pilotage, Flotte, Magasin : chacun sa caméra
 await home('htExpl');await W(2500);const o6a=await q();const n6=await page.evaluate(()=>document.querySelectorAll('#eq-app .m3d-side .m3d-li[data-m3d="chantier"]').length);
 await home('htParc');await W(2500);const o6b=await q();await home('htMag');await W(2500);const o6c=await q();
-console.log('m6) modules :',J({o6a,n6,o6b,o6c}));C.m6=o6a.slot==='pilotage'&&o6a.canvas&&n6>0&&o6b.slot==='flotte'&&(o6c.slot==='magasin'||o6c.slot===null);
+console.log('m6) modules :',J({o6a,n6,o6b,o6c}));C.m6=!o6a.slot&&o6b.slot==='flotte'&&(o6c.slot==='magasin'||o6c.slot===null); /* 10/11 (Ethan) : plus de 3D sur Pilotage */
 // ── m7) Commerce : salle d'attente ; « Attente client » enregistrée sur l'affaire depuis le panneau 3D
 await page.evaluate(()=>{const A=window.TRACE.affaires;A.set('ZT-1',{num:'ZT-1',nom:'Réseau Test A',client:'Client test',etat:'devis'});A.set('ZT-2',{num:'ZT-2',nom:'Réseau Test B',client:'Client test',etat:'preconsult',attente:{de:'fournisseur',rel:'2026-11-02',note:'prix'}});});await W(200);
 await home('htCom');await W(2500);const o7a=await q();await page.evaluate(()=>document.querySelector('#eq-app .m3d-side .m3d-li[data-m3d="affaire"][data-arg="ZT-1"]').click());await W(500);await page.evaluate(()=>document.querySelector('#eq-app .m3d-side [data-m3d="attente"][data-arg="ZT-1|client"]').click());await W(800);

@@ -138,39 +138,37 @@ function drawVeleda(g, D, zone, hv) {
   if (n > maxRows) { g.font = `600 26px ${HAND}`; g.fillStyle = '#5B6270'; const more = '+ ' + (n - maxRows) + ' autre' + (n - maxRows > 1 ? 's' : '') + ' chose' + (n - maxRows > 1 ? 's' : '') + ' à savoir ›'; const zi = D.morePick ? zone(36, y - 36, 500, 46, D.morePick, 'Tout voir') : -1; if (zi === hv) g.fillStyle = '#5E46B8'; g.fillText(more, 60, y - 4); }
   g.font = `500 20px ${HAND}`; g.fillStyle = '#9AA1AE'; g.textAlign = 'right'; g.fillText('clique une ligne pour l\'ouvrir', W - 44, H - 22); g.textAlign = 'left';
 }
-/* 10/11 (Ethan : « un tableau liège Ma journée : l'agenda du jour — rendez-vous connectés à Outlook ou ajoutés ici — et des tâches comme les notes, avec rappel »)
-   D = { date, now:'HH:MM', rdv:[{id, h, t, src, pick}], taches:[{id, t, c, done, due, r, pick}], addPick } — rendez-vous épinglés à gauche, tâches en mini post-its à droite */
+/* 10/11 (Ethan : « un grand tableau blanc en deux parties : À savoir en haut, Ma journée en bas — l'agenda du jour et des tâches comme les notes, avec rappel »)
+   Partie basse du tableau : dessinée dans les JOUR_H premiers pixels (proportions de la partie basse), au feutre comme « À savoir ».
+   D = { date, now:'HH:MM', rdv:[{id, h, t, src, pick}], taches:[{id, t, c, done, due, r, h, pick}], addPick } */
+export const JOUR_H = 430;
 function drawJour(g, D, zone, hv) {
-  g.fillStyle = '#C9A46A'; g.fillRect(0, 0, W, H); /* liège : fond + grain */
-  let sd = 7; const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; }; for (let i = 0; i < 2600; i++) { g.fillStyle = rnd() < 0.5 ? 'rgba(90,60,25,.16)' : 'rgba(255,235,200,.16)'; const x = rnd() * W, y = rnd() * H; g.fillRect(x, y, 2 + rnd() * 3, 2 + rnd() * 2); }
-  const pin = (x, y, col) => { g.fillStyle = 'rgba(0,0,0,.25)'; g.beginPath(); g.arc(x + 2, y + 3, 9, 0, 7); g.fill(); g.fillStyle = col; g.beginPath(); g.arc(x, y, 9, 0, 7); g.fill(); g.fillStyle = 'rgba(255,255,255,.55)'; g.beginPath(); g.arc(x - 3, y - 3, 3, 0, 7); g.fill(); };
-  const card = (x, y, w, h, col, rot) => { g.save(); g.translate(x + w / 2, y + h / 2); g.rotate(rot || 0); g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(-w / 2 + 4, -h / 2 + 6, w, h); g.fillStyle = col; g.fillRect(-w / 2, -h / 2, w, h); g.restore(); };
-  // en-tête : étiquette blanche épinglée
-  card(36, 26, 420, 78, '#FFFFFF', -0.01); pin(52, 40, '#C8382F'); g.font = `700 46px ${HAND}`; g.fillStyle = '#1B1530'; g.fillText('Ma journée', 70, 84);
-  if (D.date) { card(W - 400, 30, 364, 60, '#FFF8E6', 0.012); pin(W - 386, 44, '#2456C8'); g.font = `600 28px ${HAND}`; g.fillStyle = '#4A4560'; g.fillText(fit(g, D.date, 320), W - 366, 72); }
-  // agenda (gauche) : une bande par rendez-vous, l'heure en gros ; le prochain est souligné
-  const R = (D.rdv || []).slice(0, 7), T = (D.taches || []).slice(0, 8); const now = D.now || '';
-  let y = 150; card(36, 122, 470, 24 + Math.max(1, R.length) * 58 + 10, '#FFFFFF', 0.004); pin(58, 136, '#2E7D55'); g.font = `700 24px ${HAND}`; g.fillStyle = '#5B6270'; g.fillText('AGENDA', 76, 144);
-  if (!R.length) { g.font = `600 30px ${HAND}`; g.fillStyle = '#9AA1AE'; g.fillText('Rien de prévu — ＋ pour ajouter', 60, 196); y += 58; }
-  let nextDone = false;
+  const HH = JOUR_H; const G = g.createLinearGradient(0, 0, W, HH); G.addColorStop(0, '#FFFFFF'); G.addColorStop(0.5, '#F7F8FB'); G.addColorStop(1, '#EDEFF4'); g.fillStyle = G; g.fillRect(0, 0, W, HH);
+  const pen = (c, lw) => { g.strokeStyle = c; g.fillStyle = c; g.lineWidth = lw; g.lineCap = 'round'; g.lineJoin = 'round'; };
+  g.font = `700 46px ${HAND}`; pen('#1B1530', 5); g.fillText('Ma journée', 44, 66); const tw = g.measureText('Ma journée').width; g.beginPath(); g.moveTo(42, 80); g.quadraticCurveTo(42 + tw / 2, 88, 48 + tw, 78); g.stroke();
+  if (D.date) { g.textAlign = 'right'; g.font = `600 24px ${HAND}`; g.fillStyle = '#5B6270'; g.fillText(D.date, W - 44, 60); g.textAlign = 'left'; }
+  // agenda (gauche, au feutre vert) : heure en gros, titre ; passé barré ; le prochain souligné
+  const R = (D.rdv || []).slice(0, 5), T = (D.taches || []).slice(0, 6); const now = D.now || ''; let y = 128; let nextDone = false;
+  g.font = `700 22px ${HAND}`; g.fillStyle = '#2E7D55'; g.fillText('AGENDA', 48, 108);
+  if (!R.length) { g.font = `600 26px ${HAND}`; g.fillStyle = '#9AA1AE'; g.fillText('Rien de prévu — ＋ pour ajouter', 48, y + 10); }
   R.forEach(r => { const past = now && r.h && r.h < now; const isNext = !past && !nextDone; if (isNext) nextDone = true;
-    const zi = r.pick ? zone(40, y - 2, 462, 56, r.pick, (r.h || '') + ' ' + (r.t || '')) : -1; const on = zi >= 0 && zi === hv; if (on || isNext) { rr(g, 44, y, 454, 52, 10); g.fillStyle = on ? 'rgba(94,70,184,.14)' : 'rgba(46,125,85,.10)'; g.fill(); }
-    g.fillStyle = r.src === 'outlook' ? '#2456C8' : '#2E7D55'; g.fillRect(50, y + 8, 6, 36);
-    g.font = `800 30px ${HAND}`; g.fillStyle = past ? '#9AA1AE' : '#1B1530'; g.fillText(r.h || '—', 68, y + 38); g.font = `600 28px ${HAND}`; g.fillStyle = past ? '#9AA1AE' : '#1B1530'; g.fillText(fit(g, r.t || '', 330), 158, y + 38);
-    if (past) { g.strokeStyle = 'rgba(27,21,48,.35)'; g.lineWidth = 3; g.beginPath(); g.moveTo(158, y + 28); g.lineTo(158 + Math.min(330, g.measureText(r.t || '').width), y + 28); g.stroke(); } y += 58; });
-  // tâches (droite) : mini post-its épinglés, de travers ; faites = cochées et pâles ; rappel arrivé = cadre rouge et cloche
-  const NC = ['#FFDC4A', '#FFA9C0', '#8FC5FF', '#9FE39B', '#FFBE6E']; const cols = 2, cw = 212, chh = 150, x0 = 548, y0 = 122;
-  T.forEach((t, i) => { const cx = x0 + (i % cols) * (cw + 26), cy = y0 + Math.floor(i / cols) * (chh + 18); const rot = ((i * 37) % 11 - 5) * 0.012; const col = NC[t.c] || NC[0];
-    const zi = t.pick ? zone(cx, cy, cw, chh, t.pick, t.t) : -1; const on = zi >= 0 && zi === hv; card(cx, cy, cw, chh, t.done ? '#EDE9DF' : col, rot); if (on) { g.save(); g.translate(cx + cw / 2, cy + chh / 2); g.rotate(rot); g.strokeStyle = '#5E46B8'; g.lineWidth = 5; g.strokeRect(-cw / 2, -chh / 2, cw, chh); g.restore(); }
-    if (t.due) { g.save(); g.translate(cx + cw / 2, cy + chh / 2); g.rotate(rot); g.strokeStyle = '#C8382F'; g.lineWidth = 6; g.strokeRect(-cw / 2 + 3, -chh / 2 + 3, cw - 6, chh - 6); g.restore(); }
-    pin(cx + cw / 2, cy + 10, t.due ? '#C8382F' : t.done ? '#9AA1AE' : '#2456C8');
-    g.save(); g.translate(cx + cw / 2, cy + chh / 2); g.rotate(rot); g.font = `700 24px ${HAND}`; g.fillStyle = t.done ? '#9AA1AE' : '#1B1530'; const words = String(t.t || '').split(/\s+/); const lines = []; let cur = '';
-    words.forEach(w => { const tt = cur ? cur + ' ' + w : w; if (g.measureText(tt).width > cw - 30 && cur) { lines.push(cur); cur = w; } else cur = tt; }); if (cur) lines.push(cur); lines.slice(0, 3).forEach((l, k) => g.fillText(k === 2 && lines.length > 3 ? fit(g, l + '…', cw - 30) : l, -cw / 2 + 14, -chh / 2 + 56 + k * 30));
-    if (t.done) { g.strokeStyle = '#2E7D55'; g.lineWidth = 5; g.lineCap = 'round'; g.beginPath(); g.moveTo(-cw / 2 + 16, chh / 2 - 28); g.lineTo(-cw / 2 + 28, chh / 2 - 16); g.lineTo(-cw / 2 + 50, chh / 2 - 42); g.stroke(); }
-    else if (t.h || t.r) { g.font = `700 20px ${HAND}`; g.fillStyle = t.due ? '#C8382F' : '#4A4560'; g.fillText((t.due ? '🔔 ' : t.r ? '🔔 ' : '⏱ ') + (t.h || t.r || ''), -cw / 2 + 14, chh / 2 - 18); } g.restore(); });
-  if (!T.length) { card(x0, y0, 450, 90, '#FFF8E6', 0.01); pin(x0 + 225, y0 + 10, '#2456C8'); g.font = `600 28px ${HAND}`; g.fillStyle = '#9AA1AE'; g.fillText('Aucune tâche épinglée', x0 + 24, y0 + 60); }
-  // ＋ ajouter
-  const zi = D.addPick ? zone(W - 250, H - 78, 214, 56, D.addPick, 'Ajouter') : -1; rr(g, W - 250, H - 78, 214, 56, 28); g.fillStyle = zi >= 0 && zi === hv ? '#4A3A9C' : '#5E46B8'; g.fill(); g.font = `700 26px ${HAND}`; g.fillStyle = '#FFFFFF'; g.textAlign = 'center'; g.fillText('＋ tâche · rendez-vous', W - 143, H - 40); g.textAlign = 'left';
+    const zi = r.pick ? zone(36, y - 30, 470, 54, r.pick, (r.h || '') + ' ' + (r.t || '')) : -1; const on = zi >= 0 && zi === hv; if (on) { rr(g, 36, y - 30, 470, 54, 12); g.fillStyle = 'rgba(94,70,184,.12)'; g.fill(); }
+    pen(r.src === 'outlook' ? '#2456C8' : '#2E7D55', 4); g.beginPath(); g.arc(58, y - 4, 8, 0.3, 6.1); g.stroke();
+    g.font = `800 28px ${HAND}`; g.fillStyle = past ? '#9AA1AE' : '#1B1530'; g.fillText(r.h || '—', 80, y + 6); g.font = `600 26px ${HAND}`; const tx = fit(g, r.t || '', 330); g.fillText(tx, 164, y + 6);
+    if (past) { pen('rgba(27,21,48,.45)', 3); g.beginPath(); g.moveTo(162, y - 4); g.lineTo(164 + g.measureText(tx).width, y - 6); g.stroke(); } else if (isNext) { pen('#2E7D55', 3); g.beginPath(); g.moveTo(164, y + 14); g.quadraticCurveTo(164 + g.measureText(tx).width / 2, y + 20, 164 + g.measureText(tx).width, y + 12); g.stroke(); }
+    y += 56; });
+  // tâches (droite) : post-its collés sur le tableau, de travers ; faites = cochées et pâles ; rappel arrivé = cadre rouge et cloche
+  const NC = ['#FFDC4A', '#FFA9C0', '#8FC5FF', '#9FE39B', '#FFBE6E']; const cols = 3, cw = 140, chh = 128, x0 = 548, y0 = 96;
+  T.forEach((t, i) => { const cx = x0 + (i % cols) * (cw + 16), cy = y0 + Math.floor(i / cols) * (chh + 16); const rot = ((i * 37) % 11 - 5) * 0.014; const col = NC[t.c] || NC[0];
+    const zi = t.pick ? zone(cx, cy, cw, chh, t.pick, t.t) : -1; const on = zi >= 0 && zi === hv;
+    g.save(); g.translate(cx + cw / 2, cy + chh / 2); g.rotate(rot); g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(-cw / 2 + 3, -chh / 2 + 5, cw, chh); g.fillStyle = t.done ? '#EDE9DF' : col; g.fillRect(-cw / 2, -chh / 2, cw, chh); g.fillStyle = 'rgba(0,0,0,.06)'; g.fillRect(-cw / 2, -chh / 2, cw, chh * 0.14);
+    if (on) { g.strokeStyle = '#5E46B8'; g.lineWidth = 4; g.strokeRect(-cw / 2, -chh / 2, cw, chh); } if (t.due) { g.strokeStyle = '#C8382F'; g.lineWidth = 5; g.strokeRect(-cw / 2 + 3, -chh / 2 + 3, cw - 6, chh - 6); }
+    g.font = `700 20px ${HAND}`; g.fillStyle = t.done ? '#9AA1AE' : '#1B1530'; const words = String(t.t || '').split(/\s+/); const lines = []; let cur = '';
+    words.forEach(w => { const tt = cur ? cur + ' ' + w : w; if (g.measureText(tt).width > cw - 22 && cur) { lines.push(cur); cur = w; } else cur = tt; }); if (cur) lines.push(cur); lines.slice(0, 3).forEach((l, k) => g.fillText(k === 2 && lines.length > 3 ? fit(g, l + '…', cw - 22) : l, -cw / 2 + 11, -chh / 2 + 44 + k * 25));
+    if (t.done) { g.strokeStyle = '#2E7D55'; g.lineWidth = 4; g.lineCap = 'round'; g.beginPath(); g.moveTo(-cw / 2 + 12, chh / 2 - 24); g.lineTo(-cw / 2 + 22, chh / 2 - 14); g.lineTo(-cw / 2 + 40, chh / 2 - 36); g.stroke(); }
+    else if (t.h || t.r) { g.font = `700 17px ${HAND}`; g.fillStyle = t.due ? '#C8382F' : '#4A4560'; g.fillText((t.r ? '🔔 ' : '⏱ ') + (t.h || t.r || ''), -cw / 2 + 11, chh / 2 - 14); } g.restore(); });
+  if (!T.length) { g.font = `600 24px ${HAND}`; g.fillStyle = '#9AA1AE'; g.fillText('Aucune tâche épinglée', x0 + 10, y0 + 60); }
+  const zi = D.addPick ? zone(W - 250, HH - 64, 214, 48, D.addPick, 'Ajouter') : -1; rr(g, W - 250, HH - 64, 214, 48, 24); g.fillStyle = zi >= 0 && zi === hv ? '#4A3A9C' : '#5E46B8'; g.fill(); g.font = `700 24px ${HAND}`; g.fillStyle = '#FFFFFF'; g.textAlign = 'center'; g.fillText('＋ tâche · rendez-vous', W - 143, HH - 32); g.textAlign = 'left';
 }
 /** texture d'un post-it : texte manuscrit qui tient en entier (la taille de police baisse jusqu'à tenir ; au-delà, « … ») */
 export function postitTex(text, colHex, res, rap) {

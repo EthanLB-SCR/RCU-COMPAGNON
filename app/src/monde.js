@@ -35,7 +35,7 @@ export function mondeFor(p){const c=mondeCfg();if(!c.on||!p||!wide())return fals
 /* PC en « ⤢ Affichage large (ordinateur) » seulement : en colonne (téléphone ou PC en affichage normal), rien ne change */
 export const wide=()=>{if(typeof window==='undefined'||(window.innerWidth||0)<900)return false;const app=document.getElementById('app');return !!app&&app.classList.contains('wide');};
 let CTX0=null;
-function ensureLoaded(ctx){if(ctx)CTX0=ctx;if(!API&&ctx&&ctx.api)initMonde(ctx.api);try{if(window.TRACE&&!window.TRACE.monde)window.TRACE.monde={cfg:()=>mondeCfg(),ctx:()=>CTX0,cam:()=>CAM,world:()=>W}; /* tests */}catch(e){}if(LOADED||!(API&&API.state&&API.state.cloudUser))return;LOADED=true; /* une lecture par session, une fois connecté */loadMonde().then(ch=>{if(ch&&ctx&&ctx.render)ctx.render();}).catch(()=>{LOADED=false;});}
+function ensureLoaded(ctx){if(ctx)CTX0=ctx;if(!API&&ctx&&ctx.api)initMonde(ctx.api);try{if(window.TRACE&&!window.TRACE.monde)window.TRACE.monde={cfg:()=>mondeCfg(),ctx:()=>CTX0,cam:()=>CAM,world:()=>W,rap:()=>({me:RAP_ME&&RAP_ME.id,seen:[...RAP_SEEN],timer:!!RAP_T,dues:rapDues(RAP_ME).map(n=>n.id)}),rapTick:()=>rapTick()}; /* tests */}catch(e){}if(LOADED||!(API&&API.state&&API.state.cloudUser))return;LOADED=true; /* une lecture par session, une fois connecté */loadMonde().then(ch=>{if(ch&&ctx&&ctx.render)ctx.render();}).catch(()=>{LOADED=false;});}
 /* vue classique / 3D par module (préférence de l'appareil) */
 const VK='trace:monde:vue';
 const vueOf=k=>{try{return (JSON.parse(localStorage.getItem(VK)||'{}')||{})[k]||'3d';}catch(e){return '3d';}};
@@ -467,7 +467,7 @@ function diagHTML(me){const c=mondeCfg();if(!c.on||!(me.admin||isTesteur(me)))re
 function statutHTML(me){const L=manques(me).filter(x=>x[0]!=='on');const w=typeof window!=='undefined'?window.innerWidth||0:0;const ok=k=>!L.some(x=>x[0]===k);const c=mondeCfg();
   return `<div class="hint" style="margin-top:8px">Toi : ${ok('tst')?'✓':'✗'} testeur · ${ok('wide')?'✓':'✗'} affichage large · ${ok('fen')?'✓':'✗'} fenêtre ${w} px${c.at?' · réglage enregistré le '+esc(new Date(c.at).toLocaleString('fr-FR'))+(c.by?' par '+esc(c.by):''):''}${API&&API.state&&API.state.cloudUser?'':' · <b>hors connexion : enregistré sur cet appareil seulement</b>'}</div>`;}
 /* ═══ BRANCHEMENTS (espace.js) ═══ */
-function hubTop(tab,me,ctx){ensureLoaded(ctx);if(!mondeFor(me))return '';const k=tab==='entreprise'?'eq':tab==='pilotage'?'pil':tab==='commerce'?'com':tab==='parc'?'fl':tab==='magasin'?'mag':'';if(!k)return '';if(vueOf(k)==='classique')return switch3D(k);
+function hubTop(tab,me,ctx){ensureLoaded(ctx);if(!mondeFor(me))return '';if(tab==='pilotage'||tab==='entreprise')return ''; /* 10/11 (Ethan) : plus de 3D sur Pilotage ; le dépôt n'est plus en tête d'Équipe mais dans la rubrique « Visite des dépôts » */const k=tab==='commerce'?'com':tab==='parc'?'fl':tab==='magasin'?'mag':'';if(!k)return '';if(vueOf(k)==='classique')return switch3D(k);
   if(glAvailable()){const kind={eq:'monde',pil:'pilotage',com:'commerce',fl:'flotte',mag:'magasin'}[k];return glBar(k)+glSlot(kind,me,ctx,{cfg:mondeCfg()});}
   if(k==='fl'||k==='mag')return '';
   try{return k==='eq'?mondeCard(me,ctx):k==='pil'?pilCard(me,ctx):comCard(me,ctx);}catch(e){console.warn('monde',e);return '';}}
@@ -484,9 +484,11 @@ function accueil(me,ctx,o){ensureLoaded(ctx);if(!mondeFor(me)){const h=diagHTML(
   try{const data=ctx.peopleData(me.id)||{};const d=new Date((ctx.today()||'')+'T12:00:00');const M=['JANV.','FÉVR.','MARS','AVRIL','MAI','JUIN','JUIL.','AOÛT','SEPT.','OCT.','NOV.','DÉC.'];
     const jour=isNaN(d.getTime())?null:{n:String(d.getDate()),mois:M[d.getMonth()],sem:'semaine '+(o.sem||'')};
     return {html:accueilCard({me,pref:prefsOf(data),av:ctx.avSVG(me,150),todo:o.todo,know:o.know,spaces:o.spaces,jour,poste:ctx.posteLabel(me),side:o.side})};}catch(e){console.warn('monde',e);return null;}}
-function hubRows(tab,me,ctx){if(tab!=='entreprise'||!me.admin||!ctx.row)return [];ensureLoaded(ctx);const c=mondeCfg();const T=new Set(c.testeurs);const n=ctx.people.filter(p=>idsOf(p).some(x=>T.has(x))).length;
-  return [ctx.row('🌍 Monde 3D · Labo',(c.on?'Allumé · '+n+' testeur'+(n>1?'s':''):'Éteint')+' · dépôts, testeurs, magasin','🌍','#E6E1F6','x:monde:cfg',null)];}
-function xview(k,me,ctx){return k==='cfg'?cfgView(me,ctx):null;}
+function hubRows(tab,me,ctx){if(tab!=='entreprise'||!ctx.row)return [];ensureLoaded(ctx);const out=[];
+  if(mondeFor(me)&&glAvailable())out.push(ctx.row('Visite des dépôts','Le dépôt de chaque secteur en 3D : bureaux, magasin, parking, accueil, plateformes','🏢','#E6E1F6','x:monde:depot',null)); /* 10/11 : rubrique à part, plus en tête d'Équipe */
+  if(me.admin){const c=mondeCfg();const T=new Set(c.testeurs);const n=ctx.people.filter(p=>idsOf(p).some(x=>T.has(x))).length;out.push(ctx.row('🌍 Monde 3D · Labo',(c.on?'Allumé · '+n+' testeur'+(n>1?'s':''):'Éteint')+' · dépôts, testeurs, magasin','🌍','#E6E1F6','x:monde:cfg',null));}
+  return out;}
+function xview(k,me,ctx){if(k==='depot'){ensureLoaded(ctx);if(!mondeFor(me)||!glAvailable())return '<div class="card"><div class="eq-s">La visite 3D n\'est pas disponible sur cet appareil.</div></div>';return `<h2 class="vt">Visite des dépôts <span class="hint">· qui est où, magasin, parking, plateformes</span></h2>`+glSlot('monde',me,ctx,{cfg:mondeCfg()});}return k==='cfg'?cfgView(me,ctx):null;}
 function moiSubs(me,ctx){ensureLoaded(ctx);if(!mondeFor(me)||!glAvailable())return [];return [['bureau3d','🪑 Mon bureau 3D',0,false]];}
 function view(sub,me,ctx){if(sub!=='bureau3d'||!mondeFor(me)||!glAvailable())return null;return `<h2 class="vt">Mon bureau 3D <span class="hint">· couleurs, matières, objets, raccourcis</span></h2><div class="hint" style="margin:0 0 8px">Ce que tu arranges ici est ton accueil, et ce que tes collègues voient de toi dans le dépôt.</div>`+glSlot('bureau',me,ctx,{cfg:mondeCfg(),perso:true,todo:[],know:[],spaces:(ctx.spaces||[])});}
 export function setChantierVue(v){setVue('ch',v==='3d'?'3d':'classique');if(v!=='3d')glDispose();}

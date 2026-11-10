@@ -44,7 +44,7 @@ function noInlineImages(p) { const r = JSON.parse(JSON.stringify(p || {})); cons
 /* 10/11 : rappels des post-its, côté appli (ligne « À faire », toast quand la 3D n'est pas affichée) */
 export const notesOf = id => loadNotes(id);
 export function glGo(type, arg) { if (!H) return false; try { H.go(type, arg); return true; } catch (e) { return false; } }
-export const glKind = () => (H ? KIND : null);
+export const glKind = () => (H && H.viewer && H.viewer.host && document.body.contains(H.viewer.host) ? KIND : null); /* une 3D encore montée mais plus affichée (on a quitté l'accueil) ne compte pas */
 export function glDispose() { if (H) { try { H.dispose(); } catch (e) { } H = null; KIND = null; } }
 /* ── actions 3D → actions classiques ── */
 function classic(act, v) { const root = document.getElementById('eq-app') || document.body; const b = document.createElement('button'); b.type = 'button'; b.dataset.act = act; b.dataset.v = v == null ? '' : String(v); b.style.display = 'none'; root.appendChild(b); try { b.click(); } finally { setTimeout(() => { try { b.remove(); } catch (e) { } }, 0); } }

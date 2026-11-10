@@ -33,7 +33,7 @@ await page.evaluate(()=>{window.TRACE.showScreen('home');window.TRACE.state.home
 out=await page.evaluate(()=>{const b=document.getElementById('nextBtn');if(!b)return {btn:false};b.click();const m=document.getElementById('modal');return {btn:true,txt:b.textContent,opts:document.querySelectorAll('#modal [data-nextf]').length,moved:/pointage → (Moi|Compagnon)/.test(m.textContent) /* 31/10 : « Moi » s'appelle Compagnon */,backlog:document.querySelectorAll('#modal [style*=dashed]').length};});
 await page.evaluate(()=>document.getElementById('modal').classList.remove('show'));
 console.log('3) Nouveautés :',JSON.stringify(out));
-C.c3=out.btn&&/à concevoir/.test(out.txt)&&out.opts===0&&out.moved&&out.backlog>=1;
+C.c3=!out.btn; /* 10/11 (Ethan) : le bouton « Nouveautés · à concevoir » a été retiré de l'accueil Chantier */
 // ── 4) le pointage vit dans Moi → Karim pointe « début » depuis l'accueil de son espace
 await page.selectOption('#roleSel','karim');await page.waitForTimeout(200);
 await page.evaluate(()=>{window.TRACE.renderHome();document.getElementById('htEspace').click();});await page.waitForTimeout(600);

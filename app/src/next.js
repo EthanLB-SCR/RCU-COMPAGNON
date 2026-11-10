@@ -31,7 +31,8 @@ export function initNext(api){A=api;initScr(api);initAccueil(api);
   if(nOn('tabs'))lightTabs();
 }
 // ---------- panneau d'activation (home) ----------
-export function nextHomeHTML(role){if(role!=='chef'&&role!=='bureau')return '';const on=FEATS.filter(f=>nOn(f[0])).length;
+export function nextHomeHTML(role){return ''; /* 10/11 (Ethan) : le bouton « Nouveautés · à concevoir » n'apparaît plus sur l'accueil Chantier ; la liste reste dans le code (BACKLOG / FEATS) */ } // eslint-disable-next-line no-unreachable
+function nextHomeHTML_old(role){if(role!=='chef'&&role!=='bureau')return '';const on=FEATS.filter(f=>nOn(f[0])).length;
   return `<button class="btn ghost" id="nextBtn" style="font-size:12px">⏳ ${FEATS.length?'Nouveautés en attente '+(on?'· '+on+'/'+FEATS.length+' actives':'('+FEATS.length+')'):'Nouveautés · à concevoir ('+BACKLOG.length+')'}</button>`;}
 export function nextBindHome(){const b=document.getElementById('nextBtn');if(b)b.onclick=()=>{
   A.openModal(`<h3 style="margin-top:0">Nouveautés en attente</h3>
