@@ -102,7 +102,7 @@ export function figure(svg, h, o) {
 export function label(text, o) {
   o = o || {}; const el = document.createElement('div'); el.className = 'm3d-lab' + (o.cls ? ' ' + o.cls : ''); el.innerHTML = o.html || escapeHtml(text);
   if (o.onClick) { el.style.pointerEvents = 'auto'; el.style.cursor = 'pointer'; el.addEventListener('pointerdown', e => e.stopPropagation()); el.addEventListener('click', e => { e.stopPropagation(); o.onClick(); }); }
-  const l = new CSS2DObject(el); l.position.set(o.x || 0, o.y || 0, o.z || 0); l.center.set(o.cx == null ? 0.5 : o.cx, o.cy == null ? 1 : o.cy); if (o.min != null) l.userData.minPpm = o.min; if (o.max != null) l.userData.maxPpm = o.max; return l;
+  const l = new CSS2DObject(el); l.position.set(o.x || 0, o.y || 0, o.z || 0); l.center.set(o.cx == null ? 0.5 : o.cx, o.cy == null ? 1 : o.cy); if (o.min != null) l.userData.minPpm = o.min; if (o.max != null) l.userData.maxPpm = o.max; if (o.zone) l.userData.zone = o.zone; return l;
 }
 /** un PANNEAU dans la scène : du HTML lisible et cliquable, accroché à un point 3D, qui grandit / rétrécit avec le zoom (ppm0 = pixels par mètre « à l'échelle 1 ») */
 export function panel(html, o) {
@@ -113,6 +113,10 @@ export function panel(html, o) {
 }
 export const escapeHtml = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 /* ── la visionneuse ── */
+/** zone d'étiquettes {g, x0, x1, z0, z1, half} (repère du groupe g) : ses étiquettes ne s'affichent que si on est « entré » dans l'espace —
+ * centre de la vue dans le rectangle ET vue assez serrée (demi-hauteur ≤ half). Une évaluation par image et par zone. */
+const _zv = new THREE.Vector3();
+function zoneOn(V, z, ppm) { if (V.fp) return true; if (z.f === V.tick) return z.on; z.f = V.tick; _zv.copy(V.controls.target); if (z.g) z.g.worldToLocal(_zv); z.on = _zv.x >= z.x0 && _zv.x <= z.x1 && _zv.z >= z.z0 && _zv.z <= z.z1 && V.size[1] / (2 * ppm) <= z.half; return z.on; }
 export function createViewer(host, o) {
   o = o || {};
   host.classList.add('m3d-host'); host.innerHTML = '';
@@ -161,11 +165,11 @@ export function createViewer(host, o) {
   V.flyTo = (c, half, ms) => { const off = cam.position.clone().sub(controls.target); const target = new THREE.Vector3(c[0], c[1] || 0, c[2]); V.tween = { t0: performance.now(), ms: ms || 900, p0: cam.position.clone(), p1: target.clone().add(off), c0: controls.target.clone(), c1: target, z0: cam.zoom, z1: 1, h0: V.half, h1: half || V.half }; };
   /** les ombres couvrent la boîte donnée */
   V.shadowBounds = (cx, cz, r) => { sun.target.position.set(cx, 0, cz); sun.position.set(cx + 14, 24, cz + 10); const s = sun.shadow.camera; s.left = -r; s.right = r; s.top = r; s.bottom = -r; s.near = 1; s.far = 80; s.updateProjectionMatrix(); };
-  V.add = (...objs) => { objs.forEach(ob => { root.add(ob); ob.traverse(c => { if (c.userData.pick && c.isMesh && !V.pickables.includes(c)) V.pickables.push(c); }); }); };
+  V.add = (...objs) => { LABS.delete(root); objs.forEach(ob => { root.add(ob); ob.traverse(c => { if (c.userData.pick && c.isMesh && !V.pickables.includes(c)) V.pickables.push(c); }); }); };
   V.zoomBy = f => { if (V.fp) { pcam.fov = Math.max(28, Math.min(95, pcam.fov / f)); pcam.updateProjectionMatrix(); return; } cam.zoom = Math.max(controls.minZoom, Math.min(controls.maxZoom, cam.zoom * f)); cam.updateProjectionMatrix(); };
   /** vue à la première personne : œil, point regardé, angle de champ ; immediate = sans glissement. Un nouvel appel glisse d'une vue à l'autre. */
   V.look = (eye, target, fov, immediate, ms) => { const E = new THREE.Vector3(...eye), T = new THREE.Vector3(...target); const f = fov || 70; if (!V.fp || immediate || !V.started) { V.fp = { target: T.clone(), tw: null }; pcam.position.copy(E); pcam.fov = f; pcam.updateProjectionMatrix(); pcam.lookAt(T); } else { V.fp.tw = { t0: performance.now(), ms: ms || 900, p0: pcam.position.clone(), p1: E, c0: V.fp.target.clone(), c1: T, f0: pcam.fov, f1: f }; } V.cam = pcam; controls.enabled = false; V.resize(); };
-  V.clear = () => { V.tween = null; if (V.fp) V.fp.tw = null; V.zoneOb = null; V.zoneI = -1; setHover(V, null); V.pickables.length = 0; BILL.length = 0; V.anim.length = 0; while (root.children.length) { const c = root.children.pop(); disposeDeep(c); } };
+  V.clear = () => { LABS.delete(root); V.tween = null; if (V.fp) V.fp.tw = null; V.zoneOb = null; V.zoneI = -1; setHover(V, null); V.pickables.length = 0; BILL.length = 0; V.anim.length = 0; while (root.children.length) { const c = root.children.pop(); disposeDeep(c); } };
   V.setPick = f => { V.onPick = f; };
   const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
   const camDir = new THREE.Vector3();
@@ -178,7 +182,7 @@ export function createViewer(host, o) {
     V.cam.getWorldDirection(camDir); const yaw = Math.atan2(camDir.x, camDir.z);
     for (const b of BILL) { b.rotation.y = yaw + Math.PI; }
     for (const a of V.anim) { try { a(now, (now - V.t0) / 1000); } catch (e) { } }
-    const ppm = V.fp ? 120 : V.size[1] / (2 * (V.half || 12)) * cam.zoom; V.ppm = ppm; for (const l of labelsOf(root)) { const vis = (l.userData.minPpm == null || ppm >= l.userData.minPpm) && (l.userData.maxPpm == null || ppm <= l.userData.maxPpm); if (l.visible !== vis) l.visible = vis; if (vis && l.userData.ppm0) { const k = Math.round(Math.max(0.5, Math.min(1.6, ppm / l.userData.ppm0)) * 200) / 200; if (l.userData.k !== k) { l.userData.k = k; const inner = l.element.firstElementChild; if (inner) inner.style.transform = 'scale(' + k + ')'; } } }
+    const ppm = V.fp ? 120 : V.size[1] / (2 * (V.half || 12)) * cam.zoom; V.ppm = ppm; V.tick = (V.tick || 0) + 1; for (const l of labelsOf(root)) { const vis = (l.userData.minPpm == null || ppm >= l.userData.minPpm) && (l.userData.maxPpm == null || ppm <= l.userData.maxPpm) && (!l.userData.zone || zoneOn(V, l.userData.zone, ppm)); if (l.visible !== vis) l.visible = vis; if (vis && l.userData.ppm0) { const k = Math.round(Math.max(0.5, Math.min(1.6, ppm / l.userData.ppm0)) * 200) / 200; if (l.userData.k !== k) { l.userData.k = k; const inner = l.element.firstElementChild; if (inner) inner.style.transform = 'scale(' + k + ')'; } } }
     renderer.render(scene, V.cam); labels.render(scene, V.cam);
   }
   V.start = () => { if (V.started) return; V.started = true; V.resize(); loop(); };
@@ -187,7 +191,10 @@ export function createViewer(host, o) {
   return V;
 }
 const LABS = new WeakMap();
-function labelsOf(root) { let L = LABS.get(root); if (!L || L.n !== root.children.length) { L = []; root.traverse(c => { if (c.isCSS2DObject) L.push(c); }); L.n = root.children.length; LABS.set(root, L); } return L; }
+/* 10/11 : la liste des étiquettes était gardée tant que le NOMBRE d'enfants de la racine ne changeait pas — or chaque scène n'en a qu'un. Après une reconstruction sur le même viewer
+ * (changement d'onglet, retour d'une visite de bureau, attente enregistrée), les nouvelles étiquettes n'étaient donc jamais filtrées : elles restaient TOUTES affichées, quel que soit le zoom.
+ * Désormais : liste vidée à chaque V.add / V.clear, et relue de toute façon toutes les 40 images (étiquettes ajoutées après coup dans un groupe déjà affiché). */
+function labelsOf(root) { let L = LABS.get(root); if (!L || L.n !== root.children.length || --L.ttl <= 0) { L = []; root.traverse(c => { if (c.isCSS2DObject) L.push(c); }); L.n = root.children.length; L.ttl = 40; LABS.set(root, L); } return L; }
 function setHover(V, ob) {
   if (V.hovered) { V.hovered.traverse(c => { if (c.isMesh && c.userData.em0 !== undefined) { c.material = c.userData.m0; delete c.userData.em0; delete c.userData.m0; } }); }
   V.hovered = ob; V.renderer.domElement.style.cursor = ob ? 'pointer' : '';

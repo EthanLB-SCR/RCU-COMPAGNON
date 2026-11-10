@@ -60,10 +60,11 @@ await home('htCom');await W(2500);const o7a=await q();await page.evaluate(()=>do
 const o7b=await page.evaluate(()=>{const a=window.TRACE.affaires.get('ZT-1');return {de:a&&a.attente&&a.attente.de,rel:a&&a.attente&&a.attente.rel};});
 console.log('m7) commerce :',J({o7a,o7b}));C.m7=o7a.slot==='commerce'&&o7a.canvas&&o7b.de==='client'&&/^2026-11-\d\d$/.test(o7b.rel||'');
 // ── m8) Bureau du chantier : le vrai réseau en 3D ; un sujet du panneau ouvre son onglet
-await page.evaluate(async()=>{await window.TRACE.go();});await W(1200);await page.evaluate(()=>{const T=window.TRACE;T.state.tab='bureau';T.renderAll();});await W(3500);
-const o8=await page.evaluate(()=>({slot:(document.querySelector('#bureau .m3d-slot')||{}).dataset?.m3dKind,canvas:!!document.querySelector('#bureau .m3d-slot canvas'),subjects:document.querySelectorAll('#bureau .m3d-side .m3d-li[data-m3d="bur"]').length,first:(document.querySelector('#bureau .m3d-side .m3d-li[data-m3d="bur"]')||{}).dataset?.arg,tiles:document.querySelectorAll('#bureau .ac-kgrid .ac-dk').length}));const g8=await gl();
-let o8b=null;if(o8.first&&!String(o8.first).startsWith('__')){await page.evaluate(()=>document.querySelector('#bureau .m3d-side .m3d-li[data-m3d="bur"]').click());await W(600);o8b=await page.evaluate(()=>window.TRACE.state.tab);}
-console.log('m8) chantier :',J({o8,g8:g8&&g8.scene,o8b}));C.m8=o8.slot==='chantier'&&o8.canvas&&o8.subjects>=3&&o8.tiles>0&&g8&&g8.scene==='chantier'&&(o8b===null||o8b===o8.first);
+/* 09/11 (Ethan : « supprime ça on s'en fout ») : plus de « Réseau du chantier » en tête du bureau (ni dessin ni 3D) ; la checklist en tuiles est là et ouvre ses onglets */
+await page.evaluate(async()=>{await window.TRACE.go();});await W(1200);await page.evaluate(()=>{const T=window.TRACE;T.state.tab='bureau';T.renderAll();});await W(2500);
+const o8=await page.evaluate(()=>{const t=[...document.querySelectorAll('#bureau .ac-kgrid .ac-dk[data-bur]')].find(b=>!String(b.dataset.bur).startsWith('__'));return {scene:!!document.querySelector('#bureau .m3d-slot, #bureau .m3d-rac, #bureau canvas, #bureau .m3d-svg'),tiles:document.querySelectorAll('#bureau .ac-kgrid .ac-dk').length,first:t?t.dataset.bur:null};});
+let o8b=null;if(o8.first){await page.evaluate(f=>document.querySelector(`#bureau .ac-kgrid .ac-dk[data-bur="${f}"]`).click(),o8.first);await W(600);o8b=await page.evaluate(()=>window.TRACE.state.tab);}
+console.log('m8) chantier :',J({o8,o8b}));C.m8=!o8.scene&&o8.tiles>0&&!!o8.first&&o8b===o8.first;
 // ── m9) réglages : éteindre → l'accueil redevient classique
 await page.evaluate(()=>{window.TRACE.showScreen('home');window.TRACE.renderHome();});await W(400);await home('htEnt');await W(1500);
 const rr=await page.$('#eq-app .ac-row[data-v="x:monde:cfg"]');if(rr){await rr.click();await W(400);}const cfg=await page.evaluate(()=>!!document.querySelector('#eq-app [data-v="monde|on|0"]'));
