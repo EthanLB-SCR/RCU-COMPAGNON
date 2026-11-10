@@ -67,10 +67,10 @@ console.log('c4) menu des modules :',J(o));
 C.c4=o.mods.includes('commerce')&&o.mods.includes('affaire')&&!o.mods.includes('affaires')&&o.menu.includes('Tracé Commerce')&&o.menu.includes('Tracé Affaire')&&!o.menu.some(t=>/Affaires/.test(t));
 /* ── c5 : hub Affaire / Pilotage */
 await as('sophie');await tab('htAff');
-o={aff:{mod:await page.evaluate(()=>document.getElementById('tbHomeModName').textContent),rows:(await rows()).map(r=>r.t)}};await shot('affaire_390');
+o={aff:{mod:await page.evaluate(()=>document.getElementById('tbHomeModName').textContent),rows:(await rows()).map(r=>r.t).concat(await page.evaluate(()=>[...document.querySelectorAll('#homeBody .af-nav button span')].map(x=>x.textContent.trim())))}};await shot('affaire_390'); /* 10/11 soir : l'onglet Affaire = le module Tracé Affaire, ses entrées sont dans sa nav */
 await tab('htExpl');o.pil={secs:await secs(),rows:(await rows()).map(r=>r.t)};await shot('pilotage_390');
 console.log('c5) Affaire / Pilotage :',J(o));
-const FIN=['Bons de commande','Notes de frais à valider','Comptes chantier','Compte d\'un chantier'];
+const FIN=['Bons de commande','Notes de frais à valider','Reporting des chantiers']; /* 10/11 soir : Comptes chantier → reporting du module ; Compte d'un chantier (ancien calcul) derrière l'option comptechantier */
 C.c5=o.aff.mod==='Affaire'&&FIN.every(t=>o.aff.rows.includes(t))&&!o.pil.rows.some(t=>FIN.includes(t))&&o.pil.secs.some(t=>/Sécurité/.test(t))&&o.pil.secs.some(t=>/Matériel & véhicules/.test(t))&&o.pil.rows.includes('Déclarer un accident');
 /* ── c6 : Magasin (Magasin / Matériel) ; Flotte sans Matériel */
 await as('ethan');await tab('htMag');
@@ -94,7 +94,7 @@ await toggle(['flotte','magasin'],false);o.off=await page.evaluate(()=>JSON.pars
 await fresh();o.after=await look();
 await toggle(['flotte','magasin'],true);await fresh();o.back=await look();
 console.log('c7) modules de l\'entreprise :',J({before,...o}));
-C.c7=o.card.length===6&&o.card.every(x=>/:true$/.test(x))&&before.mods.includes('flotte')&&before.mods.includes('magasin')&&before.pil.includes('x:mag:equipe')&&before.subs.includes('mag')
+C.c7=o.card.length===7 /* 10/11 soir : + Tracé Ressources humaines */&&o.card.every(x=>/:true$/.test(x))&&before.mods.includes('flotte')&&before.mods.includes('magasin')&&before.pil.includes('x:mag:equipe')&&before.subs.includes('mag')
   &&o.off&&o.off.off.includes('flotte')&&o.off.off.includes('magasin')&&!o.now.mods.includes('flotte')&&!o.now.mods.includes('magasin')&&o.now.parc==='none'&&o.now.mag==='none'
   &&!o.after.mods.includes('flotte')&&!o.after.mods.includes('magasin')&&!o.after.pil.includes('x:mag:equipe')&&!o.after.pil.some(v=>/^veh\|/.test(v))&&!o.after.subs.includes('mag')
   &&o.back.mods.includes('flotte')&&o.back.mods.includes('magasin')&&o.back.pil.includes('x:mag:equipe')&&o.back.subs.includes('mag');

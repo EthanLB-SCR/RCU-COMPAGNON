@@ -13,7 +13,7 @@
 //   pilotage:x:mag    Commandes au dépôt de l'équipe              pilotage:x:dem  Demandes de matériel
 //   pilotage:secu     écran Sécurité (tuile « Sécurité » d'Aujourd'hui)
 //   pilotage:qhs · :controles · :accident · :habsEq              (section Sécurité du hub, ou écran Sécurité)
-//   affaire           hub (Achats · Comptes)                      affaire:cmd · :frais · :comptes · :x:cc
+//   affaire           module Tracé Affaire (nav)                     affaire:cmd · :frais · :x:cc
 // Pas de tutoriel détaillé ici pour « Véhicules : mouvements » (la ligne mène à Flotte ou à Compagnon : lots cm / co), ni pour pilotage:chantiers / pilotage:dash
 // (écrans « Mes chantiers » / tableau de bord : plus aucun bouton n'y mène — le récap des chantiers est dans le module Chantier).
 //
@@ -35,7 +35,7 @@ export const NOMS={
  'pilotage:cpt':'Compteurs d\'heures','pilotage:annul':'Demandes d\'annulation','pilotage:x:mag':'Commandes au dépôt','pilotage:x:dem':'Demandes de matériel',
  'pilotage:secu':'Sécurité','pilotage:qhs':'Quart d\'heure sécurité','pilotage:controles':'Contrôles chantier','pilotage:accident':'Déclarer un accident',
  'pilotage:habsEq':'Habilitations de l\'équipe',
- 'affaire:cmd':'Bons de commande','affaire:frais':'Notes de frais à valider','affaire:comptes':'Comptes chantier','affaire:x:cc':'Compte d\'un chantier'
+ 'affaire:cmd':'Bons de commande','affaire:frais':'Notes de frais à valider','affaire:x:cc':'Compte d\'un chantier' /* 10/11 soir : plus de tuto « Comptes chantier » (le volet renvoie au module Affaire) */
 };
 
 export default {
@@ -228,17 +228,18 @@ export default {
  ],
 
  /* ═══ AFFAIRE — vue d'ensemble ═══ */
- affaire:[
-  {titre:"Affaire",texte:"Le suivi financier des chantiers : bons de commande, notes de frais, comptes. Pour le conducteur, le bureau et la direction."},
-  {sel:L('cmd'),titre:"Bons de commande",texte:"Les commandes fournisseurs : fournisseur, objet, affaire, type de dépense, lignes, et un bon imprimable.",si:ligne('affaire',L('cmd'))},
-  {sel:L('frais'),titre:"Notes de frais à valider",texte:"Les dépenses avancées par les équipes : valider, refuser, puis « remboursé ». Chacun saisit les siennes dans Compagnon.",si:ligne('affaire',L('frais'),a=>opt(a,'frais'))},
-  {sel:L('comptes'),titre:"Comptes chantier",texte:"Tous les chantiers d'un coup d'œil : chiffré, facturé, heures, dépenses et résultat indicatif.",si:ligne('affaire',L('comptes'))},
-  {sel:L('x:cc:'),titre:"Compte d'un chantier",texte:"Un chantier en détail : heures par poste, bons, dépenses, totaux. Imprimable, sans compta.",si:ligne('affaire',L('x:cc:'),a=>opt(a,'comptechantier'))}
+ affaire:[ /* 10/11 soir (lot A) : l'onglet Affaire est le module Tracé Affaire (maquette validée) ; les entrées de la nav gardent les data-act / data-v des lignes d'avant */
+  {titre:"Affaire",texte:"Le suivi financier des chantiers gagnés : reporting, fiche de l'affaire (débours, factures, paramètres), bons de commande, notes de frais, taux. Pour l'encadrement, le bureau et la direction."},
+  {sel:'#eq-app .af-nav [data-act="aller"][data-h="reporting"]',titre:"Reporting des chantiers",texte:"Toutes les affaires en cours : marché, avancement Tracé, facturé, produit, débours, marge, heures. Touche une ligne pour ouvrir sa fiche.",si:ligne('affaire','#eq-app .af-nav [data-act="aller"][data-h="reporting"]')},
+  {sel:L('cmd'),titre:"Bons de commande",texte:"Les commandes fournisseurs : fournisseur, objet, affaire, type de dépense, lignes, et un bon imprimable. Engagés, ils entrent dans le débours du chantier.",si:ligne('affaire',L('cmd'))},
+  {sel:L('frais'),titre:"Notes de frais à valider",texte:"Les dépenses avancées par les équipes : valider, refuser, puis « remboursé ». Validées, elles entrent dans le débours (ou en frais généraux de l'agence).",si:ligne('affaire',L('frais'),a=>opt(a,'frais'))},
+  {sel:'#eq-app .af-nav [data-act="aller"][data-h="reglages"]',titre:"Réglages",texte:"Les taux horaires datés (part poste, FG chantier, FG structure, sinistre) et les natures de dépense « toujours FG ». Réservé à la direction / l'administrateur.",si:ligne('affaire','#eq-app .af-nav [data-act="aller"][data-h="reglages"]')},
+  {sel:L('x:cc:'),titre:"Compte d'un chantier (ancien calcul)",texte:"L'écran d'avant, gardé en consultation : le compte d'un chantier est maintenant la fiche de son affaire.",si:ligne('affaire',L('x:cc:'),a=>opt(a,'comptechantier'))}
  ],
 
  /* ═══ Bons de commande ═══ */
  'affaire:cmd':[
-  {sel:'#eq-app [data-act="cmd"][data-v="tab|cmd"]',titre:"Trois volets",texte:"Bons de commande, Notes de frais, Comptes chantier : touche une puce pour passer de l'un à l'autre."},
+  {sel:'#eq-app [data-act="cmd"][data-v="tab|cmd"]',titre:"Trois volets",texte:"Bons de commande, Notes de frais, Comptes chantier (qui renvoie au reporting de Tracé Affaire) : touche une puce pour passer de l'un à l'autre."},
   {sel:'#eq-app [data-act="cmd"][data-v="new|"]',titre:"➕ Bon de commande",texte:"Crée un bon en brouillon, numéroté tout seul, et l'ouvre pour le remplir."},
   {sel:'#eq-app [data-cmdf="fournisseur"], #eq-app [data-act="cmd"][data-v^="open|"]',titre:"Remplir le bon",texte:"Dans le bon (touche-le pour l'ouvrir) : fournisseur, objet, n° d'affaire ou chantier au minimum. Le type de dépense le raccroche au chiffrage ; une location a un début et une fin."},
   {sel:'#eq-app [data-cmdf="etat"], #eq-app [data-act="cmd"][data-v^="etat|"]',titre:"L'état du bon",texte:"Brouillon → Envoyée → Reçue → Facturée, ou Annulée : le menu « État » du bon. Dans la liste, les puces d'état filtrent les bons."},
@@ -259,16 +260,9 @@ export default {
  ],
 
  /* ═══ Comptes chantier ═══ */
- 'affaire:comptes':[
-  {sel:'#eq-app [data-act="cmd"][data-v="tab|comptes"]',titre:"Trois volets",texte:"Bons de commande, Notes de frais, Comptes chantier : touche une puce pour passer de l'un à l'autre."},
-  {sel:'#eq-app .ac-stats',titre:"Le total",texte:"Chiffré, facturé, heures pointées (et leur coût), dépenses, résultat indicatif : tous les chantiers ensemble."},
-  {sel:'#eq-app table.af-tab',titre:"Une ligne par chantier",texte:"Affaire liée, chiffré, facturé (et %), soudures, heures, main-d'œuvre, dépenses, résultat : en rouge s'il est négatif."},
-  {titre:"D'où viennent les chiffres",texte:"Chiffré : le marché de l'affaire liée ; facturé : les situations ; heures × taux chargé ; dépenses : notes validées et bons hors brouillon."},
-  {titre:"Un résultat indicatif",texte:"Un repère, pas la compta : le compte réel se fait sur la paie et les factures. Le détail d'un chantier : Compte d'un chantier."}
- ],
-
  /* ═══ Compte d'un chantier ═══ */
  'affaire:x:cc':[
+  {titre:"Ancien calcul",texte:"Le compte d'un chantier est maintenant la fiche de son affaire dans Tracé Affaire (débours par nature). Cet écran reste consultable : le bandeau du haut mène à la fiche."},
   {sel:'#eq-app .cc-q, #eq-app [data-act="x"][data-v="cc|choix|"]',titre:"Choisis le chantier",texte:"Cherche par nom ou par ville. Tes chantiers et ceux qui ont des chiffres d'abord ; les autres sont repliés dessous."},
   {sel:'#cc-list .ac-row, #eq-app [data-act="x"][data-v="cc|autres|"], #eq-app .cc-card',titre:"Ouvrir un compte",texte:"Touche un chantier : sa ligne résume les jours pointés, les bons et les notes de frais."},
   {sel:'#eq-app .cc-per, #cc-list .ac-row',titre:"La période",texte:"Dans le compte : « Tout » ou « Un mois » avec ‹ ›. Les heures sont rangées au mois du jour pointé."},

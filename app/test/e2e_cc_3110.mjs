@@ -216,7 +216,7 @@ await goHub(CH);o={hub:await CH.evaluate(()=>!!document.querySelector('#eq-app .
 await goAff(CH);o.cc=o.cc||await has(CH,'#eq-app [data-act="xgo"][data-v="x:cc:"]'); /* 31/10 matin : compte chantier → module Affaire */
 await goMoiSub(CH,'Mes demandes');o.mes=/Nouvelle demande/.test(await txt(CH));o.aTraiter=/Demandes à traiter/.test(await txt(CH));
 await goHub(D);o.condDem=await has(D,'#eq-app [data-act="xgo"][data-v="x:dem:file"]');await goAff(D);o.condCc=await has(D,'#eq-app [data-act="xgo"][data-v="x:cc:"]'); /* 31/10 matin : compte chantier → module Affaire */
-await D.evaluate(()=>{const b=document.querySelector('#eq-app [data-act="xgo"][data-v="x:cc:"]');if(b)b.click();});await W(D,400);o.choix=(await txt(D)).slice(0,300);await shot(D,'cc_pc_compte_choix');
+await D.evaluate(()=>{const b=document.querySelector('#eq-app [data-act="xgo"][data-v="x:cc:"]');if(b)b.click();});await W(D,400);o.choix=(await txt(D)).slice(0,800); /* 10/11 soir : bandeau « ancien calcul → Tracé Affaire » en tête */await shot(D,'cc_pc_compte_choix');
 console.log('c5) chef / conducteur :',J(o));
 C.c5=o.hub&&!o.dem&&!o.cc&&o.mes&&!o.aTraiter&&o.condDem&&o.condCc&&/Compte d'un chantier/.test(o.choix)&&/Chantier fictif Alpha/.test(o.choix);
 /* ── c6 : paliers éteints — Magasin ET Mes demandes ; le Magasin ignore les demandes sans magasin ── */
@@ -288,7 +288,7 @@ const card=t=>page.evaluate(t=>{const c=[...document.querySelectorAll('#eq-app .
 await asUser('sophie');await goAffP();
 o={row:await has(page,'#eq-app [data-act="xgo"][data-v="x:cc:"]')};
 await page.evaluate(()=>document.querySelector('#eq-app [data-act="xgo"][data-v="x:cc:"]').click());await wait(400);
-o.choix=(await ptxt()).slice(0,500);await shot(page,'cc_pc_choix_chantier');
+o.choix=(await ptxt()).slice(0,900); /* 10/11 soir : un bandeau « ancien calcul → Tracé Affaire » précède la liste */await shot(page,'cc_pc_choix_chantier');
 await xclick(page,'cc|open|cc_nord');await wait(300);
 const T0=await page.evaluate(()=>window.TRACE.compteCh.totaux('cc_nord',{k:'tout'}));
 o.tot={mo:T0.mo,h:T0.h,hConf:T0.hConf,ach:T0.ach,nf:T0.nf,st:T0.st,loc:T0.loc,aut:T0.aut,dep:T0.dep,total:T0.total,postes:T0.postes.map(g=>[g.poste,g.h,g.taux,g.cout,g.src])};

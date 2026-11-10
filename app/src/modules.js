@@ -12,4 +12,5 @@ import demandes from './demandes.js'; MODS.push(demandes); // 31/10 (lot CC) : c
 import compteCh from './comptech.js'; MODS.push(compteCh); // 31/10 (lot CC) : compte chantier — bons, dépenses, heures par poste (Pilotage, Bureau du chantier)
 import monde from './monde.js'; MODS.push(monde); // 07/11 nuit : Monde 3D (Labo, éteint par défaut) — accueil « mon bureau », Équipe, Pilotage, Commerce
 import tracerh from './tracerh.js'; MODS.push(tracerh); // 10/11 : Tracé Ressources humaines — navettes, absences et congés, habilitations, formation, contraventions, mutuelle, accidents
+import affaire from './affaire_donnees.js'; MODS.push(affaire); // 10/11 soir (lot A · Débours) : Tracé Affaire, à l'identique de la maquette validée — l'onglet Affaire s'ouvre dessus (espace.js → vAffaire)
 export function initModules(){MODS.forEach(m=>{try{espaceExt(m);}catch(e){console.warn('module',m&&m.id,e);}});}

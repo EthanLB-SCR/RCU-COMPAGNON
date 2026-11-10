@@ -22,7 +22,7 @@ const BASE=process.env.BASE||'http://127.0.0.1:8844';const SHOTS=process.env.SHO
 const M=await import(path.join(here,'..','src','tutos_pilotage.js'));const TU=M.default,NOMS=M.NOMS;
 const C={};const logs=[];const J=x=>JSON.stringify(x);
 /* ── c1 : le fichier ── */
-const KEYS=['pilotage','pilotage:plan','pilotage:orga','pilotage:obj','pilotage:agenda','pilotage:valid','pilotage:prodEq','pilotage:rapport','pilotage:gd','pilotage:cpt','pilotage:annul','pilotage:x:mag','pilotage:x:dem','pilotage:secu','pilotage:qhs','pilotage:controles','pilotage:accident','pilotage:habsEq','affaire','affaire:cmd','affaire:frais','affaire:comptes','affaire:x:cc'];
+const KEYS=['pilotage','pilotage:plan','pilotage:orga','pilotage:obj','pilotage:agenda','pilotage:valid','pilotage:prodEq','pilotage:rapport','pilotage:gd','pilotage:cpt','pilotage:annul','pilotage:x:mag','pilotage:x:dem','pilotage:secu','pilotage:qhs','pilotage:controles','pilotage:accident','pilotage:habsEq','affaire','affaire:cmd','affaire:frais','affaire:x:cc'];
 const phrases=s=>(String(s).replace(/« \? »/g,'').match(/[.!?](\s|$)/g)||[]).length;
 let o={keys:Object.keys(TU),miss:KEYS.filter(k=>!TU[k]),extra:Object.keys(TU).filter(k=>!KEYS.includes(k)),noms:KEYS.filter(k=>k.includes(':')&&!NOMS[k]),pb:[]};
 for(const [k,st] of Object.entries(TU)){const T=st.map(s=>s.titre);if(new Set(T).size!==T.length)o.pb.push(k+' : titres en double');
@@ -67,10 +67,10 @@ const where=()=>page.evaluate(()=>window.TRACE.tuto.where());
 const SCREEN={'pilotage:plan':['htExpl','plan'],'pilotage:orga':['htExpl','orga'],'pilotage:obj':['htExpl','obj'],'pilotage:agenda':['htExpl','agenda'],'pilotage:valid':['htExpl','valid'],'pilotage:prodEq':['htExpl','prodEq'],
   'pilotage:rapport':['htExpl','rapport'],'pilotage:gd':['htExpl','gd'],'pilotage:cpt':['htExpl','cpt'],'pilotage:annul':['htExpl','annul'],'pilotage:x:mag':['htExpl','x:mag:equipe'],'pilotage:x:dem':['htExpl','x:dem:file'],
   'pilotage:qhs':['htExpl','qhs'],'pilotage:controles':['htExpl','controles'],'pilotage:accident':['htExpl','accident'],'pilotage:habsEq':['htExpl','habsEq'],
-  'affaire:cmd':['htAff','cmd'],'affaire:frais':['htAff','frais'],'affaire:comptes':['htAff','comptes'],'affaire:x:cc':['htAff','x:cc:'],pilotage:['htExpl',null],affaire:['htAff',null]};
+  'affaire:cmd':['htAff','cmd'],'affaire:frais':['htAff','frais'],'affaire:x:cc':['htAff','x:cc:'],pilotage:['htExpl',null],affaire:['htAff',null]};
 /* NB (base, hors lot) : depuis le hub Affaire, « Notes de frais à valider » et « Comptes chantier » ouvrent le volet affiché la dernière fois (« Bons de commande » au départ) :
    ACT.xgo (espace.js) ne règle pas cmdState().tab quand la sous-vue est déjà dans l'onglet (goX le fait). La suite touche la puce du volet, comme le ferait la personne. */
-const VOLET={'affaire:cmd':'tab|cmd','affaire:frais':'tab|db','affaire:comptes':'tab|comptes'};
+const VOLET={'affaire:cmd':'tab|cmd','affaire:frais':'tab|db'};
 const open=async k=>{if(k==='pilotage:secu'){await tab('htSecu'); /* 31/10 matin (R1) : plus de tuile Sécurité à l'accueil (Ethan : « sécurité, passe-le dans Pilotage ») — la vue Sécurité de Pilotage s'ouvre par son onglet (caché) ou au retour (‹) d'une sous-vue sécurité ouverte depuis une notification */await wait(800);return;}
   const [t,v]=SCREEN[k];await tab(t);if(v)await xgo(v);
   const back=await page.evaluate(()=>{const b=document.querySelector('#eq-app [data-act="cmd"][data-v="back|"], #eq-app [data-act="x"][data-v="dem|gback|"]');if(b){b.click();return true;}return false;});if(back)await wait(500); /* un bon / une demande resté ouvert */
@@ -94,7 +94,7 @@ const WARN=[];const run=async(k,shot)=>{const defs=TU[k]||[];const out={k,steps:
     const b=await page.$('#tuto .tutoGo');if(!b)break;await b.click();}
   await wait(150);out.closed=!(await page.$('#tuto'));out.seen=await page.evaluate(k=>window.TRACE.tuto.seen(k),k);return out;};
 /* « ? » à droite du titre de l'écran */
-const help=async()=>{const h=await page.$('#homeBody h2.vt .tuHelp');if(!h)return false;await h.click();await wait(250);return true;};
+const help=async()=>{const h=await page.$('#homeBody h2.vt .tuHelp, #homeBody .af-titre h1 .tuHelp'); /* 10/11 soir : + titre d'un écran du module Affaire */if(!h)return false;await h.click();await wait(250);return true;};
 const ok=r=>!r.err&&r.n>=1&&!r.miss.length&&!r.out.length&&!r.small.length&&!r.cut.length&&r.closed;
 const nOk=(r,k)=>k.includes(':')?(r.n>=3&&r.n<=8):r.n>=2;
 const SH={pilotage:{at:'Planning de la semaine',file:'tu_pl_pilotage_390.png'},'pilotage:plan':{at:'＋ Placer, en 3 touchers',file:'tu_pl_planning_390.png'},'pilotage:valid':{at:'✅ Tout valider',file:'tu_pl_pointages_390.png'},'affaire:cmd':{at:'Remplir le bon',file:'tu_pl_bons_390.png'}};
@@ -120,7 +120,7 @@ const inOk=(r,k)=>r.where===k&&!r.need.length&&!r.cut.length&&!r.out.length&&!r.
 console.log('c2b) états intérieurs :',J(Object.fromEntries(Object.entries(o.inner).map(([x,r])=>[x,{where:r.where,steps:r.steps,need:r.need,cut:r.cut}]))));
 C.c1=c1a&&!o.keysApp.length;C.c2=!bad2.length&&inOk(o.inner.cmd,'affaire:cmd')&&inOk(o.inner.dem,'pilotage:x:dem')&&inOk(o.inner.cc,'affaire:x:cc');
 /* ── c3 : vues d'ensemble par personnage — une étape par ligne du hub affichée ── */
-const hubRows=()=>page.evaluate(()=>[...document.querySelectorAll('#eq-app .ac-row[data-act="xgo"], #eq-app .ac-row[data-act="x"]')].filter(e=>!e.closest('.eq-hubmore')&&e.getBoundingClientRect().height>4).map(e=>e.dataset.v)); /* la ligne repliée sous « Plus d'options » compte avec son pli */
+const hubRows=()=>page.evaluate(()=>[...document.querySelectorAll('#eq-app .ac-row[data-act="xgo"], #eq-app .ac-row[data-act="x"], #eq-app .af-nav button[data-act="xgo"], #eq-app .af-nav button[data-h="reporting"], #eq-app .af-nav button[data-h="reglages"]')].filter(e=>!e.closest('.eq-hubmore')&&e.getBoundingClientRect().height>4).map(e=>e.dataset.v||e.dataset.h)); /* la ligne repliée sous « Plus d'options » compte avec son pli ; 10/11 soir : la nav du module Affaire (entrées qui ont une étape dans sa vue d'ensemble) */
 const overview=async(k,who,poste)=>{await as(who,poste);await open(k);const rows=await hubRows();const more=await page.evaluate(()=>!!document.querySelector('#eq-app [data-det="hubPlMore"]'));
   await page.evaluate(k=>window.TRACE.tuto.start(k),k);await wait(250);const r=await run(k);r.rows=rows;r.more=more;r.where=await where();
   r.attendu=1+rows.length+(more?1:0); /* intro + une étape par ligne visible (+ le pli « Plus d'options ») */return r;};

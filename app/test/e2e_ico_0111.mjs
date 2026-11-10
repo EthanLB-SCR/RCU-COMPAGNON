@@ -11,14 +11,14 @@ const W=ms=>page.waitForTimeout(ms);const T=(fn,a)=>page.evaluate(fn,a);
 await page.goto(BASE+'/index.html');await W(400);await T(()=>{localStorage.clear();localStorage.setItem('trace:skipLogin','1');});await page.reload();await W(1500);
 const sk=await page.$('#loginSkip');if(sk&&await sk.isVisible()){await sk.click();await W(700);}
 await T(()=>{const X=window.TRACE;try{X.tuto.close(null);}catch(e){}X.state.userId='ethan';X.showScreen('home');document.getElementById('htHome').click();});await W(600);
-const D={aujourdhui:'M3 17h18',chantier:'M4.5 15.5a7.5',pilotage:'M5.5 5h13',compagnon:'M8.4 8a3.6',commerce:'M3.5 12.3V4.8',affaire:'M4.5 7.5h15',flotte:'M2.5 16.5V7.5',magasin:'M12 2.8l8.5',equipe:'M9 8.2a3',concepteur:'M3.5 19.5'};
+const D={aujourdhui:'M3 17h18',chantier:'M4.5 15.5a7.5',pilotage:'M5.5 5h13',compagnon:'M8.4 8a3.6',commerce:'M3.5 12.3V4.8',affaire:'M4.5 7.5h15',flotte:'M2.5 16.5V7.5',magasin:'M12 2.8l8.5',rh:'M3 7.2V6.2a1.5',equipe:'M9 8.2a3',concepteur:'M3.5 19.5'};
 const which=d=>Object.keys(D).find(k=>String(d||'').startsWith(D[k]))||null;
 const o={};
 // i1
 await T(()=>document.getElementById('tbHomeMod').click());await W(400);
 o.i1=await T(()=>[...document.querySelectorAll('#modal .modList button')].map(b=>{const t=b.querySelector('.tr-tuile');const r=t&&t.getBoundingClientRect();const p=t&&t.querySelector('svg path');return {lab:(b.querySelector('b')||{}).textContent,w:r&&Math.round(r.width),bg:t&&getComputedStyle(t).backgroundColor,col:t&&getComputedStyle(t).color,rad:t&&t.style.borderRadius,d:p&&p.getAttribute('d'),h:Math.round(b.getBoundingClientRect().height)};}));
 o.i1.forEach(x=>{x.k=which(x.d);delete x.d;});
-const MAP={'Tracé':'aujourdhui','Tracé Chantier':'chantier','Tracé Concepteur':'concepteur','Tracé Commerce':'commerce','Tracé Affaire':'affaire','Tracé Pilotage':'pilotage','Tracé Flotte':'flotte','Tracé Magasin':'magasin','Tracé Compagnon':'compagnon','Tracé Équipe':'equipe'};
+const MAP={'Tracé':'aujourdhui','Tracé Chantier':'chantier','Tracé Concepteur':'concepteur','Tracé Commerce':'commerce','Tracé Affaire':'affaire','Tracé Pilotage':'pilotage','Tracé Flotte':'flotte','Tracé Magasin':'magasin','Tracé Compagnon':'compagnon','Tracé Équipe':'equipe','Tracé Ressources humaines':'rh'}; /* 10/11 soir : + RH */
 C.i1=o.i1.length>=8&&o.i1.every(x=>x.w===44&&x.bg==='rgb(43, 27, 90)'&&x.col==='rgb(255, 255, 255)'&&x.rad==='11px'&&x.h>=62&&x.k===MAP[x.lab.replace(/\s+/g,' ').trim()]);
 await T(()=>{const c=document.querySelector('#modal [data-close]');if(c)c.click();});await W(200);
 // i2
