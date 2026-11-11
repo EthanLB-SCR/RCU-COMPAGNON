@@ -20,6 +20,7 @@ const absVoir=(me,ctx)=>rhVoir(me,ctx)||absEdit(me,ctx);
 const navEdit=(me,ctx)=>!!me&&(me.admin||ctx.can('rh.edit')||ctx.can('rh.nav')); /* 10/11 nuit (Ethan) : contrôle des navettes, choix « reporter ou prime » = la RH ou le responsable d'exploitation */
 const navVoir=(me,ctx)=>rhVoir(me,ctx)||navEdit(me,ctx);
 const keyOf=(p,ctx)=>p?(ctx.personKey?ctx.personKey(p):(p.email||p.id)).toLowerCase():'';
+const demoOpts=rid=>String(rid||'').startsWith('l:')?{local:true}:undefined; /* 11/11 : ligne d'un personnage de démo (bac à sable, clé « l:… ») → reste sur l'appareil, comme les compteurs et les navettes (espace.js) ; avant, elle partait au serveur */
 const mine=(r,me,ctx)=>!!me&&String(r.id||'').split('|')[0]===keyOf(me,ctx);
 /* ── registres ── */
 export const ABS_TYPES=[['cp','Congés payés'],['rtt','RTT'],['mal','Maladie'],['at','Arrêt accident du travail'],['ss','Sans solde'],['inj','Absence injustifiée'],['form','Formation'],['evt','Événement familial'],['autre','Autre']];
@@ -77,9 +78,9 @@ function modal(kind,id,me,ctx){const D=DEF[kind];const r=id?(regGet(kind,id)||{}
     if(kind==='rhpv'){const v=vehAll().find(x=>x.id===o.veh);o.vehImmat=v?v.immat:'';if(o.p&&o.statut==='recue')o.statut='designee';}
     const p=persOf(ctx,o.p);const key=p?keyOf(p,ctx):'ent';const rid=id||(key+'|'+uid());
     const by=api.userName?api.userName():'';Object.assign(o,{upd:new Date().toISOString(),by});if(isNew)o.at=o.upd;
-    regSet(kind,rid,o);api.closeModal();ctx.toast('✓ '+D.one.charAt(0).toUpperCase()+D.one.slice(1)+' enregistrée');
+    regSet(kind,rid,o,demoOpts(rid));api.closeModal();ctx.toast('✓ '+D.one.charAt(0).toUpperCase()+D.one.slice(1)+' enregistrée');
     if(kind==='rhform'&&o.statut==='fait'&&o.hab&&p)setTimeout(()=>habFromForm(o,p,ctx),50);else ctx.render();};
-  if(g('rh-del'))g('rh-del').onclick=()=>{if(!confirm('Supprimer cette '+D.one+' ?'))return;regDelete(kind,id);api.closeModal();ctx.render();};}
+  if(g('rh-del'))g('rh-del').onclick=()=>{if(!confirm('Supprimer cette '+D.one+' ?'))return;regDelete(kind,id,demoOpts(id));api.closeModal();ctx.render();};}
 /** formation faite avec une habilitation visée : proposer d'inscrire l'habilitation sur la fiche de la personne */
 function habFromForm(o,p,ctx){const api=ctx.api||A;const T=HAB_TYPES[o.hab];if(!T){ctx.render();return;}const d=o.au||o.du||todayIso();
   if(!ctx.savePart){ctx.render();return;}

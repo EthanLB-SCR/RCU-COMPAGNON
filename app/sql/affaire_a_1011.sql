@@ -6,9 +6,11 @@
 -- Lecture : encadrement / bureau / administrateur. Les compagnons n'ont rien dans Affaire (cadrage § 7).
 -- Tout le reste de registre_set et de la politique de lecture est repris tel quel de rh_1011.sql (donc de retours_20-10.sql).
 -- À passer dans Supabase (SQL Editor) APRÈS rh_1011.sql. Sans ce fichier, l'appli garde les lignes af* sur l'appareil et le dit (registre inconnu).
+-- 11/11 : inutile si navettes_1011.sql est passé (il le contient) ; refuse alors de s'exécuter plutôt que de retirer des registres.
 do $do$ begin
   if not exists (select 1 from pg_proc where proname = 'can_rh') then raise exception 'Passe d''abord sql/retours_20-10.sql (fonction can_rh absente).'; end if;
   if not exists (select 1 from pg_proc p where p.proname = 'registre_set' and pg_get_functiondef(p.oid) like '%rhabs%') then raise exception 'Passe d''abord sql/rh_1011.sql (registres RH absents de registre_set).'; end if;
+  if exists (select 1 from pg_proc p where p.proname = 'registre_set' and pg_get_functiondef(p.oid) like '%navliss%') then raise exception 'Fichier dépassé : navettes_1011.sql (ou retours_ia_1111.sql) est déjà passé et contient déjà tout affaire_a_1011.sql. Ne le repasse pas (il retirerait les registres des navettes) : rien n''a été modifié.'; end if; -- 11/11
 end $do$;
 -- can_rh : inchangée (rh_1011.sql)
 create or replace function public.registre_set(p_kind text, p_id text, p_patch jsonb, p_mode text default 'merge') returns jsonb

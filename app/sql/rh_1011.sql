@@ -4,8 +4,10 @@
 -- Lecture : RH / direction / administrateur (absences : + rh.abs), et la personne elle-même pour SES lignes
 -- (identifiant = <sa clé>|<n°>). Tout le reste de registre_set et de la politique de lecture est repris tel quel de retours_20-10.sql.
 -- À passer dans Supabase (SQL Editor) APRÈS retours_20-10.sql. Sans ce fichier, l'appli garde les lignes RH sur l'appareil et le dit.
+-- 11/11 : refuse de s'exécuter si un fichier plus récent (affaire_a_1011, navettes_1011, retours_ia_1111) est déjà passé — il retirerait des registres.
 do $do$ begin
   if not exists (select 1 from pg_proc where proname = 'can_rh') then raise exception 'Passe d''abord sql/retours_20-10.sql (fonction can_rh absente).'; end if;
+  if exists (select 1 from pg_proc p where p.proname = 'registre_set' and (pg_get_functiondef(p.oid) like '%afaff%' or pg_get_functiondef(p.oid) like '%navliss%')) then raise exception 'Fichier dépassé : un fichier plus récent (affaire_a_1011, navettes_1011 ou retours_ia_1111) est déjà passé et contient déjà tout rh_1011.sql. Ne le repasse pas (il retirerait des registres) : rien n''a été modifié.'; end if; -- 11/11
 end $do$;
 -- can_rh : reprise de retours_14-10a.sql + le droit « rh.abs » (absences et congés) d'office pour les responsables d'exploitation, la RH et l'assistante RH
 create or replace function public.can_rh(p_perm text) returns boolean language sql stable security definer set search_path = public as $$

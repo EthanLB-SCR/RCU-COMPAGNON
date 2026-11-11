@@ -6,16 +6,16 @@
 // CALCUL ATTENDU (affaire O2609-77, chantier db_nord, marché 250 000 €, situations : sept. 60 000 + oct. 45 000 = 105 000 € facturés) :
 //  · Karim (soudeur) : 7→11/09 5 × 8 h validées (40), 14→17/09 4 × 9 h validées (36), 18/09 7 h NON validées (à confirmer), 5→9/10 5 × 8 h (40) ; 21/09 8 h sur un AUTRE
 //    chantier (pas comptées) → sept. 83 h = 8 300 € (dont 700 à confirmer), oct. 40 h = 4 000 € → 12 300 €
-//  · Julien (manchonneur) : 7→11/09 5 × 8 h + samedi 12/09 5 h = 45 h = 3 600 € ; 5→7/10 3 × 8 h = 24 h = 1 920 € ; dimanche 11/10 6 h : HORS navette (lundi → samedi),
-//    pas comptées → 5 520 €
+//  · Julien (manchonneur) : 7→11/09 5 × 8 h + samedi 12/09 5 h = 45 h = 3 600 € ; 5→7/10 3 × 8 h = 24 h = 1 920 € ; dimanche 11/10 6 h : comptées depuis le 10/11
+//    (débours au RÉEL, plus la navette lundi → samedi — Ethan : « les débours doivent prendre en compte le réel ») → 75 h = 6 000 €
 //  · Ethan (chef) : 5 et 6/10 2 × 10 h = 20 h → 0 € tant que le taux manque (alerte), puis 20 × 65 = 1 300 €
 //  · Achats : BC-2609-01 reçue 10 × 120 + 4 × 50 = 1 400 € (sept.) ; BC-2610-01 envoyée 2 500 € (oct.) → marquée facturée 2 650 € ; BC-2610-02 brouillon 999 € : listé,
 //    NON compté ; BC-2610-03 (autre affaire) : absent → 3 900 € puis 4 050 €
 //  · Notes de frais : 120 € TTC validée (10/09) → 100 € HT à 20 % de TVA (109,09 € à 10 %) ; 60 € saisie (en attente, non comptée) ; 40 € sur un autre chantier : absente
 //  · Dépense saisie dans l'onglet : sous-traitance 3 000 € HT (08/10)
-//  → TOUT, avant taux du chef et facture : débours 17 820 + 3 900 + 100 + 3 000 = 24 820 € ; marge 105 000 − 24 820 = 80 180 € ; reste 250 000 − 105 000 = 145 000 €
-//  → après (taux chef 65, BC-2610-01 facturé 2 650) : MO 19 120, achats 4 050 → débours 26 270 € ; marge 78 730 € (75,0 %)
-//  → mois de septembre : MO 11 900 + achats 1 400 + frais 100 = 13 400 € ; facturé 60 000 → marge 46 600 € ; octobre : 7 220 + 2 650 + 3 000 = 12 870 € ; facturé 45 000 → 32 130 €
+//  → TOUT, avant taux du chef et facture : débours 18 300 + 3 900 + 100 + 3 000 = 25 300 € ; marge 105 000 − 25 300 = 79 700 € ; reste 250 000 − 105 000 = 145 000 €
+//  → après (taux chef 65, BC-2610-01 facturé 2 650) : MO 19 600, achats 4 050 → débours 26 750 € ; marge 78 250 € (74,5 %)
+//  → mois de septembre : MO 11 900 + achats 1 400 + frais 100 = 13 400 € ; facturé 60 000 → marge 46 600 € ; octobre : 7 700 + 2 650 + 3 000 = 13 350 € ; facturé 45 000 → 31 650 €
 //  · Chantier partagé db_sud (lot MU) entre O2601-70 (origine, 6 soudures tracées) et O2609-71 (4 soudures) : Karim 2 × 8 h = 16 h en octobre → part 40 % pour O2609-71 :
 //    6,4 h = 640 € ; 60 % pour O2601-70 : 9,6 h = 960 € ; part saisie 50 % → 800 €
 import { chromium } from 'playwright';
@@ -23,13 +23,13 @@ import fs from 'fs';import path from 'path';import {fileURLToPath} from 'url';
 import { openXlsx } from '../src/xlsx.js';
 const HERE=path.dirname(fileURLToPath(import.meta.url));
 const BASE=process.env.BASE||'http://localhost:8815';
-const SHOTS=process.env.SHOTS||'/root/work/db_shots';try{fs.mkdirSync(SHOTS,{recursive:true});}catch(e){}
+const SHOTS=process.env.SHOTS||'';if(SHOTS)try{fs.mkdirSync(SHOTS,{recursive:true});}catch(e){} /* captures seulement si SHOTS est donné */
 const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
 const ctx=await browser.newContext({viewport:{width:1366,height:900},acceptDownloads:true});const page=await ctx.newPage();
 const logs=[];const watch=pg=>{pg.on('pageerror',e=>logs.push('PAGEERROR: '+e.message.slice(0,300)));pg.on('console',m=>{if(m.type()==='error'&&!/supabase|Failed to fetch|net::ERR|404|WebSocket/i.test(m.text()))logs.push(m.text().slice(0,200));});pg.on('dialog',d=>d.accept().catch(()=>{}));};watch(page);
 await ctx.route(u=>!u.href.startsWith(BASE)&&/^https?:/.test(u.href),rt=>rt.fulfill({status:200,contentType:'application/json',body:/geopf|geo\.api/.test(rt.request().url())?'{"type":"FeatureCollection","features":[]}':'{}'})); /* aucun réseau extérieur */
 const C={};const wait=ms=>page.waitForTimeout(ms);const J=o=>JSON.stringify(o);
-const shot=async(pg,name)=>{try{await pg.screenshot({path:SHOTS+'/'+name+'.png',fullPage:false});}catch(e){console.log('capture '+name+' : '+e.message);}};
+const shot=async(pg,name)=>{if(!SHOTS)return;try{await pg.screenshot({path:SHOTS+'/'+name+'.png',fullPage:false});}catch(e){console.log('capture '+name+' : '+e.message);}};
 await page.clock.install({time:new Date(2026,9,20,9,0,0)}); /* mardi 20/10/2026 */
 await page.goto(BASE+'/index.html');await wait(600);await page.evaluate(()=>{localStorage.clear();localStorage.setItem('trace:wide','1');});
 await page.goto(BASE+'/vendor/');await wait(200); /* page statique de la même origine : l'appli ne tient plus la base IndexedDB → on peut la vider et y écrire la fixture */
@@ -54,7 +54,7 @@ const PTS=[];['07','08','09','10','11'].forEach(j=>{PTS.push(pt('l:karim','2026-
 ['14','15','16','17'].forEach(j=>PTS.push(pt('l:karim','2026-09-'+j,'db_nord','07:30','17:00',true,true)));PTS.push(pt('l:karim','2026-09-18','db_nord','07:30','15:00',true,false)); /* 7 h déclarées, pas validées */
 PTS.push(pt('l:julien','2026-09-12','db_nord','07:30','12:30',false,true)); /* samedi 5 h */PTS.push(pt('l:karim','2026-09-21','db_autre','07:30','16:00',true,true)); /* autre chantier */
 ['05','06','07','08','09'].forEach(j=>PTS.push(pt('l:karim','2026-10-'+j,'db_nord','07:30','16:00',true,true)));['05','06','07'].forEach(j=>PTS.push(pt('l:julien','2026-10-'+j,'db_nord','07:30','16:00',true,true)));
-PTS.push(pt('l:julien','2026-10-11','db_nord','08:00','14:00',false,true)); /* dimanche : hors navette */['05','06'].forEach(j=>PTS.push(pt('l:ethan','2026-10-'+j,'db_nord','07:00','17:30',true,true)));
+PTS.push(pt('l:julien','2026-10-11','db_nord','08:00','14:00',false,true)); /* dimanche : compté (débours au réel, 10/11) */['05','06'].forEach(j=>PTS.push(pt('l:ethan','2026-10-'+j,'db_nord','07:00','17:30',true,true)));
 ['12','13'].forEach(j=>PTS.push(pt('l:karim','2026-10-'+j,'db_sud','07:30','16:00',true,true))); /* chantier partagé */
 const idbSet=(k,v)=>page.evaluate(([k,v])=>new Promise(res=>{const q=indexedDB.open('trace-kv',1);q.onupgradeneeded=()=>q.result.createObjectStore('kv');q.onsuccess=()=>{const db=q.result;const tx=db.transaction('kv','readwrite');tx.objectStore('kv').put(v,k);tx.oncomplete=()=>{db.close();res(true);};tx.onerror=()=>{db.close();res(false);};};q.onerror=()=>res(false);q.onblocked=()=>res(false);}),[k,v]);
 for(const k of Object.keys(REG))await idbSet('trace:reg:'+k,REG[k]);await idbSet('trace:pointages',PTS);
@@ -93,8 +93,8 @@ out={T:await tot(AFF),tiles:await page.evaluate(()=>[...document.querySelectorAl
 out.lig=await page.evaluate(n=>{const a=window.TRACE.affaires.get(n);return (a.debours&&a.debours.lignes||[]).map(l=>[l.type,l.montant,l.lib,l.fournisseur,l.date,l.by]);},AFF);
 console.log('2) 4 chiffres (tout) :',J({...out,txt:out.txt.slice(0,100)}));
 const T2=out.T;
-C.c2=T2&&T2.fact===105000&&T2.mo===17820&&T2.moConf===700&&T2.h===212&&T2.hConf===7&&T2.ach===3900&&T2.nf===100&&T2.st===3000&&T2.loc===0&&T2.aut===0&&T2.deb===24820&&T2.marge===80180&&T2.reste===145000&&T2.sansTaux===true
-  &&out.tiles[0].startsWith('105 000 €')&&/facturé HT/.test(out.tiles[0])&&/marché 250 000 €/.test(out.tiles[0])&&out.tiles[1].startsWith('24 820 €')&&/dont 700 € de main-d'œuvre à confirmer/.test(out.tiles[1])&&out.tiles[2].startsWith('80 180 €')&&/76,4 % du facturé/.test(out.tiles[2])&&out.tiles[3].startsWith('145 000 €')&&/42 % facturé/.test(out.tiles[3])
+C.c2=T2&&T2.fact===105000&&T2.mo===18300&&T2.moConf===700&&T2.h===218&&T2.hConf===7&&T2.ach===3900&&T2.nf===100&&T2.st===3000&&T2.loc===0&&T2.aut===0&&T2.deb===25300&&T2.marge===79700&&T2.reste===145000&&T2.sansTaux===true
+  &&out.tiles[0].startsWith('105 000 €')&&/facturé HT/.test(out.tiles[0])&&/marché 250 000 €/.test(out.tiles[0])&&out.tiles[1].startsWith('25 300 €')&&/dont 700 € de main-d'œuvre à confirmer/.test(out.tiles[1])&&out.tiles[2].startsWith('79 700 €')&&/75,9 % du facturé/.test(out.tiles[2])&&out.tiles[3].startsWith('145 000 €')&&/42 % facturé/.test(out.tiles[3])
   &&J(out.lig)===J([['st',3000,'Terrassement tranchée rue Fictive','Terrassement Fictif SARL','2026-10-08','Ethan L.']])&&/Chef de chantier.*pas dans la base de prix : à renseigner/.test(out.txt);
 /* ── 3) le tableau main-d'œuvre par personne (tout), le taux du chef (65 €/h, gardé dans a.debours.taux), le bon marqué facturé (2 650 €) ── */
 out={pers:await rows("Main-d'œuvre")};
@@ -104,9 +104,9 @@ await click('#eq-app [data-act=x][data-v="db|bcfact|BC-2610-01"]');await page.ev
 out.T3b=await tot(AFF);out.bc=await page.evaluate(()=>{const c=window.TRACE.reg.get('commande','BC-2610-01');return {etat:c.etat,m:c.facture&&c.facture.montant,num:c.facture&&c.facture.num};});out.tiles=await page.evaluate(()=>[...document.querySelectorAll('#eq-app .db-tile')].map(t=>t.textContent.replace(/\s+/g,' ').trim()));
 out.ach=await rows('Achats');
 console.log('3) taux chef + facturé :',J({...out,txt3:undefined}));
-C.c3=out.pers&&out.pers.length===5&&out.pers[1]==='Karim B. | Soudeur | 123 hdont 7 h à confirmer | 12 300 €dont 700 €'&&out.pers[2]==='Julien R. | Manchonneur | 69 h | 5 520 €'&&out.pers[3]==='Ethan L. | Chef de chantier ⚠ taux | 20 h | 0 €'&&out.pers[4]==='Total | 212 hdont 7 h à confirmer | 17 820 €'
-  &&out.T3.mo===19120&&out.T3.deb===26120&&out.T3.sansTaux===false&&out.taux.chef===65&&/Chef de chantier.*taux de l'affaire/.test(out.txt3)
-  &&out.T3b.ach===4050&&out.T3b.deb===26270&&out.T3b.marge===78730&&out.bc.etat==='facturee'&&out.bc.m===2650&&out.bc.num==='FA-FICTIVE-77'&&out.tiles[1].startsWith('26 270 €')&&out.tiles[2].startsWith('78 730 €')&&/75,0 % du facturé/.test(out.tiles[2])
+C.c3=out.pers&&out.pers.length===5&&out.pers[1]==='Karim B. | Soudeur | 123 hdont 7 h à confirmer | 12 300 €dont 700 €'&&out.pers[2]==='Julien R. | Manchonneur | 75 h | 6 000 €'&&out.pers[3]==='Ethan L. | Chef de chantier ⚠ taux | 20 h | 0 €'&&out.pers[4]==='Total | 218 hdont 7 h à confirmer | 18 300 €'
+  &&out.T3.mo===19600&&out.T3.deb===26600&&out.T3.sansTaux===false&&out.taux.chef===65&&/Chef de chantier.*taux de l'affaire/.test(out.txt3)
+  &&out.T3b.ach===4050&&out.T3b.deb===26750&&out.T3b.marge===78250&&out.bc.etat==='facturee'&&out.bc.m===2650&&out.bc.num==='FA-FICTIVE-77'&&out.tiles[1].startsWith('26 750 €')&&out.tiles[2].startsWith('78 250 €')&&/74,5 % du facturé/.test(out.tiles[2])
   &&out.ach.some(r=>/^BC-2610-0102\/10\/2026 \| Location Fictive EnginsMini-pelle 2 semaines \| Facturée \| 2 500,00 € \| 2 650,00 € \| 2 650,00 € \| $/.test(r))&&out.ach.some(r=>/^BC-2609-0115\/09\/2026 \| Fournisseur Fictif TubesTubes DN100 \+ manchons \| Reçuelivr\. 20\/09\/2026 \| 1 400,00 € \| — \| 1 400,00 € \| ✓ Facturé$/.test(r))&&out.ach.some(r=>/^BC-2610-0212\/10\/2026 \| Brouillon Fictifà préciser \| Brouillon \| 999,00 € \| — \| non compté \| ✓ Facturé$/.test(r))&&!out.ach.some(r=>/BC-2610-03/.test(r))&&out.ach.some(r=>/^Total achats comptés \|  \| 4 050,00 € \| $/.test(r));
 /* ── 4) la période : septembre, octobre, année 2026 ; la courbe et le tableau des mois ── */
 await click('#eq-app [data-act=x][data-v="db|per|mois"]');await click('#eq-app [data-act=x][data-v="db|m|2026-09"]');
@@ -117,13 +117,13 @@ out.chart=await page.evaluate(()=>{const c=document.querySelector('#eq-app .db-c
 await click('#eq-app [data-act=x][data-v="db|per|tout"]');
 console.log('4) périodes + courbe :',J(out));
 C.c4=out.sep.deb===13400&&out.sep.mo===11900&&out.sep.moConf===700&&out.sep.ach===1400&&out.sep.nf===100&&out.sep.st===0&&out.sep.fact===60000&&out.sep.marge===46600&&out.tiles[0].startsWith('60 000 €')&&out.tiles[1].startsWith('13 400 €')&&out.tiles[2].startsWith('46 600 €')&&out.lab==='septembre 2026'
-  &&out.oct.deb===12870&&out.oct.mo===7220&&out.oct.ach===2650&&out.oct.st===3000&&out.oct.fact===45000&&out.oct.marge===32130&&out.tilesOct[1].startsWith('12 870 €')&&out.an.deb===26270&&out.an.fact===105000&&out.an25.deb===0&&out.an25.fact===0
-  &&out.chart.lines===2&&out.chart.dots===20/* 10 mois jusqu'à octobre 2026 × 2 séries : les mois à venir ne sont pas tracés */&&out.chart.labels.join()==='facturé 45 k€,débours 13 k€'&&out.chart.rows.length===3&&out.chart.rows[1]==='Sept 2026 | 60 000 € | 13 400 € | 46 600 € | 77,7 %'&&out.chart.rows[2]==='Oct 2026 | 45 000 € | 12 870 € | 32 130 € | 71,4 %';
+  &&out.oct.deb===13350&&out.oct.mo===7700&&out.oct.ach===2650&&out.oct.st===3000&&out.oct.fact===45000&&out.oct.marge===31650&&out.tilesOct[1].startsWith('13 350 €')&&out.an.deb===26750&&out.an.fact===105000&&out.an25.deb===0&&out.an25.fact===0
+  &&out.chart.lines===2&&out.chart.dots===20/* 10 mois jusqu'à octobre 2026 × 2 séries : les mois à venir ne sont pas tracés */&&out.chart.labels.join()==='facturé 45 k€,débours 13 k€'&&out.chart.rows.length===3&&out.chart.rows[1]==='Sept 2026 | 60 000 € | 13 400 € | 46 600 € | 77,7 %'&&out.chart.rows[2]==='Oct 2026 | 45 000 € | 13 350 € | 31 650 € | 70,3 %';
 /* ── 5) TVA des notes de frais réglable (10 % → 109,09 € HT), puis retour à 20 ── */
 await chg('#eq-app input[data-xin="db|tva"]','10');out={t10:await tot(AFF),tva:await page.evaluate(n=>window.TRACE.affaires.get(n).debours.tva,AFF),txt:await txt()};
 await chg('#eq-app input[data-xin="db|tva"]','20');out.t20=await tot(AFF);
 console.log('5) TVA :',J({...out,txt:(out.txt.match(/Notes de frais.{0,160}/)||[''])[0]}));
-C.c5=out.tva===10&&Math.abs(out.t10.nf-109.09)<0.01&&Math.abs(out.t10.deb-26279.09)<0.01&&/109,09 €/.test(out.txt)&&out.t20.nf===100&&out.t20.deb===26270;
+C.c5=out.tva===10&&Math.abs(out.t10.nf-109.09)<0.01&&Math.abs(out.t10.deb-26759.09)<0.01&&/109,09 €/.test(out.txt)&&out.t20.nf===100&&out.t20.deb===26750;
 /* ── 6) une 2e dépense (location 500 €) : ajoutée, modifiée (550), retirée ; la note de frais « en attente » est à part ── */
 await click('#eq-app [data-act=x][data-v="db|lnew"]');await page.evaluate(()=>{const g=id=>document.getElementById(id);g('dbd-date').value='2026-10-14';g('dbd-type').value='loc';g('dbd-m').value='500';g('dbd-lib').value='Groupe électrogène';g('dbd-f').value='Loueur Fictif';});await click('#dbd-ok');
 out={add:await tot(AFF)};const lid=await page.evaluate(n=>(window.TRACE.affaires.get(n).debours.lignes.find(l=>l.type==='loc')||{}).id,AFF);
@@ -131,19 +131,19 @@ await click(`#eq-app [data-act=x][data-v="db|ledit|${lid}"]`);await page.evaluat
 await click(`#eq-app [data-act=x][data-v="db|lrm|${lid}"]`);out.rm=await tot(AFF);out.lignes=await page.evaluate(n=>window.TRACE.affaires.get(n).debours.lignes.map(l=>[l.type,l.montant,!!l.deleted]),AFF);
 out.nf=await rows('Notes de frais');
 console.log('6) dépenses + notes de frais :',J(out));
-C.c6=out.add.loc===500&&out.add.deb===26770&&out.edit.loc===550&&out.edit.deb===26820&&out.rm.loc===0&&out.rm.deb===26270&&J(out.lignes)===J([['st',3000,false],['loc',550,true]])
+C.c6=out.add.loc===500&&out.add.deb===27250&&out.edit.loc===550&&out.edit.deb===27300&&out.rm.loc===0&&out.rm.deb===26750&&J(out.lignes)===J([['st',3000,false],['loc',550,true]])
   &&out.nf.includes('10/09/2026 | Karim B. | Carburant | Validé | 120,00 € | 100,00 €')&&out.nf.includes('Total validées (comptées) |  | 100,00 €')&&out.nf.some(r=>/En attente de validation \(non comptées\) : 1/.test(r))&&out.nf.includes('06/10/2026 | Karim B. | Repas | Saisi | 60,00 € | 50,00 €')&&!out.nf.some(r=>/Julien/.test(r));
-/* ── 7) ⬇ Excel : 5 feuilles, la synthèse porte les chiffres, la main-d'œuvre une ligne par jour pointé (26 : pas le dimanche, pas l'autre chantier) ── */
+/* ── 7) ⬇ Excel : 5 feuilles, la synthèse porte les chiffres, la main-d'œuvre une ligne par jour pointé (27 : le dimanche compris depuis le 10/11, pas l'autre chantier) ── */
 const dlP=page.waitForEvent('download',{timeout:8000}).catch(()=>null);await click('#eq-app [data-act=x][data-v="db|xls"]');const dl=await dlP;
 out={fn:dl?dl.suggestedFilename():null};if(dl){const p=await dl.path();const buf=fs.readFileSync(p);const wb=await openXlsx(buf.buffer.slice(buf.byteOffset,buf.byteOffset+buf.byteLength));out.sheets=wb.sheets.map(s=>s.name);const syn=await wb.sheet('Synthèse');const find=lab=>{for(let r=1;r<=60;r++)if(syn.at(1,r)===lab)return syn.at(2,r);return null;};out.fact=find('Facturé HT');out.deb=find('Débours HT');out.marge=find('Marge HT');out.mo=find('Main-d\'œuvre');out.sept=(()=>{for(let r=1;r<=60;r++)if(syn.at(1,r)==='Sept 2026')return [syn.at(2,r),syn.at(3,r),syn.at(4,r)];return null;})();
   const mo=await wb.sheet('Main-d\'œuvre');let n=0;for(let r=2;r<=200;r++){if(mo.at(1,r))n++;}out.moRows=n;out.moHead=[1,2,3,4,5,6,7,8,9,10,11].map(c=>mo.at(c,1));out.sun=(()=>{for(let r=2;r<=200;r++)if(mo.at(1,r)==='2026-10-11')return true;return false;})();}
 console.log('7) export :',J(out));
-C.c7=out.fn==='Debours_O2609-77.xlsx'&&J(out.sheets)===J(['Synthèse','Main-d\'œuvre','Achats','Notes de frais','Dépenses'])&&out.fact===105000&&out.deb===26270&&out.marge===78730&&out.mo===19120&&J(out.sept)===J([60000,13400,46600])&&out.moRows===26&&out.moHead[8]==='Coût horaire'&&out.moHead[9]==='Coût HT'&&!out.sun;
+C.c7=out.fn==='Debours_O2609-77.xlsx'&&J(out.sheets)===J(['Synthèse','Main-d\'œuvre','Achats','Notes de frais','Dépenses'])&&out.fact===105000&&out.deb===26750&&out.marge===78250&&out.mo===19600&&J(out.sept)===J([60000,13400,46600])&&out.moRows===27&&out.moHead[8]==='Coût horaire'&&out.moHead[9]==='Coût HT'&&out.sun; /* 10/11 : le dimanche pointé est une ligne de la main-d'œuvre (débours au réel) */
 /* ── 8) 🖨 Imprimer : la page A4 (charte) porte les 4 chiffres et les tableaux ── */
 const popP=ctx.waitForEvent('page',{timeout:8000}).catch(()=>null);await click('#eq-app [data-act=x][data-v="db|print"]');const pop=await popP;
 out={pop:!!pop};if(pop){await pop.waitForTimeout(500);out.title=await pop.title();out.t=await pop.evaluate(()=>([...document.body.childNodes].filter(n=>n.nodeName!=='SCRIPT').map(n=>n.textContent).join('') /* 31/10 : le gros script est en fin de <body> (écran de chargement) — son texte n'est pas du texte de la page */).replace(/\s+/g,' '));out.h2=await pop.evaluate(()=>[...document.querySelectorAll('h2')].map(h=>h.textContent.replace(/\s+/g,' ').trim()));await pop.close();}
 console.log('8) impression :',J({...out,t:(out.t||'').slice(0,1500)}));
-C.c8=out.pop&&out.title==='Débours — O2609-77'&&/105 000 €/.test(out.t)&&/26 270 €/.test(out.t)&&/78 730 €/.test(out.t)&&/145 000 €/.test(out.t)&&/Karim B\./.test(out.t)&&/Terrassement Fictif SARL/.test(out.t)&&out.h2.some(h=>/^Main-d'œuvre · 212 h · 19 120 €$/.test(h))&&out.h2.some(h=>/^Achats · bons de commande · 4 050 €$/.test(h));
+C.c8=out.pop&&out.title==='Débours — O2609-77'&&/105 000 €/.test(out.t)&&/26 750 €/.test(out.t)&&/78 250 €/.test(out.t)&&/145 000 €/.test(out.t)&&/Karim B\./.test(out.t)&&/Terrassement Fictif SARL/.test(out.t)&&out.h2.some(h=>/^Main-d'œuvre · 218 h · 19 600 €$/.test(h))&&out.h2.some(h=>/^Achats · bons de commande · 4 050 €$/.test(h));
 await wait(2800);await page.setViewportSize({width:1366,height:3000});await wait(300);await shot(page,'db_pc_onglet');await page.setViewportSize({width:1366,height:900});await wait(200); /* capture PC : tout l'onglet d'un coup */
 /* ── 9) « ＋ Bon de commande » : l'écran des bons s'ouvre sur le nouveau bon pré-rempli (affaire, chantier) ; « ‹ Affaire » revient à l'onglet ; le bon vide (0 €) reste listé ── */
 await click('#eq-app [data-act=x][data-v="db|bcnew"]');
@@ -159,7 +159,7 @@ out.pers=await rows("Main-d'œuvre");
 await page.evaluate(()=>{const i=document.createElement('input');i.dataset.xin='db|taux|chef';i.value='999';document.getElementById('eq-app').appendChild(i);i.dispatchEvent(new Event('change',{bubbles:true}));});await wait(300);
 out.taux=await page.evaluate(n=>window.TRACE.affaires.get(n).debours.taux,AFF);out.toast=await page.evaluate(()=>(document.querySelector('#toast')||{}).textContent||'');
 console.log('10) lecture seule :',J({...out,txt:(out.txt.match(/Main-d'œuvre.{0,120}/)||[''])[0]}));
-C.c10=out.can===false&&out.view===true&&out.inputs===0&&out.btns===0&&out.tiles[1].startsWith('26 270 €')&&out.pers.length===5&&out.pers[1]==='Karim B. | Soudeur | 123 hdont 7 h à confirmer'&&out.pers[0]==='Personne | Poste | Heures'&&!/€\/h/.test(out.txt)&&/réservés au bureau/.test(out.txt)&&out.taux.chef===65&&/Lecture seule/.test(out.toast);
+C.c10=out.can===false&&out.view===true&&out.inputs===0&&out.btns===0&&out.tiles[1].startsWith('26 750 €')&&out.pers.length===5&&out.pers[1]==='Karim B. | Soudeur | 123 hdont 7 h à confirmer'&&out.pers[0]==='Personne | Poste | Heures'&&!/€\/h/.test(out.txt)&&/réservés au bureau/.test(out.txt)&&out.taux.chef===65&&/Lecture seule/.test(out.toast);
 /* ── 11) chantier partagé (lot MU) : seulement la part de l'affaire — 40 % pour O2609-71 (4 / 10 soudures), 60 % pour l'origine ; part saisie 50 % ── */
 await as('ethan');await openAff(A71,'debours');
 out={T71:await tot(A71),txt:await txt(),pc:await page.evaluate(()=>(document.querySelector('#eq-app input[data-xin^="db|part|"]')||{}).placeholder)};
@@ -174,7 +174,7 @@ out=await page.evaluate(()=>{const c=document.querySelector('#eq-app .db-ov');re
 await wait(2800);await page.setViewportSize({width:1366,height:1500});await wait(300);await shot(page,'db_pc_reporting');await page.setViewportSize({width:1366,height:900});await wait(200);
 await click('#eq-app .db-ov [data-act=x][data-v="db|open|O2609-77"]');out.open={cur:await page.evaluate(()=>window.TRACE.affaires.state().cur),tab:await page.evaluate(()=>window.TRACE.affaires.state().tab),view:await page.evaluate(()=>window.TRACE.affaires.state().view)};
 console.log('12) vue d\'ensemble :',J(out));
-C.c12=out&&out.rows.length===5&&/^O2601-70 Villefictive — Sud 2025 ⚠ débours > facturé \| — \| 960 € \| [-−]960 € \| — \| 120 000 €$/.test(out.rows[1])&&/^O2609-71 Villefictive — Sud 2026 ⚠ débours > facturé \| — \| 800 € \| [-−]800 € \| — \| 80 000 €$/.test(out.rows[2])&&out.rows[3]==='O2609-77 Villefictive — Réseau Nord | 105 000 € | 26 270 € | 78 730 € | 75,0 % | 145 000 €'&&out.rows[4]==='Total | 105 000 € | 28 030 € | 76 970 € | 73,3 % | '&&out.alerts===2&&/3 affaires · 2 en alerte/.test(out.h3)&&out.open.cur==='O2609-77'&&out.open.tab==='debours'&&out.open.view==='fiche';
+C.c12=out&&out.rows.length===5&&/^O2601-70 Villefictive — Sud 2025 ⚠ débours > facturé \| — \| 960 € \| [-−]960 € \| — \| 120 000 €$/.test(out.rows[1])&&/^O2609-71 Villefictive — Sud 2026 ⚠ débours > facturé \| — \| 800 € \| [-−]800 € \| — \| 80 000 €$/.test(out.rows[2])&&out.rows[3]==='O2609-77 Villefictive — Réseau Nord | 105 000 € | 26 750 € | 78 250 € | 74,5 % | 145 000 €'&&out.rows[4]==='Total | 105 000 € | 28 510 € | 76 490 € | 72,8 % | '&&out.alerts===2&&/3 affaires · 2 en alerte/.test(out.h3)&&out.open.cur==='O2609-77'&&out.open.tab==='debours'&&out.open.view==='fiche';
 /* ── 13) téléphone 390 px : rien ne déborde, boutons ≥ 40 px (secondaires ≥ 34), fenêtre de dépense lisible ── */
 await page.setViewportSize({width:390,height:844});await wait(400);await page.evaluate(()=>{localStorage.removeItem('trace:wide');window.TRACE.renderHome();});await wait(300);await openAff(AFF,'debours');
 out=await page.evaluate(()=>{const app=document.getElementById('eq-app');const sw=document.documentElement.scrollWidth;const over=[...app.querySelectorAll('.card,.db-tiles,.db-per,.db-tile')].filter(e=>e.getBoundingClientRect().right>391).map(e=>e.className).slice(0,5);

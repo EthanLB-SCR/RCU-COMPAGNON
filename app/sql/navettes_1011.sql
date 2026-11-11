@@ -9,9 +9,11 @@
 -- CONTIENT TOUT affaire_a_1011.sql (registres Affaire) : si tu ne l'as pas encore passé, celui-ci suffit. À passer APRÈS rh_1011.sql. Ré-exécutable.
 -- Ne repasse pas affaire_a_1011.sql APRÈS celui-ci (il remettrait l'ancienne registre_set, sans les navettes).
 -- Sans ce fichier : les réglages et les choix restent sur l'appareil qui les a faits, et l'appli le dit (« registre inconnu »).
+-- 11/11 : refuse de s'exécuter si retours_ia_1111.sql est déjà passé (il le contient) — il retirerait le registre « retour ».
 do $do$ begin
   if not exists (select 1 from pg_proc where proname = 'can_rh') then raise exception 'Passe d''abord sql/retours_20-10.sql (fonction can_rh absente).'; end if;
   if not exists (select 1 from pg_proc p where p.proname = 'registre_set' and pg_get_functiondef(p.oid) like '%rhabs%') then raise exception 'Passe d''abord sql/rh_1011.sql (registres RH absents de registre_set).'; end if;
+  if exists (select 1 from pg_proc p where p.proname = 'registre_set' and pg_get_functiondef(p.oid) like '%''retour''%') then raise exception 'Fichier dépassé : retours_ia_1111.sql est déjà passé et contient déjà tout navettes_1011.sql. Ne le repasse pas (il retirerait le registre des bugs et idées) : rien n''a été modifié.'; end if; -- 11/11
 end $do$;
 -- can_rh : celle de rh_1011.sql + le droit « rh.nav » (contrôle des navettes) d'office pour les responsables d'exploitation, la RH et l'assistante RH
 create or replace function public.can_rh(p_perm text) returns boolean language sql stable security definer set search_path = public as $$
