@@ -16,10 +16,11 @@
 // affaires O2610-81 (ce seul chantier ; taux chef 65 €/h ; location 900 € oct., sous-traitance 1 500 € sept.) et O2610-82 (deux chantiers : 250 € « autre » rattaché à
 // cc_nord, 777 € sans chantier → signalé, non compté), base de prix fictive test/fixture_prix.xlsx (Soudeur 100 €/h, Manchonneur 80 €/h).
 //  Heures (navette) : Karim (soudeur) 5→9/10 5 × 8 h + 14-15/09 2 × 8 h validées + 12/10 8 h à confirmer + 13/10 8 h sur un AUTRE chantier ; Julien (manchonneur)
-//  5→7/10 3 × 8 h + dimanche 11/10 6 h (hors navette) ; Ethan (chef) 5-6/10 2 × 10 h → Soudeur 64 h = 6 400 € (dont 8 h à confirmer), Manchonneur 24 h = 1 920 €,
+//  5→7/10 3 × 8 h + dimanche 11/10 6 h (10/11 nuit : compté, c'est du réel — avant : hors navette) ; Ethan (chef) 5-6/10 2 × 10 h → Soudeur 64 h = 6 400 € (dont 8 h à confirmer), Manchonneur 24 h = 1 920 €,
 //  Chef 20 h × 65 = 1 300 € → main-d'œuvre 9 620 € (108 h). Bons : 1 400 (reçu, oct.) + 2 500 (envoyé, oct.) + 330 (facturé : facture 330 ≠ 300, sept.) = 4 230 € ;
 //  brouillon 999 € listé non compté ; autre chantier absent. Notes de frais : 120 TTC validée (oct.) → 100 HT, 48 TTC remboursée (sept.) → 40 HT ; 60 en attente ;
 //  refusée et autre chantier absentes. → TOUT : 9 620 + 4 230 + 140 + 1 500 + 900 + 250 = 16 640 € ; OCTOBRE : 8 020 + 3 900 + 100 + 1 150 = 13 170 € ; SEPTEMBRE 3 470 €.
+//  10/11 nuit : débours sur les heures RÉELLES → le dimanche 11/10 (6 h × 80 €) compte : TOUT 17 120 € (main-d'œuvre 10 100 €, 114 h), OCTOBRE 13 650 €.
 //  c8  Pilotage → Compte d'un chantier → choix → compte : tuiles, heures par poste, bons, dépenses, totaux par nature, avertissement « sans chantier »
 //  c9  période : un mois (octobre 13 170 €, ‹ septembre 3 470 €), retour à « Tout »
 //  c10 impression A4 (charte) : titre, totaux, postes
@@ -298,13 +299,14 @@ o.warn=(await ptxt()).match(/1 dépense \([^)]*\) de l'affaire O2610-82 n'est ra
 await shot(page,'cc_pc_compte_chantier');
 console.log('c8) compte (tout) :',J(o));
 C.c8=o.row&&/Villefictive — Chantier Nord/.test(o.choix)&&/9 jours pointés · 4 bons · 3 notes de frais/.test(o.choix)
-  &&o.tot.mo===9620&&o.tot.h===108&&o.tot.hConf===8&&o.tot.ach===4230&&o.tot.nf===140&&o.tot.st===1500&&o.tot.loc===900&&o.tot.aut===250&&o.tot.dep===2790&&o.tot.total===16640
-  &&J(o.tot.postes)===J([['soudeur',64,100,6400,'base'],['manchonneur',24,80,1920,'base'],['chef',20,65,1300,'affaire']])
-  &&/^16 640 € ?total HT/.test(o.tiles[0]||'')&&/9 620 € ?main-d'œuvre · 108 h \(dont 8 h à confirmer\)/.test(o.tiles[1]||'')&&/4 230 € ?bons/.test(o.tiles[2]||'')&&/2 790 € ?dépenses/.test(o.tiles[3]||'')
-  &&!!o.postes&&o.postes.some(r=>/^Soudeur ?1 personne/.test(r)&&/64 h ?dont 8 h à confirmer \| 100 €\/h \| 6 400 €/.test(r))&&o.postes.some(r=>/^Chef de chantier/.test(r)&&/20 h \| 65 €\/h ?taux de l'affaire \| 1 300 €/.test(r))&&o.postes.some(r=>/^Total \| 108 h \| +\| 9 620 €/.test(r))
+  /* 10/11 nuit (Ethan : « les débours prennent le RÉEL, pas la navette ») : le dimanche 11/10 pointé (6 h de Julien) compte maintenant → manchonneur 30 h */
+  &&o.tot.mo===10100&&o.tot.h===114&&o.tot.hConf===8&&o.tot.ach===4230&&o.tot.nf===140&&o.tot.st===1500&&o.tot.loc===900&&o.tot.aut===250&&o.tot.dep===2790&&o.tot.total===17120
+  &&J(o.tot.postes)===J([['soudeur',64,100,6400,'base'],['manchonneur',30,80,2400,'base'],['chef',20,65,1300,'affaire']])
+  &&/^17 120 € ?total HT/.test(o.tiles[0]||'')&&/10 100 € ?main-d'œuvre · 114 h \(dont 8 h à confirmer\)/.test(o.tiles[1]||'')&&/4 230 € ?bons/.test(o.tiles[2]||'')&&/2 790 € ?dépenses/.test(o.tiles[3]||'')
+  &&!!o.postes&&o.postes.some(r=>/^Soudeur ?1 personne/.test(r)&&/64 h ?dont 8 h à confirmer \| 100 €\/h \| 6 400 €/.test(r))&&o.postes.some(r=>/^Chef de chantier/.test(r)&&/20 h \| 65 €\/h ?taux de l'affaire \| 1 300 €/.test(r))&&o.postes.some(r=>/^Total \| 114 h \| +\| 10 100 €/.test(r))
   &&!!o.bons&&o.bons.some(r=>/BC-2610-03/.test(r)&&/Brouillon/.test(r)&&/non compté/.test(r))&&o.bons.some(r=>/BC-2609-04/.test(r)&&/330,00 € ?facture/.test(r))&&!o.bons.some(r=>/BC-2610-05/.test(r))&&o.bons.some(r=>/^Total engagé \|.*4 230,00 €/.test(r))
   &&!!o.dep&&o.dep.some(r=>/Karim B\./.test(r)&&/120,00 €/.test(r)&&/100,00 €/.test(r))&&o.dep.some(r=>/En attente de validation \(non comptées\) : 1/.test(r))&&o.dep.some(r=>/Mini-pelle fictive/.test(r))&&o.dep.some(r=>/Clôture fictive/.test(r))&&!o.dep.some(r=>/Sans chantier fictif|Sud fictif/.test(r))
-  &&!!o.nat&&o.nat.some(r=>/^Total général \| 16 640 € \| 100 %/.test(r))&&o.nat.some(r=>/^Location \| 900 €/.test(r))&&o.warn;
+  &&!!o.nat&&o.nat.some(r=>/^Total général \| 17 120 € \| 100 %/.test(r))&&o.nat.some(r=>/^Location \| 900 €/.test(r))&&o.warn;
 /* ── c9 : période ── */
 await xclick(page,'cc|per|mois');o={oct:(await page.evaluate(()=>(document.querySelector('#eq-app .cc-tile')||{}).textContent||'')).replace(/[  ]/g,' '),lab:await page.evaluate(()=>(document.querySelector('#eq-app .cc-nav b')||{}).textContent)};
 await xclick(page,'cc|m|2026-09');o.sep=(await page.evaluate(()=>(document.querySelector('#eq-app .cc-tile')||{}).textContent||'')).replace(/[  ]/g,' ');o.labS=await page.evaluate(()=>(document.querySelector('#eq-app .cc-nav b')||{}).textContent);
@@ -312,11 +314,11 @@ o.postesSep=await card('Heures par poste');
 o.api={oct:(await page.evaluate(()=>window.TRACE.compteCh.totaux('cc_nord',{k:'mois',m:'2026-10',lab:''}))).total,sep:(await page.evaluate(()=>window.TRACE.compteCh.totaux('cc_nord',{k:'mois',m:'2026-09',lab:''}))).total};
 await xclick(page,'cc|per|tout');o.back=(await page.evaluate(()=>(document.querySelector('#eq-app .cc-tile')||{}).textContent||'')).replace(/[  ]/g,' ');
 console.log('c9) période :',J(o));
-C.c9=/^13 170 €/.test(o.oct)&&o.lab==='octobre 2026'&&/^3 470 €/.test(o.sep)&&o.labS==='septembre 2026'&&!!o.postesSep&&o.postesSep.some(r=>/^Soudeur/.test(r)&&/16 h/.test(r))&&o.api.oct===13170&&o.api.sep===3470&&/^16 640 €/.test(o.back);
+C.c9=/^13 650 €/.test(o.oct)&&o.lab==='octobre 2026'&&/^3 470 €/.test(o.sep)&&o.labS==='septembre 2026'&&!!o.postesSep&&o.postesSep.some(r=>/^Soudeur/.test(r)&&/16 h/.test(r))&&o.api.oct===13650&&o.api.sep===3470&&/^17 120 €/.test(o.back);
 /* ── c10 : impression ── */
 await page.evaluate(()=>{window.__docs=[];window.open=()=>({document:{write:h=>{window.__docs.push(h);},close(){}}});});
 await xclick(page,'cc|print|cc_nord');
-o=await page.evaluate(()=>{const h=(window.__docs||[])[0]||'';const t=h.replace(/<[^>]+>/g,' ').replace(/[  ]/g,' ').replace(/\s+/g,' ');return {n:(window.__docs||[]).length,title:/<title>Compte chantier — Villefictive — Chantier Nord<\/title>/.test(h),tot:/16 640 € total HT/.test(t),nat:/Totaux par nature/.test(t),postes:/Heures par poste · 108 h · 9 620 €/.test(t),chef:/Chef de chantier 1 20 h — 65,00 € 1 300 €/.test(t),per:/Période depuis le début/.test(t),nocompta:/ni facturation, ni marge/.test(t),charte:/Pilotage · compte chantier/.test(t)};});
+o=await page.evaluate(()=>{const h=(window.__docs||[])[0]||'';const t=h.replace(/<[^>]+>/g,' ').replace(/[  ]/g,' ').replace(/\s+/g,' ');return {n:(window.__docs||[]).length,title:/<title>Compte chantier — Villefictive — Chantier Nord<\/title>/.test(h),tot:/17 120 € total HT/.test(t),nat:/Totaux par nature/.test(t),postes:/Heures par poste · 114 h · 10 100 €/.test(t),chef:/Chef de chantier 1 20 h — 65,00 € 1 300 €/.test(t),per:/Période depuis le début/.test(t),nocompta:/ni facturation, ni marge/.test(t),charte:/Pilotage · compte chantier/.test(t)};});
 console.log('c10) impression :',J(o));
 C.c10=o.n===1&&o.title&&o.tot&&o.nat&&o.postes&&o.chef&&o.per&&o.nocompta&&o.charte;
 /* ── c11 : depuis le Bureau du chantier ── */

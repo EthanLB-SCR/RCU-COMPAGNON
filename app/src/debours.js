@@ -2,8 +2,8 @@
 // rattachés à une affaire, que ça rentre les dépenses, toutes les heures des gars pointées par chantier × notre coût horaire, enlever au facturé […] tout un onglet
 // bien vaste, bien pro, bien propre ». Facturé (situations mensuelles a.fact + situations déposées / payées de la facturation) − débours (main-d'œuvre, achats = bons
 // de commande, notes de frais validées ramenées en HT, sous-traitance, location, autres) = marge ; reste à facturer = marché − facturé.
-// HEURES : LE calcul de la navette (espace.js → navette.js : heures du jour de chaque pointage, semaine lundi → samedi, le dimanche n'entre pas dans la navette) relu par
-// espaceNavette — jamais un calcul parallèle. COÛT HORAIRE : posteRate (prix.js) du poste de la personne dans la base de prix, ou le taux saisi pour l'affaire
+// HEURES : les heures RÉELLES de chaque pointage (espace.js → espaceHeuresReelles : travail + inter-chantier + trajet entre deux journées) — 10/11 nuit, Ethan : « les
+// débours doivent prendre en compte le réel, pas le modifié en navette » (la navette est lissée sur 5 jours). COÛT HORAIRE : posteRate (prix.js) du poste de la personne dans la base de prix, ou le taux saisi pour l'affaire
 // (a.debours.taux[poste]) quand la base ne le donne pas (chef de chantier, aide…). Chantier partagé (lot MU) : seulement la part de l'affaire (soudures du tracé, ou %
 // saisi dans a.debours.part[chantier]). Données OPTIONNELLES dans l'affaire : a.debours = {taux:{poste:€/h}, tva:20, lignes:[{id,date,type,lib,fournisseur,montant,…}],
 // part:{chantier:%}} (registre « affaire », droits existants — aucun SQL) ; un bon marqué facturé garde son montant de facture sur la commande (c.facture).
@@ -12,7 +12,7 @@
 // pointages, les chantiers liés ou le jour changent), pas de recalcul à chaque rendu.
 import {regAll,regGet,regSet} from './reg.js';
 import {affGet,affSet,affAll,affState,affOpen} from './affaires.js';
-import {espaceState,espaceNavette,espaceExt,espaceToday} from './espace.js';
+import {espaceState,espaceNavette,espaceExt,espaceToday,espaceHeuresReelles} from './espace.js';
 import {posteRate} from './prix.js';
 import {prixBase} from './chiffrage.js';
 import {POSTES} from './acces.js';
@@ -60,14 +60,15 @@ export function dbHasData(a){if(!a)return false;const d=D(a);return !!((d.lignes
 /* coût horaire d'un poste : taux saisi pour l'affaire, sinon la base de prix (posteRate = taux + frais généraux + sinistre), sinon 0 (à renseigner) */
 export function tauxPoste(a,poste){const T=D(a).taux||{};const v=T[poste];if(v!==undefined&&v!==null&&v!==''&&isFinite(+v)&&+v>0)return {h:+v,src:'affaire'};
   const b=prixBase();if(b&&poste&&poste!=='?'){for(const code of [POSTE_BASE[poste],POSTES[poste]]){if(!code)continue;let r=0;try{r=posteRate(b,code);}catch(e){r=0;}if(r>0)return {h:r2(r),src:'base'};}}return {h:0,src:null};}
-/* ── HEURES : les lignes de la navette (espace.js → navette.js), par personne et par mois de navette, puis par jour pointé ── */
+/* ── HEURES : les heures RÉELLES de chaque jour pointé sur les chantiers de l'affaire (10/11 nuit : plus la navette, qui est lissée) ── */
 const HCACHE=new Map();
 const navYm=d=>addDay(mondayOf(d),3).slice(0,7); /* une semaine compte dans le mois de son jeudi (règle de la navette) */
 const ptSig=x=>{const ev=x.events||[];const l=ev[ev.length-1]||{};return x.p+'|'+x.d+'|'+(x.site||'')+'|'+(x.status||'')+'|'+((x.val||[]).length)+'|'+ev.length+(l.t||'')+(l.at||'');};
 export function heuresAffaire(a){const sites=new Set(a.sites||[]);const PT=((espaceState()||{}).pointages||[]).filter(x=>x&&x.d&&sites.has(x.site));const sig=today()+'|'+[...sites].join(',')+'|'+PT.map(ptSig).join(';');
   const c=HCACHE.get(a.num);if(c&&c.sig===sig)return c;
-  const NAV={};const navOf=(p,ym)=>{const k=p+'|'+ym;if(!(k in NAV)){let m={};try{const R=espaceNavette(p,ym);((R&&R.N&&R.N.lines)||[]).forEach(L=>{if(L.kind==='day')m[L.d]=+L.hours||0;else if(L.kind==='sat')m[L.d]=+L.satHours||0;});}catch(e){console.warn('débours : navette',p,ym,e);m=null;}NAV[k]=m;}return NAV[k];};
-  const rows=[];PT.forEach(x=>{const wd=new Date(x.d+'T12:00:00').getDay();if(wd===0)return; /* dimanche : hors semaine de navette (lundi → samedi), comme la paie */const m=navOf(x.p,navYm(x.d));if(!m||m[x.d]===undefined)return;const h=r2(m[x.d]);if(!(h>0))return;rows.push({p:x.p,d:x.d,ym:x.d.slice(0,7),site:x.site,h,ok:x.status==='valide'||(x.val||[]).length>0});});
+  /* 10/11 nuit (Ethan : « les débours doivent bien prendre en compte le RÉEL, pas le modifié en navette ») : les heures réellement pointées ce jour-là sur le chantier
+     (travail + inter-chantier dans la journée + trajet entre deux journées déclaré ce jour-là), jamais la navette lissée */
+  const rows=[];PT.forEach(x=>{let R=null;try{R=espaceHeuresReelles(x);}catch(e){console.warn('débours : pointage',x.p,x.d,e);}if(!R)return;const h=r2(R.h);if(!(h>0))return;rows.push({p:x.p,d:x.d,ym:x.d.slice(0,7),site:x.site,h,ok:x.status==='valide'||(x.val||[]).length>0});});
   const out={sig,rows};HCACHE.set(a.num,out);if(HCACHE.size>40)HCACHE.delete(HCACHE.keys().next().value);return out;}
 export const dbInvalidate=num=>{if(num)HCACHE.delete(num);else HCACHE.clear();};
 /* ── part de l'affaire sur un chantier partagé (lot MU) : % saisi, sinon soudures du tracé de l'affaire / soudures de toutes les affaires du chantier ── */

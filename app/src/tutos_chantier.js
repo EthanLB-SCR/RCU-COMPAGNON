@@ -56,7 +56,7 @@ export default {
   {sel:'#facets [data-facet="plan"]',titre:"📐 Plan d'ensemble",texte:"Le réseau et toutes ses soudures, en plein écran. Touche une soudure pour ouvrir sa fiche, ＋ pour poser une note, une photo ou une soudure faite sur place."},
   {sel:onTab('bureau',VIE),titre:"🏢 Bureau",texte:"Le tableau de bord du chantier : ce qui t'attend aujourd'hui, ce qui coince, et un raccourci vers chaque onglet."},
   {sel:onTab('conv',VIE),titre:"💬 Conversation",texte:"Messages, notes posées sur le plan avec photo, tâches à faire : tout ce qui se dit sur le chantier, daté et signé.",si:tabOk('conv')},
-  {sel:onTab('admin',VIE),titre:"🗂 Dossier",texte:"Les pièces obligatoires (DT / DICT, PPSPS, PGC, plans d'exé…) et le Drive du chantier. Le chef et le bureau déposent, toute l'équipe consulte.",si:tabOk('admin')},
+  {sel:onTab('admin',VIE),titre:"🗂 Dossier",texte:"Les pièces obligatoires (DT / DICT, PPSPS, voirie, habilitations, plans d'exé) et le Drive du chantier. Le chef et le bureau déposent, toute l'équipe consulte.",si:tabOk('admin')},
   {sel:onTab('qse',VIE),titre:"⛑️ QSE",texte:"Ton accueil chantier, le quart d'heure sécurité, les documents à émarger et la déclaration d'un accident.",si:tabOk('qse')},
   {sel:onTab('export',VIE),titre:"📷 DOE et exports",texte:"Carnet de soudage, plan des soudures numérotées, photos par soudure, plan interactif : le dossier DOE se fabrique ici.",si:tabOk('export')},
   {sel:onTab('bouclage',TECH),titre:"💧 Détection d'humidité",texte:"Les mesures des fils d'alarme, boucle par boucle : contrôler le réseau, localiser un défaut, poser un bouclage temporaire.",si:tabOk('bouclage')},

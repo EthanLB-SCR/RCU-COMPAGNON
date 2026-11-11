@@ -40,7 +40,7 @@ const PNG=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAMCAIAAADkharWAAABU0lEQVR4n
 const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
 const CORS={'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'GET, POST, PUT, PATCH, DELETE, OPTIONS'};
 const logs=[];const C={};
-async function mkCtx(){const ctx=await browser.newContext({viewport:{width:390,height:844}});
+async function mkCtx(){const ctx=await browser.newContext({viewport:{width:390,height:844}});await ctx.addInitScript(()=>{try{localStorage.setItem('trace:flotteAncien','1');}catch(e){}}); /* 10/11 nuit : ce test vise l'ancien écran Parc → Flotte (toujours là : « Ancien écran Flotte ») */
   await ctx.route(u=>u.href.startsWith(SB),async route=>{const req=route.request();const u=new URL(req.url());const p=u.pathname;const acc=req.headers()['accept']||'';
     const json=(o,status=200)=>route.fulfill({status,contentType:'application/json',headers:CORS,body:JSON.stringify(o)});
     if(req.method()==='OPTIONS')return route.fulfill({status:200,headers:CORS,body:''});

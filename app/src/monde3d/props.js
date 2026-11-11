@@ -68,10 +68,10 @@ export function imageTex(url, ratio) {
   return t;
 }
 /** tapis de souris (posé sur le bureau, centré) ; kind 'image' + img (data-URL) = la photo de la personne */
-export function mousepad(kind, accent, img) {
+export function mousepad(kind, accent, img, rot) {
   const g = grp(); if (!kind || kind === 'none') return g; if (kind === 'image' && !img) kind = 'noir'; const col = kind === 'noir' || kind === 'image' ? 0x23262D : kind === 'accent' ? (accent == null ? C.violet : accent) : kind === 'gris' ? 0x8E96A3 : kind === 'bois' ? 0xD9B98A : 0x1E2A44;
   g.add(rbox(0.28, 0.006, 0.24, col, { r: 0.012, rough: 1 }));
-  if (kind === 'image') { const pl = new THREE.Mesh(new THREE.PlaneGeometry(0.27, 0.23), new THREE.MeshStandardMaterial({ map: imageTex(img, 0.27 / 0.23), roughness: 0.95 })); pl.rotation.x = -Math.PI / 2; pl.position.y = 0.0065; g.add(pl); }
+  if (kind === 'image') { /* 11/11 nuit (Ethan : « la photo est à l'envers ») : le haut de l'image est au fond du tapis, vue de ma chaise ; + un quart de tour au choix */ const q = (((+rot || 0) % 360) + 360) % 360, vert = q === 90 || q === 270; const pw = vert ? 0.23 : 0.27, ph = vert ? 0.27 : 0.23; const pl = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), new THREE.MeshStandardMaterial({ map: imageTex(img, pw / ph), roughness: 0.95 })); pl.rotation.set(-Math.PI / 2, 0, Math.PI + q * Math.PI / 180); pl.position.y = 0.0065; pl.userData.imgRot = q; g.add(pl); g.userData.img = pl; }
   if (kind === 'carte') { const t = canvasTex(256, 220, (gg, W, H) => { gg.fillStyle = '#1E2A44'; gg.fillRect(0, 0, W, H); gg.strokeStyle = 'rgba(255,255,255,.1)'; for (let x = 0; x < W; x += 20) { gg.beginPath(); gg.moveTo(x, 0); gg.lineTo(x, H); gg.stroke(); } for (let y = 0; y < H; y += 20) { gg.beginPath(); gg.moveTo(0, y); gg.lineTo(W, y); gg.stroke(); } gg.lineWidth = 5; gg.strokeStyle = '#E2584E'; gg.beginPath(); gg.moveTo(20, 170); gg.lineTo(90, 170); gg.lineTo(90, 70); gg.lineTo(190, 70); gg.lineTo(190, 130); gg.lineTo(240, 130); gg.stroke(); gg.strokeStyle = '#5B8FE0'; gg.beginPath(); gg.moveTo(20, 182); gg.lineTo(102, 182); gg.lineTo(102, 82); gg.lineTo(178, 82); gg.lineTo(178, 142); gg.lineTo(240, 142); gg.stroke(); }); const pl = new THREE.Mesh(new THREE.PlaneGeometry(0.27, 0.23), new THREE.MeshStandardMaterial({ map: t, roughness: 1 })); pl.rotation.x = -Math.PI / 2; pl.position.y = 0.0065; g.add(pl); }
   return g;
 }

@@ -158,11 +158,16 @@ await P.ctx.close();
 // ── v4 : le conducteur (PC 1366), après la cheffe
 P=await open(COND,{width:1366,height:900},false,{wide:true});o={};
 await hub(P.page);await hubRow(P.page,/Pointages à valider/);await tapAct(P.page,'valjour',F,500);
-o.v=await rows(P.page);o.all=await P.page.evaluate(()=>(document.querySelector('#eq-app [data-act=toutvalider]')||{}).textContent||'');await shot(P,'val_v4_conducteur_1366','#eq-app .card');
+o.v=await rows(P.page);o.all0=await P.page.evaluate(()=>(document.querySelector('#eq-app [data-act=toutvalider]')||{}).textContent||'');await shot(P,'val_v4_conducteur_1366','#eq-app .card');
+/* 10/11 nuit : Lucas a changé de chantier depuis jeudi (Troisville → Villefictive, distance inconnue) sans trajet déclaré → « à vérifier », hors « Tout valider » ;
+   le conducteur répond « Pas de trajet » → la ligne rentre dans « Tout valider » */
+o.route=await P.page.evaluate(()=>{const el=[...document.querySelectorAll('#eq-app .eq-vrow')].find(x=>/Lucas/.test(x.textContent));return el?{ano:(el.querySelector('.pi-ano')||{}).textContent||'',q:!!el.querySelector('[data-act=ptroutechef]')}:null;});
+await tap(P.page,'#eq-app .eq-vrow [data-act=ptroutechef][data-v*="|non|"]',700);o.lucasEv=evs(PTS[K(NEUF,F)]);
+o.all=await P.page.evaluate(()=>(document.querySelector('#eq-app [data-act=toutvalider]')||{}).textContent||'');
 await tap(P.page,'#eq-app [data-act=toutvalider]',900);o.v2=await rows(P.page); /* les 4 lignes sont complètes (Marc : fin saisie par la cheffe, Lucas : journée saisie) */o.head=(await txt(P.page)).match(/Pointages de l'équipe · \d+ à valider/)||[''];
 o.vals=[SOUD,TUY,MAN,NEUF].map(u=>PTS[K(u,F)].val.map(v=>v.by).join());
 console.log('v4) conducteur :',J(o));
-C.v4=['Hugo','Théo','Marc','Lucas'].every(n=>r(o.v,n).cls==='todo')&&/Tout valider \(4\)/.test(o.all)&&/4 personnes · 4 à traiter/.test(o.v[0].h||'')
+C.v4=['Hugo','Théo','Marc','Lucas'].every(n=>r(o.v,n).cls==='todo')&&/Tout valider \(3\)/.test(o.all0)&&o.route&&/trajet inter-chantier à vérifier/.test(o.route.ano)&&o.route.q&&/route@/.test(o.lucasEv)&&/Tout valider \(4\)/.test(o.all)&&/4 personnes · 4 à traiter/.test(o.v[0].h||'')
   &&['Hugo','Théo','Marc','Lucas'].every(n=>r(o.v2,n).cls==='done'&&r(o.v2,n).revoir&&!r(o.v2,n).valider)&&o.head[0]==='Pointages de l\'équipe · 4 à valider' /* il reste le jeudi */&&o.vals.every(v=>v===CHEF.email+','+COND.email);
 await P.ctx.close();
 

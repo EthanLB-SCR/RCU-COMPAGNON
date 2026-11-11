@@ -13,4 +13,6 @@ import compteCh from './comptech.js'; MODS.push(compteCh); // 31/10 (lot CC) : c
 import monde from './monde.js'; MODS.push(monde); // 07/11 nuit : Monde 3D (Labo, éteint par défaut) — accueil « mon bureau », Équipe, Pilotage, Commerce
 import tracerh from './tracerh.js'; MODS.push(tracerh); // 10/11 : Tracé Ressources humaines — navettes, absences et congés, habilitations, formation, contraventions, mutuelle, accidents
 import affaire from './affaire_donnees.js'; MODS.push(affaire); // 10/11 soir (lot A · Débours) : Tracé Affaire, à l'identique de la maquette validée — l'onglet Affaire s'ouvre dessus (espace.js → vAffaire)
+import flotte from './flotte_donnees.js'; MODS.push(flotte); // 10/11 nuit (lots F1 + F2) : Tracé Flotte, à l'identique de la maquette validée — Parc → Flotte s'ouvre dessus (parcSeg) ; « Ancien écran Flotte » garde l'ancien
+import outils from './outils.js'; MODS.push(outils); // 11/11 nuit (lot 7) : outils de tuyauterie — Compagnon → 🧰 Outils (baïonnette, coupe de coude, cintrage, pente, 3-4-5)
 export function initModules(){MODS.forEach(m=>{try{espaceExt(m);}catch(e){console.warn('module',m&&m.id,e);}});}

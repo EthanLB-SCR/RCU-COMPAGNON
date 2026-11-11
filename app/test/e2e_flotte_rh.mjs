@@ -2,7 +2,7 @@
 import { chromium } from 'playwright';
 const BASE=process.env.BASE||'http://localhost:8765';
 const browser=await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH||undefined});
-const ctx=await browser.newContext({viewport:{width:430,height:900}});const page=await ctx.newPage();
+const ctx=await browser.newContext({viewport:{width:430,height:900}});await ctx.addInitScript(()=>{try{localStorage.setItem('trace:flotteAncien','1');}catch(e){}}); /* 10/11 nuit : ce test vise l'ancien écran Parc → Flotte (toujours là : « Ancien écran Flotte ») */const page=await ctx.newPage();
 const logs=[];page.on('pageerror',e=>logs.push('PAGEERROR: '+e.message.slice(0,300)));page.on('console',m=>{if(m.type()==='error'&&!/supabase|Failed to fetch|net::ERR|404|WebSocket/i.test(m.text()))logs.push(m.text().slice(0,200));});
 let promptAnswer='GT-648-SE';page.on('dialog',d=>d.accept(promptAnswer).catch(()=>{}));
 await page.route(u=>/open-meteo\.com$/.test(u.hostname),route=>{const url=route.request().url();const json=o=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(o)});

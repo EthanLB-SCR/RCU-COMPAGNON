@@ -41,7 +41,7 @@ export function fillCompteur(hs125,hs150,room){let r=room===null||room===undefin
         weekTotal(lundi) → heures pointées du lundi au samedi, upto (date incluse), back (semaines reconstituées sans solde de départ) }
    → {cpt:{on,plafond,depart,solde,from,cut,ev,weeks,...}, rep:{depart,solde,from,cut,ev,weeks,...}}
    ev = événements datés {d, t:'depart'|'entree'|'repos'|'pose'|'prime'|'replace', delta, bal} dans l'ordre ; une semaine est créditée à son dimanche, APRÈS les mouvements datés dans la semaine. */
-export function compteurTimeline(o){o=o||{};const upto=String(o.upto||iso(new Date())).slice(0,10);const C=+o.contrat>0?+o.contrat:CONTRAT_DEF;const back=+o.back||BACK_WEEKS;
+export function compteurTimeline(o){o=o||{};if(typeof o.semaine==='function'&&typeof o.lisser==='function')return timelineLissee(o);const upto=String(o.upto||iso(new Date())).slice(0,10);const C=+o.contrat>0?+o.contrat:CONTRAT_DEF;const back=+o.back||BACK_WEEKS;
   const clean=m=>m&&!m.deleted&&m.at&&isFinite(+m.h)&&+m.h>0;
   const mv=(o.mvts||[]).filter(clean).map(m=>Object.assign({},m,{at:String(m.at).slice(0,10),h:+m.h}));
   const repl={};mv.filter(m=>m.k==='report'&&m.type==='replace').forEach(m=>{const mon=mondayOf(m.at);repl[mon]=r2((repl[mon]||0)+m.h);});
@@ -73,6 +73,48 @@ export function compteurTimeline(o){o=o||{};const upto=String(o.upto||iso(new Da
   const rep={depart:rd,solde:rb,from:rFrom,cut:rCut,ev:rev,weeks:rweeks,ex:sum(rweeks,'ex'),entrees:sum(rweeks,'entree'),primes:r2(RM.filter(m=>m.type==='prime').reduce((t,m)=>t+m.h,0)),replaces:r2(RM.filter(m=>m.type==='replace').reduce((t,m)=>t+m.h,0)),mvts:RM,futurs,
     avant:(o.primes||[]).filter(clean).filter(m=>String(m.at).slice(0,10)<=rCut).concat(mv.filter(m=>m.k==='report'&&m.at<=rCut))};
   return {cpt,rep,repl,contrat:C,upto};}
+/* ── 10/11 nuit : LA MÊME FRISE, SEMAINES LISSÉES (règles d'Ethan, src/navette.js lisserSemaine) ──
+   o.semaine(lundi) → {jours, main} de la semaine ; o.lisser = lisserSemaine ; o.choix = [{at (fin de navette), choix:'reporter'|'prime'}] (choix de fin de mois).
+   Chaque semaine finie, dans l'ordre : mouvements datés (repos, posés, primes, replacées) → lissage avec les soldes du moment → compteur à reporter : − heures prises
+   pour compléter une semaine courte, − heures replacées (choix « reporter »), + heures au-delà du plafond majorées par rang → compteur d'heures : − heures prises pour
+   compléter, + heures sup rangées majorées jusqu'au plafond. Même forme de sortie que la frise d'avant (+ liss : {lundi → semaine lissée}). */
+function timelineLissee(o){const upto=String(o.upto||iso(new Date())).slice(0,10);const C=+o.contrat>0?+o.contrat:CONTRAT_DEF;const back=+o.back||BACK_WEEKS;
+  const clean=m=>m&&!m.deleted&&m.at&&isFinite(+m.h)&&+m.h>0;
+  const mv=(o.mvts||[]).filter(clean).map(m=>Object.assign({},m,{at:String(m.at).slice(0,10),h:+m.h}));
+  const repl={};mv.filter(m=>m.k==='report'&&m.type==='replace').forEach(m=>{const mon=mondayOf(m.at);repl[mon]=r2((repl[mon]||0)+m.h);});
+  const dep=x=>x&&x.at&&x.h!==null&&x.h!==undefined&&x.h!==''&&isFinite(+x.h)?{h:r2(+x.h),at:String(x.at).slice(0,10),mois:x.mois||ymOfNavEnd(x.at)}:null;
+  const startOf=d=>d?firstMondayFrom(addDay(d.at,1)):firstMondayFrom(addDay(upto,-7*back));
+  const sortM=L=>L.sort((a,b)=>a.at<b.at?-1:a.at>b.at?1:0);
+  const plafond=o.plafond===null||o.plafond===undefined||o.plafond===''||!isFinite(+o.plafond)||+o.plafond<=0?null:r2(+o.plafond);const on=!!o.on;
+  const cd=dep(o.depart);const cFrom=startOf(cd);const cCut=cd?cd.at:addDay(cFrom,-1);let bal=cd?cd.h:0;const cev=[{d:cCut,t:'depart',delta:0,bal}];
+  const CM=sortM(mv.filter(m=>m.k==='recup'&&(m.type==='repos'||m.type==='pose')&&m.at>cCut&&m.at<=upto));let i=0;
+  const applyC=lim=>{while(i<CM.length&&CM[i].at<=lim){const m=CM[i++];bal=r2(bal-m.h);cev.push({d:m.at,t:m.type,delta:-m.h,bal,m});}};
+  const rd=dep(o.departRep);const rFrom=startOf(rd);const rCut=rd?rd.at:addDay(rFrom,-1);let rb=rd?rd.h:0;const rev=[{d:rCut,t:'depart',delta:0,bal:rb}];
+  const RM=sortM((o.primes||[]).filter(clean).map(m=>({id:m.id,k:'report',type:'prime',at:String(m.at).slice(0,10),h:+m.h,note:m.note,by:m.by})).concat(mv.filter(m=>m.k==='report'&&(m.type==='replace'||m.type==='prime')).map(m=>m.type==='replace'?Object.assign({},m,{at:mondayOf(m.at)}):m)).filter(m=>m.at>rCut&&m.at<=upto));
+  let j=0;const applyR=lim=>{while(j<RM.length&&RM[j].at<=lim){const m=RM[j++];rb=r2(rb-m.h);rev.push({d:m.at,t:m.type,delta:-m.h,bal:rb,m});}};
+  const CH=(o.choix||[]).filter(x=>x&&x.at&&(x.choix==='reporter'||x.choix==='prime')).map(x=>({at:String(x.at).slice(0,10),choix:x.choix})).sort((a,b)=>a.at<b.at?-1:a.at>b.at?1:0);
+  const placerAt=mon=>{let st=false;CH.forEach(x=>{if(x.at<mon)st=x.choix==='reporter';});return st;}; /* « reporter » choisi à une fin de mois d'avant, pas de « prime » depuis */
+  const s0=addDay(upto,-7*back);let start=cFrom<rFrom?cFrom:rFrom;const s1=firstMondayFrom(s0);if(s1<start)start=s1; /* le lissage couvre au moins les 26 dernières semaines, même avant un solde de départ */
+  const cweeks=[],rweeks=[],LISS={};const autoC=[],autoR=[];
+  for(let mon=start,n=0;n<MAX_WEEKS&&addDay(mon,6)<=upto;n++,mon=addDay(mon,7)){const sun=addDay(mon,6);const cOn=mon>=cFrom,rOn=mon>=rFrom;
+    if(cOn)applyC(sun);if(rOn)applyR(sun);
+    const S=o.semaine(mon)||{};const L=o.lisser(Object.assign({},S,{mon,contrat:C,soldes:{report:rOn?Math.max(0,rb):null,recup:on&&cOn?Math.max(0,bal):null},repl:rOn?(repl[mon]||0):0,placer:rOn&&placerAt(mon)}));LISS[mon]=L;
+    if(rOn){const dR=r2(L.couvReport+L.deReport);if(dR){rb=r2(rb-dR);rev.push({d:sun,t:'comble',delta:-dR,bal:rb});autoR.push({k:'report',type:'comble',at:sun,h:dR,note:'semaine du '+mon.slice(8,10)+'/'+mon.slice(5,7)+' complétée (navette)'});}
+      if(L.place){rb=r2(rb-L.place);rev.push({d:sun,t:'place',delta:-L.place,bal:rb});autoR.push({k:'report',type:'place',at:sun,h:L.place,note:'choix « reporter » : semaine du '+mon.slice(8,10)+'/'+mon.slice(5,7)});}
+      if(L.versReportMaj){rb=r2(rb+L.versReportMaj);rev.push({d:sun,t:'entree',delta:L.versReportMaj,bal:rb});}
+      rweeks.push({mon,sun,T:L.reel,ex:L.versReport,entree:L.versReportMaj,comble:dR,place:L.place,bal:rb});}
+    if(cOn){const dC=on?r2(L.couvRecup+L.deRecup):0;if(dC){bal=r2(bal-dC);cev.push({d:sun,t:'comble',delta:-dC,bal});autoC.push({k:'recup',type:'comble',at:sun,h:dC,note:'semaine du '+mon.slice(8,10)+'/'+mon.slice(5,7)+' complétée (navette)'});}
+      const s=hsSplit(Math.min(L.total,HEBDO_MAX),C);const f=fillCompteur(s.hs125,s.hs150,on?(plafond===null?Infinity:plafond-bal):0);if(f.entree)bal=r2(bal+f.entree);
+      const w=Object.assign({mon,sun,pointe:L.reel,repl:r2(L.repl+L.deReport+L.place+L.deRecup),T:L.total},s,{report:L.versReport},f,{bal:on?bal:null,plein:on&&plafond!==null&&(f.pay125>0||f.pay150>0),etat:L.etat});cweeks.push(w);if(f.entree)cev.push({d:sun,t:'entree',delta:f.entree,bal,w});}}
+  applyC(upto);applyR(upto);
+  const sum=(L,k)=>r2(L.reduce((t,x)=>t+(+x[k]||0),0));
+  const cpt={on,plafond,depart:cd,solde:on?bal:null,from:cFrom,cut:cCut,ev:cev,weeks:cweeks,contrat:C,
+    entrees:sum(cweeks,'entree'),pris:r2(CM.filter(m=>m.at<=upto&&m.type==='repos').reduce((t,m)=>t+m.h,0)),poses:r2(CM.filter(m=>m.at<=upto&&m.type==='pose').reduce((t,m)=>t+m.h,0)),comble:r2(autoC.reduce((t,m)=>t+m.h,0)),
+    pay125:sum(cweeks,'pay125'),pay150:sum(cweeks,'pay150'),mvts:sortM(CM.concat(autoC)),avant:mv.filter(m=>m.k==='recup'&&m.at<=cCut)};
+  const futurs=mv.filter(m=>m.k==='report'&&m.type==='replace'&&mondayOf(m.at)>upto);
+  const rep={depart:rd,solde:rb,from:rFrom,cut:rCut,ev:rev,weeks:rweeks,ex:sum(rweeks,'ex'),entrees:sum(rweeks,'entree'),primes:r2(RM.filter(m=>m.type==='prime').reduce((t,m)=>t+m.h,0)),replaces:r2(RM.filter(m=>m.type==='replace').reduce((t,m)=>t+m.h,0)),
+    comble:sum(rweeks,'comble'),place:sum(rweeks,'place'),mvts:sortM(RM.concat(autoR)),futurs,avant:(o.primes||[]).filter(clean).filter(m=>String(m.at).slice(0,10)<=rCut).concat(mv.filter(m=>m.k==='report'&&m.at<=rCut))};
+  return {cpt,rep,repl,contrat:C,upto,liss:LISS,lisse:true};}
 /* solde juste après tous les événements datés ≤ d (null si d est avant le départ) */
 export function balAt(ev,d){if(!ev||!ev.length||d<ev[0].d)return null;let b=ev[0].bal;for(const e of ev){if(e.d<=d)b=e.bal;else break;}return b;}
 
@@ -81,10 +123,10 @@ export function moisCompteurs(TL,ym){const W=navWeeksOf(ym);if(!W.length||!TL)re
   const c=TL.cpt,r=TL.rep;const cw=c.weeks.filter(w=>inM(w.mon)),rw=r.weeks.filter(w=>inM(w.mon));const sum=(L,k)=>r2(L.reduce((t,x)=>t+(+x[k]||0),0));
   const cOk=veille>=c.cut,rOk=veille>=r.cut; /* le mois commence après le solde de départ : tout est connu */
   return {d0,d1,
-    cpt:{on:c.on,plafond:c.plafond,prev:c.on&&cOk?balAt(c.ev,veille):null,pris:r2(c.ev.filter(e=>(e.t==='repos'||e.t==='pose')&&inM(e.d)).reduce((t,e)=>t-e.delta,0)),
+    cpt:{on:c.on,plafond:c.plafond,prev:c.on&&cOk?balAt(c.ev,veille):null,pris:r2(c.ev.filter(e=>(e.t==='repos'||e.t==='pose'||e.t==='comble')&&inM(e.d)).reduce((t,e)=>t-e.delta,0)),comble:r2(c.ev.filter(e=>e.t==='comble'&&inM(e.d)).reduce((t,e)=>t-e.delta,0)),
       repos:r2(c.ev.filter(e=>e.t==='repos'&&inM(e.d)).reduce((t,e)=>t-e.delta,0)),poses:r2(c.ev.filter(e=>e.t==='pose'&&inM(e.d)).reduce((t,e)=>t-e.delta,0)),
       hs125:sum(cw,'hs125'),hs150:sum(cw,'hs150'),pay125:sum(cw,'pay125'),pay150:sum(cw,'pay150'),entrees:sum(cw,'entree'),fin:c.on&&cOk?balAt(c.ev,d1):null,known:cOk,reconstitue:!c.depart,plein:cw.some(w=>w.plein)},
-    rep:{prev:rOk?balAt(r.ev,veille):null,ex:sum(rw,'ex'),entrees:sum(rw,'entree'),primes:r2(r.ev.filter(e=>e.t==='prime'&&inM(e.d)).reduce((t,e)=>t-e.delta,0)),replaces:r2(r.ev.filter(e=>e.t==='replace'&&inM(e.d)).reduce((t,e)=>t-e.delta,0)),fin:rOk?balAt(r.ev,d1):null,known:rOk,reconstitue:!r.depart},
+    rep:{prev:rOk?balAt(r.ev,veille):null,ex:sum(rw,'ex'),entrees:sum(rw,'entree'),primes:r2(r.ev.filter(e=>e.t==='prime'&&inM(e.d)).reduce((t,e)=>t-e.delta,0)),replaces:r2(r.ev.filter(e=>(e.t==='replace'||e.t==='comble'||e.t==='place')&&inM(e.d)).reduce((t,e)=>t-e.delta,0)),comble:r2(r.ev.filter(e=>e.t==='comble'&&inM(e.d)).reduce((t,e)=>t-e.delta,0)),place:r2(r.ev.filter(e=>e.t==='place'&&inM(e.d)).reduce((t,e)=>t-e.delta,0)),fin:rOk?balAt(r.ev,d1):null,known:rOk,reconstitue:!r.depart},
     repl:Object.fromEntries(W.filter(m=>TL.repl[m]).map(m=>[m,TL.repl[m]]))};}
 
 /* ── import du compteur existant : tableau collé depuis Excel (ou classeur) → lignes reconnues / refusées ── */

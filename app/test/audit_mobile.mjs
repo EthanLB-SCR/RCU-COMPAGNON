@@ -110,7 +110,7 @@ async function closeAll(page){await inPage(page,()=>{const m=document.querySelec
 
 // ── un personnage, une largeur ────────────────────────────────────────────────────────────────────────────────────────────────────
 async function runOne(vp,who){
-  const ctx=await browser.newContext(VPDEF[vp]);const page=await ctx.newPage();const phone=vp<700;
+  const ctx=await browser.newContext(VPDEF[vp]);await ctx.addInitScript(()=>{try{localStorage.setItem('trace:flotteAncien','1');}catch(e){}}); /* 10/11 : ancien écran Flotte */const page=await ctx.newPage();const phone=vp<700;
   const errs=[];page.on('pageerror',e=>errs.push('PAGEERROR: '+e.message.slice(0,240)));page.on('console',m=>{if(m.type()==='error'&&!NOISE.test(m.text()))errs.push(m.text().slice(0,200));});
   page.on('dialog',d=>d.dismiss().catch(()=>{}));page.on('popup',p=>p.close().catch(()=>{}));page.on('download',d=>d.cancel().catch(()=>{}));page.on('filechooser',()=>{});
   await page.route(u=>/(^|\.)geopf\.fr$|^geo\.api\.gouv\.fr$|open-meteo\.com$|ign\.fr$|openstreetmap|tile/.test(u.hostname),r=>r.fulfill({status:200,contentType:'application/json',body:'{}'}));

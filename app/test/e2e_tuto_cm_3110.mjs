@@ -24,7 +24,7 @@ const BASE=process.env.BASE||'http://127.0.0.1:8845';const SHOTS=process.env.SHO
 const KEYS=['commerce','commerce:aff','flotte','flotte:x:veh','magasin','magasin:materiel'];
 const C={};const logs=[];const J=x=>JSON.stringify(x);const DOM=[];
 const browser=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_PATH||undefined});
-const ctx=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:2,hasTouch:true,isMobile:true});const page=await ctx.newPage();
+const ctx=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:2,hasTouch:true,isMobile:true});await ctx.addInitScript(()=>{try{localStorage.setItem('trace:flotteAncien','1');}catch(e){}}); /* 11/11 : parcours joué sur l'ancien écran Flotte (toujours là) */const page=await ctx.newPage();
 let DLG='AB-123-CD'; /* immatriculation FICTIVE demandée par « ➕ Véhicule » */
 page.on('pageerror',e=>logs.push('PAGEERROR: '+e.message.slice(0,300)));page.on('console',m=>{if(m.type()==='error'&&!/supabase|Failed to fetch|net::ERR|404|geopf|WebSocket/i.test(m.text()))logs.push(m.text().slice(0,200));});
 page.on('dialog',d=>d.accept(DLG).catch(()=>{}));
@@ -92,7 +92,7 @@ await tab('htCom');
 const mkAff=async(num,nom,etat)=>{await click('#eq-app [data-act=af][data-v="new|"]');await page.evaluate(([n,nom,etat])=>{document.getElementById('afn-num').value=n;document.getElementById('afn-nom').value=nom;document.getElementById('afn-client').value='CLIENT FICTIF';document.getElementById('afn-ville').value='Villefictive';document.getElementById('afn-etat').value=etat;},[num,nom,etat]);await click('#eq-app [data-act=af][data-v="create|"]');await click('#eq-app [data-act=af][data-v="back|"]');};
 await mkAff('O2611-01','Réseau fictif des Tilleuls','devis');await mkAff('O2611-02','Antenne fictive du Moulin','en_cours');
 await page.evaluate(d=>{window.TRACE.affaires.set('O2611-01',{dateReponse:d,montant:85000});window.TRACE.affaires.set('O2611-02',{montant:120000});},isoPlus(1));
-await tab('htParc');await click('#eq-app [data-act=fl][data-v="new|"]');
+await tab('htParc');await click('#eq-app [data-act=fl][data-v="new|"]');await page.evaluate(()=>{const a=document.getElementById('fl-ask');if(a){a.value='AB-123-CD';document.getElementById('fl-ask-ok').click();}});await wait(300); /* la création passe par une fenêtre (fl-ask), plus par prompt() */
 for(const [k,v] of [['marque','FICTIF'],['modele','FOURGON'],['type','Soudeur'],['km','120500'],['ctProchain',isoPlus(10)]]){await chg(`#eq-app [data-flf=${k}]`,v);await wait(120);}
 await click('#eq-app [data-act=x][data-v="veh|cfg|"]');const cfgWhere=await where();await snap();
 await page.setInputFiles('#eq-app input[data-xin="veh|packfile"]',{name:'pack_vehicules_fictif.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(PACK_VEH))});await wait(1500);

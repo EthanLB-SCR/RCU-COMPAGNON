@@ -11,8 +11,11 @@
 let A=null;
 export function initDossier(api){A=api;try{dxCss();}catch(e){}}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export const OBLIG=[['dt','DT / DICT','📍'],['ppsps','PPSPS','🦺'],['pgc','PGC','📘'],['exe','Plans d’exécution','📐'],['planning','Planning d’exécution','📅'],['qualif','Qualifications soudeurs / manchonneurs','🎖'],['habil','Habilitations / procédures','🪪'],['voirie','Autorisations de voirie / arrêtés','🚧']];
-export const OBLIG_KEYS=OBLIG.map(o=>o[0]);
+/* 11/11 nuit (Ethan) : le dossier OBLIGATOIRE = DT / DICT, PPSPS, autorisation de voirie, habilitations et procédures, plans d'exécution (5 pièces, le compteur).
+   PGC, qualifications, planning d'exé : plus obligatoires — gardés juste dessous en « pièces utiles » (même dépôt, mêmes versions), hors compteur. */
+export const OBLIG=[['dt','DT / DICT','📍'],['ppsps','PPSPS','🦺'],['voirie','Autorisations de voirie / arrêtés','🚧'],['habil','Habilitations / procédures','🪪'],['exe','Plans d’exécution','📐']];
+export const UTILES=[['pgc','PGC','📘'],['qualif','Qualifications soudeurs / manchonneurs','🎖'],['planning','Planning d’exécution','📅']];
+export const OBLIG_KEYS=OBLIG.concat(UTILES).map(o=>o[0]); /* les catégories rangées en tête du Dossier (pas dans « Autres documents ») */
 const VALID_CATS=['dt','qualif','habil','voirie']; // pièces qui ont d'habitude une date de fin de validité : on la propose juste après le dépôt
 export const SOON_DAYS=15;
 export const todayISO=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
@@ -53,19 +56,19 @@ export function dosHeadRefresh(net){try{const s=document.getElementById('shDoss'
 const ST_CLS={ok:'ok',soon:'warn',late:'bad',flag:'warn',miss:'bad',na:'na'},ST_MARK={ok:'✓',soon:'⚠',late:'⚠',flag:'⚠',miss:'✗',na:'—'},CHK={ok:'ok',soon:'warn',late:'bad',flag:'warn',miss:'bad',na:'off'};
 const hrefOf=d=>d?(d.url||d.data||''):'';
 const openAttrs=d=>`href="${esc(hrefOf(d))}" target="_blank" rel="noopener"${d&&!d.url&&d.data?' download="'+esc(d.name||'document')+'"':''}`;
-function stText(p,pxOn){const usePl=p.k==='exe'&&pxOn&&p.plN>0;
+function stText(p,pxOn){const usePl=p.k==='exe'&&pxOn&&p.plN>0;if(p.fac&&p.st==='miss')return 'facultative · pas déposée';
   const what=usePl?`${p.plN} planche${p.plN>1?'s':''} · dernier indice ${esc(p.plLast.i)}${p.plLast.date?' du '+dShort(p.plLast.date):''}`:p.last?`${esc(p.last.name||'document')} · ${dFR(p.last.at)}${p.last.by?' · '+esc(p.last.by):''}`:'';
   if(p.st==='na')return '— sans objet sur ce chantier';if(p.st==='miss')return '✗ manquante';
   if(p.st==='late')return `⚠ à mettre à jour — échéance dépassée le ${dIso(p.until)} · ${what}`;
   if(p.st==='soon')return `⚠ à mettre à jour avant le ${dIso(p.until)} <span class="nw">(${p.left?'J-'+p.left:'aujourd\'hui'})</span> · ${what}`;
   if(p.st==='flag')return `⚠ à mettre à jour (signalé${p.flag.by?' par '+esc(p.flag.by):''}${p.flag.at?' le '+dFR(p.flag.at):''}) · ${what}`;
   return `✓ présente · ${what}${p.until?' · valable jusqu’au '+dIso(p.until):''}`;}
-function rowHTML(p,ed,pxOn){const usePl=p.k==='exe'&&pxOn;const cls=ST_CLS[p.st];
+function rowHTML(p,ed,pxOn){const usePl=p.k==='exe'&&pxOn;const cls=p.fac&&p.st==='miss'?'na':ST_CLS[p.st];
   const tx=`<b>${esc(p.label)}</b><small>${stText(p,pxOn)}</small>`;
   const open=usePl&&p.plN?`<button type="button" class="tx dx-open" data-pxlist="1">${tx}</button>`:p.last&&hrefOf(p.last)?`<a class="tx dx-open" ${openAttrs(p.last)}>${tx}</a>`:`<span class="tx">${tx}</span>`;
-  const dep=ed&&['miss','late','flag','soon'].includes(p.st)?`<label class="btn ${p.st==='soon'?'':'primary'} dx-dep">📎 Déposer<input type="file" data-dxdep="${p.k}" accept="${usePl?'application/pdf,image/*':'application/pdf,image/*,.doc,.docx,.xls,.xlsx,.txt'}" multiple style="display:none"></label>`:'';
+  const dep=ed&&['miss','late','flag','soon'].includes(p.st)?`<label class="btn ${p.st==='soon'||p.fac?'':'primary'} dx-dep">📎 Déposer<input type="file" data-dxdep="${p.k}" accept="${usePl?'application/pdf,image/*':'application/pdf,image/*,.doc,.docx,.xls,.xlsx,.txt'}" multiple style="display:none"></label>`:'';
   const man=ed||(p.n>1&&!(usePl&&p.plN))?`<button type="button" class="btn dx-man" data-dxman="${p.k}" aria-label="${ed?'Gérer':'Versions de'} « ${esc(p.label)} »" title="${ed?'Gérer : versions, échéance, sans objet':'Versions déposées'}">${ed?'⋯':'🕘 '+p.n}</button>`:'';
-  return `<div class="ac-notif dx-p ${cls}" data-dxk="${p.k}"><span class="ic">${p.ic}</span>${open}<span class="dx-acts">${dep}${man}${ed?'':`<span class="ac-chk ${CHK[p.st]}" aria-hidden="true">${ST_MARK[p.st]}</span>`}</span></div>`;}
+  return `<div class="ac-notif dx-p ${cls}" data-dxk="${p.k}"><span class="ic">${p.ic}</span>${open}<span class="dx-acts">${dep}${man}${ed?'':`<span class="ac-chk ${p.fac&&p.st==='miss'?'off':CHK[p.st]}" aria-hidden="true">${p.fac&&p.st==='miss'?'—':ST_MARK[p.st]}</span>`}</span></div>`;}
 export function dosTopHTML(o){dxCss();const net=o.net;const ed=!!o.canEd;const pxOn=!!o.pxOn;const c=dosCount(net);const pc=c.tot?Math.round(100*c.ok/c.tot):0;const ad=admOf(net);const dr=ad.drive&&ad.drive.url&&driveOk(ad.drive.url)?ad.drive:null; /* revérifié à l'affichage : jamais de lien autre que http(s) */
   const sumCls=c.late.length?'bad':c.ok>=c.tot?'ok':'warn';
   const sub=c.miss.length?'manquent : '+c.miss.map(p=>esc(p.label)).join(', '):c.late.length?'à mettre à jour : '+c.late.map(p=>esc(p.label)).join(', '):c.soon.length?'échéance proche : '+c.soon.map(p=>esc(p.label)).join(', '):'✓ tout est là';
@@ -74,7 +77,9 @@ export function dosTopHTML(o){dxCss();const net=o.net;const ed=!!o.canEd;const p
     :`<div class="hint dx-drvNo">📁 Pas encore de Drive pour ce chantier — le chef ou le bureau peut ajouter le lien ici.</div>`;
   return `<div class="eq-app dx"><div class="card dx-top"><div class="dx-sum"><div class="dx-n ${sumCls}"><span><b>${c.ok}</b>/${c.tot}</span></div><div class="tx"><b>pièces obligatoires en règle</b><small>${sub}</small></div></div><div class="dx-bar"><i class="${sumCls}" style="width:${pc}%"></i></div><div class="dx-drive">${drive}</div></div>
     <div class="ac-h"><b>Pièces obligatoires</b><span>${ed?'⋯ versions, échéance':'toucher pour ouvrir'}</span></div>
-    <div class="dx-list">${c.P.map(p=>rowHTML(p,ed,pxOn)).join('')}</div></div>`;}
+    <div class="dx-list">${c.P.map(p=>rowHTML(p,ed,pxOn)).join('')}</div>
+    <div class="ac-h" style="margin-top:12px"><b>Pièces utiles</b><span>facultatives · hors compteur</span></div>
+    <div class="dx-list dx-utiles">${UTILES.map(o=>{const p=pieceOf(net,o);p.fac=true;return rowHTML(p,ed,pxOn);}).join('')}</div></div>`;}
 export function dosBind(el){if(!el||!A)return;
   el.querySelectorAll('[data-dxdep]').forEach(inp=>inp.onchange=async()=>{const k=inp.dataset.dxdep;const fs=[...(inp.files||[])];inp.value='';if(!fs.length)return;
     if(k==='exe'&&A.pxOn&&A.pxOn()&&A.pxImport){A.pxImport(fs);return;}
@@ -95,7 +100,7 @@ function driveEdit(){const ad=admW();if(!ad)return;const cur=ad.drive&&ad.drive.
    <div class="hint">Google Drive, SharePoint… : https:// seulement. Vide = retirer le lien.</div><div class="actions" style="margin-top:8px"><button class="btn primary block" id="dxm-drive-ok">Enregistrer</button><button class="btn block" data-close>Annuler</button></div>`);
   const ok=document.getElementById('dxm-drive-ok');if(ok)ok.onclick=()=>driveSave(document.getElementById('dxm-drive').value,()=>A.closeModal());}
 /* ── fiche d'une pièce : versions déposées (ouvrables), et pour qui a le droit : nouvelle version, échéance, « à mettre à jour », sans objet ── */
-function pieceOpen(k,o){o=o||{};const net=A.net();const def=OBLIG.find(x=>x[0]===k);if(!net||!def)return;const p=pieceOf(net,def);const ed=canEd();const pxOn=A.pxOn?A.pxOn():false;const H=p.docs.slice().reverse();
+function pieceOpen(k,o){o=o||{};const net=A.net();const def=OBLIG.concat(UTILES).find(x=>x[0]===k);const fac=UTILES.some(x=>x[0]===k);if(!net||!def)return;const p=pieceOf(net,def);const ed=canEd();const pxOn=A.pxOn?A.pxOn():false;const H=p.docs.slice().reverse();
   const usePl=k==='exe'&&pxOn;
   A.openModal(`<h3 style="margin-top:0">${p.ic} ${esc(p.label)}</h3>
    <div class="${p.st==='ok'?'okbox':p.st==='na'?'hint':'warnbox'}" style="margin-top:0">${stText(p,pxOn)}</div>
@@ -104,7 +109,7 @@ function pieceOpen(k,o){o=o||{};const net=A.net();const def=OBLIG.find(x=>x[0]==
    ${ed?`<div class="actions"><label class="btn ${p.st==='ok'||p.st==='na'?'':'primary'} block">📎 Déposer ${p.n?'une nouvelle version':'la pièce'}<input type="file" id="dxp-file" accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx,.txt" multiple style="display:none"></label></div>`:''}
    ${ed&&p.last?`<label class="f" for="dxp-until" style="margin-top:8px">Valable jusqu’au <span class="dim">(échéance de « ${esc(p.last.name||'')} », facultatif)</span></label><div class="dx-drvR"><input class="f" id="dxp-until" type="date" value="${esc(p.last.until||'')}"><button type="button" class="btn" id="dxp-until-ok">Enregistrer</button></div>`:''}
    ${ed&&p.n&&p.st!=='na'?(p.flag?`<button type="button" class="btn block" id="dxp-unflag" style="margin-top:8px">✓ C’est à jour (retirer « à mettre à jour »)</button>`:`<button type="button" class="btn block" id="dxp-flag" style="margin-top:8px">⚠ Signaler « à mettre à jour »</button>`):''}
-   ${ed?`<label class="tgl dx-na"><input type="checkbox" id="dxp-na" ${p.na?'checked':''}> Pas obligatoire sur ce chantier (sans objet)</label>`:''}
+   ${ed&&!fac?`<label class="tgl dx-na"><input type="checkbox" id="dxp-na" ${p.na?'checked':''}> Pas obligatoire sur ce chantier (sans objet)</label>`:''}
    <b style="display:block;margin-top:10px;font-size:12.5px">Versions déposées (${H.length})</b>
    ${H.length?`<table class="rc dx-vers">${H.map((d,i)=>`<tr><td><a ${openAttrs(d)} style="color:#1c3d6b;font-weight:600">${esc(d.name||'document')}</a>${i===0?' <span class="dx-cur">en cours</span>':''}${d.note?`<div class="dim" style="font-size:11px">${esc(d.note)}</div>`:''}${d.until?`<div class="dim" style="font-size:11px">valable jusqu’au ${dIso(d.until)}</div>`:''}${d.data?' <span class="dim" style="font-size:10px">(gardé dans l’appli)</span>':''}</td><td class="dim">${esc(d.by||'')} · ${dFR(d.at)}</td><td>${ed?`<button type="button" class="dx-del" data-dxdel="${esc(d.id)}" aria-label="Retirer ${esc(d.name||'')}">✕</button>`:''}</td></tr>`).join('')}</table>`:'<div class="hint">rien de déposé pour l’instant</div>'}
    <div class="actions" style="margin-top:8px"><button class="btn block" data-close>Fermer</button></div>`);

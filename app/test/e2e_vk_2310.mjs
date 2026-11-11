@@ -68,7 +68,7 @@ function regleSet(U,k,id,patch,mode){const mgr=isMgr(U);const me=U.email;const o
   if(k==='docsig'&&!(mgr||String(id.split('|')[1]||'').toLowerCase()===me))return 'signature réservée à la personne elle-même';
   return null;}
 const regleRead=(U,r)=>{if(r.kind!=='vrec'||isMgr(U))return true;const d=r.data||{};const me=U.email;if(String(d.conducteurKey||'').toLowerCase()===me)return true;return 'lache' in d&&['',me].includes(String((d.a||{}).key||'').toLowerCase());};
-async function mkCtx(U){const ctx=await browser.newContext({viewport:U.pc?{width:1366,height:900}:{width:390,height:844}});
+async function mkCtx(U){const ctx=await browser.newContext({viewport:U.pc?{width:1366,height:900}:{width:390,height:844}});await ctx.addInitScript(()=>{try{localStorage.setItem('trace:flotteAncien','1');}catch(e){}}); /* 10/11 nuit : ce test vise l'ancien écran Parc → Flotte (toujours là : « Ancien écran Flotte ») */
   await ctx.route(u=>u.href.startsWith(SB),async route=>{const req=route.request();const u=new URL(req.url());const p=u.pathname;const acc=req.headers()['accept']||'';const direct=req.headers()['x-test-direct']==='1';
     if(OFFLINE)return route.abort('internetdisconnected');
     const json=(o,status=200)=>route.fulfill({status,contentType:'application/json',headers:CORS,body:JSON.stringify(o)});

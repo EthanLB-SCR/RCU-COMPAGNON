@@ -27,7 +27,7 @@ export const FEATURES=[
  ['points','Points de contrôle','chantier','labo','onglet Points de contrôle : vannes, purges, vidanges, sous-stations, raccordements — état et photos datées'],
  ['conv','Conversation','chantier','socle','onglet Conversation : messages, notes sur le plan, tâches'],
  ['qse','QSE du chantier','chantier','socle','onglet QSE : quarts d\'heure, accueils, émargements'],
- ['dossier','Dossier du chantier','chantier','socle','onglet Dossier : pièces obligatoires (DICT, PPSPS, PGC…), lien vers le Drive du chantier'],
+ ['dossier','Dossier du chantier','chantier','socle','onglet Dossier : pièces obligatoires (DT / DICT, PPSPS, voirie, habilitations, plans d’exé), lien vers le Drive du chantier'],
  ['export','DOE et exports','chantier','socle','onglet DOE et exports : carnet de soudage, plan, maquette, lien du plan interactif, zip DOE'],
  ['mutu','Chantier partagé par affaire','chantier','labo','rattacher une seconde affaire à un chantier, dossiers séparés par affaire'],
  ['planning','Planning des équipes','pilotage','socle','Pilotage → Planning de la semaine, Ma semaine'],

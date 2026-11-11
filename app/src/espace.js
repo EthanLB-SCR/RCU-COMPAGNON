@@ -19,10 +19,10 @@ import {flotteView,flotteAct,flotteInput,vehAll,vehAlertes,vehDe,monVehiculeHTML
 import {cmdView,cmdAct,cmdInput,dbListHTML,dbTodo,dbDe,cmdAll,dbAll,cmdState} from './commandes.js'; // bons de commande & débours (nuit 09→10/10)
 import {GD_CAS,GD_RAPPELS,GD_CYCLE,gdCase,gdSemaine,gdDetenteIdx,kmRoute,minutesRoute,anciennete,isFerie,GD_RETDAY,gdJours as gdJoursRH} from './rh.js'; // grands déplacements, ancienneté
 import {distLL} from './geo.js';
-import {buildNavette,navetteSheet,NAV_STYLES,navWeeks,inIDF,addDay as navAddDay,CPT_H,reportBalance,HEBDO_MAX} from './navette.js'; // 13/10 : navette de paie au format SCR (feuille d'heures récapitulative mensuelle)
+import {buildNavette,navetteSheet,NAV_STYLES,navWeeks,inIDF,addDay as navAddDay,CPT_H,reportBalance,HEBDO_MAX,lisserSemaine,ETAT_LISSE} from './navette.js'; // 13/10 : navette de paie au format SCR (feuille d'heures récapitulative mensuelle)
 import {makeStyledXlsx,makeXlsx,openXlsx} from './xlsx.js';
 import {compteurTimeline,moisCompteurs,parseSoldes,splitPaste,navEnd,ymOfNavEnd,snapSolde,mondayOf as cptMonday,IMPORT_COLS as CPT_IMPORT_COLS,K125,K150,KREP} from './compteurs.js'; // 13/10 (f) : compteur d'heures majoré + plafond, à reporter ×1,5, import des soldes
-import {regAll,regSet,regLoad,regGet,regReload} from './reg.js'; // 12/10 : personnes provisoires créées depuis le planning (registre « prov »), agenda de l'encadrant (« agenda »)
+import {regAll,regSet,regLoad,regGet,regReload,regDelete} from './reg.js'; // 12/10 : personnes provisoires créées depuis le planning (registre « prov »), agenda de l'encadrant (« agenda »)
 import {ptseqDash} from './ptseq.js'; // 20/10 (lot PA) : checklist du Bureau — points de contrôle (vannes sans état, points sans photo)
 import {dossierDash} from './dossier.js'; // 31/10 (lot DX) : checklist du Bureau — Dossier = pièces obligatoires (« 5 / 8 »)
 import {magPersBadge,magMineHTML,magHubRow,magPersCard} from './magasin2.js'; // 19/10 (lot MG) : pastilles « 📦 commandes au dépôt » dans le planning (cartes de personnes, Ta semaine), compteur du hub du chef, fiche de personne
@@ -64,7 +64,9 @@ const EXTS=()=>EXT.filter(m=>!m.feat||featOn(m.feat)); /* modules branchés, hor
         act(v,el,me,ctx) (data-act="x" data-v="<id>|…"), input(champ,el,me,ctx,type) (data-xin="<id>|<champ>") } */
 const EXT=[];
 export function espaceExt(m){if(m&&m.id&&!EXT.some(x=>x.id===m.id)){EXT.push(m);if(m.kinds&&A)regLoad(m.kinds).catch(()=>{});}}
-const extCtx=me=>({me,render:()=>render(),toast:t=>A.toast&&A.toast(t),ext:id=>EXTS().find(m=>m.id===id)||null, /* 10/11 soir : un module peut en appeler un autre (compte chantier → Affaire) */can:p=>can(me,p),viewing:()=>viewing(),people:(DATA&&DATA.personnes)||[],sites:((DATA&&DATA.chantiers)||[]).filter(c=>!c.bureau&&!c.etude).map(c=>({id:c.id,name:c.nom})),go:k=>goX(k),sub:k=>goSub(k),api:A,personKey,nomC,...m3dCtx()});
+const extCtx=me=>({me,render:()=>render(),toast:t=>A.toast&&A.toast(t),ext:id=>EXTS().find(m=>m.id===id)||null, /* 10/11 soir : un module peut en appeler un autre (compte chantier → Affaire) */can:p=>can(me,p),viewing:()=>viewing(),people:(DATA&&DATA.personnes)||[],sites:((DATA&&DATA.chantiers)||[]).filter(c=>!c.bureau&&!c.etude).map(c=>({id:c.id,name:c.nom})),go:k=>goX(k),sub:k=>goSub(k),api:A,personKey,nomC,...m3dCtx(),
+  act:(a,v)=>{const f=ACT[a];if(!f)return false;if(!DATA)DATA=buildData();f(v,null);return true;}, /* 10/11 nuit (Tracé Flotte) : un module déclenche une action existante de l'appli (assistants de véhicule, fiche…) depuis une fenêtre */
+  flotteAncien:()=>flotteView(flCtx(me))});
 const extSubs=me=>EXTS().flatMap(m=>{try{return (m.moiSubs&&m.moiSubs(me,extCtx(me)))||[];}catch(e){console.warn(e);return [];}});
 /* 07/11 nuit (Monde 3D, Labo — src/monde.js) : ce dont les scènes 3D ont besoin (lecture seule, sauf le bureau personnalisé et l'attente d'une affaire) */
 function m3dCtx(){return {chantiers:(DATA&&DATA.chantiers)||[],planDe:(id,d)=>{try{return DATA?planDe(id,d):[];}catch(e){return [];}},today:()=>DATA?DATA.today:todayIso(),secteurDe:p=>{try{return secteurDe(p);}catch(e){return '';}},mySecteur:p=>{try{return mySecteur(p);}catch(e){return '';}},SECTEURS,
@@ -114,7 +116,7 @@ function savePointage(row){const i=POINTAGES.findIndex(x=>x.p===row.p&&x.d===row
 let loadP=null,loadAgain=false;
 export function espaceLoad(){if(loadP){loadAgain=true;return loadP;}loadP=espaceLoad_().catch(e=>console.warn(e)).finally(()=>{loadP=null;if(loadAgain){loadAgain=false;espaceLoad();}});return loadP;}
 async function espaceLoad_(){
-  regLoad(['prov','agenda','gdx','accident','cpth']).catch(()=>{}); /* 12/10 : personnes provisoires, agenda de l'encadrant — en parallèle, l'accueil se redessine à l'arrivée (onReg) */
+  regLoad(['prov','agenda','gdx','accident','cpth','rhabs','navliss','navchoix']).catch(()=>{}); /* 10/11 nuit : + absences (lissage), semaines réglées à la main, choix de fin de mois */ /* 12/10 : personnes provisoires, agenda de l'encadrant — en parallèle, l'accueil se redessine à l'arrivée (onReg) */
   try{const c=await A.kv.get('trace:people');if(c&&typeof c==='object')PEOPLE=c;}catch(e){}
   try{const c=await A.kv.get('trace:accountsCache');if(Array.isArray(c)&&c.length&&!ACC_CACHE)ACC_CACHE=c;}catch(e){}
   try{const c=await A.kv.get('trace:pointages');if(Array.isArray(c))POINTAGES=c;}catch(e){}
@@ -412,9 +414,10 @@ const ptDe=(id,d)=>DATA.pointages.find(x=>x.p===id&&x.d===d);
 const ptId=x=>x.p+'|'+x.d;
 const ptParId=id=>{const [p,d]=id.split('|');return ptDe(p,d)};
 function calc(x){
-  let w=0,pa=0,it=0,st=null,t0=0,fin=null,debut=null;const seg=[];
+  let w=0,pa=0,it=0,st=null,t0=0,fin=null,debut=null,rt=0;const seg=[];
   const add=t=>{if(st){const d=t-t0;if(st==='w')w+=d;else if(st==='p')pa+=d;else it+=d;if(d>0)seg.push({k:st,a:t0,b:t})}};
   for(const e of x.events){
+    if(e.t==='route'){if(!e.non)rt+=Math.max(0,+e.min||0);continue;} /* 10/11 nuit : trajet inter-chantier ENTRE DEUX JOURNÉES (déclaré le soir ou le lendemain matin) — payé à part, jamais majoré, hors journée */
     const t=hm(e.at);add(t);t0=t;
     if(e.t==='start'){st='w';debut=e.at}
     else if(e.t==='resume'||e.t==='arrive')st='w';
@@ -424,7 +427,7 @@ function calc(x){
   }
   const enCours=!fin&&x.d===DATA.today,manque=!fin&&x.d<DATA.today;
   if(enCours)add(hm(DATA.now));
-  return {w,pa,it,total:w+it,fin,debut,enCours,manque,etat:st,seg};
+  return {w,pa,it,rt,total:w+it,fin,debut,enCours,manque,etat:st,seg};
 }
 function statutPt(x){
   const c=calc(x);
@@ -455,7 +458,7 @@ function totSemaine(id,k,js){ // js : liste de jours précise (mois), sinon la s
     if(x.status==='valide')t.val++;else if(x.status==='corrige')t.corr++;else if(!c.enCours)t.att++}});
   return t;
 }
-const EVT={start:'début',pause:'pause',resume:'reprise',leave:'départ inter-chantier',arrive:'arrivée',end:'fin'};
+const EVT={start:'début',pause:'pause',resume:'reprise',leave:'départ inter-chantier',arrive:'arrivée',end:'fin',route:'trajet inter-chantier'};
 
 /* ════════════════════════════════════════════════════════════════════
    4 bis. AVATARS SCR : branchement du kit (profil stocké, contexte calculé)
@@ -534,7 +537,7 @@ function htmlAlerte(a){ // une ligne d'échéance avec le nom de la personne
   return `<button class="eq-row" data-act="fiche" data-v="${a.p.id}">${avatar(a.p)}<span class="eq-grow"><span class="eq-t">${esc(nomC(a.p))}</span><span class="eq-s">${esc(DATA.habTypes[a.type].label)}${a.h&&a.h.fin?' · '+fDate(a.h.fin):''}</span></span>${etat(HK[a.etat],reste(a))}</button>`;
 }
 function detailPt(x,c){
-  const ev=x.events.map(e=>fHeure(e.at)+' '+EVT[e.t]+(e.pos?' 📍':'')).join(' · ');
+  const ev=x.events.map(e=>e.t==='route'?'🚐 '+(e.non?'pas de trajet inter-chantier (déclaré)':'trajet inter-chantier '+fMin(+e.min||0)+(e.quand==='soir'?' (le soir)':e.quand==='matin'?' (le matin)':'')+(e.de&&e.vers?' · '+site(e.de).nom+' → '+site(e.vers).nom:'')):fHeure(e.at)+' '+EVT[e.t]+(e.pos?' 📍':'')).join(' · '); /* 10/11 nuit : trajet entre deux journées */
   const v=x.val.map(v=>nomC(pers(v.by))).join(', ');
   return `<div class="eq-detail"><div>${esc(ev)}</div><div>${esc(resumePt(c))}</div>
     ${piEtapes(x,piX())}${x.corr||v||(x.events||[]).some(e=>e.late)?piTrace(x,piX()):'' /* 31/10 (lot PI) : étapes + qui a validé / corrigé quoi (corrections successives, journée saisie, fin indiquée après coup) */}
@@ -619,8 +622,9 @@ function cPointer(me,lien){ // carte POINTAGE (refonte ②, maquette validée) :
   else if(c.etat==='p'){cls='pt-pause';const base=hm(DATA.now)-hm(der.at);big='En pause · '+live(0,1);sub='pause du midi depuis '+fHeure(der.at)+' · travaillé '+fDuree(c.total)+' depuis '+fHeure(c.debut)+' — la pause ne compte pas dans les heures';b=B('resume','▶ Reprise après la pause',1)+B('end','■ Fin de journée')}
   else if(c.etat==='i'){cls='pt-inter';big='En route · '+live(c.total-(hm(DATA.now)-hm(der.at)),1);sub='parti vers un autre chantier à '+fHeure(der.at)+' · le trajet compte dans les heures';b=B('arrive','📍 Arrivée sur le chantier',1)}
   else{cls='pt-on';big='Au travail · '+live(c.total-(hm(DATA.now)-hm(der.at)),1);sub='depuis '+fHeure(c.debut)+(c.pa?' · '+fDuree(c.pa)+' de pause':'')+(ch?' · '+esc(ch.nom):'');b=B('pause','<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" style="vertical-align:-1px"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg> Pause midi')+B('end','■ Fin de journée',1)+(ids.length>1?B('leave','🚐 Départ inter-chantier'):'')}
+  const rq=x&&!x.val.length&&!x.corr&&c.etat!=='p'&&c.etat!=='i'?routeQuestion(me,x,c):null;const rd=x?routeDe(x):null; /* 10/11 nuit : trajet inter-chantier entre deux journées */
   return `<section class="card ptc ${cls}"><div class="ptl"><span class="ptdot"></span><span class="ac-kick">Pointage${ch&&x&&!c.fin?' · '+esc(ch.ville||ch.nom):''}</span></div><div class="ptbig">${big}</div><div class="eq-s">${sub}</div>
-    <div class="eq-acts" style="margin:10px 0 6px">${b}</div>
+    <div class="eq-acts" style="margin:10px 0 6px">${b}</div>${rq?routeQuestionHTML(rq):''}${rd?`<div class="eq-s pt-route-ok">🚐 ${rd.non?'Pas de trajet inter-chantier (déclaré)':'Trajet inter-chantier déclaré : '+fMin(rd.min)+(rd.vers?' vers '+esc(site(rd.vers).nom):'')}${!x.val.length&&!x.corr?` <button class="btn sm ghost" data-act="ptrouteno">↺ modifier</button>`:''}</div>`:''}
     <div class="hint">Semaine en cours : ${fDuree(t.total)} sur ${t.n} jour${t.n>1?'s':''}${ids.length>1&&x&&!c.fin?' · 2 chantiers aujourd\'hui : « Départ inter-chantier » puis « Arrivée »':''}</div>
     ${lien?`<button class="btn eq-full" data-act="go" data-v="mesheures">Voir tes heures</button>`:''}</section>`;
 }
@@ -832,7 +836,7 @@ function htmlVRow(x,titre,sous,ouvre){
     ${(()=>{const ms=missionsOf(netOf(x.site),x.d).filter(m=>espaceMissionFor(m,x.p,x.site,x.d));return ms.length?`<span class="eq-s">Objectif du jour : <b style="font-weight:600;color:var(--ink)">${esc(missionsTxt(ms))}</b> — ${esc(ms.map(m=>m.label).join(' · ')).slice(0,90)}${ms.every(m=>m.done)?' ✓':''}</span>`:'';})()}
     ${prod?`<span class="eq-s">Production du jour : <b style="font-weight:600;color:var(--ink)">${esc(prod)}</b></span>`:['soudeur','manchonneur'].includes(p.poste)&&c.fin&&(netOf(x.site)||{})._lines /* 31/10 (lot PI) : seulement si les fiches du chantier sont sur l'appareil (sinon fausse alerte) */?`<span class="eq-s" style="color:#9b2c22">⚠ aucune fiche de soudure ce jour-là — vérifie avant de valider</span>`:''}<span class="eq-s" style="margin-top:3px">${att&&!c.manque?etat('off','Attend le chef de chantier'):etat(st.k,st.mot)}</span></span></div>
     ${peut&&S.corr!==id?`<div class="eq-acts">${c.manque?'':`<button class="btn primary" data-act="valider" data-v="${id}">✅ Valider</button>`}<button class="btn${c.manque?' primary':''}" data-act="corr" data-v="${id}">✏️ Corriger</button></div>`:revoir&&S.corr!==id?`<div class="eq-acts"><button class="btn sm ghost" data-act="corr" data-v="${id}">↺ Revoir</button></div>`:''}
-    ${S.corr===id?formCorr(x):''}</div>`;
+    ${S.corr===id?formCorr(x):''}${(()=>{const ij=can(moi,'pointage.validate')&&!c.enCours?interJour(x):null;return ij?routeQuestionHTML({quand:'matin',de:ij.de,vers:ij.vers,k:ij.km===null?null:{km:ij.km,min:ij.min}},id).replace('Tu viens de','Venu de').replace(' ce matin ?',' ?'):'';})() /* 10/11 nuit : le chef déclare le trajet (ou « pas de trajet ») */}</div>`;
 }
 function cValidation(me){
   const X=piX(),pts=DATA.pointages.filter(x=>ptMine(x,me)),pend=pts.filter(x=>aValider(x,me)),ids=new Set(pts.map(x=>x.p)); /* 31/10 (lot PI) : l'équipe de la semaine de chaque pointage */
@@ -887,6 +891,26 @@ function saisieJour(id,o){const [pid,d]=String(id).split('|');const me=pers(S.me
   const ev=[{t:'start',at:d+'T'+o.h0}];if(o.pd>0&&o.p0){const r=addMinHM(o.p0,o.pd);if(o.p0<=o.h0||r>=o.h1){msg('La pause doit être entre le début et la fin');return;}ev.push({t:'pause',at:d+'T'+o.p0},{t:'resume',at:d+'T'+r});}ev.push({t:'end',at:d+'T'+o.h1});
   const at=DATA.today+'T'+DATA.now,v={by:me.id,at};if(A.via&&A.via())v.via=A.via();
   savePointage({p:pid,d,site:planDe(pid,d)[0]||null,status:'corrige',events:ev,val:[v],corr:{t:'saisie',heure:o.h0+' → '+o.h1,motif:o.motif||'Oubli de pointage',by:me.id,at}});S.piSaisie=null;render();msg('✓ Journée de '+p.prenom+' saisie ('+fJour(d)+') et validée');}
+/* ── 10/11 nuit (Ethan) : TRAJET INTER-CHANTIER ENTRE DEUX JOURNÉES — « ça compte dans ses heures payées mais c'est pointé à part, jamais majoré ; on le déclare en fin de
+   journée ou le lendemain matin ; si rien n'est déclaré mais que le chantier a changé et qu'il y a plus de 20 km, ça doit ressortir dans les points à corriger ».
+   Le trajet est un événement {t:'route', min, de, vers, quand:'soir'|'matin', non?} du pointage du jour où il est déclaré (le serveur garde les événements tels quels). ── */
+const ROUTE_MIN=[30,45,60,75,90,120,150,180];const fMin=m=>(m=Math.round(+m||0))<60?m+' min':Math.floor(m/60)+' h'+(m%60?' '+pad(m%60):'');
+const llSite=id=>{const c=site(id);if(!c)return null;const ll=c.ll||(c.ville?GEOCODE[String(c.ville).trim().toLowerCase()]:null);return ll&&isFinite(+ll[0])&&isFinite(+ll[1])?ll:null;};
+function kmEntre(a,b){const A=llSite(a),B=llSite(b);if(!A||!B){[a,b].forEach(id=>{const c=site(id);if(c&&!c.ll&&c.ville&&GEOCODE[String(c.ville).trim().toLowerCase()]===undefined)gdEnsure([c.ville]);});return null;}const v=distLL(+A[0],+A[1],+B[0],+B[1])/1000;return {km:kmRoute(v),min:minutesRoute(v)};}
+/* chantier où la personne a fini sa journée (un départ inter-chantier dans la journée = le chantier planifié suivant) */
+function finSite(y){if(!y)return null;const ids=planDe(y.p,y.d);const n=(y.events||[]).filter(e=>e.t==='leave').length;return n&&ids.length?ids[Math.min(n,ids.length-1)]:(y.site||ids[0]||null);}
+const routeDe=x=>x?(x.events||[]).find(e=>e.t==='route')||null:null;
+const jourOuvreAvant=d=>{const w=D(d).getDay();return w>=2&&w<=5?gdAddD(d,-1):null;}; /* du mardi au vendredi : la veille (on rentre chez soi le week-end) */
+/* le pointage x du jour d : chantier changé depuis la veille sans trajet déclaré (ni la veille au soir, ni ce matin) → {de, vers, km|null} */
+function interJour(x){if(!x||!x.site)return null;const dv=jourOuvreAvant(x.d);if(!dv)return null;const y=ptIdx(x.p,dv);if(!y)return null;const A=finSite(y),B=x.site;if(!A||!B||A===B)return null;
+  if(routeDe(y)||routeDe(x))return null;const k=kmEntre(A,B);if(k&&k.km<=20)return null;return {de:A,vers:B,km:k?k.km:null,min:k?k.min:null};}
+/* le gars, sur sa carte de pointage : la question du trajet (le matin après « Commencer », le soir après « Fin de journée ») */
+function routeQuestion(me,x,c){if(!x)return null;
+  if(c.fin){const dn=gdAddD(x.d,1);const w=D(dn).getDay();if(w<2||w>5||isFerie(dn))return null;const B=planDe(me.id,dn)[0];const A=finSite(x);if(!A||!B||A===B||routeDe(x))return null;const k=kmEntre(A,B);return {quand:'soir',de:A,vers:B,k};}
+  const dv=jourOuvreAvant(x.d);if(!dv)return null;const y=ptIdx(me.id,dv);if(!y||routeDe(y)||routeDe(x))return null;const A=finSite(y),B=x.site;if(!A||!B||A===B)return null;const k=kmEntre(A,B);return {quand:'matin',de:A,vers:B,k};}
+function routeQuestionHTML(q,ptid){if(!q)return '';const est=q.k&&q.k.min?ROUTE_MIN.reduce((b,m)=>Math.abs(m-q.k.min)<Math.abs(b-q.k.min)?m:b,ROUTE_MIN[0]):null;
+  return `<div class="pt-route"><div class="eq-s"><b>🚐 ${q.quand==='soir'?'Demain sur '+esc(site(q.vers).nom):'Tu viens de '+esc(site(q.de).nom)}</b>${q.k?' · ~'+q.k.km+' km':''} — trajet inter-chantier ${q.quand==='soir'?'ce soir ou demain matin':'ce matin'} ? Il est payé à part (100 %).</div>
+    <div class="eq-acts pt-route-acts">${ROUTE_MIN.map(m=>`<button class="btn sm${m===est?' primary':''}" data-act="${ptid?'ptroutechef':'ptroute'}" data-v="${ptid?esc(ptid)+'|':''}${m}|${q.quand}|${esc(q.de)}|${esc(q.vers)}">${fMin(m)}</button>`).join('')}<button class="btn sm ghost" data-act="${ptid?'ptroutechef':'ptroute'}" data-v="${ptid?esc(ptid)+'|':''}non|${q.quand}|${esc(q.de)}|${esc(q.vers)}">Pas de trajet${q.quand==='soir'?' (je rentre chez moi)':''}</button></div></div>`;}
 /* production PAR CHANTIER (même lecture que prodFromNets : fiches de soudure des chantiers ouverts sur l'appareil, nom signé = nom du compte) ; ml = moitié de chaque élément
    de part et d'autre d'une soudure faite (le plan doit avoir les longueurs) — {chantier:{personne:{jour:{soudures,retractions,fils,ml}}}} */
 function prodParSite(){if(DATA&&DATA._pps)return DATA._pps;const out={};const nets=netsLocal();
@@ -901,7 +925,7 @@ function plCopyPrev(wk,keys){const k=S.plWeek||0;const js=semaineDe(k),jp=semain
     if(Object.keys(nv).length){Object.keys(o).filter(x=>x.startsWith('eq:')).forEach(x=>{nv[x]=o[x];});patch[id]=Object.assign({},cur[id]||{},nv);n++;}});
   if(n)savePlanning(wk,patch);return {n,fer:js.filter((dd,i)=>isFerie(dd)&&keys.some(id=>{const o=prev[id];return o&&o[jp[i]]&&o[jp[i]].length;}))};}
 const demOK=me=>featOn('planning')&&featOn('planning_simple')&&me.poste!=='conducteur'&&['terrain','interim','chef'].includes(kindOf(me)); /* « Demain » : ceux qu'on place (pas le conducteur) */
-const piX=()=>({DATA,S,A,featOn,can,viewing,viewOnly,msg,render,pers,site,nomC,poste,fJour,fDate,fJourLong,fHeure,fDuree,numSemaine,semaineDe,weekKey,planDe,teamOf,isFerie,secteurDe,mySecteur,SECTEURS,plGens,savePlanning,savePeoplePart,ensureWeeks,weekNav,objScope,prodParSite,ptDe,calc,missionsOf,netOf,ficheDe,avecMoi,cptRow,objOnPlan,EVT,D,addDays:gdAddD,estChef,valFinal,valChefOnly,sansChef,aff:wk=>(PLANNING[wk]||{}).aff||{},copyPrev:plCopyPrev,finHabituelle,horairesDe,finManquante,saisieJour,plNewHTML:m=>plNewHTML(m),plFicheHTML,meteoDe,METEO,plPosteOk,plRules:()=>PL_RULES,firstAccess:id=>{const p=pers(id);if(A.firstAccess)A.firstAccess((p&&p.email)||id);},magBadge:id=>featOn('magasin')?magPersBadge(id):''}); /* 01/11 soir : planning unique — nouvelle personne, fiche du chantier, météo, filtre métier, règle « non placé » */
+const piX=()=>({DATA,S,A,featOn,can,viewing,viewOnly,msg,render,pers,site,nomC,poste,interJour,fJour,fDate,fJourLong,fHeure,fDuree,numSemaine,semaineDe,weekKey,planDe,teamOf,isFerie,secteurDe,mySecteur,SECTEURS,plGens,savePlanning,savePeoplePart,ensureWeeks,weekNav,objScope,prodParSite,ptDe,calc,missionsOf,netOf,ficheDe,avecMoi,cptRow,objOnPlan,EVT,D,addDays:gdAddD,estChef,valFinal,valChefOnly,sansChef,aff:wk=>(PLANNING[wk]||{}).aff||{},copyPrev:plCopyPrev,finHabituelle,horairesDe,finManquante,saisieJour,plNewHTML:m=>plNewHTML(m),plFicheHTML,meteoDe,METEO,plPosteOk,plRules:()=>PL_RULES,firstAccess:id=>{const p=pers(id);if(A.firstAccess)A.firstAccess((p&&p.email)||id);},magBadge:id=>featOn('magasin')?magPersBadge(id):''}); /* 01/11 soir : planning unique — nouvelle personne, fiche du chantier, météo, filtre métier, règle « non placé » */
 
 /* ── Habilitations : les miennes, tableau d'équipe ── */
 function cMesHabs(p,titre){ /* 14/10 nuit : Moi → « Mon passeport prévention » — à jour / à renouveler sous 90 j / expiré / manquant pour mon poste */
@@ -1843,8 +1867,26 @@ const cptList=c=>CPT_H.map(x=>Object.assign({},x)).concat(Object.keys(c.labels).
 const ptIdx=(id,d)=>{if(!DATA)return ptDe(id,d);if(!DATA._ptIdx||DATA._ptIdxN!==DATA.pointages.length){const m=new Map();DATA.pointages.forEach(x=>m.set(x.p+'|'+x.d,x));DATA._ptIdx=m;DATA._ptIdxN=DATA.pointages.length;}return DATA._ptIdx.get(id+'|'+d);};
 const weekHours=(pid,mon)=>{let t=0;for(let i=0;i<6;i++){const x=ptIdx(pid,navAddDay(mon,i));if(x){const c=calc(x);t+=c.total/60;}}return Math.round(t*100)/100;}; /* lundi → samedi, comme la navette */
 /* frise des compteurs d'une personne jusqu'à une date (moteur pur src/compteurs.js), gardée le temps d'un rendu */
-function cptTL(p,upto){upto=upto||todayIso();const k=p.id+'|'+upto;if(DATA){DATA._cptTL=DATA._cptTL||{};if(DATA._cptTL[k])return DATA._cptTL[k];}const c=cptRow(p.id);
-  const T=compteurTimeline({contrat:c.contrat,on:!!c.on.recup,plafond:c.plafond,depart:c.soldes.recup||null,departRep:c.soldes.report||null,mvts:c.mvts,primes:c.primes,weekTotal:m=>weekHours(p.id,m),upto});if(DATA)DATA._cptTL[k]=T;return T;}
+function cptTL(p,upto){upto=upto||todayIso();const k=p.id+'|'+upto;if(DATA){DATA._cptTL=DATA._cptTL||{};if(DATA._cptTL[k])return DATA._cptTL[k];}const c=cptRow(p.id);const ch=navChoixDe(p.id);
+  const T=compteurTimeline({contrat:c.contrat,on:!!c.on.recup,plafond:c.plafond,depart:c.soldes.recup||null,departRep:c.soldes.report||null,mvts:c.mvts,primes:c.primes.concat(ch.primes),weekTotal:m=>weekHours(p.id,m),upto,
+    semaine:mon=>({jours:semJours(p,mon),main:navMain(p.id,mon)}),lisser:lisserSemaine,choix:ch.choix});if(DATA)DATA._cptTL[k]=T;return T;} /* 10/11 nuit : semaines LISSÉES (règles d'Ethan) — src/navette.js lisserSemaine */
+/* ── 10/11 nuit : LISSAGE DES NAVETTES — ce qu'il faut à lisserSemaine pour une personne et une semaine (lundi → samedi) ──
+   heures de TRAVAIL pointées (sans pauses ni inter-chantier), inter-chantier du jour (dans la journée + trajet entre deux journées), attendu au travail (planning),
+   férié, absence déclarée dans Tracé RH (registre rhabs), chantier pointé (sinon planifié). Les réglages à la main (registre navliss, id = personne|lundi) et les
+   choix de fin de mois (registre navchoix, id = personne|AAAA-MM : « reporter » ou « prime ») sont faits par la RH ou le responsable d'exploitation (droit rh.nav). */
+const ABS_LIB={cp:'Congés payés',rtt:'RTT',mal:'Maladie',at:'Accident du travail',ss:'Sans solde',inj:'Absence injustifiée',form:'Formation',evt:'Événement familial',pont:'Pont',autre:'Absence'};
+function absIdx(){if(DATA&&DATA._absIdx)return DATA._absIdx;const m={};regAll('rhabs').forEach(r=>{if(!r||r.deleted||!r.p||!/^\d{4}-\d{2}-\d{2}$/.test(String(r.du||'')))return;const au=r.au&&r.au>=r.du?String(r.au).slice(0,10):r.du;for(let d=r.du,n=0;d<=au&&n<400;d=gdAddD(d,1),n++){(m[r.p]=m[r.p]||{})[d]=ABS_LIB[r.type]||'Absence';}});if(DATA)DATA._absIdx=m;return m;}
+const absDe=(pid,d)=>{const m=absIdx()[pid];return m?m[d]||null:null;};
+function semJours(p,mon){const out=[];for(let i=0;i<6;i++){const d=navAddDay(mon,i);const x=ptIdx(p.id,d);const c=x?calc(x):null;const wd=i<5;const fer=wd&&isFerie(d);
+    const plan=wd&&planDe(p.id,d).length>0&&!(fer&&!gdPlanExpr(p,d));const sx=x&&x.site?site(x.site):null;
+    const sites=(sx&&!sx.bureau&&!sx.stub?[sx]:planDe(p.id,d).map(id=>site(id)).filter(c2=>c2&&!c2.bureau&&!c2.stub)).map(c2=>({id:c2.id,nom:c2.nom}));
+    const w=c?Math.round(c.w/60*100)/100:0;out.push({d,h:w>0?w:null,it:c?Math.round(((c.it||0)+(c.rt||0))/60*100)/100:0,plan,ferie:fer,abs:absDe(p.id,d),sites,futur:d>=DATA.today,incomplet:!!(c&&c.manque)});}
+  return out;}
+const navMain=(pid,mon)=>{const r=regGet('navliss',pid+'|'+mon);return r&&!r.deleted?r:null;};
+function navChoixDe(pid){const L=regAll('navchoix').filter(r=>r&&!r.deleted&&String(r.id).startsWith(pid+'|')&&/^\d{4}-\d{2}$/.test(String(r.id).split('|').pop())&&(r.choix==='reporter'||r.choix==='prime'));
+  return {list:L,choix:L.map(r=>({at:navEnd(String(r.id).split('|').pop()),choix:r.choix})),primes:L.filter(r=>r.choix==='prime'&&+r.h>0).map(r=>{const ym=String(r.id).split('|').pop();return {id:'nc:'+ym,at:navEnd(ym),h:+r.h,note:'prime de fin de mois ('+navMoisTxt(ym)+')',by:r.by||''};})};}
+const navEdit=me=>!!me&&(me.admin||can(me,'rh.edit')||can(me,'rh.nav'));
+const navSaveOpts=pid=>String(pid).includes('@')?undefined:{local:true}; /* personnages de démo : sur l'appareil seulement */
 function cptSolde(p,k,upto){const c=cptRow(p.id);if(k==='recup'||k==='report'){const T=cptTL(p,upto);if(k==='recup'){const x=T.cpt;return {h:c.on.recup?x.solde:null,at:x.depart?x.depart.at:null,plafond:x.plafond,T:x};}
     const x=T.rep;return {h:x.solde,at:x.depart?x.depart.at:null,sol:x.depart?x.depart.h:null,ex:x.ex,ent:x.entrees,pr:x.primes,rp:x.replaces,T:x};}
   const s2=c.soldes[k];return {h:s2&&isFinite(+s2.h)?+s2.h:null,at:s2?s2.at:null};}
@@ -1863,21 +1905,26 @@ function gdTablesHTML(casN){return (casN>=2?GD_CAS.filter(c=>c.n===casN):GD_CAS.
 function gdLivretHTML(enc){const pdf=regGet('doc','livret_gd');return `${pdf&&(pdf.url||pdf.data)?`<a class="btn sm" href="${esc(pdf.url||pdf.data)}" target="_blank" rel="noopener" data-livret="1">📄 ${esc(pdf.file||'Livret d\'accueil § 2.7 (PDF)')}</a> `:''}${enc?`<label class="btn sm" title="Le PDF des indemnités (livret d'accueil § 2.7) : visible par chacun dans Compagnon → Heures">📎 ${pdf?'Remplacer':'Déposer'} le PDF du livret (§ 2.7)<input type="file" accept="application/pdf" data-gdpdf="1" style="display:none"></label>`:''}`;}
 function reglesHTML(casN,contrat){const C=+contrat||35;const b=Math.max(C,35); /* 13/10 (f) : rang absolu (Ethan : « la 36e heure rentre majorée à 25 %, la 44e à 50 % ») */
   return `<div class="gd-regles"><div class="eq-lab">Tes heures</div><div class="eq-s">Contrat ${nb(C)} h par semaine${C>35?` (les heures 36 à ${nb(C)} sont dans ton salaire)`:''}. Heures sup : de la ${b+1}e à la 43e heure à 125 %, de la 44e à la ${HEBDO_MAX}e à 150 %. Si tu as un compteur, elles y entrent majorées (1 h à 125 % = 1 h 15, 1 h à 150 % = 1 h 30) jusqu'à son plafond ; au-delà, elles sont payées. Tu poses des heures de ton compteur comme des congés (35 h = une semaine) ; l'entreprise peut aussi en poser quand il n'y a pas de travail. Au-delà de ${HEBDO_MAX} h dans la semaine : heures à reporter, majorées à l'entrée (× 1,5), payées en prime ou replacées sur une semaine plus légère. Une semaine compte dans le mois de son jeudi.</div>
+  <div class="eq-s" style="margin-top:4px"><b>Lissage de la navette</b> : les heures de la semaine sont réparties sur les jours du lundi au vendredi (au pas de ½ h, le reste sur le dernier jour), 12 h par jour et ${HEBDO_MAX} h par semaine au plus ; un vendredi non travaillé prend le chantier du jeudi ; un jour d'absence ou férié n'est pas lissé (avec un férié et un pont : 3 jours × 12 h = 36 h au plus). Ce qui dépasse va au compteur à reporter, majoré selon le rang de l'heure. Une semaine sous ${nb(C)} h se complète avec le compteur à reporter, puis le compteur d'heures ; s'ils sont vides, c'est du sans solde à poser. Les trajets inter-chantier sont payés à part, à 100 %, jamais majorés. Tes heures réelles restent visibles à côté.</div>
   <div class="eq-lab" style="margin-top:6px">Grands déplacements (livret d'accueil SCR § 2.7)</div>${GD_CAS.map(c=>`<div class="eq-s" style="margin:3px 0"><b>Cas ${c.n} · ${esc(c.label)}</b> — ${esc(c.crit)} : ${esc(c.prise)}</div>`).join('')}${gdTablesHTML(casN)}
   <div class="eq-s" style="margin-top:6px">L'indemnité de trajet (15 € en cas 2, 30 € en cas 3, 50 € en cas 4, brut par aller-retour) n'est due que quand tu rentres chez toi : ½ à l'aller, ½ au retour. Les indemnités peuvent varier avec les jours fériés et les absences.</div><div class="eq-s">${GD_RAPPELS.map(esc).join(' ')}</div>
   <div class="eq-acts" style="margin-top:6px">${gdLivretHTML(false)}</div></div>`;}
 async function gdPdfUpload(me,file){if(!/pdf$/i.test(file.type||'')&&!/\.pdf$/i.test(file.name||'')){msg('Un fichier PDF');return;}let url=null,data=null;try{url=A.sync&&A.sync.uploadDoc?await A.sync.uploadDoc('entreprise','docs',file.name,file):null;}catch(e){url=null;}
   if(!url){if(file.size>1.5*1024*1024){msg('Hors connexion et PDF trop gros — reconnecte-toi');return;}data=await new Promise(res=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>res(null);r.readAsDataURL(file);});}
   regSet('doc','livret_gd',{kind:'livret',title:'Indemnités grands déplacements (livret d\'accueil § 2.7)',html:'<p>Règles des grands déplacements : les 4 cas, tableaux jour par jour, indemnités de trajet.</p>',req:{none:true},active:true,at:new Date().toISOString(),by:nomC(me),file:file.name,size:file.size,url:url||undefined,data:data||undefined});render();msg('📄 PDF du livret déposé — chacun le retrouve dans Compagnon → Heures');}
-function cMaNavette(me){const ym=S.navM||ymOf(todayIso());let N=null;try{N=navetteOf(me,ym);}catch(e){console.warn(e);}if(!N)return '';const W=N.weeks;const H=Math.round(W.reduce((t,w)=>t+w.total,0)*100)/100;const c=cptRow(me.id);
+function cMaNavette(me){const ym=S.navM||ymOf(todayIso());let N=null;try{N=navetteOf(me,ym);}catch(e){console.warn(e);}if(!N)return '';const W=N.weeks;const r2h=v=>Math.round(v*100)/100;const reelW=w=>w.liss?w.liss.reel:w.total;
+  const H=r2h(W.reduce((t,w)=>t+reelW(w),0)),HN=r2h(W.reduce((t,w)=>t+w.total,0));const c=cptRow(me.id);
   const casN=Math.max(0,...W.map(w=>w.cas||0));const eur=(N.ar[2]||0)*15+(N.ar[3]||0)*30+(N.ar[4]||0)*50;const f=d=>d.slice(8)+'/'+d.slice(5,7);const nbH=N.tot.hotel+N.tot.idf;
-  const tiles=[[nb(H)+' h','pointées'],[nb(N.hs.h125)+' h','heures sup 125 %'],[nb(N.hs.h150)+' h','heures sup 150 %']].concat(N.hs.report?[[nb(N.hs.report)+' h','au-delà de '+HEBDO_MAX+' h → à reporter (× 1,5 = '+fh(N.hs.report*KREP)+' h)']]:[]).concat(nbH?[[nbH,'hôtel'+(nbH>1?'s':'')],[N.tot.repas,'repas'],[nb(eur)+' €','indemnités de trajet']]:[]);
-  const rows=W.map(w=>`<tr><td><b>S${w.n}</b><div class="dim" style="font-size:11px">${f(w.mon)} → ${f(navAddDay(w.mon,4))}</div></td><td>${w.main?esc(w.main):'<span class="dim">—</span>'}${w.cas?`<div class="dim" style="font-size:11px">cas ${w.cas}</div>`:''}</td><td class="num">${w.total?nb(w.total)+' h':'—'}${w.miss?`<div class="dim" style="font-size:10.5px">${w.miss} j sans pointage</div>`:''}</td><td class="num">${w.hs125||w.hs150?nb(w.hs125)+' + '+nb(w.hs150):'—'}${w.report?`<div style="font-size:10.5px;color:#9a3412">+ ${nb(w.report)} h à reporter</div>`:''}</td></tr>`).join('');
+  const rmaj=+N.hs.reportMaj||r2h(N.hs.report*KREP);const repTxt=Math.abs(rmaj-N.hs.report*KREP)<0.01?'au-delà de '+HEBDO_MAX+' h → à reporter (× 1,5 = '+fh(rmaj)+' h)':'au-delà du plafond → à reporter (majorées selon leur rang = '+fh(rmaj)+' h)';
+  const tiles=[[nb(H)+' h','pointées']].concat(Math.abs(HN-H)>0.009?[[nb(HN)+' h','sur la navette (lissées)']]:[]).concat([[nb(N.hs.h125)+' h','heures sup 125 %'],[nb(N.hs.h150)+' h','heures sup 150 %']]).concat(N.hs.report?[[nb(N.hs.report)+' h',repTxt]]:[]).concat(N.it?[[fh(N.it)+' h','inter-chantier (100 %, à part)']]:[]).concat(nbH?[[nbH,'hôtel'+(nbH>1?'s':'')],[N.tot.repas,'repas'],[nb(eur)+' €','indemnités de trajet']]:[]);
+  const rows=W.map(w=>{const L=w.liss;const lis=L&&L.etat==='lisse'&&Math.abs(L.total-L.reel)>0.009;return `<tr><td><b>S${w.n}</b><div class="dim" style="font-size:11px">${f(w.mon)} → ${f(navAddDay(w.mon,4))}</div></td><td>${w.main?esc(w.main):'<span class="dim">—</span>'}${w.cas?`<div class="dim" style="font-size:11px">cas ${w.cas}</div>`:''}</td><td class="num">${reelW(w)?nb(reelW(w))+' h':'—'}${L&&(lis||L.etat==='main')?`<div class="dim" style="font-size:10.5px">navette ${nb(w.total)} h</div>`:''}${w.miss?`<div class="dim" style="font-size:10.5px">${w.miss} j sans pointage</div>`:''}${L&&['incomplet','encours','main','reel'].includes(L.etat)?`<div class="dim" style="font-size:10.5px">${esc(L.etatTxt)}</div>`:''}</td><td class="num">${w.hs125||w.hs150?nb(w.hs125)+' + '+nb(w.hs150):'—'}${w.report?`<div style="font-size:10.5px;color:#9a3412">+ ${nb(w.report)} h à reporter</div>`:''}</td></tr>`;}).join('');
+  const expl=W.filter(w=>w.liss).map(w=>`<div class="nav-wexp"><b>S${w.n} · ${esc(w.liss.etatTxt)}</b><ul>${w.liss.expl.map(t=>`<li>${esc(t)}</li>`).join('')}</ul></div>`).join('');
   const cpts=cptList(c).filter(x=>c.on[x.k]).map(x=>{const s=cptSolde(me,x.k);return `<div class="eq-kv"><span>${esc(x.label)}</span><span><b>${s&&s.h!==null&&s.h!==undefined?fh(s.h)+' h':'—'}</b>${x.k==='recup'&&s.plafond?' / '+fh(s.plafond)+' h':''}${x.k==='report'||x.k==='recup'?' <span class="dim">(à ce jour)</span>':s&&s.at?' <span class="dim">(au '+fDate(s.at)+')</span>':''}</span></div>`;}).join(''); /* 13/10 (f) : la personne voit SON solde (lecture) — les réglages restent aux RH */
   return `<div class="card mynav"><h3>🧾 Ma navette <span class="hint">· mes variables du mois</span></h3>
     <div class="eq-wkhead"><button class="eq-wkbtn" data-act="mynavm" data-v="${ymAdd(ym,-1)}" aria-label="Mois précédent">‹</button><div class="eq-wktitle"><b>${MOIS_L[+ym.slice(5)-1]} ${ym.slice(0,4)}</b><span>${W.length?'semaines du '+f(navAddDay(W[0].mon,-1))+' au '+f(navAddDay(W[W.length-1].mon,6)):''}</span></div><button class="eq-wkbtn" data-act="mynavm" data-v="${ymAdd(ym,1)}" aria-label="Mois suivant">›</button></div>
     <div class="ac-stats" style="margin:8px 0">${tiles.map(([b,t])=>`<div class="ac-stat"><b>${b}</b><small>${t}</small></div>`).join('')}</div>
     <div style="overflow:auto"><table class="rc af-tab"><tr><th>Semaine</th><th>Chantier</th><th>Heures</th><th>H. sup 125 + 150 %</th></tr>${rows}</table></div>
+    ${expl?`<details class="nav-expl" style="margin-top:6px"${S.navWexp?' open':''}><summary class="dim" style="cursor:pointer;font-size:12.5px;min-height:38px;display:flex;align-items:center">🧮 Semaine par semaine : comment on arrive à la navette</summary>${expl}</details>`:''}
     ${cpts?`<div class="eq-lab" style="margin-top:8px">Mes compteurs</div>${cpts}`:''}
     <div class="eq-acts" style="margin-top:8px"><button class="btn sm" data-act="mynav" data-v="${ym}">⬇ Ma navette (Excel)</button></div>
     <details class="gd-explain" style="margin-top:6px"${S.navExplain?' open':''}><summary class="dim" style="cursor:pointer;font-size:12.5px;min-height:38px;display:flex;align-items:center">❓ Comment c'est calculé (heures, grands déplacements)</summary>${reglesHTML(casN,c.contrat)}</details></div>`;}
@@ -1891,17 +1938,33 @@ function navetteOf(p,ym){const M=gdMonthDays(p,ym);const by={};M.rows.forEach(r=
   const TL=cptTL(p,last);const MC=moisCompteurs(TL,ym);const on=!!c.on.recup;
   const cpt=MC?{on,plafond:c.plafond,recup:on?MC.cpt.prev:null,pris:on?MC.cpt.pris:0,pay125:MC.cpt.pay125,pay150:MC.cpt.pay150,report:c.on.report?MC.rep.prev:null,prime:MC.rep.primes,repl:MC.rep.replaces,reconstitue:on&&MC.cpt.reconstitue}:{on};
   const recup={};TL.cpt.ev.filter(e=>(e.t==='repos'||e.t==='pose')&&MC&&e.d>=MC.d0&&e.d<=MC.d1).forEach(e=>{(recup[e.d]=recup[e.d]||[]).push({type:e.t,h:-e.delta});});
-  const a=p.adresse||{};return buildNavette({ym,nom:p.nom||'',prenom:p.prenom||'',adresse:[a.voie,[a.cp,a.ville].filter(Boolean).join(' ')].filter(Boolean).join(' - '),day,today:fDate(todayIso()),contrat:c.contrat,cpt,repl:MC?MC.repl:{},recup});}
+  const a=p.adresse||{};const N=buildNavette({ym,nom:p.nom||'',prenom:p.prenom||'',adresse:[a.voie,[a.cp,a.ville].filter(Boolean).join(' ')].filter(Boolean).join(' - '),day,today:fDate(todayIso()),contrat:c.contrat,cpt,repl:MC?MC.repl:{},recup,
+    liss:mon=>TL.liss&&TL.liss[mon]?TL.liss[mon]:null}); /* 10/11 nuit : semaines lissées (même calcul que les compteurs) */
+  N.mc=MC;N.choix=regGet('navchoix',p.id+'|'+ym);if(N.choix&&N.choix.deleted)N.choix=null;N.repFin=MC&&MC.rep?MC.rep.fin:null;return N;}
 const navFile=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
 async function navDownload(sheets,name){const bytes=await makeStyledXlsx(sheets,NAV_STYLES);const u=URL.createObjectURL(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));const el=document.createElement('a');el.href=u;el.download=name;document.body.appendChild(el);el.click();el.remove();setTimeout(()=>URL.revokeObjectURL(u),2000);}
 /* qui a une navette ce mois-ci : planifié, pointé ou en grand déplacement sur une des semaines du mois (ou un jour de régul.) */
 function navPeople(ym){const W=navWeeks(ym);if(!W.length)return [];const first=navAddDay(W[0],-1),last=navAddDay(W[W.length-1],6);const [y,m]=ym.split('-').map(Number);const fin=ym+'-'+pad(new Date(y,m,0).getDate());const end=fin>last?fin:last;
   return gdPeople().filter(p=>{for(let d=first;d<=end;d=navAddDay(d,1)){if(planDe(p.id,d).length||ptDe(p.id,d))return true;}return false;}).sort((a,b)=>nomC(a).localeCompare(nomC(b),'fr'));}
 function navSummary(N){const W=N.weeks;if(!W.length)return '';const miss=W.reduce((s,w)=>s+w.miss,0);const f=d=>d.slice(8)+'/'+d.slice(5,7);
-  return `Semaines comptées : ${f(navAddDay(W[0].mon,-1))} → ${f(navAddDay(W[W.length-1].mon,6))} (jeudi dans le mois)${N.regulTo?' · fin du mois en régul. sur '+N.regulTo:''} · ${N.tot.hotel+N.tot.idf} hôtel${N.tot.hotel+N.tot.idf>1?'s':''}${N.tot.idf?' (dont '+N.tot.idf+' IDF)':''} · ${N.tot.repas} repas · ${['2','3','4'].filter(k=>N.ar[k]).map(k=>N.ar[k]+' trajet'+(N.ar[k]>1?'s':'')+' à '+({2:15,3:30,4:50})[k]+' €').join(' · ')||'pas de trajet indemnisé'} · HS : ${nb(N.hs.h125)} h à 125 %, ${nb(N.hs.h150)} h à 150 %${N.hs.report?` · <b style="color:#9a3412">${nb(N.hs.report)} h au-delà de 48 h → compteur à reporter</b>`:''}${miss?` · <b style="color:#9a3412">${miss} jour${miss>1?'s':''} travaillé${miss>1?'s':''} sans pointage</b> (heures à saisir dans l'Excel)`:''}`;}
+  return `Semaines comptées : ${f(navAddDay(W[0].mon,-1))} → ${f(navAddDay(W[W.length-1].mon,6))} (jeudi dans le mois)${N.regulTo?' · fin du mois en régul. sur '+N.regulTo:''} · ${N.tot.hotel+N.tot.idf} hôtel${N.tot.hotel+N.tot.idf>1?'s':''}${N.tot.idf?' (dont '+N.tot.idf+' IDF)':''} · ${N.tot.repas} repas · ${['2','3','4'].filter(k=>N.ar[k]).map(k=>N.ar[k]+' trajet'+(N.ar[k]>1?'s':'')+' à '+({2:15,3:30,4:50})[k]+' €').join(' · ')||'pas de trajet indemnisé'} · HS : ${nb(N.hs.h125)} h à 125 %, ${nb(N.hs.h150)} h à 150 %${N.hs.report?` · <b style="color:#9a3412">${nb(N.hs.report)} h au-delà de 48 h → compteur à reporter</b>`:''}${miss?` · <b style="color:#9a3412">${miss} jour${miss>1?'s':''} travaillé${miss>1?'s':''} sans pointage</b> (heures à saisir dans l'Excel)`:''}${(()=>{const nl=W.filter(w=>w.liss&&w.liss.etat==='lisse').length,ni=W.filter(w=>w.liss&&w.liss.etat==='incomplet').length,nm=W.filter(w=>w.liss&&w.liss.flags.includes('main')).length;return (nl?' · '+nl+' semaine'+(nl>1?'s':'')+' lissée'+(nl>1?'s':''):'')+(nm?' · '+nm+' réglée'+(nm>1?'s':'')+' à la main':'')+(ni?` · <b style="color:#9a3412">${ni} à compléter</b> (Tracé RH → Navettes)`:'')+(N.it?' · inter-chantier '+fh(N.it)+' h (100 %)':'');})() /* 10/11 nuit : lissage */}`;}
 export function espaceCompteurs(pid,upto){if(!DATA)DATA=buildData();return cptTL(pers(pid),upto);} /* tests / outillage : la frise des compteurs d'une personne */
 export {HAB_TYPES,cTableHabs,habsDe}; /* 10/11 : module Ressources humaines (tracerh.js) */
 export function espaceNavette(pid,ym){if(!DATA)DATA=buildData();const p=pers(pid);const N=navetteOf(p,ym);return {N,sheet:navetteSheet(N,nomC(p)),people:navPeople(ym).map(x=>x.id)};} /* tests / outillage */
+/* ── 10/11 nuit : Tracé RH → Navettes (contrôle des navettes, cas d'exception, choix de fin de mois) — tracerh.js lit et écrit par ici ── */
+export function espaceNavMois(ym){if(!DATA)DATA=buildData();return navPeople(ym).map(p=>{let N=null;try{N=navetteOf(p,ym);}catch(e){console.warn('navette',p.id,e);}return N?{p,N,c:cptRow(p.id)}:null;}).filter(Boolean);}
+export function espaceNavRegler(pid,mon,patch){if(!DATA)DATA=buildData();const me=pers(S.me);if(!navEdit(me))return {ok:false,why:'Réservé à la RH et au responsable d\'exploitation (droit « contrôler les navettes »)'};
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(mon)))return {ok:false,why:'semaine inconnue'};const id=pid+'|'+mon;
+  if(!patch){regDelete('navliss',id,navSaveOpts(pid));return {ok:true};}
+  regSet('navliss',id,Object.assign({},patch,{by:nomC(me),at:new Date().toISOString()}),Object.assign({replace:true},navSaveOpts(pid)||{}));return {ok:true};}
+export function espaceNavChoisir(pid,ym,choix,h,note){if(!DATA)DATA=buildData();const me=pers(S.me);if(!navEdit(me))return {ok:false,why:'Réservé à la RH et au responsable d\'exploitation (droit « contrôler les navettes »)'};
+  if(!/^\d{4}-\d{2}$/.test(String(ym)))return {ok:false,why:'mois inconnu'};const id=pid+'|'+ym;
+  if(!choix){regDelete('navchoix',id,navSaveOpts(pid));return {ok:true};}
+  if(choix!=='reporter'&&choix!=='prime')return {ok:false,why:'choix inconnu'};
+  regSet('navchoix',id,{choix,h:choix==='prime'?Math.max(0,Math.round((+h||0)*100)/100):null,note:note||'',by:nomC(me),at:new Date().toISOString()},Object.assign({replace:true},navSaveOpts(pid)||{}));return {ok:true};}
+export const espaceNavDroit=()=>{if(!DATA)DATA=buildData();return navEdit(pers(S.me));};
+/* 10/11 nuit : les heures RÉELLES d'un pointage (débours de Tracé Affaire — jamais la navette lissée) : travail, inter-chantier de la journée, trajet entre deux journées */
+export function espaceHeuresReelles(x){if(!DATA)DATA=buildData();const c=calc(x);return {w:c.w/60,it:c.it/60,rt:(c.rt||0)/60,h:(c.w+c.it+(c.rt||0))/60,fin:!!c.fin,manque:!!c.manque,enCours:!!c.enCours};}
 function vGDPersonne(me,enc){const P=gdPeople().sort((a,b)=>nomC(a).localeCompare(nomC(b),'fr'));const pid=S.gdPid&&P.some(p=>p.id===S.gdPid)?S.gdPid:(P[0]&&P[0].id);const p=pid?pers(pid):null;const ym=S.gdMonth||ymOf(todayIso());
   const sel=`<div class="card" style="padding:8px 12px"><div class="eq-2sel"><div><label class="f" style="margin-top:0">Personne</label><select class="f" data-chg="gdPid">${P.map(x=>`<option value="${esc(x.id)}"${x.id===pid?' selected':''}>${esc(nomC(x))} — ${esc(POSTES_ESP[x.poste]?POSTES_ESP[x.poste].label:x.poste)}</option>`).join('')}</select></div><div><label class="f" style="margin-top:0">Mois</label><div class="eq-wkhead"><button class="eq-wkbtn" data-act="gdmonth" data-v="${ymAdd(ym,-1)}" aria-label="Mois précédent">‹</button><div class="eq-wktitle"><b>${MOIS_L[+ym.slice(5)-1]} ${ym.slice(0,4)}</b><span>${ym===ymOf(todayIso())?'ce mois-ci':ym<ymOf(todayIso())?'historique':'à venir'}</span></div><button class="eq-wkbtn" data-act="gdmonth" data-v="${ymAdd(ym,1)}" aria-label="Mois suivant">›</button></div></div></div></div>`;
   if(!p)return sel+'<div class="card"><div class="eq-s">Personne de terrain dans l\'annuaire.</div></div>';
@@ -2256,7 +2319,7 @@ function vQhs(me){return `<div class="hint" style="margin:0 0 8px">Un quart d'he
     <div class="ac-h"><b>Déclenchés</b><span>40 derniers</span></div>${qhsRecapHTML(DATA.chantiers)}`;}
 /* ── Sous-onglets selon les droits ── */
 /* 31/10 (Ethan : « de meilleures icônes pour passer d'Accueil à Documents dans Compagnon ») : chaque rubrique = une tuile à icône (même langage que les lignes de Pilotage) — l'icône est dessinée en CSS (data-ic), le texte du bouton reste son nom */
-const SUB_ICO={moi:['🏠','#e8f0fb'],docs:['📄','#e8f0fb'],planning:['📅','#fdebe3'],chantiers:['📍','#e6f5ec'],prod:['📈','#efeafb'],frais:['🧾','#ececea'],heures:['⏱','#e6f5ec'],habs:['🎖','#fff4d6'],avatar:['🙂','#efeafb'],dem:['📦','#fff3d6'],mag:['📦','#fff3d6'],vlaisse:['🚐','#e3f3f3'],vx:['🚐','#e3f3f3']};
+const SUB_ICO={moi:['🏠','#e8f0fb'],docs:['📄','#e8f0fb'],planning:['📅','#fdebe3'],chantiers:['📍','#e6f5ec'],prod:['📈','#efeafb'],frais:['🧾','#ececea'],heures:['⏱','#e6f5ec'],habs:['🎖','#fff4d6'],avatar:['🙂','#efeafb'],dem:['📦','#fff3d6'],mag:['📦','#fff3d6'],vlaisse:['🚐','#e3f3f3'],vx:['🚐','#e3f3f3'],outils:['🧰','#fdebd3']}; /* 11/11 nuit : + Outils de tuyauterie */
 function subsFor(me){
   if(S.tab!=='moi')return [];
   const equipes=can(me,'planning.edit')||can(me,'pointage.validate')||can(me,'qse.manage'); /* 12/10 (Ethan) : Moi = mes affaires ; ce qui concerne l'équipe vit dans Équipes — pas de doublon */
@@ -2476,6 +2539,15 @@ const ACT={
     if(!x){x={p:me.id,d:DATA.today,site:st?st.id:null,status:'declare',corr:null,events:[],val:[]};}
     const e={t:k,at};if(A.via&&A.via())e.via=A.via(); /* 12/10 : admin qui agit comme la personne → qui a réellement pointé */x.events.push(e);savePointage(x);render();msg('Pointage « '+EVT[k]+' » à '+fHeure(at));
     if((k==='start'||k==='end')&&navigator.geolocation)try{navigator.geolocation.getCurrentPosition(pos=>{e.pos=[+pos.coords.latitude.toFixed(5),+pos.coords.longitude.toFixed(5)];savePointage(x);},()=>{},{timeout:8000,maximumAge:60000});}catch(err){} /* position ponctuelle au début et à la fin, c'est tout */},
+  /* 10/11 nuit : trajet inter-chantier entre deux journées — le gars sur SON pointage du jour (le soir après la fin, le matin après le début) */
+  ptroute(v){const me=pers(S.me);const x=me&&ptDe(me.id,DATA.today);if(!x){msg('Commence d\'abord ta journée');return;}if(x.val.length||x.corr){msg('Déjà vu par ton chef : demande-lui d\'ajouter le trajet');return;}
+    const [m,quand,de,vers]=String(v).split('|');const e={t:'route',at:DATA.today+'T'+DATA.now,quand:quand==='soir'?'soir':'matin',de:de||null,vers:vers||null};if(m==='non')e.non=true;else{e.min=Math.max(0,Math.min(600,+m||0));if(!e.min){msg('Durée du trajet ?');return;}}
+    if(A.via&&A.via())e.via=A.via();x.events=x.events.filter(z=>z.t!=='route');x.events.push(e);savePointage(x);render();msg(e.non?'✓ Pas de trajet inter-chantier':'✓ Trajet inter-chantier de '+fMin(e.min)+' déclaré (payé à part)');},
+  ptrouteno(){const me=pers(S.me);const x=me&&ptDe(me.id,DATA.today);if(!x)return;if(x.val.length||x.corr){msg('Déjà vu par ton chef : demande-lui de corriger');return;}x.events=x.events.filter(z=>z.t!=='route');savePointage(x);render();},
+  /* … et le chef / conducteur, depuis « Pointages à valider » (anomalie « trajet inter-chantier non déclaré ») */
+  ptroutechef(v){const me=pers(S.me);if(!me||!can(me,'pointage.validate')){msg('Réservé au chef / conducteur');return;}const parts=String(v).split('|');const x=ptParId(parts[0]+'|'+parts[1]);if(!x)return;
+    const [m,quand,de,vers]=parts.slice(2);const st=(x.events||[]).find(z=>z.t==='start');const e={t:'route',at:st?st.at:x.d+'T07:00',quand:quand==='soir'?'soir':'matin',de:de||null,vers:vers||null,by:me.id,le:DATA.today+'T'+DATA.now};if(m==='non')e.non=true;else{e.min=Math.max(0,Math.min(600,+m||0));if(!e.min){msg('Durée du trajet ?');return;}}
+    if(A.via&&A.via())e.via=A.via();x.events=x.events.filter(z=>z.t!=='route');x.events.push(e);x.events.sort((a,b)=>a.at<b.at?-1:a.at>b.at?1:0);savePointage(x);render();msg(e.non?'✓ Pas de trajet inter-chantier pour '+pers(x.p).prenom:'✓ Trajet de '+fMin(e.min)+' ajouté pour '+pers(x.p).prenom+' (payé à part)');},
   tache(v){if(!DATA.taches)return;const t=DATA.taches[+v];if(t){t.fait=!t.fait;render()}},
   periode(v){S.per.mode=v;render()},
   pernav(v){const p=S.per;if(p.mode==='sem')p.k=Math.max(KMIN,Math.min(0,p.k+ +v));else{const ms=moisDispo(),i=Math.max(0,Math.min(ms.length-1,ms.indexOf(p.m)+ +v));p.m=ms[i]}render()},

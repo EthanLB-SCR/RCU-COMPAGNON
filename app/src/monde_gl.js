@@ -13,26 +13,63 @@ const POSTE_FAM = p => (p && p.fam) || 'terrain';
 let HOST = null, H = null, KIND = null, SIG = '', LAST = 0, PENDING = null, OVERK = null; /* OVERK : « Ma journée » ouvert — reste ouvert si la pièce est reconstruite (pointage → nouvelles données) */
 /** la cellule à poser dans le HTML rendu ; la scène est montée juste après le rendu (requestAnimationFrame) */
 export function glSlot(kind, me, ctx, extra) {
-  PENDING = { kind, me, ctx, extra: extra || {} }; requestAnimationFrame(mountPending); return `<div class="m3d-slot" data-m3d-kind="${kind}" style="min-height:640px"></div>`;
+  PENDING = { kind, me, ctx, extra: extra || {}, garde: garder() }; requestAnimationFrame(mountPending); return `<div class="m3d-slot" data-m3d-kind="${kind}" style="min-height:640px"></div>`;
 }
 function mountPending() {
   const P = PENDING; if (!P) return; const slot = document.querySelector('.m3d-slot[data-m3d-kind="' + P.kind + '"]'); if (!slot) return; PENDING = null;
   if (!HOST) { HOST = document.createElement('div'); HOST.className = 'm3d-mount'; }
-  if (HOST.parentNode !== slot) { slot.innerHTML = ''; slot.appendChild(HOST); }
+  if (HOST.parentNode !== slot) { slot.innerHTML = ''; slot.appendChild(HOST); restaurer(P.garde); }
   let data; try { data = buildData(P.kind, P.me, P.ctx, P.extra); } catch (e) { console.warn('monde3d data', e); slot.innerHTML = '<div class="card"><div class="eq-s">Monde 3D : données indisponibles (' + String(e && e.message || e) + ')</div></div>'; return; }
-  const sig = JSON.stringify([P.kind, data.me && data.me.id, (data.jour && data.jour.rdv || []).map(r => r.id + r.h + r.t).join(';'), data.people.length, data.vehicles.length, (data.notifs.todo || []).length, (data.notifs.know || []).length, data.affaires.length, data.chantiers.length, data.checklist.length, (data.network.lines || []).length, data.stock && data.stock.n, data.depots.map(d => d.k + d.nom + d.people.length).join(), JSON.stringify(data.me && data.me.prefs)]);
+  const sig = JSON.stringify([P.kind, data.me && data.me.id, (data.jour && data.jour.rdv || []).map(r => r.id + r.h + r.t).join(';'), data.people.length, data.vehicles.length, (data.notifs.todo || []).length, (data.notifs.know || []).length, data.affaires.length, data.chantiers.length, data.checklist.length, (data.network.lines || []).length, data.stock && data.stock.n, data.depots.map(d => d.k + d.nom + d.people.length).join()]); /* 11/11 nuit : mes réglages du bureau sont comparés à ceux affichés (plus bas), pas à ceux du montage */
   const scene = P.kind;
-  if (H && HOST.querySelector('canvas') && KIND === scene && sig === SIG && Date.now() - LAST < 120000) { try { if (H.setOpts) H.setOpts({ homeChips: P.extra.homeChips || null }); } catch (e) { } return; } /* même scène, mêmes données : on garde la 3D telle quelle (pas de reconstruction à chaque re-rendu) ; seul ce qui vient par-dessus (pointage) est rafraîchi */
-  if (H) { try { H.dispose(); } catch (e) { } H = null; }
+  if (H && H.setData && HOST.querySelector('canvas') && KIND === scene) { try { if (H.setOpts) H.setOpts({ homeChips: P.extra.homeChips || null }); } catch (e) { } /* ce qui vient par-dessus (pointage) est toujours rafraîchi */
+    let autresPrefs = false; try { autresPrefs = JSON.stringify(normPrefs(data.me && data.me.prefs)) !== JSON.stringify(normPrefs(H.state.prefs)); } catch (e) { }
+    if (sig === SIG && !autresPrefs && Date.now() - LAST < 120000) { STALE = null; return; } /* même scène, mêmes données : la 3D reste telle quelle */
+    /* 11/11 nuit (fiabilité) — Ethan : « la synchro me sort de ce que je fais (la personnalisation revient sur les écrans), des fenêtres se ferment ».
+       Avant : nouvelles données (ou 2 min passées) → la 3D était DÉTRUITE puis reconstruite (mode personnalisation, vue, panneau ouvert : perdus).
+       Maintenant : mise à jour SUR PLACE (même mode, même vue, même caméra), et seulement quand on ne fait rien dedans (sinon : appliquée dès qu'on a fini). */
+    if (occupe3D()) { STALE = { data, sig }; armStale(); return; }
+    maj(data, sig); return; }
+  if (H) { try { H.dispose(); } catch (e) { } H = null; } STALE = null;
   KIND = scene; SIG = sig; LAST = Date.now();
   const ctx = P.ctx, me = P.me, extra = P.extra;
-  try{if(window.TRACE)window.TRACE.monde3d=()=>H;}catch(e){} /* tests */
+  try{if(window.TRACE){window.TRACE.monde3d=()=>H;window.TRACE.monde3dEtat=()=>glEtat();}}catch(e){} /* tests */
+  if (!ECOUTE) { ECOUTE = true; const t = () => { ACT3D = Date.now(); }; ['pointerdown', 'wheel', 'keydown'].forEach(k => HOST.addEventListener(k, t, { capture: true, passive: true })); }
   const cloud = () => !!(ctx.api && ctx.api.state && ctx.api.state.cloudUser);
   H = mountMonde3D(HOST, data, { scene, perso: !!extra.perso, sideHTML: extra.sideHTML || null, homeChips: extra.homeChips || null, topRight: extra.topRight || null, initOver: OVERK, onOver: k => { OVERK = k; },
     onPrefs: prefs => { try { const d = ctx.peopleData(me.id) || {}; ctx.savePart(me.id, 'avatar', Object.assign({}, d.avatar || {}, { bureau3d: cloud() ? noInlineImages(prefs) : prefs })); } catch (e) { console.warn(e); } },
     onNotes: notes => { if (ctx.viewing && ctx.viewing()) { if (ctx.toast) ctx.toast('Lecture seule : tu vois l\'appli comme quelqu\'un d\'autre'); return; } saveNotes(me.id, notes, ctx); },
     uploadImage: dataUrl => uploadImage(dataUrl, me, ctx), onAction: (type, arg, x) => act(type, arg, x, me, ctx, extra) });
 }
+/* 11/11 nuit (fiabilité) : la page est redessinée (innerHTML) → la 3D est décrochée puis raccrochée au nouvel emplacement. Un élément décroché perd le focus
+   et ses défilements : la saisie en cours (post-it, pointage) partait, le panneau remontait en haut. On note tout ça AVANT le redessin (glSlot est appelé
+   pendant la construction du HTML, la 3D est encore en place) et on le remet juste après l'avoir raccrochée. */
+function garder() {
+  if (!HOST || !HOST.isConnected) return null; const g = { f: null, sc: [] };
+  try { const a = document.activeElement; if (a && a !== document.body && HOST.contains(a)) g.f = { el: a, s: a.selectionStart, e: a.selectionEnd }; } catch (e) { }
+  try { HOST.querySelectorAll('.m3d-side,.m3d-over,.m3d-side div,.m3d-over div').forEach(el => { if (el.scrollTop > 0) g.sc.push([el, el.scrollTop]); }); } catch (e) { }
+  return g;
+}
+function restaurer(g) {
+  if (!g) return; g.sc.forEach(([el, t]) => { try { if (HOST.contains(el)) el.scrollTop = t; } catch (e) { } });
+  const f = g.f; if (!f || !HOST.contains(f.el)) return; const a = document.activeElement; if (a && a !== document.body && a !== f.el) return; /* le focus est allé ailleurs entre-temps : on n'y touche pas */
+  try { f.el.focus({ preventScroll: true }); if (f.s != null && f.el.setSelectionRange) f.el.setSelectionRange(f.s, f.e); } catch (e) { }
+}
+/* 11/11 nuit (fiabilité) : ce qu'on est en train de faire dans la 3D — tant que c'est le cas, les données reçues attendent */
+let STALE = null, STALE_T = null, ACT3D = 0, ECOUTE = false;
+function occupe3D() {
+  if (!H || !H.state) return ''; const S = H.state, V = H.viewer;
+  if (S.perso) return 'personnalisation'; if (KIND && S.scene !== KIND) return 'visite'; if (S.noteSel || S.focusNote) return 'note';
+  try { const a = document.activeElement; if (a && HOST && HOST.contains(a) && a.matches('input,textarea,select,[contenteditable]')) return 'saisie'; } catch (e) { }
+  try { if (V && V.moving && V.moving()) return 'mouvement'; } catch (e) { }
+  if (Date.now() - ACT3D < 4000) return 'manipulation'; return '';
+}
+function maj(data, sig) { try { H.setData(data); SIG = sig; LAST = Date.now(); STALE = null; } catch (e) { console.warn('monde3d : mise à jour', e); } }
+function armStale() {
+  if (!ECOUTE && HOST) { ECOUTE = true; const t = () => { ACT3D = Date.now(); }; ['pointerdown', 'wheel', 'keydown'].forEach(k => HOST.addEventListener(k, t, { capture: true, passive: true })); }
+  if (STALE_T) return; STALE_T = setInterval(() => { if (!STALE) { clearInterval(STALE_T); STALE_T = null; return; } if (!H || !HOST || !document.body.contains(HOST)) { STALE = null; return; } if (occupe3D()) return; const s = STALE; STALE = null; maj(s.data, s.sig); }, 2500);
+}
+export const glEtat = () => ({ kind: KIND, attente: !!STALE, occupe: occupe3D(), last: LAST }); /* tests */
 /* ── mes post-its : privés, gardés sur CE poste (localStorage), jamais dans la fiche que voient les collègues ── */
 const NKEY = id => 'trace:notes3d:' + id;
 function loadNotes(id) { try { return normNotes(JSON.parse(localStorage.getItem(NKEY(id)) || '[]')); } catch (e) { return []; } }
@@ -45,7 +82,7 @@ function noInlineImages(p) { const r = JSON.parse(JSON.stringify(p || {})); cons
 export const notesOf = id => loadNotes(id);
 export function glGo(type, arg) { if (!H) return false; try { H.go(type, arg); return true; } catch (e) { return false; } }
 export const glKind = () => (H && H.viewer && H.viewer.host && document.body.contains(H.viewer.host) ? KIND : null); /* une 3D encore montée mais plus affichée (on a quitté l'accueil) ne compte pas */
-export function glDispose() { if (H) { try { H.dispose(); } catch (e) { } H = null; KIND = null; } }
+export function glDispose() { STALE = null; if (H) { try { H.dispose(); } catch (e) { } H = null; KIND = null; } }
 /* ── actions 3D → actions classiques ── */
 function classic(act, v) { const root = document.getElementById('eq-app') || document.body; const b = document.createElement('button'); b.type = 'button'; b.dataset.act = act; b.dataset.v = v == null ? '' : String(v); b.style.display = 'none'; root.appendChild(b); try { b.click(); } finally { setTimeout(() => { try { b.remove(); } catch (e) { } }, 0); } }
 function act(type, arg, x, me, ctx, extra) {
@@ -73,11 +110,11 @@ function act(type, arg, x, me, ctx, extra) {
 }
 /* ── les données ── */
 function whereOf(p, ctx, today) { const ids = (ctx.planDe(p.id, today) || []).filter(id => id && id !== 'siege'); const ch = ids.map(id => ctx.chantiers.find(c => c.id === id && !c.bureau)).find(Boolean); if (ch) return { where: 'chantier', chantierId: ch.id, chantierNom: ch.nom }; return { where: 'depot' }; }
-const personOut = (p, ctx, today, prefsOf) => { const d = ctx.peopleData(p.id) || {}; return { id: p.id, prenom: p.prenom || (ctx.nomC(p).split(' ')[0]), nom: p.nom || '', poste: p.poste, posteLabel: ctx.posteLabel(p), fam: ctx.famOf(p), secteur: ctx.secteurDe(p) || (ctx.mySecteur ? ctx.mySecteur(p) : '') || '', svg: ctx.avSVG(p, 240), av: ctx.avCfg ? ctx.avCfg(p) : null, prefs: prefsOf(d), today: whereOf(p, ctx, today), admin: !!p.admin }; };
+const personOut = (p, ctx, today, prefsOf, leger) => { const d = ctx.peopleData(p.id) || {}; return { id: p.id, prenom: p.prenom || (ctx.nomC(p).split(' ')[0]), nom: p.nom || '', poste: p.poste, posteLabel: ctx.posteLabel(p), fam: ctx.famOf(p), secteur: ctx.secteurDe(p) || (ctx.mySecteur ? ctx.mySecteur(p) : '') || '', svg: leger ? null : ctx.avSVG(p, 240), av: leger ? null : (ctx.avCfg ? ctx.avCfg(p) : null), /* 11/11 nuit : l'accueil (mon bureau seul) ne dessine plus l'avatar de toute l'équipe à chaque rafraîchissement */ prefs: prefsOf(d), today: whereOf(p, ctx, today), admin: !!p.admin }; };
 export function buildData(kind, me, ctx, extra) {
   const today = ctx.today(); const S = Object.assign({}, SECT0, ctx.SECTEURS || {}); const cfg = extra.cfg || { depots: {}, magasin: '' };
   const prefsOf = d => { const b = d && d.avatar && d.avatar.bureau3d; return b ? normPrefs(b) : null; };
-  const people = ctx.people.filter(p => p.active !== false && p.poste !== 'visiteur').map(p => personOut(p, ctx, today, prefsOf));
+  const leger = kind === 'bureau'; const people = ctx.people.filter(p => p.active !== false && p.poste !== 'visiteur').map(p => personOut(p, ctx, today, prefsOf, leger && !(me && p.id === me.id)));
   const byKey = Object.fromEntries(people.map(p => [p.id, p]));
   // véhicules : conducteur = clé de personne ; sorti = son conducteur est sur chantier aujourd'hui
   let vehicles = []; try { vehicles = vehAll().map(v => { const drv = v.conducteurKey && byKey[String(v.conducteurKey).toLowerCase()] ? byKey[String(v.conducteurKey).toLowerCase()] : people.find(p => v.conducteur && ctx.nomC(p) === v.conducteur) || null; const secteur = (Object.keys(S).find(k => String(v.agence || '').toLowerCase() === S[k].toLowerCase()) || (drv && drv.secteur) || ''); return { id: v.id || v.immat, immat: v.immat, label: v.immat, type: v.type, typeLabel: vehType(v) || v.type || '', marque: v.marque, modele: v.modele, km: v.km, secteur, conducteurId: drv ? drv.id : null, conducteurNom: drv ? drv.prenom : (v.conducteur || ''), out: !!(drv && drv.today.where === 'chantier'), chantierNom: drv && drv.today.where === 'chantier' ? drv.today.chantierNom : '', alerts: (vehAlertes(v) || []).map(a => ({ sev: a.sev === 'bad' ? 'bad' : 'warn', t: a.t })) }; }); } catch (e) { console.warn('vehicules 3D', e); }

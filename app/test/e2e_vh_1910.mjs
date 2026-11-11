@@ -48,7 +48,7 @@ const browser=await chromium.launch({headless:true, executablePath: process.env.
 const CORS={'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'GET, POST, PUT, PATCH, DELETE, OPTIONS'};
 const logs=[];const C={};
 const PCW=!!process.env.PCW; /* PCW=1 : les écrans du responsable (Ethan) en 1366 px pour les captures PC ; les gars restent au téléphone */
-async function mkCtx(wide){const ctx=await browser.newContext({viewport:wide?{width:1366,height:900}:{width:390,height:844}});
+async function mkCtx(wide){const ctx=await browser.newContext({viewport:wide?{width:1366,height:900}:{width:390,height:844}});await ctx.addInitScript(()=>{try{localStorage.setItem('trace:flotteAncien','1');}catch(e){}}); /* 10/11 nuit : ce test vise l'ancien écran Parc → Flotte (toujours là : « Ancien écran Flotte ») */
   await ctx.route(u=>u.href.startsWith(SB),async route=>{const req=route.request();const u=new URL(req.url());const p=u.pathname;const acc=req.headers()['accept']||'';
     const json=(o,status=200)=>route.fulfill({status,contentType:'application/json',headers:CORS,body:JSON.stringify(o)});
     if(OFFLINE)return route.abort('internetdisconnected');

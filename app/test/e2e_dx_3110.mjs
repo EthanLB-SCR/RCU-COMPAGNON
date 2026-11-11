@@ -1,8 +1,8 @@
 // e2e_dx_3110.mjs — 31/10 (lot DX) : Dossier du chantier V1 (pièces obligatoires, Drive) + plans d'exé (import, planches, indices, zones, raccourci du soudeur, hors connexion).
 // Données 100 % fictives (chantier « Chantier fictif DX », PDF fabriqués ici : une couleur par page pour vérifier qu'on ouvre la BONNE page).
-//  c1  Dossier V1 (Ethan) : 8 pièces obligatoires « ✗ manquante », compteur 0/8 (onglet + en tête du chantier « 🗂 0/8 » + Bureau), pli « Autres documents » fermé (ancien dépôt dedans)
-//  c2  « 📎 Déposer » sur PPSPS → ✓ présente (nom, date, qui), compteur 1/8 partout ; l'ancien dépôt par catégorie (pli) marche toujours
-//  c3  DT / DICT déposée → fiche ouverte (échéance) ; échéance passée → ⚠ à mettre à jour (hors compteur) ; dans 60 j → ✓ ; voirie « sans objet » → 2/7 ; signalée « à mettre à jour »
+//  c1  Dossier V1 (Ethan, 11/11 : 5 obligatoires + 3 « pièces utiles ») : 5 pièces « ✗ manquante », 3 « facultative · pas déposée », compteur 0/5 (onglet + en tête « 🗂 0/5 » + Bureau), pli « Autres documents » fermé (ancien dépôt dedans)
+//  c2  « 📎 Déposer » sur PPSPS → ✓ présente (nom, date, qui), compteur 1/5 partout ; l'ancien dépôt par catégorie (pli) marche toujours
+//  c3  DT / DICT déposée → fiche ouverte (échéance) ; échéance passée → ⚠ à mettre à jour (hors compteur) ; dans 60 j → ✓ ; voirie « sans objet » → 2/4 ; signalée « à mettre à jour »
 //  c4  Drive : « javascript: » et « ftp: » refusés, https accepté → « 📁 Ouvrir le Drive du chantier » (nouvel onglet, noopener)
 //  c5  import d'un PDF fictif de 3 pages → 3 planches (n° 1-3, ind. A, date, page 1-3), fichier classé au Dossier (Plans d'exécution) ; pièce « Plans d'exécution » ✓ 3 planches
 //  c6  planche ↔ zone : planche 1 → L1 PK 0→100, planche 2 → L2, planche 3 → L1 PK 100→200 ; calque « Plans d'exé » éteint par défaut, allumé : 3 cadres + n°
@@ -68,7 +68,7 @@ let o={rows:await rows(),counter:await counter(),head:await page.evaluate(()=>(d
 await tab('bureau');o.bureau=await page.evaluate(()=>{const b=document.querySelector('#bureau .dx-stat');const coince=[...document.querySelectorAll('#bureau .ac-notif')].map(x=>x.textContent).find(t=>/Dossier administratif/.test(t))||'';return {stat:b?b.textContent:'',coince:coince.slice(0,160)};});
 await shot('pc_0_bureau');await tab('admin');await shot('pc_1_dossier_vide');
 console.log('c1) Dossier V1 vide :',J(o));
-C.c1=o.rows.length===8&&o.rows.every(r=>r.cls==='bad'&&/manquante/.test(r.t))&&o.rows.map(r=>r.k).join()==='dt,ppsps,pgc,exe,planning,qualif,habil,voirie'&&o.counter==='0/8'&&/🗂 0\/8/.test(o.head)&&o.fold.btn&&o.fold.hidden&&o.fold.cat&&o.fold.qse&&o.fold.bl&&/Dossier du chantier/.test(o.title)&&o.px&&o.deps===8&&/0\/8/.test(o.bureau.stat);
+C.c1=o.rows.length===8&&o.rows.slice(0,5).every(r=>r.cls==='bad'&&/manquante/.test(r.t))&&o.rows.slice(5).every(r=>r.cls==='na'&&/facultative/.test(r.t))&&o.rows.map(r=>r.k).join()==='dt,ppsps,voirie,habil,exe,pgc,qualif,planning'&&o.counter==='0/5'&&/🗂 0\/5/.test(o.head)&&o.fold.btn&&o.fold.hidden&&o.fold.cat&&o.fold.qse&&o.fold.bl&&/Dossier du chantier/.test(o.title)&&o.px&&o.deps===8&&/0\/5/.test(o.bureau.stat);
 
 /* ── c2 : déposer le PPSPS depuis sa ligne ; l'ancien dépôt par catégorie marche toujours ── */
 await page.setInputFiles('#admin [data-dxdep="ppsps"]',file('ppsps_fictif.pdf',PDF_DOC));await wait(900);
@@ -79,7 +79,7 @@ await page.evaluate(()=>{document.getElementById('adm-cat').value='bl';});await 
 o.old=await page.evaluate(()=>{const d=[...document.querySelectorAll('#dx-others details')].find(x=>/Bons de livraison/.test(x.querySelector('summary').textContent));return {open:!!(d&&d.open),txt:d?d.textContent:'',foldOpen:!document.getElementById('dx-others').hidden,n:window.TRACE.net.admin.docs.length};});
 await page.evaluate(()=>{const x=document.getElementById('dx-fold');const v=x&&x.closest('.view');if(v)v.scrollTop=Math.max(0,x.getBoundingClientRect().top-v.getBoundingClientRect().top+v.scrollTop-8);});await wait(150);await shot('pc_1b_autres_documents');
 console.log('c2) dépôt PPSPS + ancien dépôt :',J({pp,counter:o.counter,head:o.head,toast:o.toast,old:o.old}));
-C.c2=pp&&pp.cls==='ok'&&/✓ présente/.test(pp.t)&&/ppsps_fictif\.pdf/.test(pp.t)&&pp.t.includes(todayFR)&&/Ethan L\./.test(pp.t)&&o.counter==='1/8'&&/1\/8/.test(o.head)&&o.old.open&&/bl_fictif\.pdf/.test(o.old.txt)&&o.old.foldOpen&&o.old.n===2;
+C.c2=pp&&pp.cls==='ok'&&/✓ présente/.test(pp.t)&&/ppsps_fictif\.pdf/.test(pp.t)&&pp.t.includes(todayFR)&&/Ethan L\./.test(pp.t)&&o.counter==='1/5'&&/1\/5/.test(o.head)&&o.old.open&&/bl_fictif\.pdf/.test(o.old.txt)&&o.old.foldOpen&&o.old.n===2;
 
 /* ── c3 : DT / DICT + échéance ; voirie sans objet ; « à mettre à jour » ── */
 await page.setInputFiles('#admin [data-dxdep="dt"]',file('dict_fictive.pdf',PDF_DOC));await wait(900);
@@ -99,8 +99,8 @@ await tab('bureau');o.bureau=await page.evaluate(()=>{const b=document.querySele
 await page.evaluate(()=>document.querySelector('#admin [data-dxman="dt"]').click());await wait(250);await page.setInputFiles('#dxp-file',file('dict_fictive_v2.pdf',PDF_DOC));await wait(900);
 o.v2=await page.evaluate(()=>({vers:[...document.querySelectorAll('#modal .dx-vers tr')].map(t=>t.textContent.replace(/\s+/g,' ').trim().slice(0,60))}));await closeModal();await wait(150);o.v2.row=(await rows()).find(r=>r.k==='dt');
 console.log('c3) échéance / sans objet / à mettre à jour :',J(o));
-C.c3=o.modal.open&&o.modal.until&&/date de fin de validité/.test(o.modal.txt)&&o.late.cls==='bad'&&/échéance dépassée/.test(o.late.t)&&o.cLate==='1/8'&&o.ok.cls==='ok'&&/valable jusqu’au/.test(o.ok.t)&&o.soon.cls==='warn'&&/J-10/.test(o.soon.t)&&o.cSoon==='2/8'
-  &&o.na.cls==='na'&&/sans objet/.test(o.na.t)&&o.cNa==='2/7'&&o.flag.cls==='warn'&&/à mettre à jour \(signalé par Ethan L\./.test(o.flag.t)&&o.cFlag==='1/7'&&o.unflag.cls==='ok'&&/2\/7/.test(o.bureau.stat)&&/2 \/ 7 pièces obligatoires/.test(o.bureau.dash)&&o.v2.vers.length===2&&/^dict_fictive_v2\.pdf en cours/.test(o.v2.vers[0])&&o.v2.row.cls==='ok'&&/dict_fictive_v2\.pdf/.test(o.v2.row.t);
+C.c3=o.modal.open&&o.modal.until&&/date de fin de validité/.test(o.modal.txt)&&o.late.cls==='bad'&&/échéance dépassée/.test(o.late.t)&&o.cLate==='1/5'&&o.ok.cls==='ok'&&/valable jusqu’au/.test(o.ok.t)&&o.soon.cls==='warn'&&/J-10/.test(o.soon.t)&&o.cSoon==='2/5'
+  &&o.na.cls==='na'&&/sans objet/.test(o.na.t)&&o.cNa==='2/4'&&o.flag.cls==='warn'&&/à mettre à jour \(signalé par Ethan L\./.test(o.flag.t)&&o.cFlag==='1/4'&&o.unflag.cls==='ok'&&/2\/4/.test(o.bureau.stat)&&/2 \/ 4 pièces obligatoires/.test(o.bureau.dash)&&o.v2.vers.length===2&&/^dict_fictive_v2\.pdf en cours/.test(o.v2.vers[0])&&o.v2.row.cls==='ok'&&/dict_fictive_v2\.pdf/.test(o.v2.row.t);
 
 /* ── c4 : Drive ── */
 const driveTry=async v=>{await page.fill('#dx-drive-in',v);await page.click('#dx-drive-ok');await wait(300);return {toast:await toast(),open:await page.evaluate(()=>!!document.getElementById('dx-drive-open'))};};
@@ -170,7 +170,7 @@ await page.reload();await wait(1500);await reopen();await asUser('ethan');await 
 o.after=await page.evaluate(()=>({list:window.TRACE.dx.list().map(p=>p.no+':'+p.ind.join('')+':'+(p.zone[0]||{}).l),drive:window.TRACE.net.admin.drive&&window.TRACE.net.admin.drive.url,na:window.TRACE.net.admin.na}));o.cAfter=await counter();
 console.log('c7) nouveaux indices + historique + persistance :',J(o));
 C.c7=o.ni.i==='B'&&o.ni.d===today&&o.hist.length===2&&/^B du .*en cours/.test(o.hist[0])&&/^A du .*remplacé par l'indice B du/.test(o.hist[1])&&/nouvel indice de la planche 3 \(A → B\)/.test(o.re.st)&&o.re.i==='B'
-  &&o.list.join()==='1:A:A,2:AB:B,3:AB:B'&&/dernier indice B/.test(o.exe.t)&&o.after.list.join()==='1:A:L1,2:AB:L2,3:AB:L1'&&/drive\.exemple\.fr/.test(o.after.drive||'')&&J(o.after.na)==='["voirie"]'&&o.cAfter==='3/7';
+  &&o.list.join()==='1:A:A,2:AB:B,3:AB:B'&&/dernier indice B/.test(o.exe.t)&&o.after.list.join()==='1:A:L1,2:AB:L2,3:AB:L1'&&/drive\.exemple\.fr/.test(o.after.drive||'')&&J(o.after.na)==='["voirie"]'&&o.cAfter==='3/4'; /* 11/11 : 5 obligatoires − voirie sans objet = 4 */
 
 /* ── c8 : raccourci du soudeur (Karim) ── */
 await asUser('karim');await tab('plan');
