@@ -132,3 +132,7 @@ function place(){if(!cur)return;const root=document.getElementById('tuto');if(!r
   const ch=card.offsetHeight;let top=y+h+10;if(top+ch>H0-8)top=y-ch-10;if(top<8)top=Math.max(8,Math.min(H0-ch-8,Math.round((H0-ch)/2)));
   let left=Math.round(x+w/2-cw/2);left=Math.max(12,Math.min(W0-cw-12,left));card.style.left=left+'px';card.style.top=Math.round(top)+'px';}
 export const tutoKeys=()=>Object.keys(TUTOS);
+/* 11/11 (assistant 💬) : les tutoriels en texte, pour le manuel de l'assistant — étapes filtrées par les droits de la personne (mêmes conditions `si` que l'affichage) ;
+   keep(clé) : garder le tutoriel (l'assistant ne garde que ceux des onglets ouverts à la personne) */
+export function tutoManuel(keep){const out=[];Object.keys(TUTOS).forEach(k=>{if(keep){try{if(!keep(k))return;}catch(e){}}const st=stepsOf(k).filter(s=>s&&(s.titre||s.texte));if(!st.length)return;out.push('## '+(TUTO_TITRES[k]||k));
+  st.forEach(s=>out.push('- '+(s.titre?String(s.titre).trim()+' : ':'')+String(s.texte||'').replace(/\s+/g,' ').trim()));out.push('');});return out.join('\n');}

@@ -9,6 +9,8 @@
 //   Registre « retour » (sql/retours_ia_1111.sql) : chacun envoie et relit les siens (« Mes envois » : nouveau → vu → fait) ; l'administrateur reçoit tout.
 // · REÇUS (administrateur) : filtres, « vu » / « fait », réponse courte, et « 📋 Copier pour Claude » (la liste à coller dans la conversation de développement).
 import { regSet, regAll, regLoad, regMissing, onReg } from './reg.js';
+import { tutoManuel } from './tuto.js';
+import { manuelTexte } from './assistant_manuel.js'; // 11/11 après-midi : le manuel de Tracé envoyé avec chaque question (la fonction serveur le met en cache)
 let A = null, ROOT = null, OPEN = false, TAB = 'chat', CONV = null, BUSY = false, FORM = { bug: null, idee: null }, RF = 'ouverts';
 const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const LS = { get(k, d) { try { const v = localStorage.getItem('trace:ia:' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem('trace:ia:' + k, JSON.stringify(v)); } catch (e) { } } };
@@ -68,6 +70,17 @@ function badge() { if (!ROOT) return; const b = ROOT.querySelector('.ia-badge');
 function ouvrir(on) { OPEN = !!on; const P = document.getElementById('ia-panel'); if (!P) return; P.hidden = !OPEN; ROOT.querySelector('#ia-btn').setAttribute('aria-expanded', OPEN ? 'true' : 'false');
   if (OPEN) { if (isAdm() || TAB === 'bug' || TAB === 'idee') regLoad(['retour']).then(() => { badge(); if (OPEN && TAB !== 'chat') draw(); }).catch(() => { }); draw(); setTimeout(() => { const i = document.getElementById(TAB === 'chat' ? 'ia-in' : 'ia-texte'); if (i && window.innerWidth > 640) i.focus(); }, 30); } }
 function contexte() { let c = ''; try { c = A.screenInfo() || ''; } catch (e) { } return c; }
+/* le manuel : tutoriels que CETTE personne voit (droits du compte affiché) + nouveautés + situations de terrain ; reconstruit à chaque question (quelques ms) */
+const TUTO_MOD = { chantiers: 'chantier', chantier: 'chantier', pilotage: 'pilotage', compagnon: 'compagnon', commerce: 'commerce', affaire: 'affaire', flotte: 'flotte', magasin: 'magasin', concepteur: 'concepteur', equipe: 'equipe' };
+const MOD_NOM = { chantier: 'Chantier', pilotage: 'Pilotage', compagnon: 'Compagnon', commerce: 'Commerce', affaire: 'Affaire', flotte: 'Flotte', magasin: 'Magasin', equipe: 'Équipe', rh: 'RH', concepteur: 'Concepteur (traceur)' };
+function manuel() {
+  let mods = null; try { mods = A.modules ? A.modules() : null; } catch (e) { } if (!Array.isArray(mods) || !mods.length) mods = null;
+  const keep = k => { if (!mods) return true; const m = TUTO_MOD[String(k).split(':')[0]]; return !m || mods.includes(m); }; /* tutoriels des onglets ouverts à la personne (accueil, réglages : toujours) */
+  let t = ''; try { t = tutoManuel(keep); } catch (e) { }
+  const f = (k) => { try { return String((A[k] && A[k]()) || ''); } catch (e) { return ''; } };
+  try { return manuelTexte({ tutos: t, profil: profil(), ouverts: mods ? mods.map(k => MOD_NOM[k] || k) : [], fermes: mods ? Object.keys(MOD_NOM).filter(k => !mods.includes(k)).map(k => MOD_NOM[k]) : [], droits: f('droits'), quiPeut: f('quiPeut') }).slice(0, 150000); } catch (e) { return ''; }
+}
+function profil() { try { return String((A.profil && A.profil()) || '').slice(0, 200); } catch (e) { return ''; } }
 function draw() { const P = document.getElementById('ia-panel'); if (!P) return; const adm = isAdm();
   const tabs = [['chat', '💬 Discuter'], ['bug', '🐞 Un bug'], ['idee', '💡 Une idée']].concat(adm ? [['recus', '📥 Reçus' + (() => { const n = regAll('retour').filter(r => (r.statut || 'nouveau') === 'nouveau').length; return n ? ' (' + n + ')' : ''; })()]] : []);
   const sc = (P.querySelector('.ia-body') || {}).scrollTop || 0; const keepScroll = P.dataset.tab === TAB;
@@ -81,7 +94,7 @@ function chatHTML() { const C = conv(); const hasUser = C.some(m => m.role === '
   return `<div class="ia-body" id="ia-msgs">${msgs}${BUSY ? '<div class="ia-msg assistant">…</div>' : ''}${sys}${hasUser ? `<div class="ia-acts"><button type="button" class="ia-act sec" data-ia="tirer|bug">🐞 En faire un bug</button><button type="button" class="ia-act sec" data-ia="tirer|idee">💡 En faire une idée</button>${C.length ? '<button type="button" class="ia-act sec" data-ia="effacer">Effacer</button>' : ''}</div>` : ''}</div>
     <div class="ia-foot"><textarea id="ia-in" rows="1" placeholder="Ta question…" aria-label="Ta question" maxlength="2000"></textarea><button type="button" data-ia="envoyer"${BUSY ? ' disabled' : ''}>Envoyer</button></div>`; }
 async function envoyer() { if (BUSY) return; const i = document.getElementById('ia-in'); const t = String(i && i.value || '').trim(); if (!t) return; conv().push({ role: 'user', content: t.slice(0, 2000) }); saveConv(); BUSY = true; draw();
-  let r = null; try { r = await appel({ mode: 'chat', messages: conv().slice(-20), contexte: contexte() }); } catch (e) { r = { ok: false, error: String(e && e.message || e) }; }
+  let r = null; try { r = await appel({ mode: 'chat', messages: conv().slice(-20), contexte: contexte(), manuel: manuel(), profil: profil() }); } catch (e) { r = { ok: false, error: String(e && e.message || e) }; }
   BUSY = false; if (r && r.ok && r.texte) { LS.set('etat', 'ok'); conv().push({ role: 'assistant', content: String(r.texte).slice(0, 6000) }); saveConv(); }
   else { LS.set('etat', r && r.missing ? 'absent' : r && r.offline ? 'horsligne' : r && r.nocloud ? 'demo' : 'erreur'); if (r && !r.missing && !r.offline && !r.nocloud) conv().push({ role: 'assistant', content: 'Je n\'ai pas pu répondre (' + String(r && r.error || 'erreur').slice(0, 160) + '). Réessaie dans un moment.' }); saveConv(); }
   if (OPEN && TAB === 'chat') draw(); }
@@ -126,4 +139,4 @@ function onClick(e) { const t = e.target.closest('[data-ia],[data-iatab]'); if (
   if (k === 'fermer') { ouvrir(false); return; } if (k === 'ranger') { ouvrir(false); ROOT.classList.add('range'); LS.set('range', true); A.toast('Bulle rangée au bord droit — touche-la pour la rouvrir'); return; }
   if (k === 'envoyer') { envoyer(); return; } if (k === 'effacer') { CONV = []; saveConv(); draw(); return; } if (k === 'tirer') { tirer(a); return; }
   if (k === 'envoyerRetour') { envoyerRetour(a); return; } if (k === 'rf') { RF = a; draw(); return; } if (k === 'copier') { copier(); return; } if (k === 'st') { statut(t.dataset.iid, t.dataset.iv); return; } if (k === 'rep') { repondre(t.dataset.iid); return; } } /* l'identifiant contient « | » (clé|uid) : il voyage à part (data-iid) */
-export const iaTest = { open: (tab) => { mount(); if (tab) TAB = tab; ouvrir(true); }, close: () => ouvrir(false), tab: () => TAB, conv: () => conv().slice(), copier: () => copier() };
+export const iaTest = { open: (tab) => { mount(); if (tab) TAB = tab; ouvrir(true); }, close: () => ouvrir(false), tab: () => TAB, conv: () => conv().slice(), copier: () => copier(), manuel: () => manuel(), profil: () => profil() };
