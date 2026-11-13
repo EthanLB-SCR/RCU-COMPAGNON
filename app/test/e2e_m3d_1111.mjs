@@ -72,7 +72,7 @@ console.log('m5) tapis en photo :',J(m5));C.m5=Math.abs(m5.z0-Math.PI)<0.01&&m5.
 await page.evaluate(()=>{const b=document.querySelector('.m3d-chip[data-chip=perso]');if(b)b.click();});await W(600);
 // ── m6) Commerce et Flotte : leur espace dans un seul dépôt ; Visite des dépôts : tout le monde
 const espace=()=>page.evaluate(()=>{const H=window.TRACE.monde3d();if(!H)return null;return {scene:H.state.scene,centres:Object.keys(H.state.world&&H.state.world.centers||{}),chips:[...document.querySelectorAll('.m3d-topbar .m3d-chip')].map(b=>b.dataset.chip)};});
-await home('htCom');const com=await espace();await home('htParc');const fl=await espace();
+await home('htCom');const com=await espace();await home('htParc');await page.evaluate(()=>{const b=document.querySelector('#eq-app .fl-root [data-act="aller"][data-h="parking"]');if(b)b.click();});await W(2600);const fl=await espace(); /* 12/11 (Ethan) : la 3D de la Flotte est dans le module, rubrique « Parking 3D » (plus en tête de l'onglet) */
 let fl2=null;if(fl&&fl.chips.includes('dep:idf')){await page.evaluate(()=>{const b=document.querySelector('.m3d-chip[data-chip="dep:idf"]');if(b)b.click();});await W(1500);fl2=await espace();}
 await home('htEnt');await page.evaluate(()=>{const b=document.querySelector('#eq-app [data-act="xgo"][data-v="x:monde:depot"]');if(b)b.click();});await W(2600);const vis=await espace();
 console.log('m6) espaces :',J({com,fl,fl2,vis}));C.m6=!!com&&com.scene==='commerce'&&com.centres.length===1&&!com.chips.includes('survol')&&!com.chips.includes('cam:bureaux')&&!!fl&&fl.scene==='flotte'&&fl.centres.length===1&&(!fl2||J(fl2.centres)===J(['idf']))&&!!vis&&vis.centres.length>=2&&vis.chips.includes('cam:bureaux');

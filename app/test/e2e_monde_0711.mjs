@@ -53,8 +53,8 @@ await page.mouse.move(box.x,box.y);await page.mouse.down();await page.mouse.move
 console.log('m5) caméra :',J({t0,t1}));C.m5=Math.hypot(t1[0]-t0[0],t1[2]-t0[2])>0.5;
 // ── m6) Pilotage, Flotte, Magasin : chacun sa caméra
 await home('htExpl');await W(2500);const o6a=await q();const n6=await page.evaluate(()=>document.querySelectorAll('#eq-app .m3d-side .m3d-li[data-m3d="chantier"]').length);
-await home('htParc');await W(2500);const o6b=await q();await home('htMag');await W(2500);const o6c=await q();
-console.log('m6) modules :',J({o6a,n6,o6b,o6c}));C.m6=!o6a.slot&&o6b.slot==='flotte'&&(o6c.slot==='magasin'||o6c.slot===null); /* 10/11 (Ethan) : plus de 3D sur Pilotage */
+await home('htParc');await W(800);const o6f=await q();await page.evaluate(()=>{const b=document.querySelector('#eq-app .fl-root [data-act="aller"][data-h="parking"]');if(b)b.click();});await W(2500);const o6b=await q(); /* 12/11 (Ethan) : plus de 3D en tête de Flotte ; elle est dans « Parking 3D » */await home('htMag');await W(2500);const o6c=await q();
+console.log('m6) modules :',J({o6a,n6,o6b,o6c}));C.m6=!o6a.slot&&!o6f.slot&&o6b.slot==='flotte'&&(o6c.slot==='magasin'||o6c.slot===null); /* 10/11 (Ethan) : plus de 3D sur Pilotage */
 // ── m7) Commerce : salle d'attente ; « Attente client » enregistrée sur l'affaire depuis le panneau 3D
 await page.evaluate(()=>{const A=window.TRACE.affaires;A.set('ZT-1',{num:'ZT-1',nom:'Réseau Test A',client:'Client test',etat:'devis'});A.set('ZT-2',{num:'ZT-2',nom:'Réseau Test B',client:'Client test',etat:'preconsult',attente:{de:'fournisseur',rel:'2026-11-02',note:'prix'}});});await W(200);
 await home('htCom');await W(2500);const o7a=await q();await page.evaluate(()=>document.querySelector('#eq-app .m3d-side .m3d-li[data-m3d="affaire"][data-arg="ZT-1"]').click());await W(500);await page.evaluate(()=>document.querySelector('#eq-app .m3d-side [data-m3d="attente"][data-arg="ZT-1|client"]').click());await W(800);

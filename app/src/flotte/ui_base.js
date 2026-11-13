@@ -61,17 +61,25 @@
       /* 10/11 nuit : entrée vers un écran existant de l'appli (Pack véhicules) — seulement dans l'appli, pour qui a le droit */
       if (n.x) { if (D.app && D.app.peut && D.app.peut(n.x)) { html += '<button type="button" data-act="existant" data-x="' + n.x + '" title="' + FL.esc(n.t || '') + '">' + FL.ico(n.i, 20) + '<span>' + n.nom + '</span></button>'; } return; }
       var cur = r.page === n.id || (r.page === 'fiche' && n.id === 'vehicules');
-      html += '<button type="button" data-act="aller" data-h="' + n.id + '"' + (cur ? ' aria-current="page"' : '') + (n.lot && !FL.pages[n.id] ? ' title="Lot ' + n.lot + ' : à venir"' : '') + '>' + FL.ico(n.i, 20) + '<span>' + n.nom + '</span>' + (b[n.id] ? '<span class="af-badge' + (n.id === 'calendrier' ? ' fl-badge--bad' : '') + '">' + b[n.id] + '</span>' : '') + '</button>';
+      html += '<button type="button" data-act="aller" data-h="' + n.id + '"' + (cur ? ' aria-current="page"' : '') + (n.lot && !FL.pages[n.id] && !(n.id === 'parking' && D.app && D.app.parking3d) ? ' title="Lot ' + n.lot + ' : à venir"' : '') + '>' + FL.ico(n.i, 20) + '<span>' + n.nom + '</span>' + (b[n.id] ? '<span class="af-badge' + (n.id === 'calendrier' ? ' fl-badge--bad' : '') + '">' + b[n.id] + '</span>' : '') + '</button>';
     });
     var ag = D.agences.find(function (a) { return a.id === FL.etat.agence; });
     html += '<div class="af-nav__pied">' + (D.agences.length > 1 ? '<label class="af-qui" style="margin:0 0 8px;display:flex">Agence <select data-chg="agence" aria-label="Agence">' + D.agences.map(function (a) { return '<option value="' + FL.esc(a.id) + '"' + (a.id === FL.etat.agence ? ' selected' : '') + '>' + FL.esc(a.nom) + '</option>'; }).join('') + '</select></label>' : (ag ? 'Agence ' + FL.esc(ag.nom) + '<br>' : '')) +
       'Aujourd\'hui : ' + C.date(D.aujourdhui) + (D.responsable ? '<br>Responsable flotte : ' + FL.esc(D.responsable) : '') + '</div></nav><main class="af-main" id="fl-main">';
     var p = FL.pages[r.page];
+    if (!p && r.page === 'parking' && D.app && D.app.parking3d) { p = parkingPage; } /* 12/11 : le parking 3D du dépôt (Monde 3D de l'appli) */
     try { html += p ? p(r) : '<div class="af-carte af-vide">Écran à venir (lot suivant du module Flotte).' + (r.page === 'parking' ? ' Le parking 3D du dépôt reste dans le Monde 3D en attendant.' : '') + '</div>'; } catch (e) { html += '<div class="tr-alerte tr-alerte--bloque"><div class="tr-alerte__corps"><b class="tr-alerte__titre">Erreur d\'affichage</b><span class="tr-alerte__texte">' + FL.esc(e.message) + '</span></div></div>'; console.error(e); }
     html += '</main></div></div>';
     if (FL.apresRendu) { var f = FL.apresRendu; FL.apresRendu = null; setTimeout(function () { try { f(); } catch (e) { console.error(e); } }, 0); }
     return html;
   };
+  /* 12/11 (Ethan : « modélise la vue 3D visible quand on appuie sur Parking 3D ») : la 3D du parking, celle du Monde 3D de l'appli (chaque véhicule à sa place,
+     son conducteur), montée dans l'écran du module ; « voir sur le parking » depuis un véhicule le montre de près (FL.etat.pkSel) */
+  function parkingPage() {
+    var h = ''; try { h = D.app.parking3d() || ''; } catch (e) { h = ''; }
+    return '<div class="af-page fl-parking"><div class="af-titre"><h1>Parking 3D</h1><span class="af-sous">le parking du dépôt : chaque véhicule à sa place, son conducteur ; touche un véhicule pour le voir de près</span></div>' +
+      (h || '<div class="af-carte af-vide">Le parking 3D fait partie du Monde 3D (Labo) : l\'administrateur l\'allume dans Équipe → 🌍 Monde 3D · Labo, pour les testeurs.</div>') + '</div>';
+  }
   /* la maquette redessinait #app ; dans l'appli, c'est l'onglet Parc qui se redessine (il relit les données) */
   FL.render = function () { if (D.app && D.app.render) { D.app.render(); } };
 

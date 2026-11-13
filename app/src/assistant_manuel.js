@@ -30,7 +30,7 @@ Règles générales :
 
 export const NOUVEAUTES = `## Préfabrication — soudures faites mais pas encore sur le plan (espace d'attente)
 - Pour quoi : une soudure (ou soudure + manchon) faite en avance, en préfabrication ou sur un tronçon que le plan ne montre pas encore. On la pointe SANS toucher au plan, puis on la transfère quand le plan est mis à jour.
-- Où : ouvrir le chantier → ☰ Menu (en haut à droite) → « ⏳ Préfabrication (en attente) » → « ＋ Pointer une soudure en attente ».
+- Où : ouvrir le chantier → le « ＋ » en bas du plan → « ⏳ Soudure faite, pas sur le plan » ; ou ☰ Menu (en haut à droite) → « ⏳ Préfabrication (en attente) ». Puis « ＋ Pointer une soudure en attente ».
 - Remplir : « Soudure faite » ou « Soudure + manchon faits », DN, procédé (ou manchon), « Où elle ira » (obligatoire), ligne prévue et « Près de la soudure » (facultatifs), au moins une photo (obligatoire), note → « Enregistrer en attente ».
 - Elle reçoit un numéro provisoire ATT-… ; le plan n'est pas modifié ; un bandeau « ⏳ n soudures préfabriquées en attente du plan » le rappelle. Sans réseau, elle est gardée sur le téléphone.
 - Quand le plan a la soudure : Préfabrication → « 📍 Transférer sur la soudure du plan » → toucher la vraie soudure : tout passe dessus (soudeur et date d'origine, photos, étapes), sa fiche porte « ⏳ Préfabriquée ». Transfert : droit « transférer l'avancement » (soudeurs, manchonneurs, chefs…).
@@ -74,6 +74,7 @@ export const NOUVEAUTES = `## Préfabrication — soudures faites mais pas encor
 
 ## Flotte (onglet Flotte)
 - Nouvel écran (depuis le 11/11) : Accueil (à faire en retard et 7 jours, calendrier, alertes, signalements des conducteurs), Calendrier des échéances, Parking 3D, Véhicules, Qui a quoi, À traiter, Journal et historique ; Paramètres : Silhouettes 3D, Pack véhicules.
+- « Parking 3D » : le parking du dépôt en 3D (chaque véhicule à sa place, son conducteur ; toucher un véhicule le montre de près). Il n'est plus affiché en tête de l'onglet Flotte. Il fait partie du Monde 3D (Labo) : s'il n'apparaît pas, l'administrateur l'allume dans Équipe → 🌍 Monde 3D · Labo.
 - Le tutoriel « Tracé Flotte » décrit l'ANCIEN écran, toujours là par le bouton « Ancien écran Flotte » (retour : « ← Nouvel écran Flotte »). Correspondances : Échéances & interventions → Calendrier des échéances ; Mouvements → À traiter ; Historique → Journal et historique.
 
 ## Affaire (onglet Affaire)
@@ -95,7 +96,7 @@ export const NOUVEAUTES = `## Préfabrication — soudures faites mais pas encor
 ## Bac à sable (administrateur)
 - Équipe → ⚙ Administration → 🧪 Bac à sable : un chantier de démonstration et des personnages de démo (Karim B., Julien R., Ethan L., Sophie M.) pour s'entraîner ; rien ne part au serveur ; « 🗑 Retirer le bac à sable » efface tout.`;
 
-export const SITUATIONS = `- « J'ai fait une soudure mais elle n'est pas sur le plan » → deux cas. (1) Soudure faite en avance, préfabriquée, ou tronçon que le plan ne montre pas encore : ☰ Menu → « ⏳ Préfabrication (en attente) » → « ＋ Pointer une soudure en attente » (où elle ira + photo), puis transfert quand le plan est à jour. (2) Soudure EN PLUS sur un tronçon déjà dessiné (barre recoupée, réparation) : ☰ Menu → « ➕ Soudure supplémentaire » si la personne a ce droit (sinon le chef de chantier), puis la pointer normalement. Dans le doute : la préfabrication (rien n'est perdu, on la transfère ensuite).
+export const SITUATIONS = `- « J'ai fait une soudure mais elle n'est pas sur le plan » → deux cas. (1) Soudure faite en avance, préfabriquée, ou tronçon que le plan ne montre pas encore : ouvrir le chantier → « ＋ » en bas du plan → « ⏳ Soudure faite, pas sur le plan » (ou ☰ Menu → « ⏳ Préfabrication (en attente) ») → « ＋ Pointer une soudure en attente » (où elle ira + photo), puis transfert quand le plan est à jour. (2) Soudure EN PLUS sur un tronçon déjà dessiné (barre recoupée, réparation) : ☰ Menu → « ➕ Soudure supplémentaire » si la personne a ce droit (sinon le chef de chantier), puis la pointer normalement. Dans le doute : la préfabrication (rien n'est perdu, on la transfère ensuite).
 - « Comment je pointe / valide une soudure » → ouvrir le chantier, toucher la soudure (un rond) sur le plan → sa fiche → « Faire l'étape … » (1 Soudure, 2 Fils raccordés, 3 Manchon posé, 4 Moussage) → photo (obligatoire pour la soudure) → « Valider l'étape ».
 - « Je me suis trompé de soudure / j'ai validé par erreur » → fiche de la soudure → « Annuler cette étape (erreur de saisie) » (selon tes crédits de la semaine), sinon « 🛡 Demander l'annulation au chef ».
 - « Le plan n'est pas à jour » → prévenir le chef / le bureau (mise à jour du plan, onglet Modifications) ; en attendant, pointer les soudures déjà faites dans la Préfabrication.
@@ -112,6 +113,7 @@ export const SITUATIONS = `- « J'ai fait une soudure mais elle n'est pas sur le
 export const PLAN = `## Chantier (un chantier ouvert)
 - En haut : ⌂ accueil, le nom du chantier (toucher pour changer), 🔍 rechercher une soudure, ☰ Menu (outils du chantier), « 🗂 x/5 pièces » (dossier).
 - Onglets (selon le poste, regroupés en 🏕 Vie du chantier et 🔧 Technique, les autres sous « ⋯ Plus ») : 📐 Plan d'ensemble, Bureau, 💬 Conversation, Dossier, QSE, 💧 Détection d'humidité, 🌊 Hydraulique, 🚚 Stockage, 🧾 Fournitures, 📅 Phasage, ✍️ Modifications, Points de contrôle, 🎖 Liste des soudures, 📊 Récapitulatif, 📦 Catalogue des pièces, 📷 DOE et exports.
+- Le « ＋ » en bas du plan ouvre « Poser sur le plan » : ➕ Ajouter une soudure, ↔ Décaler, ✂ Retirer, ⏳ Soudure faite pas sur le plan (préfabrication), objectif, phase, zone de stock, note, essai hydraulique, modification, Ai-je la fourniture ?… (selon les droits).
 - ☰ Menu → « Terrain & chantier » (selon les droits) : ＋ Poser sur le plan…, ⏳ Préfabrication (en attente), ➕ Soudure supplémentaire, 📍 Note sur le plan, 📍 Points, ✥ Modifier, ✎ Traceur : modifier ce réseau, ⏱ Versions…
 ## Pilotage (encadrement)
 - Planning de la semaine — qui est où chaque jour, chercher quelqu'un, placer en 3 touchers, nouvelle personne, équipes, copier la semaine dernière.

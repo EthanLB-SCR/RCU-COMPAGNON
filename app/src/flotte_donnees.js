@@ -14,6 +14,7 @@ import {mvCounters,mvEvents,conducteursDe,swDone} from './mouvements.js';
 import {sansEdl} from './reception2.js';
 import {vcfg} from './reception.js';
 import {POSTES} from './acces.js';
+import {glGo,glKind} from './monde_gl.js'; /* 12/11 : Parking 3D */
 const ID='fl';
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pad=n=>String(n).padStart(2,'0');
@@ -120,7 +121,11 @@ function ecritures(ctx){const who=()=>{try{return (ctx.api&&ctx.api.userName&&ct
       if(lecture())return false;try{await flottePhoto(immat,file,true);return true;}catch(e){console.warn(e);ctx.toast('Photo non enregistrée');return false;}}};}
 /* ── pont vers l'appli : rendu, fenêtres, toast, écrans existants ── */
 function bridge(ctx){FLD.app={render:()=>ctx.render(),openModal:h=>{if(ctx.api&&ctx.api.openModal)ctx.api.openModal(h);},closeModal:()=>{if(ctx.api&&ctx.api.closeModal)ctx.api.closeModal();},toast:t=>ctx.toast(t),
-  agence:()=>{},peut:k=>!DEMO&&k==='cfg'&&peut(ctx.me,ctx),dessin:v=>{try{return vehSVG(v._v||v,120);}catch(e){return null;}},ficheAncienne:()=>{try{return ctx.flotteAncien?ctx.flotteAncien():'';}catch(e){console.warn(e);return '';}},
+  agence:()=>{},peut:k=>!DEMO&&k==='cfg'&&peut(ctx.me,ctx),
+  /* 12/11 : « Parking 3D » = la 3D du parking du Monde 3D (module « monde ») dans l'écran du module ; « voir sur le parking » d'un véhicule → la caméra va dessus */
+  parking3d:()=>{const m=ctx.ext&&ctx.ext('monde');if(!m||!m.hubTop)return '';let h='';try{h=m.hubTop('parc',ctx.me,ctx)||'';}catch(e){console.warn('parking 3D',e);return '';}
+    const FL=window.FL,im=FL&&FL.etat.pkSel;if(h&&im){const v=vehAll().find(x=>x.immat===im);const id=v&&(v.id||v.immat);if(id){let n=0;const t=setInterval(()=>{n++;let ok=false;try{ok=glKind()==='flotte'&&glGo('vehicle',id);}catch(e){}if(ok||n>40){clearInterval(t);if(FL)FL.etat.pkSel=null;}},250);}else if(FL)FL.etat.pkSel=null;}
+    return h;},dessin:v=>{try{return vehSVG(v._v||v,120);}catch(e){return null;}},ficheAncienne:()=>{try{return ctx.flotteAncien?ctx.flotteAncien():'';}catch(e){console.warn(e);return '';}},
   /* la route du module → l'état de l'ancien écran (fiche ouverte, liste) pour que ses actions (data-act="fl") visent le bon véhicule */
   vers:r=>{const FS=flotteState();if(r.page==='fiche'){FS.cur=r.immat;FS.view='fiche';}else{FS.view='list';FS.cur=null;}FSV=FS.view;FSC=FS.cur;},
   lectureSeule:act=>{const W=['rdvOk','rdvFait','rdvDeplacer','sigOk','mvAttribuerOk'];if(W.includes(act)&&!DEMO&&ctx.viewing&&ctx.viewing()){ctx.toast('Lecture seule : tu vois l\'appli comme quelqu\'un d\'autre');return true;}return false;},
