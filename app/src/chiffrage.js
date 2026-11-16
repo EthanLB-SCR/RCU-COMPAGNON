@@ -817,4 +817,4 @@ export function prixPageHTML(ctx){const base=prixBase();const canPrix=!!(ctx&&ct
     ${canPrix?`<div class="eq-acts"><label class="btn${base?'':' primary'}">📎 ${base?'Réimporter':'Importer'} le classeur (.xlsm / .xlsx)<input type="file" accept=".xlsm,.xlsx" data-afprix="1" style="display:none"></label></div>`:''}
     ${base?`<div class="eq-filtres ch-wrap" style="margin-top:8px"><button class="chip${v==='base'?' active':''}" data-act="af" data-v="prixview|base">⚙ Taux, cadences, fournitures, contrôles CND, paramètres</button><button class="chip${v==='paniers'?' active':''}" data-act="af" data-v="prixview|paniers">🧺 Paniers (classeur, prestations, SCR)</button></div>`:''}</div>`;
   if(!base)return head;
-  return head+(v==='paniers'?paniersViewHTML(base,canPrix):baseViewHTML(base,canPrix));}
+  return head+(ctx&&ctx.cadCard?ctx.cadCard(base)||'':'' /* 16/11 (lot CA) : publier les cadences de production aux équipes (heures débloquées, avatars) */)+(v==='paniers'?paniersViewHTML(base,canPrix):baseViewHTML(base,canPrix));}

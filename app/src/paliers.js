@@ -44,6 +44,7 @@ export const FEATURES=[
  ['prod_tableau','Production : tableau jour / semaine','pilotage','labo','Pilotage → Production par équipe → tableau par équipe (jour / semaine : soudures, manchons, ml, objectif vs réalisé, barres), chantiers comptés, impression A4 — sans elle : l\'écran d\'avant seul'], /* 31/10 (lot PI) */
  ['demandes','Demandes de matériel (sans magasin)','compagnon','labo','Compagnon → Mes demandes (matériel pour un chantier), Pilotage → Demandes de matériel : commandé, livré / remis, refusé'], /* 31/10 (lot CC) */
  ['comptechantier','Compte chantier','affaire','labo','Affaire → Compte d\'un chantier, Bureau du chantier → 💶 : bons de commande, dépenses, heures par poste (lecture seule)'], /* 31/10 (lot CC) */
+ ['cadence','Cadence : heures débloquées par la production','compagnon','labo','Compagnon → Productions : carte « ⚡ Cadence » (heures débloquées par la production pointée, selon les cadences de la base de prix, face aux heures pointées ; détail du calcul), étincelles et paliers de l\'avatar calculés, Pilotage → Production par équipe : colonne « ⚡ Débloqué », Commerce → Base de prix : publier les cadences'], /* 16/11 (lot CA) */
 ];
 export const FEAT_KEYS=FEATURES.map(f=>f[0]);
 export const featDef=k=>FEATURES.find(f=>f[0]===k)||null;

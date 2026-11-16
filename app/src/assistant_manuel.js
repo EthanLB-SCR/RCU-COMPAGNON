@@ -94,7 +94,20 @@ export const NOUVEAUTES = `## Préfabrication — soudures faites mais pas encor
 - 🐞 Un bug / 💡 Une idée : écrire ce qui se passe ou ce qui est proposé ; l'écran, l'onglet, le chantier et la version sont notés tout seuls. « Mes envois » : nouveau → vu → fait, avec la réponse. « ⇥ » range la bulle en languette.
 
 ## Bac à sable (administrateur)
-- Équipe → ⚙ Administration → 🧪 Bac à sable : un chantier de démonstration et des personnages de démo (Karim B., Julien R., Ethan L., Sophie M.) pour s'entraîner ; rien ne part au serveur ; « 🗑 Retirer le bac à sable » efface tout.`;
+- Équipe → ⚙ Administration → 🧪 Bac à sable : un chantier de démonstration et des personnages de démo (Karim B., Julien R., Ethan L., Sophie M.) pour s'entraîner ; rien ne part au serveur ; « 🗑 Retirer le bac à sable » efface tout.
+
+## ⚡ Cadence — heures débloquées par la production (soudeur, tuyauteur, manchonneur)
+- Où : Compagnon → Productions → carte « ⚡ Cadence » (elle n'existe que si l'administrateur a publié les cadences « aux équipes » ; pendant l'essai « encadrement seulement » les compagnons ne l'ont pas ; chauffeur, chef et bureau n'en ont jamais).
+- Principe : chaque opération pointée sur le plan à ton nom débloque les heures prévues au chiffrage (cadences de la base de prix). Soudure (étape 1) = heures de la journée ÷ cadence du DN (cadence « avec tuyauteur » si un tuyauteur est dans ton équipe du jour, « avec tuyauteur et chauffeur d'engin » si un chauffeur y est aussi, « soudeur seul » sinon). Point SST, raccordement, fin de ligne, by-pass = heures « soudeur » du panier, divisées par deux (un point = une conduite). Manchon (étape 3) = heures de la journée ÷ cadence (thermo ou électro ; à deux manchonneurs : cadence de l'équipe). Fils DH (étape 2) = quelques minutes. Le moussage (étape 4) est compris dans le manchon.
+- La semaine (lundi → dimanche) : « débloquées par ta production » face à « de travail pointées » (pause et trajet inter-chantier exclus). Débloqué ≥ pointé = « Au-dessus de la cadence » ; sinon « En dessous », avec ce qu'il manque. Moins de 20 h pointées (réglage de l'administrateur) ou aucune production sur le plan = « Semaine pas comptée » (ni pour, ni contre). La semaine en cours est « pour l'instant » : elle compte le lundi suivant.
+- Tuyauteur : pas de pointage de production ; il reçoit les heures débloquées par le ou les soudeurs de son équipe du jour (la moyenne s'ils sont plusieurs) ; ses jours sans soudeur ne comptent pas. Manchonneurs d'une même équipe : leurs manchons sont mis en commun et partagés au prorata des heures du jour.
+- L'équipe = même chantier, même lettre d'équipe du planning, même jour (sans lettre : tout le chantier). Si l'équipe affichée est fausse, c'est le planning qu'il faut corriger (le chef : Pilotage → Planning de la semaine).
+- « Comment c'est calculé » (dans la carte) : jour par jour, chaque ligne « quantité × heures = total » avec la cadence utilisée, l'équipe du jour, puis le total de la semaine.
+- Avatar : une étincelle (soudeur), la flamme qui grossit (manchonneur) ou la gerbe (tuyauteur) par semaine d'affilée au-dessus — record acquis ou série en cours selon le réglage de l'administrateur ; les pouces soudés / manchonnés des semaines terminées font avancer les paliers Bronze 11 000, Argent 22 500, Or 34 000, Diamant 56 000.
+- « ⚠ Calcul incomplet sur cet appareil » : le plan d'un chantier de la semaine n'est pas sur ce téléphone → bouton « Ouvrir … » (ouvrir le chantier une fois), puis revenir dans Productions.
+- Les semaines terminées sont « figées » toutes seules quand un responsable (chef de chantier, conducteur, bureau, administrateur) qui a les plans de tes chantiers ouvre l'appli ; elles restent recalculées trois semaines (pointage corrigé, soudure pointée en retard).
+- Encadrement : Pilotage → Production par équipe → colonne « ⚡ Débloqué » (▲ au-dessus, ▼ en dessous, « ? incomplet » = ouvrir le chantier une fois) ; toucher le chiffre = le détail du calcul de la personne.
+- Administrateur : Commerce → ⚙ Base de prix SCR → carte « ⚡ Cadences de production » : « Voir le barème » (heures par opération, DN par DN), réglages (panier SST de référence, heures minimum, record ou série en cours, « Qui voit la cadence » : « l'encadrement seulement — essai » par défaut, ou « les équipes aussi »), bouton « Publier les cadences » (puis « ↻ Publier à nouveau » après un réglage ou un changement de la base), « ⏸ Suspendre » (plus rien d'affiché). En essai, seuls les chefs, conducteurs, bureau et l'administrateur voient la cadence (Pilotage → Production par équipe) ; les compagnons ne voient rien. Seules des cadences et des heures sont publiées : aucun prix, aucun taux.`;
 
 export const SITUATIONS = `- « J'ai fait une soudure mais elle n'est pas sur le plan » → deux cas. (1) Soudure faite en avance, préfabriquée, ou tronçon que le plan ne montre pas encore : ouvrir le chantier → « ＋ » en bas du plan → « ⏳ Soudure faite, pas sur le plan » (ou ☰ Menu → « ⏳ Préfabrication (en attente) ») → « ＋ Pointer une soudure en attente » (où elle ira + photo), puis transfert quand le plan est à jour. (2) Soudure EN PLUS sur un tronçon déjà dessiné (barre recoupée, réparation) : ☰ Menu → « ➕ Soudure supplémentaire » si la personne a ce droit (sinon le chef de chantier), puis la pointer normalement. Dans le doute : la préfabrication (rien n'est perdu, on la transfère ensuite).
 - « Comment je pointe / valide une soudure » → ouvrir le chantier, toucher la soudure (un rond) sur le plan → sa fiche → « Faire l'étape … » (1 Soudure, 2 Fils raccordés, 3 Manchon posé, 4 Moussage) → photo (obligatoire pour la soudure) → « Valider l'étape ».
@@ -108,7 +121,9 @@ export const SITUATIONS = `- « J'ai fait une soudure mais elle n'est pas sur le
 - « Un calcul de baïonnette, de coude, de pente » → Compagnon → 🧰 Outils.
 - « Un accident, un presque-accident ou un soin bénin » → mettre en sécurité, prévenir le chef ; puis « Déclarer un accident » sur l'accueil (Aujourd'hui), tout de suite, même incomplet : la RH est prévenue et complète (l'encadrement a aussi Pilotage → ⚠️ Déclarer un accident).
 - « L'appli ne marche pas comme prévu » → 🐞 Un bug dans la bulle (l'écran est noté tout seul). « J'ai une idée » → 💡 Une idée.
-- « Je ne vois pas tel onglet / tel bouton » → il n'est pas ouvert à ton poste : demande à ton chef ou à l'administrateur.`;
+- « Je ne vois pas tel onglet / tel bouton » → il n'est pas ouvert à ton poste : demande à ton chef ou à l'administrateur.
+- « Pourquoi je n'ai pas d'étincelle / pourquoi je suis en dessous de la cadence » → Compagnon → Productions → carte « ⚡ Cadence » → « Comment c'est calculé » : vérifier jour par jour (1) que tes soudures ou manchons sont pointés sur le plan à ton nom, (2) l'équipe du jour (tuyauteur présent ou non : c'est le planning), (3) tes heures pointées. Une erreur : voir avec ton chef de chantier. La semaine en cours ne compte que le lundi suivant.
+- « Je n'ai pas la carte Cadence » → les cadences ne sont pas publiées aux équipes (pas publiées, en essai « encadrement seulement », ou suspendues), l'option n'est pas ouverte à ton poste, ou ton poste n'est pas soudeur, tuyauteur ou manchonneur.`;
 
 export const PLAN = `## Chantier (un chantier ouvert)
 - En haut : ⌂ accueil, le nom du chantier (toucher pour changer), 🔍 rechercher une soudure, ☰ Menu (outils du chantier), « 🗂 x/5 pièces » (dossier).
@@ -120,7 +135,7 @@ export const PLAN = `## Chantier (un chantier ouvert)
 - Objectifs des équipes — par chantier → équipe → jour : missions en heures estimées, soudures ou tronçon sur le plan, DN.
 - Ma semaine — composer sa semaine : visites, réunions, rendez-vous ; import / export Outlook.
 - ✓ Pointages à valider — heures de l'équipe, correction avec motif, pointages manquants.
-- Production par équipe — chantier → équipe → personne : heures et production face aux objectifs.
+- Production par équipe — chantier → équipe → personne : heures et production face aux objectifs ; colonne « ⚡ Débloqué » (cadence) quand les cadences sont publiées.
 - Variables de paie · rapport RH — la vue définitive pour la paie (heures, pauses, grands déplacements), export CSV.
 - Grands déplacements — cas 1 à 4 selon la distance domicile → chantier, nuitées, repas, indemnités.
 - ⏱ Compteurs d'heures — contrat, compteur (plafond, solde), heures à reporter, cas forcés, import du compteur existant.
@@ -131,7 +146,7 @@ export const PLAN = `## Chantier (un chantier ouvert)
 - ⚠️ Déclarer un accident — accident, presque-accident ou soin bénin : qui, où, quand, circonstances, photos ; la RH est prévenue.
 - 🎖 Habilitations de l'équipe — échéances, recyclages à programmer.
 ## Compagnon
-- Accueil, Documents (à lire / signer), Planning (où je suis cette semaine), Productions, Notes de frais, Heures (mes semaines, ma navette), Passeport (mes habilitations), Mes demandes (matériel au dépôt), 🧰 Outils, Avatar.
+- Accueil, Documents (à lire / signer), Planning (où je suis cette semaine), Productions (ce que j'ai fait sur le plan, carte « ⚡ Cadence »), Notes de frais, Heures (mes semaines, ma navette), Passeport (mes habilitations), Mes demandes (matériel au dépôt), 🧰 Outils, Avatar.
 ## Commerce
 - 📊 Reporting, 📝 Devis & chiffrage, 🏗 Dossiers en cours, ✓ Terminés · perdus, ⚙ Base de prix SCR ; « ➕ Affaire ». Numéro d'affaire : lettre du secteur (O Ouest, I Île-de-France, S Sud, W Sud-Ouest) + année-mois + rang (ex. O2512-04) ; une sous-affaire (TS, BDC, avenant, OS) = numéro parent + suffixe. Cycle : préconsultation → devis → perdu / à débuter → en cours → terminé.
 ## Magasin
@@ -145,6 +160,7 @@ export const GLOSSAIRE = `- Étapes d'une soudure : ① Soudure (soudeur, photo 
 - DH : détection d'humidité (fils de surveillance dans l'isolant ; mesures, bouclage, localisation de défaut).
 - Manchon / manchonnage : la jonction isolée posée sur la soudure ; moussage : remplissage d'isolant.
 - Préfabrication / soudure en attente : soudure faite que le plan ne montre pas encore (numéro ATT-…), transférée ensuite sur la vraie soudure.
+- Cadence : nombre de soudures ou de manchons par jour prévu au chiffrage pour un DN ; heures débloquées : les heures que ta production pointée « vaut » à cette cadence ; au-dessus : tu débloques au moins autant d'heures que tu en pointes.
 - Crédits d'annulation : nombre d'erreurs de saisie qu'on peut annuler soi-même par semaine ; au-delà, demande au chef.
 - Navette : la feuille mensuelle des heures (variables de paie) ; lissage : répartition des heures de la semaine sur 5 jours selon les règles de SCR.
 - Compteur d'heures : heures à reporter ou à récupérer. Grands déplacements (GD) : cas 1 à 4 selon la distance domicile → chantier.

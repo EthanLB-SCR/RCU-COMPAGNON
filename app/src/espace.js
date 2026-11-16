@@ -28,6 +28,8 @@ import {dossierDash} from './dossier.js'; // 31/10 (lot DX) : checklist du Burea
 import {magPersBadge,magMineHTML,magHubRow,magPersCard} from './magasin2.js'; // 19/10 (lot MG) : pastilles « 📦 commandes au dépôt » dans le planning (cartes de personnes, Ta semaine), compteur du hub du chef, fiche de personne
 import {vehPersCard,vehHubRow} from './reception.js'; // 20/10 (lot VM) : fiche de personne (ses véhicules, ses déclarations), ligne « Véhicules : mouvements » du hub des responsables (via reception.js : entrée du cycle reception ↔ reception2)
 import {piInit,piPlan,piAct,piFilter,piDemain,piProd,piEtapes,piAnomalies,piAnoHTML,piTrace,piMesPointages,piSaisieHTML} from './pilotage.js'; // 31/10 (lot PI) : Pilotage V1 — planning simplifié, « Demain », production par équipe (tableau, A4), états / anomalies / trace du pointage
+import {cadOn,cadLoad,cadCtxAvatar,cadTexteKit,cadCardHTML,cadDroite,cadCell,cadAdminHTML,cadAct,cadInput,cadFigeSoon,cadFige,cadFigeStop,cadFigeEtat,cadWeek,cadMoi,cadBilan,cadRefCur,cadTest} from './cadence_ui.js'; // 16/11 (lot CA) : cadence — heures débloquées par la production (cadences de la base de prix) face aux heures pointées, étincelles et paliers de l'avatar
+import {prixBase} from './chiffrage.js'; // 16/11 (lot CA) : la base de prix, pour publier les cadences (Commerce → Base de prix)
 let A=null;               // API fournie par app.js : state, accounts(), sites(), rights(acc), current(), sync, kv, toast, openSite, userName
 let ROOT=null;            // conteneur du rendu (#homeBody)
 let DATA=null;            // données du rendu courant (voir buildData)
@@ -54,7 +56,7 @@ const CONFIG={recompenses:true,seuilEcheance:90,seuilChef:30}; /* 14/10 nuit : �
 export const personKey=acc=>acc?((acc.email||'').toLowerCase()||String(acc.id||'')):'';
 const splitName=a=>{if(a.prenom||a.nom)return [a.prenom||'',a.nom||''];const t=String(a.name||a.email||'?').trim().split(/\s+/);return [t[0]||'?',t.slice(1).join(' ')];};
 const S={tab:'moi',sub:'moi',fiche:null,avVue:null,planSem:undefined,planJour:null,plWeek:undefined,plSel:null,plSect:undefined,plEnc:false,plEdit:null,plAutres:false,per:{mode:'sem',k:0,m:''},semOpen:{},entVue:'travail',valMode:'jour',valJour:null,valPers:null,corr:null,edit:false,q:'',fFam:'',fSite:'',habF:'traiter',open:{}};
-export function initEspace(api){A=api;piInit();}
+export function initEspace(api){A=api;piInit();espaceExt({id:'cad',act:(v)=>{cadAct(cadX(),v,prixBase()).catch(e=>console.warn(e));},input:(champ,el,me,ctx,type)=>{if(type==='change')cadInput(cadX(),champ,el);}}); /* « change » seulement : pas de redessin pendant la frappe */ /* 16/11 (lot CA) : boutons et réglages de la carte « Cadences de production » (data-act="x" data-v="cad|…", data-xin="cad|…") */}
 const featOn=k=>!(A&&A.feat)||A.feat(k); /* 30/10 (lot 2910h) : option visible pour la personne courante (paliers.js) ; sans l'API : oui */
 const EXTS=()=>EXT.filter(m=>!m.feat||featOn(m.feat)); /* modules branchés, hors ceux d'une option cachée */
 /* ═══ 14/10 nuit — MODULES BRANCHÉS (magasin, réception véhicule, accueil RH / passeport…) : chaque module s'enregistre ici sans toucher au cœur.
@@ -96,7 +98,8 @@ function buildData(){
 /* ── Enregistrement : fiche personne par partie, pointages ; hors connexion → en attente ── */
 async function kvSet(k,v){try{await A.kv.set(k,v);}catch(e){}}
 async function flushPending(){if(!PENDING.length||!A.state.cloudUser)return;const rest=[];const list=PENDING.slice();
-  for(let i=0;i<list.length;i++){const w=list[i];let ok=false,stop=false;try{if(w.kind==='people'){if(!w.key.includes('@')){ok=true;}else{const r=await A.sync.setPeoplePart(w.key,w.part,w.value);ok=!!r.ok;if(!ok&&r.missing){A.toast('Serveur : passe le SQL sql/espace_v1.sql (fiche personne)');stop=true;}}}
+  for(let i=0;i<list.length;i++){const w=list[i];let ok=false,stop=false;try{if(w.kind==='people'){if(!w.key.includes('@')){ok=true;}else{const r=await A.sync.setPeoplePart(w.key,w.part,w.value);ok=!!r.ok;if(!ok&&r.missing){A.toast('Serveur : passe le SQL sql/espace_v1.sql (fiche personne)');stop=true;}
+        else if(!ok&&w.part==='compteurs'&&/réservé|compte inactif/i.test(String(r.error||''))){ok=true;cadFigeStop();} /* 16/11 (lot CA) : ce compte n'a pas le droit d'écrire les compteurs (serveur) → on n'insiste pas, un autre responsable figera la semaine */}}
       else if(w.kind==='pt'){const r=await A.sync.setPointage(w.row);ok=!!r.ok;}
       else if(w.kind==='plan'){const r=await A.sync.setPlanning(w.week,{aff:w.patch});ok=!!r.ok;if(!ok&&r.missing){A.toast('Serveur : passe le SQL sql/espace_v2.sql (planning)');stop=true;}if(ok&&r.row&&r.row.data&&!list.some(x=>x!==w&&x.kind==='plan'&&x.week===w.week)){PLANNING[w.week]={aff:Object.assign({},r.row.data.aff||{},localAff(w.week))};kvSet('trace:planning',PLANNING);}}}catch(e){console.warn(e);}
     if(stop){rest.push(...list.slice(i));break;} /* fonction serveur absente : tout le reste attend, rien n'est perdu */
@@ -107,6 +110,11 @@ function savePeoplePart(key,part,value){const x=PEOPLE[key]||(PEOPLE[key]={});x[
   PENDING=PENDING.filter(w=>!(w.kind==='people'&&w.key===key&&w.part===part));PENDING.push({kind:'people',key,part,value});kvSet('trace:espacePending',PENDING);
   clearTimeout(flushT);flushT=setTimeout(()=>flushPending().catch(e=>console.warn(e)),700);}
 let flushT=null;
+/* 16/11 (lot CA) : compteurs d'une personne (semaines de cadence figées) — FUSION par clé, sur l'appareil comme au serveur (people_set_part fusionne « compteurs ») : on n'envoie que les semaines qui changent */
+function saveCompteurs(key,patch){const x=PEOPLE[key]||(PEOPLE[key]={});x.compteurs=Object.assign({},x.compteurs||{},patch);kvSet('trace:people',PEOPLE);
+  if(!String(key).includes('@'))return; /* personnage de démo : appareil seulement */
+  const w=PENDING.find(q=>q.kind==='people'&&q.key===key&&q.part==='compteurs');if(w)w.value=Object.assign({},w.value||{},patch);else PENDING.push({kind:'people',key,part:'compteurs',value:Object.assign({},patch)});kvSet('trace:espacePending',PENDING);
+  clearTimeout(flushT);flushT=setTimeout(()=>flushPending().catch(e=>console.warn(e)),700);}
 function savePointage(row){const i=POINTAGES.findIndex(x=>x.p===row.p&&x.d===row.d);if(i>=0)POINTAGES[i]=row;else POINTAGES.push(row);kvSet('trace:pointages',POINTAGES);
   if(!String(row.p).includes('@'))return;const clean={p:row.p,d:row.d,site:row.site||null,events:row.events||[],status:row.status||'declare',val:row.val||[],corr:row.corr||null};
   PENDING=PENDING.filter(w=>!(w.kind==='pt'&&w.row.p===row.p&&w.row.d===row.d));PENDING.push({kind:'pt',row:clean});kvSet('trace:espacePending',PENDING);
@@ -132,6 +140,7 @@ async function espaceLoad_(){
     if(pts)mergePts(pts);
     await loadWeeks([-2,-1,0,1,2].map(k=>weekKey(semaineDe(k)[0])));
     await loadPlanningRules();
+    try{CAD_AT=Date.now();if(await cadLoad({A}))DATA=null;}catch(e){console.warn(e);} /* 16/11 (lot CA) : cadences de production publiées (réglage partagé) */
     await flushPending();}
   const first=!LOADED;LOADED=true;if(ROOT&&document.contains(ROOT)){if(first||!A.softRender)render();else A.softRender('espace');} /* 14/10 nuit (sync) : un rechargement (pas le premier) ne redessine pas pendant une saisie ni sous une fenêtre ouverte */if(A.onLoaded)try{A.onLoaded();}catch(e){console.warn(e);}
   if(!DATA)DATA=buildData();meteoEnsure();}
@@ -141,7 +150,7 @@ function mergePeople(rows){let ch=false;rows.forEach(r=>{noteEs(r.updated_at);co
 function mergePts(pts){let ch=false;pts.forEach(r=>{noteEs(r.updated_at);const row={p:r.p,d:String(r.d).slice(0,10),site:r.site,events:r.events||[],status:r.status||'declare',val:r.val||[],corr:r.corr||null};if(PENDING.some(w=>w.kind==='pt'&&w.row.p===row.p&&w.row.d===row.d))return;const i=POINTAGES.findIndex(x=>x.p===row.p&&x.d===row.d);if(i>=0){if(!ch&&JSON.stringify(POINTAGES[i])!==JSON.stringify(row))ch=true;POINTAGES[i]=row;}else{POINTAGES.push(row);ch=true;}});kvSet('trace:pointages',POINTAGES);return ch;}
 /* 14/10 nuit (sync) — rafraîchissement LÉGER (appli visible ~50 s, retour au premier plan) : fiches, pointages des 3 dernières semaines, planning S-1 à S+1 (relu même s'il
    était déjà chargé : avant, une semaine n'était lue qu'une fois → le placement fait par le chef n'arrivait pas chez le compagnon sans recharger). Redessine seulement si quelque chose a changé. */
-let refreshP=null;
+let refreshP=null;let CAD_AT=0;
 export function espaceRefresh(){if(refreshP||loadP||!LOADED||!A||!A.state.cloudUser)return Promise.resolve(false);refreshP=espaceRefresh_().catch(e=>{console.warn(e);return false;}).finally(()=>{refreshP=null;});return refreshP;}
 async function espaceRefresh_(){let ch=false;
   const since=ES_MAX?new Date(ES_MAX-120000).toISOString():null; /* seulement ce qui a changé depuis la dernière lecture (marge 2 min) */
@@ -149,6 +158,7 @@ async function espaceRefresh_(){let ch=false;
   const d0=new Date();d0.setDate(d0.getDate()-21);const pts=A.sync.listPointagesSince?await A.sync.listPointagesSince(since,iso(d0)):await A.sync.listPointages(iso(d0));if(pts&&mergePts(pts))ch=true;
   const ws=[-1,0,1].map(k=>weekKey(semaineDe(k)[0]));const before=JSON.stringify(ws.map(w=>PLANNING[w]||null));ws.forEach(w=>WEEKS_LOADED.delete(w));await loadWeeks(ws);if(JSON.stringify(ws.map(w=>PLANNING[w]||null))!==before)ch=true;
   if(PENDING.length)await flushPending();
+  if(Date.now()-CAD_AT>900000){CAD_AT=Date.now();try{if(await cadLoad({A}))ch=true;}catch(e){console.warn(e);}} /* 16/11 (lot CA) : cadences publiées ou suspendues entre-temps — relues au plus toutes les 15 min, appli ouverte */
   if(ch){DATA=null;if(ROOT&&document.contains(ROOT)){if(A.softRender)A.softRender('espace');else render();}}return ch;}
 export const espaceState=()=>({people:PEOPLE,pointages:POINTAGES,pending:PENDING,loaded:LOADED,S});
 export function espaceNomDe(key){try{if(!key)return null;if(!DATA)DATA=buildData();const k=String(key).toLowerCase();const p=(DATA.personnes||[]).find(x=>String(x.id||'').toLowerCase()===k);return p&&p.prenom?nomC(p).trim():null;}catch(e){return null;}} /* 05/11 (relevé du tournage) : « chef : ethan » (identifiant) → le vrai nom */
@@ -171,6 +181,23 @@ function prodFromNets(personnes){const out={};let nets=[];try{nets=(A.nets&&A.ne
   nets.forEach(net=>jointsOf(net).forEach(({j,dn})=>jointOpsOf(j,dn).forEach(op=>{if(!op.by)return;const key=byName[String(op.by).trim().toLowerCase()];if(!key)return;const d=op.at.slice(0,10);const t=((out[key]=out[key]||{})[d]=out[key][d]||{});
     if(op.k==='sst'){t.sst=(t.sst||0)+1;t.sdn=t.sdn||{};t.sdn[dn]=(t.sdn[dn]||0)+1;}else if(op.k==='bout'){t.bout=(t.bout||0)+1;t.bdn=t.bdn||{};t.bdn[dn]=(t.bdn[dn]||0)+1;}else if(op.k===1){t.soudures=(t.soudures||0)+1;t.dn=t.dn||{};t.dn[dn]=(t.dn[dn]||0)+1;}else if(op.k===2){t.fils=(t.fils||0)+1;}else{t.retractions=(t.retractions||0)+1;t.mdn=t.mdn||{};const k=dn+gaine(dn);t.mdn[k]=(t.mdn[k]||0)+1;}})));
   return out;}
+/* ── 16/11 (lot CA) — CADENCE : les opérations de production une par une (même lecture que prodFromNets : qui, quel jour), avec ce qu'il faut au barème — chantier, DN,
+   type du point de bout de ligne, type de manchon, classe d'isolation du chantier, gaine (manchon extrudé). Calcul : src/cadence.js ; écrans : src/cadence_ui.js. ── */
+function cadOps(strict){if(!DATA)DATA=buildData();const ck=strict?'_copsS':'_cops';if(DATA[ck])return DATA[ck];const out=[];const byName={};
+  /* strict (pour FIGER une semaine terminée, avec un compte) : seulement les fiches relues du serveur — pas la copie en cours d'un chantier ouvert, dont les soudures arrivent après le plan */
+  const jointsSrv=net=>{if(String(net.id).indexOf('demo_')===0)return jointsOf(net); /* bac à sable : rien au serveur, la copie de l'appareil */try{A.wantRows&&A.wantRows([net.id]);}catch(e){}return Array.isArray(net._rows)?lightJoints(net):[];};
+  DATA.personnes.forEach(p=>{[p._acc&&p._acc.name,p.prenom+' '+p.nom,p.prenom+' '+(p.nom||'').slice(0,1)+'.',p._acc&&p._acc.local&&String(p._acc.id||'').replace(/^l:/,'')].filter(Boolean).forEach(n=>{byName[String(n).trim().toLowerCase()]=p.id;});});
+  const gmm=dn=>{try{const g=A.gaine?A.gaine(dn):null;return +g||0;}catch(e){return 0;}}; /* Ø de gaine du DN (repère du chantier ouvert) → manchon extrudé : la table d'extrusion prend la ligne la plus proche */
+  netsLocal().forEach(net=>{const isoC=+net.serie||2;(strict?jointsSrv(net):jointsOf(net)).forEach(({j,dn})=>{const end=j.sst?(j.endType||''):'';const mt=(j.steps&&j.steps[3]&&j.steps[3].type)||'';
+    jointOpsOf(j,dn).forEach(op=>{if(!op.by)return;const key=byName[String(op.by).trim().toLowerCase()];if(!key)return;out.push({by:key,d:op.at.slice(0,10),k:op.k,dn,site:net.id,end,mt:op.k===3?mt:'',iso:isoC,pehd:op.k===3&&mt==='extrude'?gmm(dn):0});});});});
+  return DATA[ck]=out;}
+const joursSem=k=>{const l=D(semaineDe(k)[0]);return [0,1,2,3,4,5,6].map(i=>{const d=new Date(l);d.setDate(l.getDate()+i);return iso(d);});}; /* lundi → dimanche */
+const cadX=()=>{if(!DATA)DATA=buildData();return {A,S,featOn,can,viewing,render,msg,esc,nb,fJour,fDate,fDuree,numSemaine,weekKey,joursSem,pers,site,nomC,poste,planDe,ptIdx,calc,
+  personnes:()=>DATA.personnes,aff:wk=>(PLANNING[wk]||{}).aff||{},ensureWeeks,weekLoaded:wk=>WEEKS_LOADED.has(wk),ops:strict=>cadOps(!!strict&&!!A.state.cloudUser),nets:()=>netsLocal(),
+  compteurs:id=>(PEOPLE[id]||{}).compteurs||null,saveCompteurs,cache:()=>DATA._cad||(DATA._cad={}),netOf:id=>netOf(id),vraiChantier:id=>{const c=site(id);return !c.stub&&!c.bureau;},
+  invalidate:()=>{DATA=null;},soft:()=>{if(ROOT&&document.contains(ROOT)){if(A.softRender)A.softRender('espace');else render();}},fresh:()=>cadX()};};
+/* tests / diagnostic (window.TRACE.espace.cad) */
+export const espaceCad=()=>({on:()=>cadOn(cadX()),ref:()=>cadRefCur(),week:k=>cadWeek(cadX(),k||0),moi:(id,k)=>{const M=cadMoi(cadX(),id,k||0);return {hd:M.hd,hp:M.hp,po:M.po,et:M.et,src:M.src,fige:M.fige,p:M.p};},bilan:id=>cadBilan(cadX(),id),ops:()=>cadOps(),fige:()=>cadFige(cadX()),figeEtat:()=>cadFigeEtat(),test:cadTest,avatar:id=>{const p=DATA.personnes.find(x=>x.id===id);return p?avContexte(p):null;}});
 /* ── PLANNING DES ÉQUIPES (09/10 soir) : une ligne serveur par semaine ISO, fusion par personne ; les gars n'ouvrent que les chantiers de leur semaine et de la précédente ── */
 export const SECTEURS={ouest:'Ouest',idf:'Île-de-France',sudouest:'Sud-Ouest',sudest:'Sud-Est'};
 let PLANNING={};             // 'YYYY-Www' → {aff:{clé personne:{'yyyy-mm-dd':[idChantier,…]}}}
@@ -473,11 +500,12 @@ function avProfil(p){return Object.assign(AV.profilInitial(),DATA.avatars[p.id]|
 /* Contexte = calculé à l'affichage, jamais saisi par le salarié */
 function avContexte(p){
   const c=DATA.avatarCompteurs[p.id]||{},x=ptDe(p.id,DATA.today),ch=siteActuel(p);
+  let cx=null;try{cx=cadCtxAvatar(cadX(),p);}catch(e){console.warn(e);} /* 16/11 (lot CA) : étincelles = semaines d'affilée au-dessus de la cadence, paliers = pouces cumulés (semaines figées) ; option éteinte ou cadences pas publiées : comme avant */
   return Object.assign({
     /* tenue de travail pendant les heures pointées ; pour ceux qui ne pointent pas (bureau, encadrement) : jours ouvrés, 8 h – 18 h (HYPOTHÈSE) */
     vue:(can(p,'pointage.self')?x&&calc(x).enCours:[1,2,3,4,5].includes(D(DATA.today).getDay())&&DATA.now>='08:00'&&DATA.now<'18:00')?'travail':'perso',
     meteo:((ch&&meteoDe(ch.id,DATA.today))||{k:'frais'}).k, // météo du jour du chantier : elle fixe la tenue de travail
-    realisations:c.realisations||0,jours:c.jours||0,qualite:c.qualite||0,radio:c.radio||0,cadence:c.cadence||0,
+    realisations:cx?cx.realisations:(c.realisations||0),jours:c.jours||0,qualite:c.qualite||0,radio:c.radio||0,cadence:cx?cx.cadence:(c.cadence||0),
     anciennete:annees(p.entree)                         // années pleines depuis la date d'entrée
   });
 }
@@ -764,7 +792,7 @@ function cRecompenses(p){
   if(m.aRecompenses){l.push(['Production',m.progression+'. '+m.prochain],['Sécurité',m.etoilesTexte]);
     if(m.aGants)l.push(['Qualité',m.qualiteTexte]);
     if(m.aRadio)l.push(['Qualité',m.radioTexte]);
-    if(m.aCadence)l.push(['Cadence',m.cadenceTexte])}
+    if(m.aCadence)l.push(['Cadence',cadTexteKit(m.cadenceTexte)])}
   l.push(['Ancienneté',m.medailleTexte]);
   return `<div class="card"><h3>Tes récompenses <span class="hint">· elles se voient sur ton avatar</span></h3><div>
     ${l.map(([a,b],i)=>`<div class="eq-kv"${i?'':' style="border-top:0"'}><span>${a}</span><span>${esc(b)}</span></div>`).join('')}</div>
@@ -1053,15 +1081,15 @@ function vPlanning(me){
 /* ── Productions : récap sur la période choisie, présenté en blocs de semaine ── */
 function vProd(me){
   if(ENCADRE.includes(me.poste))return vProdEquipe(me);
-  const ids=prodIds(me)||[],seul=S.per.mode==='sem',tot={};let blocs='';
+  const ids=prodIds(me)||[],seul=S.per.mode==='sem',tot={};let blocs='';const CX=cadX();
   semainesAff().forEach(({k,js})=>{const ts={};
     const rows=js.map(d=>{const o=d>DATA.today?null:prodJour(ids,d);
       if(o){addProd(ts,o);addProd(tot,o)}
       const st=planDe(me.id,d).map(i=>site(i).nom).join(' puis ');
       return `<div class="eq-row"><span class="eq-grow"><span class="eq-t">${fJour(d)}${d===DATA.today?' <span class="eq-tag">aujourd\'hui</span>':''} <span class="eq-s">${st?'· '+esc(st):''}</span></span><span class="eq-prodl">${d>DATA.today?'<span class="hint">À venir</span>':esc(prodTxt(o))||'<span class="hint">Rien de compté</span>'}</span></span></div>`}).join('');
-    if(seul||Object.keys(ts).length)blocs+=blocSemaine(k,js,Object.keys(PROD).filter(x=>ts[x]).map(x=>nb(ts[x])+' '+PROD[x][ts[x]>1?1:0]).join(' · ')||'Rien de compté','',rows,seul||!blocs)});
+    if(seul||Object.keys(ts).length)blocs+=blocSemaine(k,js,Object.keys(PROD).filter(x=>ts[x]).map(x=>nb(ts[x])+' '+PROD[x][ts[x]>1?1:0]).join(' · ')||'Rien de compté',cadDroite(CX,me,k),rows,seul||!blocs)});
   const cles=Object.keys(PROD).filter(x=>tot[x]);
-  return `<h2 class="vt">Tes productions</h2>${chipsPeriode()}
+  return `<h2 class="vt">Tes productions</h2>${chipsPeriode()}${cadCardHTML(CX,me) /* 16/11 (lot CA) : cadence de la semaine — heures débloquées par la production face aux heures pointées, détail du calcul */}
     <div class="card"><h3>Total <span class="hint">· ${periodeTxt()}</span></h3>
       ${cles.length?`<div class="eq-tiles">${cles.map(x=>`<div class="eq-tile"><b>${nb(tot[x])}</b><span class="eq-s">${PROD[x][tot[x]>1?1:0]}${x==='pouces'&&me.poste==='tuyauteur'?' de ton soudeur':''}</span></div>`).join('')}</div>${tot.dn?`<div class="eq-lab">Soudures par DN</div>${dnChips(tot.dn)}`:''}${tot.mdn?`<div class="eq-lab">Manchons · DN tube / enveloppe</div>${dnChips(tot.mdn)}`:''}`:'<div class="eq-s">Rien de compté sur la période.</div>'}
       <div class="hint" style="margin-top:8px">Compté sur le plan, à ton nom. Une erreur ? Vois avec ton chef de chantier.</div></div>
@@ -1072,16 +1100,16 @@ function vProd(me){
 /* ── 12/10 soir (Ethan) : PRODUCTION PAR ÉQUIPE — « le personnel classé comme au planning ; les heures de chacun et la production de chacun qui fait la production de l'équipe ;
    c'est ici qu'on verra production vs heures, face aux objectifs ». Semaine choisie ; chantier → équipe (lettre du planning) → personne ; le chef de chantier en tête. ── */
 function vProdEquipes(me){const k=S.peWeek||0,js=semaineDe(k),wk=weekKey(js[0]);ensureWeeks([wk]);const aff=(PLANNING[wk]||{}).aff||{};const sc=objScope(me,js);const dmax=js.filter(d=>d<=todayIso());
-  const hOf=(pid)=>js.reduce((a,d)=>{const x=ptDe(pid,d);return a+(x?calc(x).total:0);},0);const prodOf=pid=>{const t={};dmax.forEach(d=>addProd(t,prodJour([pid],d)));return t;};
+  const hOf=(pid)=>js.reduce((a,d)=>{const x=ptDe(pid,d);return a+(x?calc(x).total:0);},0);const prodOf=pid=>{const t={};dmax.forEach(d=>addProd(t,prodJour([pid],d)));return t;};const CX=cadX(),CADON=cadOn(CX); /* 16/11 (lot CA) : colonne « ⚡ Débloqué » (heures débloquées par la production, cadences de la base de prix) */
   const blocks=sc.sites.map(c=>{const people=DATA.personnes.filter(p=>p.active&&js.some(d=>planDe(p.id,d).includes(c.id)));if(!people.length)return '';const net=netOf(c.id);
     const teams=[...new Set(people.map(p=>teamOf(aff,p.id,c.id)))].sort((a,b)=>a===''?1:b===''?-1:a.localeCompare(b));
     const ms=js.flatMap(d=>missionsOf(net,d).map(m=>Object.assign({_d:d},m)));
     const teamBlock=t=>{if(sc.teams[c.id]&&t!==sc.teams[c.id])return '';const L=people.filter(p=>teamOf(aff,p.id,c.id)===t).sort((a,b)=>(a.poste==='chef'?0:1)-(b.poste==='chef'?0:1)||nomC(a).localeCompare(nomC(b),'fr'));const tot={};let hmin=0;
-      const rows=L.map(p=>{const o=prodOf(p.id);const h=hOf(p.id);hmin+=h;if(p.poste!=='tuyauteur')addProd(tot,o);const days=js.filter(d=>planDe(p.id,d).includes(c.id)).length;
-        return `<tr><td>${avatar(p)} <b>${esc(nomC(p))}</b><div class="dim" style="font-size:11px">${esc(poste(p).label)}${p.type==='interim'?' · intérim':''} · ${days} j</div></td><td class="num">${h?fDuree(h):'—'}</td><td>${esc(prodTxt(o))||'<span class="dim">—</span>'}</td><td class="num">${h&&o.soudures?(Math.round(o.soudures/(h/60)*10)/10)+' /h':'—'}</td></tr>`;}).join('');
+      const rows=L.map(p=>{const o=prodOf(p.id);const h=hOf(p.id);hmin+=h;if(p.poste!=='tuyauteur')addProd(tot,o);const days=js.filter(d=>planDe(p.id,d).includes(c.id)).length;const cc=CADON?cadCell(CX,p,k):null;
+        return `<tr><td>${avatar(p)} <b>${esc(nomC(p))}</b><div class="dim" style="font-size:11px">${esc(poste(p).label)}${p.type==='interim'?' · intérim':''} · ${days} j</div></td><td class="num">${h?fDuree(h):'—'}</td><td>${esc(prodTxt(o))||'<span class="dim">—</span>'}</td><td class="num">${h&&o.soudures?(Math.round(o.soudures/(h/60)*10)/10)+' /h':'—'}</td>${cc?cc.td:''}</tr>${cc?cc.detail:''}`;}).join('');
       const mt=ms.filter(m=>(m.team||'')===t||(!t&&!m.team));const hObj=mt.reduce((a,m)=>a+(+m.h||0),0);const done=mt.filter(m=>m.done).length;const soudObj=mt.reduce((a,m)=>{const pr=objOnPlan(m)&&A.objProgress?A.objProgress(c.id,m):null;return a+(pr?pr.n:0);},0);
       return `<div class="card eq-peteam"><div class="ac-h"><b>${t?'Équipe '+t:(teams.length>1?'Sans équipe':'Tout le chantier')}</b><span>${L.length} personne${L.length>1?'s':''} · ${fDuree(hmin)} · ${esc(prodTxt(tot))||'rien de compté'}</span></div>
-        <div style="overflow:auto"><table class="rc af-tab"><tr><th>Personne</th><th>Heures</th><th>Production</th><th>Soud./h</th></tr>${rows}<tr class="tot"><td>Équipe${t?' '+t:''}</td><td class="num">${fDuree(hmin)}</td><td>${esc(prodTxt(tot))||'—'}</td><td class="num">${hmin&&tot.soudures?(Math.round(tot.soudures/(hmin/60)*10)/10)+' /h':'—'}</td></tr></table></div>
+        <div style="overflow:auto"><table class="rc af-tab"><tr><th>Personne</th><th>Heures</th><th>Production</th><th>Soud./h</th>${CADON?'<th>⚡ Débloqué</th>':''}</tr>${rows}<tr class="tot"><td>Équipe${t?' '+t:''}</td><td class="num">${fDuree(hmin)}</td><td>${esc(prodTxt(tot))||'—'}</td><td class="num">${hmin&&tot.soudures?(Math.round(tot.soudures/(hmin/60)*10)/10)+' /h':'—'}</td>${CADON?'<td></td>':''}</tr></table></div>
         ${mt.length?`<div class="eq-s" style="margin-top:6px">🎯 Objectifs de la semaine : ${mt.length} mission${mt.length>1?'s':''} · ${hTxt(hObj)} estimées${soudObj?' · '+soudObj+' soudures visées':''} · ${done} faite${done>1?'s':''}${hmin?' — réalisé : '+fDuree(hmin)+' pointées'+(tot.soudures?', '+tot.soudures+' soudures':''):''}</div>`:'<div class="eq-s" style="margin-top:6px">🎯 Pas d\'objectif posé cette semaine pour cette équipe.</div>'}
         ${tot.dn?`<div class="eq-lab">Soudures par DN</div>${dnChips(tot.dn)}`:''}${tot.mdn?`<div class="eq-lab">Manchons · DN tube / enveloppe</div>${dnChips(tot.mdn)}`:''}</div>`;};
     return `<div class="eq-pesite"><h3 class="vt" style="font-size:16px;margin:10px 0 4px">📍 ${esc(c.nom)} <span class="hint">· ${esc(c.ville||'')} · ${people.length} placé${people.length>1?'s':''}</span></h3>${teams.map(teamBlock).join('')}</div>`;}).filter(Boolean);
@@ -1210,7 +1238,7 @@ function avSide(me){ // Poste · Visage · Tenue · Récompenses
     <div class="card"><h3>Récompenses</h3>${m.aRecompenses?`<div class="eq-box"><b>${esc(m.progression)}</b><span class="eq-s">${esc(m.prochain)}</span><span class="eq-s">${esc(m.etoilesTexte)}</span></div>`
       +avGrp(m.palierTitre,avPal(g.paliers))+gants
       +(m.aRadio?`<div><div class="eq-lab">Masque de soudage · qualité, radios conformes</div><div class="eq-s" style="margin-bottom:8px">${esc(m.radioTexte)}</div><div class="eq-opts">${avPal(g.paliersRadio)}</div></div>`:'')
-      +(m.aCadence?`<div><div class="eq-lab">${esc(m.cadenceTitre)}</div><div class="eq-s" style="margin-bottom:8px">${esc(m.cadenceTexte)}</div><div class="eq-opts">${avPal(g.paliersCadence)}</div></div>`:'')
+      +(m.aCadence?`<div><div class="eq-lab">${esc(m.cadenceTitre)}</div><div class="eq-s" style="margin-bottom:8px">${esc(cadTexteKit(m.cadenceTexte))}</div><div class="eq-opts">${avPal(g.paliersCadence)}</div></div>`:'')
       :`<div class="eq-s">Pas de récompenses de production sur ce poste.</div>`}
       ${medaille}${avGrp('Fond du médaillon',avSw(g.fonds))}</div>
     <div class="card eq-only-tel"><h3>Rendu dans l'appli</h3>${avRendu(m)}</div>`;
@@ -2382,6 +2410,7 @@ function render(){
       <div class="eq-sheet-top"><h3 style="margin:0">Fiche</h3><button class="btn" data-act="close">✕ Fermer</button></div>${blocsFiche(pers(S.fiche),me).join('')}</div>`:''}</div>`;
   try{if(A.onView)A.onView(espaceViewKey());}catch(e){} /* 31/10 : tutoriels — écran affiché (module ou option) ; 31/10 matin : AVANT de remettre la position — le « ? » ajouté au titre après coup décalait la page (ancrage du défilement) quand une donnée arrivait */
   ROOT.scrollTop=sy;if(sk===LAST_SK)scrollBack(snap);else scrollTop0();LAST_SK=sk;LAST_FICHE=S.fiche||null;if(S.plQ&&$id('pl-tray'))plFilterTray(S.plQ);if(S.plQ&&$id('pi-q'))piFilter(S.plQ); /* la recherche du planning survit au re-rendu */
+  try{cadFigeSoon(cadX());}catch(e){console.warn(e);} /* 16/11 (lot CA) : semaines de cadence terminées figées par l'appareil d'un responsable (au plus toutes les 10 min, hors « voir comme ») */
 }
 /* 31/10 (tutoriels par option) : clé de l'écran affiché — « module » (hub) ou « module:option » (rubrique de Compagnon, sous-vue d'un hub, segment) */
 export function espaceViewKey(){const T=({moi:'compagnon',expl:S.hubSeg==='secu'?'pilotage':'pilotage',affaire:'affaire',commerce:'commerce',parc:S.parcLock==='magasin'?'magasin':'flotte',entreprise:'equipe',accueil:'accueil',rh:'rh'})[S.tab]||null;if(!T)return null;
@@ -2410,7 +2439,7 @@ export function espaceSub(k){if(k==='orga'){S.tab='expl';S.xsub='orga';if(A.home
 const GO={mesheures:['moi','heures'],valid:['moi','heures'],meshabs:['moi','habs'],ech:['moi','habs'],annu:['entreprise','moi'],planning:['moi','planning'],prod:['moi','prod'],chantiers:['moi','chantiers'],avatar:['moi','avatar']};
 function validerPt(x){x.status='valide';const v={by:S.me,at:DATA.today+'T'+DATA.now};if(A.via&&A.via())v.via=A.via();x.val.push(v);savePointage(x);}
 function msg(t){A.toast(t);}
-const affCtx=me=>({canEdit:can(me,'affaires.edit')&&!viewing(),canPrix:(can(me,'prix.edit')||!!me.admin)&&!viewing(),render,sites:(A.sites&&A.sites())||[],traceAgg:A.traceAgg,tracePhases:A.tracePhases,traceQty:A.traceQty,traceViewer:A.traceViewer,traceStale:A.traceStale,people:DATA.personnes.filter(p=>p.active).map(p=>({name:nomC(p),poste:p.poste,prenom:p.prenom,nom:p.nom}))});
+const affCtx=me=>({cadCard:base=>{try{return cadAdminHTML(cadX(),base);}catch(e){console.warn(e);return '';}}, /* 16/11 (lot CA) : carte « Cadences de production » de la page Base de prix */canEdit:can(me,'affaires.edit')&&!viewing(),canPrix:(can(me,'prix.edit')||!!me.admin)&&!viewing(),render,sites:(A.sites&&A.sites())||[],traceAgg:A.traceAgg,tracePhases:A.tracePhases,traceQty:A.traceQty,traceViewer:A.traceViewer,traceStale:A.traceStale,people:DATA.personnes.filter(p=>p.active).map(p=>({name:nomC(p),poste:p.poste,prenom:p.prenom,nom:p.nom}))});
 const AGENCE_OF={ouest:'OUEST',idf:'IDF',sudouest:'SUD OUEST',sudest:'SUD'};
 const flCtx=me=>({canEdit:can(me,'flotte.manage')&&!viewing(),render,people:DATA.personnes.map(p=>p._acc).filter(Boolean),agence:(me.poste==='resp_exploitation'||me.poste==='conducteur')?(AGENCE_OF[mySecteur(me)]||''):''}); /* 12/10 : le responsable d'exploitation voit les échéances de son secteur */
 const cmdCtx=me=>({comptesHTML:()=>EXTS().some(x=>x.id==='af')?`<div class="card"><h3>Comptes chantier</h3><div class="eq-s">Les comptes des chantiers sont maintenant dans <b>Tracé Affaire</b> : reporting des chantiers, fiche de l'affaire, débours par nature (une seule règle de calcul : heures × coût complet du poste, bons de commande, notes de frais, dépenses).</div><div class="eq-acts"><button class="btn primary" data-act="xsub" data-v="">Ouvrir le reporting</button></div></div>`:cComptesChantier(me), /* 10/11 soir (lot A) : l'ancien tableau (taux unique) est remplacé par le module ; le code reste en repli */canEdit:(can(me,'planning.edit')||can(me,'affaires.edit')||me.admin)&&!viewing(),canValidate:(can(me,'planning.edit')||can(me,'affaires.edit')||me.admin)&&!viewing(),render,sites:DATA.chantiers.filter(c=>!c.bureau).map(c=>({id:c.id,name:c.nom})),affaires:affAll(),me,key:me.id,name:nomC(me),siteDefault:planDe(me.id,todayIso())[0]||null});
