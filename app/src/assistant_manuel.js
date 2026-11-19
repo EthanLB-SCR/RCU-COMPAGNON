@@ -13,14 +13,14 @@ export const STRUCTURE = `Tracé est l'application de SCR (soudure et manchonnag
 Onglets de l'accueil (chacun ne voit que ceux de son poste) :
 - Aujourd'hui : l'accueil (bureau en 3D ou vue classique) — ton pointage du jour, tes chantiers, À faire, documents à signer.
 - Chantier : la carte et la liste des chantiers. Un chantier ouvert = son plan des soudures et ses onglets (Plan d'ensemble, Bureau, Conversation, Dossier, QSE, Stockage, Fournitures, Phasage, Modifications, Liste des soudures, Récapitulatif, DOE et exports…). Le bouton ☰ (Menu, en haut à droite) donne les outils du chantier (section « Terrain & chantier »).
-- Pilotage (encadrement) : planning de la semaine, objectifs des équipes, ✓ Pointages à valider, production par équipe, variables de paie, grands déplacements, ⏱ Compteurs d'heures, demandes d'annulation, demandes de matériel, quart d'heure sécurité, contrôles chantier, ⚠️ Déclarer un accident, habilitations de l'équipe.
+- Pilotage (encadrement) : planning de la semaine, objectifs des équipes, ✓ Pointages à valider, production par équipe, demandes d'annulation, demandes de matériel, quart d'heure sécurité, contrôles chantier, ⚠️ Déclarer un accident, habilitations de l'équipe.
 - Compagnon : Accueil, Documents, Planning, Productions, Notes de frais, Heures, Passeport (habilitations), Mes demandes (matériel), 🧰 Outils, Avatar.
 - Commerce : affaires, chiffrage, DPGF, offres.
 - Affaire : suivi financier des affaires (reporting, débours, facturation, réglages des taux).
 - Flotte : véhicules, échéances, qui a quoi, mouvements.
 - Magasin : stock, demandes, réceptions.
 - Équipe : annuaire, documents d'entreprise, communication interne, 🏢 Visite des dépôts, ⚙ Administration (comptes, droits, 🧪 bac à sable).
-- RH : ressources humaines ; pour un compagnon, « mon dossier » en lecture.
+- RH : ressources humaines — navettes, grands déplacements, compteurs d'heures, variables de paie (pour ceux qui gèrent la paie), absences, habilitations, formation, mutuelle ; pour un compagnon, « mon dossier » en lecture.
 - La bulle 💬 au bord droit : Discuter, 🐞 Un bug, 💡 Une idée.
 Règles générales :
 - Sans réseau, tout ce qu'on saisit est gardé sur le téléphone et envoyé quand le réseau revient. Rien n'est perdu : ne pas désinstaller l'appli, ne pas vider les données du navigateur.
@@ -69,7 +69,8 @@ export const NOUVEAUTES = `## Préfabrication — soudures faites mais pas encor
 - Trajets dans la journée (19/11) : la ligne d'un pointage montre chaque trajet (heures, chantier de départ → chantier d'arrivée, distance entre les deux positions relevées) et la répartition « Par chantier ». Alerte « chantier d'arrivée du trajet à préciser » quand le gars ne l'a pas choisi. « ✏️ Corriger » : départ, arrivée et chantier d'arrivée de chaque trajet, « retirer ce trajet », ou « ＋ Ajouter un trajet dans la journée » s'il ne l'a pas pointé.
 
 ## Ressources humaines (onglet RH)
-- RH, direction, responsables d'exploitation : 🏠 Tableau de bord, 🧾 Navettes, 🏖 Absences · congés, 🎖 Habilitations, 🎓 Formation, 🚔 Contraventions, 🩺 Mutuelle, ⚠ Accidents.
+- RH, direction, responsables d'exploitation : 🏠 Tableau de bord, 🧾 Navettes, 🧳 Grands déplacements, ⏱ Compteurs d'heures, 🏖 Absences · congés, 🎖 Habilitations, 🎓 Formation, 🚔 Contraventions, 🩺 Mutuelle, ⚠ Accidents.
+- Depuis le 19/11, tout ce qui touche la paie est ici et plus dans Pilotage : 🧳 Grands déplacements (cas 1 à 4 selon la distance domicile → chantier, nuitées, repas, indemnités ; ceux qui l'avaient dans Pilotage — conducteurs, responsables d'exploitation, RH — l'ont ici), ⏱ Compteurs d'heures (contrat, compteur, heures à reporter, cas forcés, import du compteur existant), et le rapport de la semaine « 📊 Variables de paie » avec ses CSV, ouvert depuis 🧾 Navettes ou depuis le tableau de bord.
 - 🧾 Navettes : mois ‹ ›, semaines à traiter, détail d'une semaine avec l'explication, « ✋ Avoir la main sur cette semaine » (motif obligatoire ; depuis le 19/11 chaque choix — mode, jours lissés, « valider telle quelle », « compléter avec les compteurs » — montre tout de suite les heures de la navette, le tableau et l'explication, en aperçu : rien n'est enregistré avant « Enregistrer » ; les heures ne se saisissent qu'avec « Heures saisies à la main ») puis « ✓ Retour au calcul automatique », fin de mois « ↪ Reporter » ou « 💶 Prime », « ⬇ Toutes les navettes » (Excel au format SCR). Réservé au droit « RH : contrôler les navettes » (RH, responsables d'exploitation, assistante RH).
 - Absences : jours ouvrés calculés du lundi au vendredi (corrigeables). Habilitations : justificatif PDF ou photo, date de fin calculée. Formation « faite » avec une habilitation visée → l'appli propose de l'inscrire. Contraventions : conducteur proposé d'après le véhicule, désignation à faire sous 45 jours.
 - Les autres salariés voient « Ressources humaines · mon dossier » : leurs propres lignes, en lecture.
@@ -146,9 +147,7 @@ export const PLAN = `## Chantier (un chantier ouvert)
 - Ma semaine — composer sa semaine : visites, réunions, rendez-vous ; import / export Outlook.
 - ✓ Pointages à valider — heures de l'équipe, correction avec motif, pointages manquants.
 - Production par équipe — chantier → équipe → personne : heures et production face aux objectifs ; colonne « ⚡ Débloqué » (cadence) quand les cadences sont publiées.
-- Variables de paie · rapport RH — la vue définitive pour la paie (heures, pauses, grands déplacements), export CSV.
-- Grands déplacements — cas 1 à 4 selon la distance domicile → chantier, nuitées, repas, indemnités.
-- ⏱ Compteurs d'heures — contrat, compteur (plafond, solde), heures à reporter, cas forcés, import du compteur existant.
+- Variables de paie, Grands déplacements et Compteurs d'heures ne sont plus dans Pilotage (19/11) : onglet RH (voir « Ressources humaines »). Ils ne restent dans Pilotage que si l'entreprise n'a pas pris le module RH.
 - ↩ Demandes d'annulation — soudures à annuler au-delà des crédits : le chef tranche.
 - Demandes de matériel — les demandes des équipes : commander, livrer, refuser.
 - Quart d'heure sécurité — déclencher un sujet du jour sur un ou tous les chantiers, émargement de tous.

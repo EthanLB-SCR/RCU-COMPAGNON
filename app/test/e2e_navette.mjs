@@ -51,7 +51,7 @@ await page.evaluate(H=>{const T=window.TRACE;const src=T.sites[Object.keys(T.sit
   Object.entries(H).forEach(([d,h])=>{ST.pointages.push({p:'l:julien',d,site:d==='2026-09-01'?'demo_bayeux':'demo_caen',status:'valide',corr:null,events:[{t:'start',at:d+'T07:30'},{t:'end',at:d+'T'+end(h)}],val:[]});});
   T.state.userId='ethan';T.renderHome();},H);await wait(300);
 // ── 1) Grands déplacements → par personne · mois → Julien → septembre : résumé de la navette
-let out=await page.evaluate(async()=>{const w=ms=>new Promise(r=>setTimeout(r,ms));document.getElementById('htExpl').click();await w(250);[...document.querySelectorAll('#eq-app .ac-row')].find(x=>/Grands déplacements/.test(x.textContent)).click();await w(1500);
+let out=await page.evaluate(async()=>{const w=ms=>new Promise(r=>setTimeout(r,ms));document.getElementById('htRh').click();await w(250);document.querySelector('#eq-app [data-act="x"][data-v="rh|tab|gd"]').click(); /* 19/11 nuit : cet écran est dans le module RH (plus dans Pilotage) */await w(1500);
   const b=document.querySelector('#eq-app [data-act=gdmode][data-v=personne]');if(b){b.click();await w(400);}const sel=document.querySelector('#eq-app select[data-chg=gdPid]');if(sel){sel.value='l:julien';sel.dispatchEvent(new Event('change',{bubbles:true}));await w(500);}
   const prev=document.querySelector('#eq-app [data-act=gdmonth]');if(prev){prev.click();await w(1500);}
   return {mois:(document.querySelector('#eq-app .eq-wktitle b')||{}).textContent||'',sum:((document.querySelector('#eq-app .gd-navsum')||{}).textContent||'').replace(/\s+/g,' ').trim(),btn:!!document.querySelector('#eq-app [data-act=gdnavx]'),all:!!document.querySelector('#eq-app [data-act=gdnavall]'),csv:!!document.querySelector('#eq-app [data-act=gdnavcsv]')};});

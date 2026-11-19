@@ -10,8 +10,8 @@
 //   `si:(api)=>bool` (facultatif) : l'étape n'apparaît que si la condition est vraie (droits, option…).
 // Écrans (clé passée par app.js → tutoArrive) : accueil, chantiers (Carte / Liste), chantier (un chantier ouvert), pilotage, compagnon, affaires, flotte, magasin, equipe.
 // Robots de test (navigator.webdriver) : rien ne s'affiche tout seul, sauf localStorage « trace:tuto:test » = '1' (e2e_mo_3110) ; tutoStart reste utilisable.
-export const TUTO_TITRES={reglages:'Tracé · Réglages',concepteur:'Tracé Concepteur',accueil:'Tracé',chantiers:'Tracé Chantier',chantier:'Tracé Chantier',pilotage:'Tracé Pilotage',compagnon:'Tracé Compagnon',commerce:'Tracé Commerce',affaire:'Tracé Affaire',flotte:'Tracé Flotte',magasin:'Tracé Magasin',equipe:'Tracé Équipe'};
-import T_CH,{NOMS as N_CH} from './tutos_chantier.js';import T_TE,{NOMS as N_TE} from './tutos_technique.js';import T_CO,{NOMS as N_CO} from './tutos_compagnon.js';import T_PI,{NOMS as N_PI} from './tutos_pilotage.js';import T_CM,{NOMS as N_CM} from './tutos_commerce.js'; /* 31/10 : tutoriels détaillés, un fichier par famille de modules */
+export const TUTO_TITRES={reglages:'Tracé · Réglages',concepteur:'Tracé Concepteur',accueil:'Tracé',chantiers:'Tracé Chantier',chantier:'Tracé Chantier',pilotage:'Tracé Pilotage',compagnon:'Tracé Compagnon',commerce:'Tracé Commerce',affaire:'Tracé Affaire',flotte:'Tracé Flotte',magasin:'Tracé Magasin',equipe:'Tracé Équipe',rh:'Tracé Ressources humaines' /* 19/11 nuit : les tutoriels Grands déplacements, Compteurs d'heures et Variables de paie sont dans le module RH */};
+import T_CH,{NOMS as N_CH} from './tutos_chantier.js';import T_TE,{NOMS as N_TE} from './tutos_technique.js';import T_CO,{NOMS as N_CO} from './tutos_compagnon.js';import T_PI,{NOMS as N_PI,POUR as P_PI} from './tutos_pilotage.js';import T_CM,{NOMS as N_CM} from './tutos_commerce.js'; /* 31/10 : tutoriels détaillés, un fichier par famille de modules */
 export const TUTOS={
  accueil:[
   {titre:'Bienvenue dans Tracé',texte:'L\'appli de SCR pour tes chantiers : soudures, pointage, documents. Trente secondes pour faire le tour.'},
@@ -92,9 +92,10 @@ export function initTuto(api){A=api;}
 const testOn=()=>{try{return localStorage.getItem('trace:tuto:test')==='1';}catch(e){return false;}};
 const who=()=>{try{return (A&&A.key&&A.key())||'anon';}catch(e){return 'anon';}};
 function seenAll(){try{return JSON.parse(localStorage.getItem(SEEN_KEY+who())||'{}')||{};}catch(e){return {};}}
-export const tutoSeen=k=>!!seenAll()[k];
+const ANCIEN={'rh:paie':'pilotage:rapport','rh:gd':'pilotage:gd','rh:cpt':'pilotage:cpt'}; /* 19/11 nuit : ces tutoriels ont suivi leurs écrans dans le module RH → « déjà vu » sous l'ancienne clé vaut toujours (il ne se rouvre pas tout seul) */
+export const tutoSeen=k=>{const o=seenAll();return !!(o[k]||(ANCIEN[k]&&o[ANCIEN[k]]));};
 function markSeen(k,how){const o=seenAll();o[k]={how,at:new Date().toISOString()};try{localStorage.setItem(SEEN_KEY+who(),JSON.stringify(o));}catch(e){}}
-export function tutoReset(k){const o=seenAll();if(k)delete o[k];try{if(k)localStorage.setItem(SEEN_KEY+who(),JSON.stringify(o));else localStorage.removeItem(SEEN_KEY+who());}catch(e){}}
+export function tutoReset(k){const o=seenAll();if(k){delete o[k];if(ANCIEN[k])delete o[ANCIEN[k]];}try{if(k)localStorage.setItem(SEEN_KEY+who(),JSON.stringify(o));else localStorage.removeItem(SEEN_KEY+who());}catch(e){}}
 const on=()=>!A||!A.on||A.on(); /* option de palier `tutos` (app.js : feat('tutos')) */
 // quelque chose est en cours : fenêtre, panneau, saisie, écran de chargement → le tuto attend
 function busy(){const d=document;if(d.getElementById('tr-splash'))return true;if(d.querySelector('#modal.show,.sheet.show,.menu.show,.cm-mcard.full,.cm-lcard.full'))return true;const a=d.activeElement;if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&a.type!=='checkbox'&&a.type!=='radio')return true;try{if(A&&A.busy&&A.busy())return true;}catch(e){}return false;}
@@ -134,5 +135,5 @@ function place(){if(!cur)return;const root=document.getElementById('tuto');if(!r
 export const tutoKeys=()=>Object.keys(TUTOS);
 /* 11/11 (assistant 💬) : les tutoriels en texte, pour le manuel de l'assistant — étapes filtrées par les droits de la personne (mêmes conditions `si` que l'affichage) ;
    keep(clé) : garder le tutoriel (l'assistant ne garde que ceux des onglets ouverts à la personne) */
-export function tutoManuel(keep){const out=[];Object.keys(TUTOS).forEach(k=>{if(keep){try{if(!keep(k))return;}catch(e){}}const st=stepsOf(k).filter(s=>s&&(s.titre||s.texte));if(!st.length)return;out.push('## '+(TUTO_TITRES[k]||k));
+export function tutoManuel(keep){const out=[];Object.keys(TUTOS).forEach(k=>{if(keep){try{if(!keep(k))return;}catch(e){}}try{if(P_PI&&P_PI[k]&&!P_PI[k](A))return;}catch(e){} /* 19/11 nuit : tutoriel réservé à qui a l'écran */const st=stepsOf(k).filter(s=>s&&(s.titre||s.texte));if(!st.length)return;out.push('## '+(TUTO_TITRES[k]||k));
   st.forEach(s=>out.push('- '+(s.titre?String(s.titre).trim()+' : ':'')+String(s.texte||'').replace(/\s+/g,' ').trim()));out.push('');});return out.join('\n');}

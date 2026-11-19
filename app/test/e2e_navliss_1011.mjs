@@ -40,7 +40,7 @@ await page.evaluate(()=>{const T=window.TRACE;const src=T.sites[Object.keys(T.si
     if(p==='l:julien'&&mon==='2026-11-09')pj['2026-11-11']=[];T.espace.savePlanning(wkKey(mon),{[p]:pj});}));
   T.state.userId='ethan';T.renderHome();});await wait(400);
 // géocodage de Caen / Bayeux / Rennes / Nantes (le trajet et les distances en ont besoin) : on ouvre Grands déplacements une fois
-await page.evaluate(async()=>{const w=ms=>new Promise(r=>setTimeout(r,ms));document.getElementById('htExpl').click();await w(250);const r=[...document.querySelectorAll('#eq-app .ac-row')].find(x=>/Grands déplacements/.test(x.textContent));if(r){r.click();await w(1800);}});
+await page.evaluate(async()=>{const w=ms=>new Promise(r=>setTimeout(r,ms));document.getElementById('htRh').click();await w(250);const r=document.querySelector('#eq-app [data-act="x"][data-v="rh|tab|gd"]');if(r){r.click();await w(1800);} /* 19/11 nuit : cet écran est dans le module RH (plus dans Pilotage) */});
 // ── 1) absence : congé payé de Julien le mardi 24/11, saisi dans Tracé RH → Absences (au vrai clic)
 await page.evaluate(async()=>{const w=ms=>new Promise(r=>setTimeout(r,ms));const b=document.getElementById('htRh');if(b){b.click();await w(500);}});
 await page.click('[data-act="x"][data-v="rh|tab|abs"]');await wait(400);await page.click('[data-act="x"][data-v="rh|new|rhabs"]');await wait(300);

@@ -8,8 +8,8 @@
 //   pilotage:plan     Planning de la semaine (planning unique, 01/11 soir)          pilotage:orga   chef de chantier : « Mon planning et mon équipe » (l'encadrement arrive sur le planning unique)
 //   pilotage:obj      Objectifs des équipes                       pilotage:agenda Ma semaine
 //   pilotage:valid    Pointages à valider                         pilotage:prodEq Production par équipe
-//   pilotage:rapport  Variables de paie · rapport RH              pilotage:gd     Grands déplacements
-//   pilotage:cpt      Compteurs d'heures                          pilotage:annul  Demandes d'annulation
+//   rh:paie           Variables de paie · rapport de la semaine   rh:gd           Grands déplacements        (dans le module RH depuis le 19/11)
+//   rh:cpt            Compteurs d'heures                          pilotage:annul  Demandes d'annulation
 //   pilotage:x:mag    Commandes au dépôt de l'équipe              pilotage:x:dem  Demandes de matériel
 //   pilotage:secu     écran Sécurité (tuile « Sécurité » d'Aujourd'hui)
 //   pilotage:qhs · :controles · :accident · :habsEq              (section Sécurité du hub, ou écran Sécurité)
@@ -27,17 +27,21 @@ const sans=(a,k)=>!!(a&&a.can&&!a.can(k)); /* le droit manque vraiment */
 const opt=(a,k)=>!a||!a.feat||!!a.feat(k);
 const ligne=(ecran,sel,cond)=>a=>ici(a,ecran)?vu(sel):(!cond||!!cond(a)); /* étape d'une entrée de hub */
 const L=v=>`#eq-app [data-act="xgo"][data-v="${v}"]`; /* une ligne de hub */
+const rhOff=a=>!!(a&&a.mod&&!a.mod('rh')); /* 19/11 nuit : le module RH est coupé pour l'entreprise → les écrans de paie restent des lignes de Pilotage */
 const enc=a=>peut(a,'planning.edit')||peut(a,'affaires.edit')||peut(a,'mag.manage'); /* conducteur, bureau, direction, référent magasin */
 
 export const NOMS={
  'pilotage:plan':'Planning de la semaine','pilotage:orga':'Planning des équipes','pilotage:obj':'Objectifs des équipes','pilotage:agenda':'Ma semaine',
- 'pilotage:valid':'Pointages à valider','pilotage:prodEq':'Production par équipe','pilotage:rapport':'Variables de paie','pilotage:gd':'Grands déplacements',
- 'pilotage:cpt':'Compteurs d\'heures','pilotage:annul':'Demandes d\'annulation','pilotage:x:mag':'Commandes au dépôt','pilotage:x:dem':'Demandes de matériel',
+ 'pilotage:valid':'Pointages à valider','pilotage:prodEq':'Production par équipe','rh:paie':'Variables de paie','rh:gd':'Grands déplacements',
+ 'rh:cpt':'Compteurs d\'heures', /* 19/11 nuit (Ethan) : ces trois écrans sont dans le module RH — leurs tutoriels les suivent (clés rh:…) */'pilotage:annul':'Demandes d\'annulation','pilotage:x:mag':'Commandes au dépôt','pilotage:x:dem':'Demandes de matériel',
  'pilotage:secu':'Sécurité','pilotage:qhs':'Quart d\'heure sécurité','pilotage:controles':'Contrôles chantier','pilotage:accident':'Déclarer un accident',
  'pilotage:habsEq':'Habilitations de l\'équipe',
  'affaire:cmd':'Bons de commande','affaire:frais':'Notes de frais à valider','affaire:x:cc':'Compte d\'un chantier' /* 10/11 soir : plus de tuto « Comptes chantier » (le volet renvoie au module Affaire) */
 };
 
+/* 19/11 nuit : ces trois tutoriels ont suivi leurs écrans dans le module RH, que tout le monde ouvre (« mon dossier ») → dans le manuel de l'assistant, ils ne valent
+   que pour qui a l'écran (mêmes droits que les anciennes lignes de Pilotage) */
+export const POUR={'rh:paie':a=>peut(a,'pointage.validate')&&(peut(a,'planning.edit')||peut(a,'rh.voir')),'rh:gd':a=>peut(a,'planning.edit')||peut(a,'rh.voir'),'rh:cpt':a=>peut(a,'rh.voir')||peut(a,'rh.edit')};
 export default {
  /* ═══ PILOTAGE — vue d'ensemble : une étape par ligne du hub ═══ */
  pilotage:[
@@ -48,9 +52,9 @@ export default {
   {sel:L('agenda'),titre:"Ma semaine",texte:"Compose ta semaine (visites, réunions, rendez-vous), reliée à Outlook, et regarde celle de ceux qui dépendent de toi.",si:ligne('pilotage',L('agenda'))},
   {sel:L('valid'),titre:"Pointages à valider",texte:"Les heures de l'équipe : le chef de chantier valide, puis le conducteur. Une erreur se corrige avec un motif ; les pointages manquants sont signalés.",si:ligne('pilotage',L('valid'))},
   {sel:L('prodEq'),titre:"Production par équipe",texte:"Les heures et la production de chacun (soudures, manchons), additionnées par équipe et comparées aux objectifs.",si:ligne('pilotage',L('prodEq'),a=>opt(a,'production'))},
-  {sel:L('rapport'),titre:"Variables de paie · rapport RH",texte:"Les heures telles qu'elles partent en paie : définitives, validées chef, à valider, grands déplacements. Export CSV pour la RH.",si:ligne('pilotage',L('rapport'),a=>peut(a,'pointage.validate')&&(peut(a,'planning.edit')||peut(a,'rh.voir')))},
-  {sel:L('gd'),titre:"Grands déplacements",texte:"Le cas 1 à 4 de chacun selon la distance domicile → chantier : nuitées, repas, indemnités. Tu accordes la semaine.",si:ligne('pilotage',L('gd'),a=>peut(a,'planning.edit')||peut(a,'rh.voir'))},
-  {sel:L('cpt'),titre:"Compteurs d'heures",texte:"Contrat, compteur d'heures sup (plafond, solde) et heures à reporter de chacun ; import du compteur existant.",si:ligne('pilotage',L('cpt'),a=>peut(a,'rh.voir')||peut(a,'rh.edit'))},
+  {sel:L('rapport'),titre:"Variables de paie · rapport RH",texte:"Les heures telles qu'elles partent en paie : définitives, validées chef, à valider, grands déplacements. Export CSV pour la RH.",si:ligne('pilotage',L('rapport'),a=>rhOff(a)&&peut(a,'pointage.validate')&&(peut(a,'planning.edit')||peut(a,'rh.voir')))},
+  {sel:L('gd'),titre:"Grands déplacements",texte:"Le cas 1 à 4 de chacun selon la distance domicile → chantier : nuitées, repas, indemnités. Tu accordes la semaine.",si:ligne('pilotage',L('gd'),a=>rhOff(a)&&(peut(a,'planning.edit')||peut(a,'rh.voir')))},
+  {sel:L('cpt'),titre:"Compteurs d'heures",texte:"Contrat, compteur d'heures sup (plafond, solde) et heures à reporter de chacun ; import du compteur existant.",si:ligne('pilotage',L('cpt'),a=>rhOff(a)&&(peut(a,'rh.voir')||peut(a,'rh.edit')))},
   {sel:L('annul'),titre:"Demandes d'annulation",texte:"Une soudure à annuler au-delà des crédits de la personne arrive ici : tu tranches dans la conversation du chantier.",si:ligne('pilotage',L('annul'))},
   {sel:L('x:mag:equipe'),titre:"Commandes au dépôt de l'équipe",texte:"Ce que ton équipe a demandé au magasin, et ce qui est prêt à retirer au dépôt.",si:ligne('pilotage',L('x:mag:equipe'),a=>opt(a,'magasin'))},
   {sel:'#eq-app [data-act="x"][data-v="veh|gomouv|"]',titre:"Véhicules : mouvements",texte:"Qui a quel véhicule, états des lieux et signatures attendus, contestations : le fil des déclarations.",si:ligne('pilotage','#eq-app [data-v="veh|gomouv|"]',a=>opt(a,'parc')&&peut(a,'flotte.manage'))},
@@ -125,8 +129,8 @@ export default {
   {titre:"D'où viennent les chiffres",texte:"Production : les fiches de soudure signées au nom de chacun, le jour où la personne est placée sur le chantier. Heures : les pointages."}
  ],
 
- /* ═══ Variables de paie · rapport RH ═══ */
- 'pilotage:rapport':[
+ /* ═══ Variables de paie · rapport de la semaine (module RH depuis le 19/11) ═══ */
+ 'rh:paie':[
   {sel:'#eq-app [data-act="rpweek"]',titre:"Choisis la semaine",texte:"S-2, Semaine dernière ou Cette semaine : les heures telles qu'elles partent en paie, rien d'autre."},
   {sel:'#eq-app .ac-stats',titre:"Où en sont les heures",texte:"Pointées, définitives (conducteur), validées chef en attente, à valider ; en rouge, les jours planifiés sans pointage."},
   {sel:'#eq-app table.af-tab',titre:"Une ligne par personne",texte:"Jours, heures pointées, définitives, chef, à valider, pauses et cas de grand déplacement (GD) de la semaine."},
@@ -135,8 +139,8 @@ export default {
   {titre:"Avant d'envoyer",texte:"Tout doit être « définitif » : sinon, relance la validation dans Pointages à valider. Une pause non pointée n'est jamais déduite."}
  ],
 
- /* ═══ Grands déplacements ═══ */
- 'pilotage:gd':[
+ /* ═══ Grands déplacements (module RH depuis le 19/11) ═══ */
+ 'rh:gd':[
   {sel:'#eq-app [data-act="gdmode"]',titre:"Par semaine ou par personne",texte:"« 🗓 Par semaine » : toute l'équipe. « 👤 Par personne · mois » : le calendrier d'une personne, nuitées et repas jour par jour."},
   {sel:'#eq-app [data-gdaddr] > summary, #eq-app .okbox',titre:"Les adresses",texte:"Le cas se calcule depuis l'adresse de chacun. « 📍 Adresses à vérifier » : sans adresse localisée, pas de calcul."},
   {sel:'#eq-app .eq-wknav',titre:"Choisis la semaine",texte:"‹ › ou glisse le bandeau. Le cycle se lit sur les semaines d'avant du planning."},
@@ -148,7 +152,7 @@ export default {
  ],
 
  /* ═══ Compteurs d'heures (gérant, direction, RH) ═══ */
- 'pilotage:cpt':[
+ 'rh:cpt':[
   {sel:'#eq-app .eq-kpis',titre:"Les compteurs en bref",texte:"Qui a un compteur, le total d'heures dedans, les compteurs pleins, les heures à reporter et les cas forcés."},
   {sel:'#eq-app .cpt-imp > summary',titre:"⬆ Importer le compteur existant",texte:"Colle le tableau de ton classeur (ou dépose le fichier), vérifie l'aperçu, importe : les soldes deviennent le point de départ.",si:a=>peut(a,'rh.edit')},
   {sel:'#eq-app .cpt-tab',titre:"Une ligne par personne",texte:"Contrat, compteur (solde, plafond et jauge), heures à reporter, déplacement : cas forcé ou selon la distance."},
