@@ -50,7 +50,10 @@ export const NOUVEAUTES = `## Préfabrication — soudures faites mais pas encor
 ## Pointage de la journée et trajet inter-chantier
 - Sur la carte de pointage du jour (Aujourd'hui) : « ▶ Commencer la journée », « Pause midi », « ▶ Reprise après la pause », « ■ Fin de journée ».
 - Si tu viens d'un autre chantier (le matin) ou si demain tu es sur un autre chantier (le soir), la carte demande « 🚐 trajet inter-chantier ? » : touche la durée, ou « Pas de trajet (je rentre chez moi) ». Ce trajet est payé à part (à 100 %, jamais majoré) et figure sur la navette.
-- Oubli de pointage ou heure fausse : prévenir son chef ; il corrige dans Pilotage → ✓ Pointages à valider (avec un motif). Le chef voit aussi « rien de pointé » pour ceux qui étaient au planning et saisit leurs heures.
+- Pas sur le chantier du planning (19/11) : avant de commencer, « 📍 Autre chantier » → choisir le chantier, puis « ▶ Commencer la journée ». Pas au planning du tout : la carte demande le chantier.
+- Changer de chantier dans la journée (19/11) : « 🚐 Changer de chantier » → choisir où tu vas → « 🚐 Partir maintenant », puis « 📍 Arrivée sur le chantier » ; le trajet compte dans les heures de la journée. (Avec deux chantiers au planning le même jour : « 🚐 Départ inter-chantier ».)
+- Trajet inter-chantier entre deux journées que l'appli n'a pas demandé (19/11) : le matin avant la pause « 🚐 Déclarer un trajet inter-chantier (hier soir ou ce matin) », le soir après la fin « … ce soir » → toucher la durée ; payé à part, comme celui que l'appli propose.
+- Oubli de pointage ou heure fausse : prévenir son chef ; il corrige dans Pilotage → ✓ Pointages à valider (avec un motif). Tous ceux qui valident (chef, conducteur, responsable d'exploitation, RH) voient aussi « rien de pointé » pour ceux qui étaient au planning et saisissent leurs heures, le jour même aussi.
 
 ## Mes heures et ma navette (Compagnon → Heures)
 - Chaque semaine : les heures réellement pointées et la navette (feuille d'heures de paie) lissée, avec l'explication en clair.
@@ -61,6 +64,7 @@ export const NOUVEAUTES = `## Préfabrication — soudures faites mais pas encor
 ## Pointages à valider (Pilotage → ✓ Pointages à valider)
 - Par jour, rangés par chantier : à valider en couleur, validés grisés. Corriger = un seul formulaire Début / Pause / Fin pré-rempli avec le pointé, l'écart s'affiche, motif obligatoire, la trace reste. « ↺ Revoir » sur un pointage validé. ◀ ▶ pour revenir sur un jour passé (21 jours).
 - Une anomalie « trajet inter-chantier non déclaré » (changement de chantier de plus de 20 km sans trajet déclaré) se règle en un toucher.
+- Depuis le 19/11 : ceux qui étaient au planning sans rien pointer apparaissent dans le groupe de leur chantier (« rien de pointé » → « ✏️ Saisir ses heures ») pour tous ceux qui valident, en « Par jour » comme en « Par personne » ; la correction et la saisie ont deux champs de plus : « Chantier » (changer le chantier du pointage) et « Trajet inter-chantier » (aucun, 30 min … 3 h, payé à part).
 
 ## Ressources humaines (onglet RH)
 - RH, direction, responsables d'exploitation : 🏠 Tableau de bord, 🧾 Navettes, 🏖 Absences · congés, 🎖 Habilitations, 🎓 Formation, 🚔 Contraventions, 🩺 Mutuelle, ⚠ Accidents.
@@ -87,6 +91,8 @@ export const NOUVEAUTES = `## Préfabrication — soudures faites mais pas encor
 ## Bureau 3D (Aujourd'hui)
 - Post-it : « 🔔 Me le rappeler » (date et heure) → à l'heure, le post-it s'agite, cadre rouge, ligne « Rappel » dans À faire ; « ✓ Vu », « +1 h », « Demain 8 h ».
 - Grand tableau blanc : « À savoir » en haut, « Ma journée » en bas (« ＋ tâche · rendez-vous »). Personnaliser : couleurs, objets de bureau (lampes), tapis de souris en photo (« ↻ Tourner l'image »).
+- Personnaliser → Objets → poser un objet (19/11) : on le glisse dans la pièce ; il s'arrête et glisse le long des murs et des bords (un meuble se colle au mur), il est poussé à côté de ce qu'il chevauche ; rouge = vraiment pas la place (à la dépose il reprend sa dernière place possible). Les étagères des rangements (bibliothèque, étagère à cases, buffet, vitrine, console) reçoivent les objets du bureau ET ceux du sol, si la taille le permet (« Trop haut pour cette étagère » / « Trop grand pour tenir ici » → bouton « − Plus petit »). Une corbeille passe sous le plateau du bureau.
+- Aquarium (19/11) : Personnaliser → Objets → « Objets de bureau » → « + Aquarium » ; il se pose sur le bureau, une étagère ou au sol. Son contenu se choisit dans la fiche de l'objet, « Dans l'aquarium » (plusieurs choix à la fois) : poissons rouges, néons bleus, guppys, combattant, poissons-clowns, scalaires, crevettes rouges, escargots, plantes, rochers, coffre au trésor, bulleur. Dans son bureau les poissons nagent.
 - Équipe → 🏢 Visite des dépôts : le monde 3D de tous les dépôts.
 
 ## La bulle 💬
@@ -122,6 +128,8 @@ export const SITUATIONS = `- « J'ai fait une soudure mais elle n'est pas sur le
 - « Un accident, un presque-accident ou un soin bénin » → mettre en sécurité, prévenir le chef ; puis « Déclarer un accident » sur l'accueil (Aujourd'hui), tout de suite, même incomplet : la RH est prévenue et complète (l'encadrement a aussi Pilotage → ⚠️ Déclarer un accident).
 - « L'appli ne marche pas comme prévu » → 🐞 Un bug dans la bulle (l'écran est noté tout seul). « J'ai une idée » → 💡 Une idée.
 - « Je ne vois pas tel onglet / tel bouton » → il n'est pas ouvert à ton poste : demande à ton chef ou à l'administrateur.
+- « Je n'arrive pas à coller un meuble au mur / l'objet devient rouge dans mon bureau 3D » → Aujourd'hui → 🎨 Personnaliser → Objets : glisse l'objet vers le mur, il s'y colle tout seul (inutile de viser juste) ; rouge = un autre objet ou un meuble occupe la place, ou l'objet est trop haut / trop grand pour l'étagère (« − Plus petit »).
+- « Comment mettre des poissons / un aquarium dans mon bureau » → 🎨 Personnaliser → Objets → « Objets de bureau » → « + Aquarium », puis clique l'aquarium → « Dans l'aquarium ».
 - « Pourquoi je n'ai pas d'étincelle / pourquoi je suis en dessous de la cadence » → Compagnon → Productions → carte « ⚡ Cadence » → « Comment c'est calculé » : vérifier jour par jour (1) que tes soudures ou manchons sont pointés sur le plan à ton nom, (2) l'équipe du jour (tuyauteur présent ou non : c'est le planning), (3) tes heures pointées. Une erreur : voir avec ton chef de chantier. La semaine en cours ne compte que le lundi suivant.
 - « Je n'ai pas la carte Cadence » → les cadences ne sont pas publiées aux équipes (pas publiées, en essai « encadrement seulement », ou suspendues), l'option n'est pas ouverte à ton poste, ou ton poste n'est pas soudeur, tuyauteur ou manchonneur.`;
 

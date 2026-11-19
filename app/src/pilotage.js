@@ -109,6 +109,7 @@ export function piSaisieHTML(p,d,X){const id=p.id+'|'+d;if(X.S.piSaisie!==id)ret
   const h=X.horairesDe(p,d),R='<span class="eq-s eq-ecart" style="color:#9b2c22">rien de pointé</span>'; /* 10/11 (Ethan) : même format que la correction d'un pointage (début · fin · pause · durée · motif), pré-rempli avec ses horaires habituels */
   return `<div class="pi-form eq-corrform"><div><label for="pi-s-h0">Début</label><input class="f" type="time" id="pi-s-h0" value="${esc(h[0])}">${R}</div><div><label for="pi-s-h1">Fin</label><input class="f" type="time" id="pi-s-h1" value="${esc(h[1])}">${R}</div>
     <div><label for="pi-s-p0">Pause à</label><input class="f" type="time" id="pi-s-p0" value="12:00">${R}</div><div><label for="pi-s-pd">Durée de la pause</label><select class="f" id="pi-s-pd">${[[0,'pas de pause'],[30,'30 min'],[45,'45 min'],[60,'1 h'],[90,'1 h 30']].map(([v,t])=>`<option value="${v}"${v===60?' selected':''}>${t}</option>`).join('')}</select><span class="eq-s eq-ecart">pas de pause pointée</span></div>
+    ${X.siteOpts?`<div><label for="pi-s-site">Chantier</label><select class="f" id="pi-s-site">${X.siteOpts(p.id,d,(X.planDe(p.id,d)||[])[0]||'')}</select><span class="eq-s eq-ecart">celui du planning, à changer s'il était ailleurs</span></div><div><label for="pi-s-rt">Trajet inter-chantier</label><select class="f" id="pi-s-rt">${X.routeOpts(0)}</select><span class="eq-s eq-ecart">payé à part, hors journée</span></div>`:''}
     <div class="full"><label for="pi-s-m">Motif</label><select class="f" id="pi-s-m">${['Oubli de pointage','Téléphone en panne / sans réseau','Pas de compte encore','Autre'].map(m=>`<option>${m}</option>`).join('')}</select></div>
     <div class="full eq-acts" style="margin:0"><button class="btn primary" data-act="pi" data-v="saisieok|${esc(id)}">Enregistrer et valider</button><button class="btn" data-act="pi" data-v="saisiex|">Annuler</button></div></div>`;}
 
@@ -305,5 +306,5 @@ export function piAct(v,el,me,X){const s=String(v||'');const i=s.indexOf('|');co
   if(cmd==='finok'){if(X.viewing()){X.viewOnly();return;}const h=(document.getElementById('pi-fin-h')||{}).value||'';X.finManquante(a,h);return;}
   if(cmd==='saisie'){S.piSaisie=a;X.render();return;}
   if(cmd==='saisiex'){S.piSaisie=null;X.render();return;}
-  if(cmd==='saisieok'){if(X.viewing()){X.viewOnly();return;}const g=k=>(document.getElementById('pi-s-'+k)||{}).value||'';X.saisieJour(a,{h0:g('h0'),h1:g('h1'),p0:g('p0'),pd:+g('pd')||0,motif:g('m')});return;}
+  if(cmd==='saisieok'){if(X.viewing()){X.viewOnly();return;}const g=k=>(document.getElementById('pi-s-'+k)||{}).value||'';X.saisieJour(a,{h0:g('h0'),h1:g('h1'),p0:g('p0'),pd:+g('pd')||0,motif:g('m'),site:g('site'),rt:+g('rt')||0});return;}
   planAct(cmd,a,me,X);}

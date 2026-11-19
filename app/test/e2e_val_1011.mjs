@@ -131,7 +131,7 @@ await P.page.fill('#eq-c-h1','17:00');await W(P.page,200);o.f1=await form(P.page
 o.rowOpen=(await rows(P.page)).find(x=>x.form);
 await tap(P.page,'#eq-app [data-act=corrok]',900);const rH=PTS[K(SOUD,JE)];o.hugo={ev:evs(rH),st:rH.status,corr:rH.corr,val:rH.val.map(v=>v.by)};o.after=(await rows(P.page));
 console.log('v2) revoir :',J(o));
-C.v2=o.f0.h0==='07:30'&&o.f0.h1==='16:30'&&o.f0.p0==='12:00'&&o.f0.pd==='60'&&o.f0.ecart.join('|')==='pointé 07:30|pointé 16:30|pointé 12:00|pointé 1 h 00'&&o.f1.ecart[1]==='pointé 16:30 · +30 min / pointé'&&!!o.rowOpen&&o.rowOpen.cls==='done'
+C.v2=o.f0.h0==='07:30'&&o.f0.h1==='16:30'&&o.f0.p0==='12:00'&&o.f0.pd==='60'&&o.f0.ecart.join('|')==='pointé 07:30|pointé 16:30|pointé 12:00|pointé 1 h 00|pointé sur Chantier fictif des Tilleuls|rien de déclaré · payé à part' /* 19/11 : + chantier et trajet inter-chantier dans la correction */&&o.f1.ecart[1]==='pointé 16:30 · +30 min / pointé'&&!!o.rowOpen&&o.rowOpen.cls==='done'
   &&o.hugo.ev==='start@07:30,pause@12:00,resume@13:00,end@17:00'&&o.hugo.st==='corrige'&&o.hugo.corr.t==='jour'&&o.hugo.corr.chg.join()==='fin 17:00 au lieu de 16:30'&&o.hugo.corr.avant.h1==='16:30'&&o.hugo.corr.apres.h1==='17:00'&&o.hugo.corr.by===CHEF.email&&o.hugo.val.join()===CHEF.email
   &&r(o.after,'Hugo').cls==='done'&&/corrigé : fin 17:00 au lieu de 16:30/.test(r(o.after,'Hugo').s+' '+(await txt(P.page)));
 
@@ -147,7 +147,7 @@ o.l2=await rows(P.page);o.head=(await txt(P.page)).match(/Pointages de l'équipe
 const rL=PTS[K(NEUF,F)],rT=PTS[K(TUY,F)],rM=PTS[K(MAN,F)];o.pts={lucas:rL&&{ev:evs(rL),st:rL.status,t:rL.corr&&rL.corr.t,val:rL.val.map(v=>v.by)},theo:{ev:evs(rT),chg:rT.corr&&rT.corr.chg,val:rT.val.map(v=>v.by)},marc:{ev:evs(rM),chg:rM.corr&&rM.corr.chg,val:rM.val.map(v=>v.by)},hugo:PTS[K(SOUD,F)].val.map(v=>v.by)};
 await shot(P,'val_v3_vendredi_fait_390','#eq-app .card');
 console.log('v3) vendredi :',J(o));
-C.v3=/eq-corrform/.test(o.sf.cls)&&o.sf.ids.every(Boolean)&&o.sf.ecart.join('|')==='rien de pointé|rien de pointé|rien de pointé|pas de pause pointée'&&o.sf.inTodo
+C.v3=/eq-corrform/.test(o.sf.cls)&&o.sf.ids.every(Boolean)&&o.sf.ecart.join('|')==='rien de pointé|rien de pointé|rien de pointé|pas de pause pointée|celui du planning, à changer s\'il était ailleurs|payé à part, hors journée' /* 19/11 : + chantier et trajet inter-chantier dans la saisie */&&o.sf.inTodo
   &&r(o.l1,'Lucas').cls==='done'&&r(o.l1,'Lucas').revoir&&o.l1.findIndex(x=>x.t&&x.t.startsWith('Lucas'))>o.l1.findIndex(x=>x.t&&x.t.startsWith('Marc')) /* saisi → validé par la cheffe : grisé, en bas du groupe */
   &&o.tf.pd==='60'&&o.tf.ecart[3]==='pas de pause pointée'&&o.mf.h1==='16:30'&&o.mf.ecart[1]==='rien de pointé'&&o.mf1==='rien de pointé'
   &&!!o.pts.lucas&&o.pts.lucas.ev==='start@07:30,pause@12:00,resume@13:00,end@16:30'&&o.pts.lucas.t==='saisie'&&o.pts.lucas.val.join()===CHEF.email
