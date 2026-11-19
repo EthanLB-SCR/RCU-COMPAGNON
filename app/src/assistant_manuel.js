@@ -70,7 +70,7 @@ export const NOUVEAUTES = `## Préfabrication — soudures faites mais pas encor
 
 ## Ressources humaines (onglet RH)
 - RH, direction, responsables d'exploitation : 🏠 Tableau de bord, 🧾 Navettes, 🏖 Absences · congés, 🎖 Habilitations, 🎓 Formation, 🚔 Contraventions, 🩺 Mutuelle, ⚠ Accidents.
-- 🧾 Navettes : mois ‹ ›, semaines à traiter, détail d'une semaine avec l'explication, « ✋ Avoir la main sur cette semaine » (motif obligatoire) puis « ✓ Retour au calcul automatique », fin de mois « ↪ Reporter » ou « 💶 Prime », « ⬇ Toutes les navettes » (Excel au format SCR). Réservé au droit « RH : contrôler les navettes » (RH, responsables d'exploitation, assistante RH).
+- 🧾 Navettes : mois ‹ ›, semaines à traiter, détail d'une semaine avec l'explication, « ✋ Avoir la main sur cette semaine » (motif obligatoire ; depuis le 19/11 chaque choix — mode, jours lissés, « valider telle quelle », « compléter avec les compteurs » — montre tout de suite les heures de la navette, le tableau et l'explication, en aperçu : rien n'est enregistré avant « Enregistrer » ; les heures ne se saisissent qu'avec « Heures saisies à la main ») puis « ✓ Retour au calcul automatique », fin de mois « ↪ Reporter » ou « 💶 Prime », « ⬇ Toutes les navettes » (Excel au format SCR). Réservé au droit « RH : contrôler les navettes » (RH, responsables d'exploitation, assistante RH).
 - Absences : jours ouvrés calculés du lundi au vendredi (corrigeables). Habilitations : justificatif PDF ou photo, date de fin calculée. Formation « faite » avec une habilitation visée → l'appli propose de l'inscrire. Contraventions : conducteur proposé d'après le véhicule, désignation à faire sous 45 jours.
 - Les autres salariés voient « Ressources humaines · mon dossier » : leurs propres lignes, en lecture.
 

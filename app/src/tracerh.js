@@ -5,6 +5,7 @@
 import {regAll,regGet,regSet,regDelete,regLoad,regMissing} from './reg.js';
 import {vehAll} from './flotte.js';
 import {HAB_TYPES,cTableHabs,habsDe,espaceNavMois,espaceNavRegler,espaceNavChoisir} from './espace.js';
+import {lisserSemaine} from './navette.js'; /* 19/11 nuit : aperçu en direct d'une semaine réglée à la main (le même calcul que la navette) */
 let A=null;const ID='rh';
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const todayIso=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
@@ -163,27 +164,48 @@ function vNav(me,ctx){const ym=NAVM||ymNow();const L=navData(ym);const ed=navEdi
 function navWeekModal(pid,mon,me,ctx){const api=ctx.api||A;const ym=NAVM||ymNow();const L0=(NAVCACHE&&NAVCACHE.ym===ym?NAVCACHE.L:navData(ym));const x=L0.find(z=>z.p.id===pid);const w=x&&x.N.weeks.find(z=>z.mon===mon);const L=w&&w.liss;
   if(!L){ctx.toast('Semaine introuvable');return;}const ed=navEdit(me,ctx);const M=L.main||{};const fr=d=>String(d).slice(8,10)+'/'+String(d).slice(5,7);
   const autoL=j=>j.i<5&&(j.st==='pointe'||j.st==='');
-  const rows=L.jours.map(j=>`<tr><td>${JL6[j.i]} ${fr(j.d)}</td><td class="r">${j.reel!==null?nbh(j.reel):'—'}</td><td class="r"><b>${j.h!==null&&j.h!==undefined?nbh(j.h):'—'}</b></td><td>${esc(j.site?j.site.nom:'')}${j.emprunt?' <span class="dim">(chantier du jour travaillé d\'avant)</span>':''}${j.lab&&j.reel===null?' <span class="eq-tag">'+esc(j.lab)+'</span>':''}</td><td class="r">${j.it?nbh(j.it):''}</td></tr>`).join('');
-  const sum=`<tr class="tot"><td>Semaine</td><td class="r">${nbh(L.reel)}</td><td class="r"><b>${nbh(L.total)}</b>${L.total!==L.declare?'<div class="dim" style="font-size:10.5px">dont '+nbh(L.total-L.declare)+' h des compteurs</div>':''}</td><td>${esc(L.etatTxt)}</td><td class="r">${L.it?nbh(L.it):''}</td></tr>`;
-  const mode=M.mode||'auto';const hIn=i=>{const v=mode==='main'&&Array.isArray(M.h)?M.h[i]:L.jours[i].h;return `<input class="f" type="number" step="0.25" min="0" max="12" inputmode="decimal" id="nv-h${i}" value="${v===null||v===undefined?'':esc(v)}" style="width:72px">`;};
+  /* 19/11 nuit (Ethan : « que ce soit dynamique : quand tu coches, décoches, que les valeurs lissées s'ajustent en direct sous nos yeux, et modifiables seulement avec l'option
+     manuelle ») — le tableau, l'explication et les heures de la navette se REJOUENT à chaque geste (lisserSemaine sur ce qui a servi à calculer la semaine : L.entree) ; rien n'est
+     enregistré avant « Enregistrer ». Les heures ne se saisissent qu'avec « Heures saisies à la main » ; sinon elles montrent le calcul. */
+  const tabHTML=P=>`<tr><th>Jour</th><th class="r">Pointé</th><th class="r">Navette</th><th>Chantier</th><th class="r">Inter-ch.</th></tr>`+P.jours.map(j=>`<tr><td>${JL6[j.i]} ${fr(j.d)}</td><td class="r">${j.reel!==null?nbh(j.reel):'—'}</td><td class="r"><b>${j.h!==null&&j.h!==undefined?nbh(j.h):'—'}</b></td><td>${esc(j.site?j.site.nom:'')}${j.emprunt?' <span class="dim">(chantier du jour travaillé d\'avant)</span>':''}${j.lab&&j.reel===null?' <span class="eq-tag">'+esc(j.lab)+'</span>':''}</td><td class="r">${j.it?nbh(j.it):''}</td></tr>`).join('')
+    +`<tr class="tot"><td>Semaine</td><td class="r">${nbh(P.reel)}</td><td class="r"><b>${nbh(P.total)}</b>${P.total!==P.declare?'<div class="dim" style="font-size:10.5px">dont '+nbh(P.total-P.declare)+' h des compteurs</div>':''}</td><td>${esc(P.etatTxt)}</td><td class="r">${P.it?nbh(P.it):''}</td></tr>`;
+  const explHTML=P=>P.expl.map(t=>`<li>${esc(t)}</li>`).join('');
+  const mode=M.mode||'auto';const hTxt=md=>md==='main'?'· à toi de les saisir':md==='reel'?'· les heures réelles — pour les modifier : « Heures saisies à la main »':'· calculées par les règles — pour les modifier : « Heures saisies à la main »';
+  const hIn=i=>{const v=mode==='main'&&Array.isArray(M.h)?M.h[i]:L.jours[i].h;return `<input class="f" type="number" step="0.25" min="0" max="12" inputmode="decimal" id="nv-h${i}" value="${v===null||v===undefined?'':esc(v)}" style="width:72px"${mode==='main'?'':' disabled'}>`;};
   const form=ed?`<div class="nav-main"><h4 style="margin:12px 0 6px">✋ Avoir la main sur cette semaine</h4>
     <label class="f" style="display:flex;gap:8px;align-items:center"><input type="radio" name="nv-mode" value="auto"${mode==='auto'?' checked':''}> Lissage automatique (les règles)</label>
     <label class="f" style="display:flex;gap:8px;align-items:center"><input type="radio" name="nv-mode" value="reel"${mode==='reel'?' checked':''}> Heures réelles jour par jour (pas de lissage)</label>
     <label class="f" style="display:flex;gap:8px;align-items:center"><input type="radio" name="nv-mode" value="main"${mode==='main'?' checked':''}> Heures saisies à la main</label>
-    <div class="nav-hin" style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0"${mode==='main'?'':' hidden'}>${L.jours.map((j,i)=>`<div><div class="dim" style="font-size:11px">${JL6[i]} ${fr(j.d)}</div>${hIn(i)}</div>`).join('')}</div>
+    <div class="eq-s" style="margin:8px 0 2px"><b>Heures de la navette</b> <span class="dim" id="nv-hhint">${esc(hTxt(mode))}</span></div>
+    <div class="nav-hin" style="display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 6px">${L.jours.map((j,i)=>`<div><div class="dim" style="font-size:11px">${JL6[i]} ${fr(j.d)}</div>${hIn(i)}</div>`).join('')}</div>
     <div class="eq-s" style="margin:6px 0 2px">Jours lissés :</div><div style="display:flex;flex-wrap:wrap;gap:10px">${L.jours.slice(0,5).map((j,i)=>`<label style="display:flex;gap:6px;align-items:center;min-height:40px"><input type="checkbox" id="nv-l${i}"${j.liss?' checked':''} data-auto="${autoL(j)?1:0}"> ${JL6[i]}</label>`).join('')}</div>
     <label class="f" style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" id="nv-force"${M.force?' checked':''}> Valider la semaine telle quelle (un jour attendu sans pointage = non travaillé)</label>
     <label class="f" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="nv-comble"${M.comble===false?'':' checked'}> Compléter avec les compteurs si la semaine est sous le contrat</label>
+    <div class="nav-apercu" id="nv-apercu" hidden>● Aperçu : rien n'est enregistré tant que tu n'as pas touché « Enregistrer ».</div>
     <label class="f">Motif (obligatoire)</label><input class="f" id="nv-motif" value="${esc(M.motif||'')}" placeholder="ex. pont du 10/11 non déclaré, accord avec le gars…">
     <div class="actions" style="margin-top:10px"><button class="btn primary block" id="nv-ok">Enregistrer</button>${L.main?'<button class="btn block" id="nv-auto">Revenir au calcul automatique</button>':''}<button class="btn block" data-close>Fermer</button></div></div>`:'<div class="actions" style="margin-top:10px"><button class="btn block" data-close>Fermer</button></div>';
   api.openModal(`<h3 style="margin-top:0">🧾 ${esc(nomDe(x.p))} · S${w.n} <span class="hint">· ${fr(mon)} → ${fr(addDays(mon,5))}</span></h3>
-    <div style="overflow:auto"><table class="rc ch-tab"><tr><th>Jour</th><th class="r">Pointé</th><th class="r">Navette</th><th>Chantier</th><th class="r">Inter-ch.</th></tr>${rows}${sum}</table></div>
-    <div class="nav-wexp" style="margin-top:8px"><b>Comment on arrive là</b><ul>${L.expl.map(t=>`<li>${esc(t)}</li>`).join('')}</ul></div>${form}`);
-  if(!ed)return;const g=k=>document.getElementById(k);document.querySelectorAll('input[name=nv-mode]').forEach(r=>r.addEventListener('change',()=>{const h=document.querySelector('.nav-hin');if(h)h.hidden=r.value!=='main'||!r.checked;}));
-  g('nv-ok').onclick=()=>{const md=(document.querySelector('input[name=nv-mode]:checked')||{}).value||'auto';const motif=(g('nv-motif').value||'').trim();if(!motif){ctx.toast('Indique le motif (il apparaît dans l\'explication)');g('nv-motif').focus();return;}
-    const o={mode:md,motif};if(md==='main'){const h=[0,1,2,3,4,5].map(i=>{const v=g('nv-h'+i).value;return v===''?null:Math.max(0,Math.min(12,+v));});if(h.some(v=>v!==null&&!isFinite(v))){ctx.toast('Heures illisibles');return;}o.h=h;}
+    <div style="overflow:auto"><table class="rc ch-tab" id="nv-tab">${tabHTML(L)}</table></div>
+    <div class="nav-wexp" style="margin-top:8px"><b>Comment on arrive là</b><ul id="nv-expl">${explHTML(L)}</ul></div>${form}`);
+  if(!ed)return;const g=k=>document.getElementById(k);const HS=[0,1,2,3,4,5];
+  /* le réglage tel que le formulaire le dit (le même pour l'aperçu et pour l'enregistrement) */
+  const lire=()=>{const md=(document.querySelector('input[name=nv-mode]:checked')||{}).value||'auto';const o={mode:md};if(md==='main')o.h=HS.map(i=>{const v=g('nv-h'+i).value;return v===''?null:Math.max(0,Math.min(12,+v));});
     const off=[],on=[];L.jours.slice(0,5).forEach((j,i)=>{const c=g('nv-l'+i).checked,a=autoL(j);if(c&&!a)on.push(j.d);if(!c&&a)off.push(j.d);});if(off.length)o.off=off;if(on.length)o.on=on;
-    if(g('nv-force').checked)o.force=true;if(!g('nv-comble').checked)o.comble=false;
+    if(g('nv-force').checked)o.force=true;if(!g('nv-comble').checked)o.comble=false;return o;};
+  const neutre=o=>o.mode==='auto'&&!o.off&&!o.on&&!o.force&&o.comble!==false; /* rien de réglé : le calcul automatique tout court */
+  const o0=JSON.stringify(lire());let prev=mode,memo=mode==='main'&&Array.isArray(M.h)?M.h.slice():null; /* memo : les heures saisies à la main, rendues si on y revient après un détour par un autre mode */
+  const apercu=()=>{let o=lire();const man=o.mode==='main';
+    if(man&&prev!=='main'&&memo){HS.forEach(i=>{const v=memo[i];g('nv-h'+i).value=v===null||v===undefined?'':String(v);});o=lire();}
+    HS.forEach(i=>{g('nv-h'+i).disabled=!man;});g('nv-hhint').textContent=hTxt(o.mode);prev=o.mode;g('nv-apercu').hidden=JSON.stringify(o)===o0;
+    if(man){if(o.h.some(v=>v!==null&&!isFinite(v)))return;memo=o.h.slice();}
+    if(!L.entree)return; /* rien pour rejouer le calcul (ne devrait pas arriver) : l'écran reste celui d'avant */
+    const motif=(g('nv-motif').value||'').trim();let P=null;try{P=lisserSemaine(Object.assign({},L.entree,{main:neutre(o)?null:Object.assign({},o,motif?{motif}:{})}));}catch(e){console.warn('navette : aperçu',e);return;}
+    g('nv-tab').innerHTML=tabHTML(P);g('nv-expl').innerHTML=explHTML(P);
+    if(!man)HS.forEach(i=>{const v=P.jours[i].h;g('nv-h'+i).value=v===null||v===undefined?'':String(v);});};
+  document.querySelectorAll('input[name=nv-mode]').forEach(r=>r.addEventListener('change',apercu));HS.forEach(i=>g('nv-h'+i).addEventListener('input',apercu));
+  [0,1,2,3,4].forEach(i=>g('nv-l'+i).addEventListener('change',apercu));g('nv-force').addEventListener('change',apercu);g('nv-comble').addEventListener('change',apercu);g('nv-motif').addEventListener('input',apercu);
+  g('nv-ok').onclick=()=>{const motif=(g('nv-motif').value||'').trim();if(!motif){ctx.toast('Indique le motif (il apparaît dans l\'explication)');g('nv-motif').focus();return;}
+    const o=Object.assign(lire(),{motif});if(o.mode==='main'&&o.h.some(v=>v!==null&&!isFinite(v))){ctx.toast('Heures illisibles');return;}
     const r=espaceNavRegler(pid,mon,o);if(!r.ok){ctx.toast(r.why||'Refusé');return;}api.closeModal();ctx.toast('✓ Semaine réglée à la main — l\'explication le dit');ctx.render();};
   if(g('nv-auto'))g('nv-auto').onclick=()=>{const r=espaceNavRegler(pid,mon,null);if(!r.ok){ctx.toast(r.why||'Refusé');return;}api.closeModal();ctx.toast('✓ Retour au calcul automatique');ctx.render();};}
 function vAbs(me,ctx){const voir=absVoir(me,ctx);const L=visible('rhabs',me,ctx);const P=voir?activePeople(ctx):[me];const today=todayIso();const y=today.slice(0,4);

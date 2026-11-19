@@ -240,5 +240,9 @@ export function lisserSemaine(o){o=o||{};const C=+o.contrat>0?+o.contrat:CONTRAT
   const flags=[];if(versReport>0)flags.push('plafond');if(deReport||deRecup)flags.push('comble');if(manque>0||manqueCouv>0)flags.push(known?'sansSolde':'soldeInconnu');if(etat==='incomplet')flags.push('incomplet');
   if(M&&(M.mode&&M.mode!=='auto'||M.off||M.on||M.force||M.comble===false))flags.push('main');if(it)flags.push('inter');if(place)flags.push('place');if(J.some(x=>x.st==='abs'))flags.push('absence');if(J.some(x=>x.st==='ferie'||x.st==='pont'))flags.push('ferie');
   if(etat==='vide'&&J.some(x=>x.wd&&x.plan&&!x.futur))flags.push('rien');
-  return {mon:o.mon,etat,etatTxt:ETATS[etat],jours,reel,reelA,arrondi:r2(reelA-reel),it,n,cap,cible,declare,versReport,versReportMaj,repl,couvReport,couvRecup,manqueCouv,deReport,deRecup,manque,place,total,
-    hs125:sp.hs125,hs150:sp.hs150,trous:trous.map(x=>x.d),main:M,expl:E,flags,known};}
+  const res={mon:o.mon,etat,etatTxt:ETATS[etat],jours,reel,reelA,arrondi:r2(reelA-reel),it,n,cap,cible,declare,versReport,versReportMaj,repl,couvReport,couvRecup,manqueCouv,deReport,deRecup,manque,place,total,
+    hs125:sp.hs125,hs150:sp.hs150,trous:trous.map(x=>x.d),main:M,expl:E,flags,known};
+  /* 19/11 nuit (Ethan : « que ce soit dynamique, que les valeurs lissées s'ajustent en direct ») : la semaine garde ce qui a servi à la calculer (jours, soldes, contrat…) pour qu'on
+     puisse la REJOUER avec un autre réglage sans rien enregistrer — lisserSemaine(Object.assign({}, L.entree, {main})). Non énumérable : ni copié, ni envoyé, ni comparé. */
+  try{Object.defineProperty(res,'entree',{value:o,enumerable:false});}catch(e){}
+  return res;}
