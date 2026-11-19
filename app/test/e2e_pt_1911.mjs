@@ -2,11 +2,12 @@
 //  « je ne vois pas ceux au planning qui n'ont rien pointé » · « tout le monde rangé par chantier, même ceux qui n'ont pas mis d'heure, avec la possibilité de leur en mettre »
 //  « ajouter la possibilité de mettre des heures de route inter-chantier, de pouvoir changer le chantier du gars » · « que les gars puissent mettre inter-chantier et changer de chantier »
 //  r1  responsable d'exploitation (ni chef de chantier ni conducteur), « Par jour », vendredi : Lucas « rien de pointé » dans le groupe de son chantier + « Saisir ses heures » (avant : rien)
+//      19/11 soir (Ethan : « le 5 rouge, pourquoi que sur une journée et pas sur les autres ? ») : la pastille rouge est aussi sur un jour de plus de 7 jours (mardi 27/10, 13 jours avant)
 //  r2  le jour même (lundi) : ceux du planning sans pointage sont là, saisie possible ; saisie avec un autre chantier et un trajet de 45 min → enregistré, accepté par le serveur
 //  r3  « Par personne » : ceux qui n'ont rien pointé ont leur pastille (rouge pour un jour passé) et leurs jours « rien de pointé » avec la saisie
 //  r4  cheffe (390) : la correction change le chantier et ajoute 1 h de trajet inter-chantier (trace), puis le retire (« pas de trajet » gardé)
 //  r5  un départ inter-chantier dans la journée compte dans les heures (8 h 00 avec 45 min de route) et la ligne dit où il est parti
-//  r6  le gars (390) : « Autre chantier » au départ, « Changer de chantier » (départ → arrivée), « Déclarer un trajet inter-chantier » à la main ; pas au planning → la carte demande le chantier
+//  r6  le gars (390) : « Autre chantier » au départ, changer de chantier en journée (19/11 soir : « Début de trajet » en un geste, chantier d'arrivée choisi en route, « Fin de trajet »), « Déclarer un trajet inter-chantier » à la main ; pas au planning → la carte demande le chantier
 //  r7  téléphone 390 / 360 : rien ne déborde ; console propre, aucune écriture refusée
 import { chromium } from 'playwright';
 import fs from 'fs';
@@ -91,6 +92,7 @@ const minH=(pg,sel)=>pg.evaluate(s=>{const L=[...document.querySelectorAll(s)].f
   C.c0_plan=!!(NET&&NET.lines&&NET.lines.length);}
 const S45=['2026-11-02','2026-11-03','2026-11-04','2026-11-05','2026-11-06'],F='2026-11-06',JE='2026-11-05',LU=TODAY;
 const wk=(d,s)=>Object.fromEntries(d.map(x=>[x,[s]]));
+const VIEUX='2026-10-27';PLAN['2026-W44']={week:'2026-W44',data:{aff:{[NEUF.email]:{[VIEUX]:['SRV_A']},[CHEF.email]:{[VIEUX]:['SRV_A']}}},updated_at:'2026-10-23T08:00:00Z'}; /* 13 jours avant « aujourd'hui » : Lucas placé, rien pointé */
 PLAN['2026-W45']={week:'2026-W45',data:{aff:{[SOUD.email]:wk(S45,'SRV_A'),[TUY.email]:wk(S45,'SRV_A'),[MAN.email]:wk(S45,'SRV_A'),[CHEF.email]:wk(S45,'SRV_A'),[NEUF.email]:{[JE]:['SRV_A'],[F]:['SRV_A']}}},updated_at:'2026-10-30T08:00:00Z'};
 PLAN['2026-W46']={week:'2026-W46',data:{aff:{[SOUD.email]:{[LU]:['SRV_A']},[TUY.email]:{[LU]:['SRV_A']},[MAN.email]:{[LU]:['SRV_B']},[CHEF.email]:{[LU]:['SRV_A']}}},updated_at:'2026-11-06T18:00:00Z'}; /* lundi : Hugo, Théo (Tilleuls), Marc (Moulin) ; Lucas et Nina ne sont pas au planning */
 const ev=(d,a)=>a.map(([t,h,x])=>Object.assign({t,at:d+'T'+h},x||{}));
@@ -111,10 +113,11 @@ let o={};
 // ── r1 : le responsable d'exploitation voit ceux qui n'ont rien pointé (vendredi), rangés dans leur chantier
 let P=await open(RESP,{width:1366,height:900},false,{wide:true});
 await hub(P.page);await hubRow(P.page,/Pointages à valider/);await tapAct(P.page,'valmode','jour',400);await tapAct(P.page,'valjour',F,500);
-o.ven=await rows(P.page);o.chips=await chips(P.page);await tapAct(P.page,'valjour',JE,500);o.jeu=await rows(P.page);await shot(P,'pt_r1_resp_jeudi');
+o.ven=await rows(P.page);o.chips=await chips(P.page);await tapAct(P.page,'valjour',JE,500);o.jeu=await rows(P.page);await shot(P,'pt_r1_resp_jeudi');await tapAct(P.page,'valjour',VIEUX,500);o.vieux=await rows(P.page);
 console.log('r1) responsable, par jour :',J(o));
 C.r1=o.ven.some(x=>/Tilleuls .* 4 personnes · 1 à traiter/.test(x.h||''))&&r(o.ven,'Lucas').cls==='todo'&&/placé sur Chantier fictif des Tilleuls · rien de pointé/.test(r(o.ven,'Lucas').s)&&r(o.ven,'Lucas').saisie&&r(o.ven,'Lucas').etat==='Pas de pointage'
-  &&o.chips.some(c=>/ven/.test(c)&&c.endsWith('!'))&&r(o.jeu,'Lucas').saisie&&/rien de pointé/.test(r(o.jeu,'Lucas').s);
+  &&o.chips.some(c=>/ven/.test(c)&&c.endsWith('!'))&&r(o.jeu,'Lucas').saisie&&/rien de pointé/.test(r(o.jeu,'Lucas').s)
+  &&o.chips.some(c=>/27\/10/.test(c)&&c.endsWith('!'))&&o.chips.filter(c=>c.endsWith('!')).length===3&&r(o.vieux,'Lucas').saisie&&/rien de pointé/.test(r(o.vieux,'Lucas').s)&&r(o.vieux,'Lucas').cls==='todo';
 
 // ── r2 : le jour même (lundi) : Hugo, Théo et Marc sont au planning sans pointage → visibles, saisie possible ; saisie de Marc sur un AUTRE chantier avec 45 min de trajet
 o={};await tapAct(P.page,'valjour',LU,500);o.lun=await rows(P.page);
@@ -128,7 +131,7 @@ C.r2=['Hugo','Théo','Marc'].every(n=>r(o.lun,n).saisie&&/rien de pointé/.test(
 // ── r3 : « Par personne » : ceux qui n'ont rien pointé ont leur pastille et leurs jours
 o={};await tapAct(P.page,'valmode','pers',500);o.chips=await chips(P.page);await tapAct(P.page,'valpers',NEUF.email,500);o.lucas=await rows(P.page);await tapAct(P.page,'valpers',SOUD.email,500);o.hugo=await rows(P.page);
 console.log('r3) par personne :',J(o));
-C.r3=o.chips.some(c=>/^Lucas/.test(c)&&c.includes('!'))&&o.chips.some(c=>/^Hugo/.test(c))&&o.lucas.filter(x=>/rien de pointé/.test(x.s||'')&&x.saisie&&x.cls==='todo').length===2&&o.hugo.some(x=>/^lun/.test(x.t||'')&&/rien de pointé/.test(x.s||'')&&x.saisie&&x.cls==='');
+C.r3=o.chips.some(c=>/^Lucas/.test(c)&&c.includes('!'))&&o.chips.some(c=>/^Hugo/.test(c))&&o.lucas.filter(x=>/rien de pointé/.test(x.s||'')&&x.saisie&&x.cls==='todo').length===3&&o.lucas.some(x=>/27\/10/.test(x.t||'')&&/rien de pointé/.test(x.s||''))&&o.hugo.some(x=>/^lun/.test(x.t||'')&&/rien de pointé/.test(x.s||'')&&x.saisie&&x.cls==='');
 await both(P,'r3 par personne');await P.ctx.close();
 
 // ── r4 : la cheffe corrige Hugo (vendredi) : autre chantier + 1 h de trajet ; puis elle retire le trajet
@@ -151,19 +154,20 @@ console.log('r5) départ dans la journée :',J(o));C.r5=/7 h 30 → 16 h 30 · 8
 await P.ctx.close();
 
 // ── r6 : le gars — autre chantier au départ, changer de chantier en journée, déclarer un trajet à la main
-P=await open(SOUD,{width:390,height:844},true);o={};const carte=()=>P.page.evaluate(()=>{const c=document.querySelector('#eq-app .ptc');return c?{cls:[...c.classList].filter(x=>/^pt-/.test(x)).join(),kick:(c.querySelector('.ac-kick')||{}).textContent||'',big:(c.querySelector('.ptbig')||{}).textContent||'',btn:[...c.querySelectorAll('button')].map(b=>b.textContent.replace(/\s+/g,' ').trim()),sel:[...c.querySelectorAll('select')].map(s=>s.id+'='+s.value)}:null;});
+P=await open(SOUD,{width:390,height:844},true);o={};const carte=()=>P.page.evaluate(()=>{const c=document.querySelector('#eq-app .ptc');return c?{cls:[...c.classList].filter(x=>/^pt-/.test(x)&&x!=='pt-lock').join(),kick:(c.querySelector('.ac-kick')||{}).textContent||'',big:(c.querySelector('.ptbig')||{}).textContent||'',btn:[...c.querySelectorAll('button')].map(b=>b.textContent.replace(/\s+/g,' ').trim()),sel:[...c.querySelectorAll('select')].map(s=>s.id+'='+s.value)}:null;});
 await home(P.page,'htHome');await W(P.page,600);o.c0=await carte();
 await tap(P.page,'#eq-app .ptc [data-act=ptautre]',400);o.c1=await carte();o.opts=await P.page.evaluate(()=>[...document.getElementById('pt-site').options].map(x=>x.textContent));await both(P,'r6 autre chantier');
 await P.page.selectOption('#pt-site','SRV_B');await tap(P.page,'#eq-app .ptc [data-act=pointer][data-v=start]',900);let rS=PTS[K(SOUD,LU)]||{events:[]};o.start={site:rS.site,ev:rS.events.map(e=>e.t).join()};o.c2=await carte();
 await tap(P.page,'#eq-app .ptc [data-act=ptroutedecl]',400);o.c3=await carte();await tap(P.page,'#eq-app .ptc [data-act=ptroute][data-v^="45|matin"]',900);rS=PTS[K(SOUD,LU)];o.route=evs(rS).replace(/@\d\d:\d\d/g,'');o.c4=await carte();
-await tap(P.page,'#eq-app .ptc [data-act=ptvers]',400);o.c5=await carte();await tap(P.page,'#eq-app .ptc [data-act=ptpartir]',500);o.sansChoix=(PTS[K(SOUD,LU)].events.some(e=>e.t==='leave'));
-await P.page.selectOption('#pt-vers','SRV_C');await both(P,'r6 changer de chantier');await tap(P.page,'#eq-app .ptc [data-act=ptpartir]',900);o.c6=await carte();
+/* 19/11 soir : un seul geste pour partir ; parti d'un chantier hors planning → celui du planning est proposé, il choisit un autre chantier en route */
+await tap(P.page,'#eq-app .ptc [data-act=pointer][data-v=leave]',900);o.c5=await carte();o.dep=evs(PTS[K(SOUD,LU)]).replace(/@\d\d:\d\d/g,'');
+await P.page.selectOption('#pt-dest','SRV_C');await W(P.page,800);await both(P,'r6 en route');o.c6=await carte();
 await tap(P.page,'#eq-app .ptc [data-act=pointer][data-v=arrive]',900);rS=PTS[K(SOUD,LU)];o.fin=evs(rS).replace(/@\d\d:\d\d/g,'');o.c7=await carte();await shot(P,'pt_r6_gars_390','#eq-app .ptc');
 console.log('r6) le gars :',J(o));
 C.r6=o.c0.cls==='pt-off'&&o.c0.btn.join('|')==='▶ Commencer la journée|📍 Autre chantier'&&o.c0.sel.length===0&&o.c1.sel.join()==='pt-site='&&o.opts[0]==='— choisir le chantier —'&&o.opts[1]==='Chantier fictif des Tilleuls · au planning'&&o.opts.includes('Chantier fictif du Moulin')&&o.opts.includes('Chantier fictif sans chef')
-  &&o.start.site==='SRV_B'&&o.start.ev==='start'&&o.c2.cls==='pt-on'&&/Autreville/.test(o.c2.kick)&&o.c2.btn.some(b=>/Changer de chantier/.test(b))&&o.c2.btn.some(b=>/Déclarer un trajet inter-chantier \(hier soir ou ce matin\)/.test(b))
+  &&o.start.site==='SRV_B'&&o.start.ev==='start'&&o.c2.cls==='pt-on'&&/Autreville/.test(o.c2.kick)&&o.c2.btn.some(b=>/^🚐 Début de trajet$/.test(b))&&o.c2.btn.some(b=>/Déclarer un trajet inter-chantier \(hier soir ou ce matin\)/.test(b))
   &&o.c3.btn.filter(b=>/^(30|45) min$|^1 h/.test(b)).length>=3&&o.route==='start,route:45'&&!o.c4.btn.some(b=>/Déclarer un trajet/.test(b))&&o.c4.btn.some(b=>/modifier/.test(b))
-  &&o.c5.sel.join()==='pt-vers='&&o.sansChoix===false&&o.c6.cls==='pt-inter'&&/En route/.test(o.c6.big)&&o.c6.btn.join('|').includes('Arrivée sur le chantier')&&o.fin==='start,route:45,leave>SRV_C,arrive=SRV_C'&&o.c7.cls==='pt-on'&&/Troisville/.test(o.c7.kick);
+  &&o.c5.cls==='pt-inter'&&/En route/.test(o.c5.big)&&o.c5.sel.join()==='pt-dest=SRV_A'&&o.dep==='start,route:45,leave>SRV_A'&&o.c6.cls==='pt-inter'&&o.c6.sel.join()==='pt-dest=SRV_C'&&o.c6.btn.join('|').includes('📍 Fin de trajet')&&o.fin==='start,route:45,leave>SRV_C,arrive=SRV_C'&&o.c7.cls==='pt-on'&&/Troisville/.test(o.c7.kick);
 await P.ctx.close();
 // pas au planning (Nina) : la carte demande le chantier
 P=await open(INT,{width:390,height:844},true);o={};await home(P.page,'htHome');await W(P.page,600);o.c0=await P.page.evaluate(()=>{const c=document.querySelector('#eq-app .ptc');return c?{txt:c.textContent.replace(/\s+/g,' '),sel:[...c.querySelectorAll('select')].map(s=>s.id+'='+s.value),btn:[...c.querySelectorAll('button')].map(b=>b.textContent.trim())}:null;});

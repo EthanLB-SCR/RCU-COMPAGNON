@@ -53,7 +53,8 @@ let out=await page.evaluate(()=>{const R=window.TRACE.espace.navette('l:julien',
 const cells=out.repl;const refs=out.refs;delete out.repl;delete out.refs;
 const sat46=cells['I'+refs.satRow[1]],hs150_46=refs.hs150Rows.find(r=>r>refs.satRow[1]);out.xl46={tot:sat46&&sat46.f,j:(cells['J'+hs150_46]||{}).v,l:(cells['L'+hs150_46]||{}).v};out.itBox=refs.rIt?cells['I'+refs.rIt].v:null;
 console.log('2) navette de Julien :',J(out));
-C.c2=J(out.etats)==='["lisse","lisse","lisse","lisse"]'&&J(out.s45)==='[8.5,8.5,8.5,8.5,10,null]'&&out.ven6[0]===10&&/^Caen/.test(out.ven6[1])&&J(out.s46.slice(0,4))==='[4,48,4,6]'&&/FÉRIÉ/.test(out.s46[4])
+/* 19/11 soir (Ethan : lissage au pas de 0,25 h) : 44 h → 8,75 × 4 + 9 (avant, au pas de ½ h : 8,5 × 4 + 10) */
+C.c2=J(out.etats)==='["lisse","lisse","lisse","lisse"]'&&J(out.s45)==='[8.75,8.75,8.75,8.75,9,null]'&&out.ven6[0]===9&&/^Caen/.test(out.ven6[1])&&J(out.s46.slice(0,4))==='[4,48,4,6]'&&/FÉRIÉ/.test(out.s46[4])
   &&J(out.s47)==='[3,35,35]'&&out.s48[0]===4&&out.s48[1]===28&&/CONGÉS PAYÉS/.test(out.s48[2])&&/INTER-CHANTIER 0,75 H/.test(out.s48[3])&&out.s48[4]===0.75&&out.it===0.75&&out.itBox===0.75
   &&/Plafond 48 h \(48 h par semaine = 12 h × 4 j\) : 4 h au-delà \(49e → 52e heure\)/.test(out.expl46)&&/= 6 h au compteur à reporter/.test(out.expl46)&&/mercredi 11\/11 : férié/.test(out.expl46)&&/il manque 3 h → 3 h prises au compteur à reporter/.test(out.expl47)&&out.xl46.j===4&&out.xl46.l===6;
 // ── 3) Tracé RH → Navettes (Ethan, administrateur) : novembre, à traiter (Karim), la semaine de Karim « validée telle quelle » à la main
@@ -78,7 +79,7 @@ let X=null;if(dl){const f=path.join(os.tmpdir(),'navliss_'+process.pid+'.xlsx');
   X={name:dl.suggestedFilename(),prime:sh.get('I'+rP),it:sh.get('I'+rI),note:sh.get('A'+rowOf('A',/^Pré-rempli par Tracé/)),fri:(()=>{for(let r=1;r<=sh.maxR;r++){if(sh.get('C'+r)==='V'&&sh.get('D'+r)===6)return [sh.get('H'+r),sh.get('I'+r)];}return null;})()};try{fs.unlinkSync(f);}catch(e){}}
 out={X,rep:await page.evaluate(()=>{const T=window.TRACE.espace.compteurs('l:julien','2026-11-29');return T.rep.solde;}),choix:(await rh()).txt.match(/Julien[^·]*· payées en prime : 3 h/)?.[0]||''};
 console.log('4) prime de fin de mois :',J(out));
-C.c4=out.X&&out.X.prime===3&&out.X.it===0.75&&/lissées sur 5 jours/.test(out.X.note||'')&&out.X.fri&&/^CAEN/.test(out.X.fri[0])&&out.X.fri[1]===10&&out.rep===0&&!!out.choix;
+C.c4=out.X&&out.X.prime===3&&out.X.it===0.75&&/lissées sur 5 jours/.test(out.X.note||'')&&out.X.fri&&/^CAEN/.test(out.X.fri[0])&&out.X.fri[1]===9&&out.rep===0&&!!out.choix;
 // ── 5) Moi → Heures (Julien) : réel et navette, et semaine par semaine le pourquoi
 out=await page.evaluate(async()=>{const w=ms=>new Promise(r=>setTimeout(r,ms));const T=window.TRACE;T.state.userId='julien';T.renderHome();await w(300);const tab=document.getElementById('htMoi')||document.getElementById('htEspace');if(tab){tab.click();await w(300);}
   const go=[...document.querySelectorAll('#eq-app [data-act=sub],#eq-app [data-act=tab],#eq-app .ac-row,#eq-app button')].find(b=>/^\s*(⏱\s*)?Heures\b/.test(b.textContent)||/Mes heures/.test(b.textContent));if(go){go.click();await w(500);}

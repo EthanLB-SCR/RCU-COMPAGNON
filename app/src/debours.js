@@ -12,7 +12,7 @@
 // pointages, les chantiers liés ou le jour changent), pas de recalcul à chaque rendu.
 import {regAll,regGet,regSet} from './reg.js';
 import {affGet,affSet,affAll,affState,affOpen} from './affaires.js';
-import {espaceState,espaceNavette,espaceExt,espaceToday,espaceHeuresReelles} from './espace.js';
+import {espaceState,espaceNavette,espaceExt,espaceToday,espaceHeuresReelles,espaceSitesPt} from './espace.js';
 import {posteRate} from './prix.js';
 import {prixBase} from './chiffrage.js';
 import {POSTES} from './acces.js';
@@ -63,12 +63,14 @@ export function tauxPoste(a,poste){const T=D(a).taux||{};const v=T[poste];if(v!=
 /* ── HEURES : les heures RÉELLES de chaque jour pointé sur les chantiers de l'affaire (10/11 nuit : plus la navette, qui est lissée) ── */
 const HCACHE=new Map();
 const navYm=d=>addDay(mondayOf(d),3).slice(0,7); /* une semaine compte dans le mois de son jeudi (règle de la navette) */
-const ptSig=x=>{const ev=x.events||[];const l=ev[ev.length-1]||{};return x.p+'|'+x.d+'|'+(x.site||'')+'|'+(x.status||'')+'|'+((x.val||[]).length)+'|'+ev.length+(l.t||'')+(l.at||'');};
-export function heuresAffaire(a){const sites=new Set(a.sites||[]);const PT=((espaceState()||{}).pointages||[]).filter(x=>x&&x.d&&sites.has(x.site));const sig=today()+'|'+[...sites].join(',')+'|'+PT.map(ptSig).join(';');
+const ptSig=x=>{const ev=x.events||[];return x.p+'|'+x.d+'|'+(x.site||'')+'|'+(x.status||'')+'|'+((x.val||[]).length)+'|'+ev.map(e=>(e.t||'')[0]+String(e.at||'').slice(11,16)+(e.vers||'')+(e.site||'')+(e.min||'')+(e.non?'n':'')).join(',');}; /* 19/11 soir : toutes les heures et les chantiers d'arrivée (une 2e correction, un chantier d'arrivée changé rafraîchissent le calcul) */
+export function heuresAffaire(a){const sites=new Set(a.sites||[]);const touche=x=>{if(sites.has(x.site))return true;try{return espaceSitesPt(x).some(id=>sites.has(id));}catch(e){return false;}}; /* 19/11 soir : aussi les journées commencées ailleurs et finies sur un chantier de l'affaire */const PT=((espaceState()||{}).pointages||[]).filter(x=>x&&x.d&&touche(x));const sig=today()+'|'+[...sites].join(',')+'|'+PT.map(ptSig).join(';');
   const c=HCACHE.get(a.num);if(c&&c.sig===sig)return c;
   /* 10/11 nuit (Ethan : « les débours doivent bien prendre en compte le RÉEL, pas le modifié en navette ») : les heures réellement pointées ce jour-là sur le chantier
      (travail + inter-chantier dans la journée + trajet entre deux journées déclaré ce jour-là), jamais la navette lissée */
-  const rows=[];PT.forEach(x=>{let R=null;try{R=espaceHeuresReelles(x);}catch(e){console.warn('débours : pointage',x.p,x.d,e);}if(!R)return;const h=r2(R.h);if(!(h>0))return;rows.push({p:x.p,d:x.d,ym:x.d.slice(0,7),site:x.site,h,ok:x.status==='valide'||(x.val||[]).length>0});});
+  const rows=[];PT.forEach(x=>{let R=null;try{R=espaceHeuresReelles(x);}catch(e){console.warn('débours : pointage',x.p,x.d,e);}if(!R)return;const ok=x.status==='valide'||(x.val||[]).length>0;
+    /* 19/11 soir (Ethan : deux chantiers dans la journée) : une ligne par chantier de la journée — le travail là où il a été fait, le trajet sur le chantier d'arrivée ; seuls les chantiers de l'affaire comptent */
+    const L=Array.isArray(R.parSite)&&R.parSite.length?R.parSite:[{site:x.site,h:R.h}];L.forEach(o=>{if(!sites.has(o.site))return;const h=r2(o.h);if(!(h>0))return;rows.push({p:x.p,d:x.d,ym:x.d.slice(0,7),site:o.site,h,ok});});});
   const out={sig,rows};HCACHE.set(a.num,out);if(HCACHE.size>40)HCACHE.delete(HCACHE.keys().next().value);return out;}
 export const dbInvalidate=num=>{if(num)HCACHE.delete(num);else HCACHE.clear();};
 /* ── part de l'affaire sur un chantier partagé (lot MU) : % saisi, sinon soudures du tracé de l'affaire / soudures de toutes les affaires du chantier ── */

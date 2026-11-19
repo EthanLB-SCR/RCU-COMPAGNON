@@ -1,13 +1,13 @@
 // LISSAGE DES HEURES DE LA NAVETTE (10/11 nuit, règles d'Ethan) — moteur pur src/navette.js : lisserSemaine, repartir, majRang. node test/lissage_test.mjs
-import {lisserSemaine,repartir,majRang} from '../src/navette.js';
+import {lisserSemaine,repartir,majRang,arrondiSemaine,PAS_LISSE} from '../src/navette.js';
 const C={};const eq=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 const S=(mon,hs,opt)=>{opt=opt||{};const d=i=>{const x=new Date(mon+'T12:00:00');x.setDate(x.getDate()+i);return x.toISOString().slice(0,10);};
   return lisserSemaine(Object.assign({mon,contrat:35,jours:[0,1,2,3,4,5].map(i=>Object.assign({d:d(i),h:hs[i]===undefined?null:hs[i],it:0,plan:i<5&&(opt.plan?opt.plan[i]:true),ferie:!!(opt.fer&&opt.fer[i]),abs:opt.abs&&opt.abs[i]||null,sites:hs[i]?[{id:'s'+(opt.site?opt.site[i]:'A'),nom:opt.site?opt.site[i]:'CAEN'}]:(opt.plan&&!opt.plan[i]?[]:[{id:'sA',nom:'CAEN'}]),futur:false},opt.j&&opt.j[i]||{}))},opt.o||{}));};
-// 1) navette modèle de septembre : 43,5 h → 8,5 × 4 + 9,5 ; 41 h → 8 × 4 + 9 ; 47,5 → 9,5 × 5 ; 40 → 8 × 5
-C.r1=eq(repartir(43.5,5),[8.5,8.5,8.5,8.5,9.5])&&eq(repartir(41,5),[8,8,8,8,9])&&eq(repartir(47.5,5),[9.5,9.5,9.5,9.5,9.5])&&eq(repartir(40,5),[8,8,8,8,8])&&eq(repartir(47.5,4),[11.5,12,12,12]);
+// 1) navette modèle de septembre : 43,5 h → 8,5 × 4 + 9,5 ; 41 h → 8 × 4 + 9 ; 47,5 → 9,5 × 5 ; 40 → 8 × 5 · 19/11 soir : pas de ¼ h (42 h → 8,25 × 4 + 9 ; 47,5 h sur 4 j → 11,75 × 2 + 12 × 2)
+C.r1=PAS_LISSE===0.25&&eq(repartir(43.5,5),[8.5,8.5,8.5,8.5,9.5])&&eq(repartir(41,5),[8,8,8,8,9])&&eq(repartir(47.5,5),[9.5,9.5,9.5,9.5,9.5])&&eq(repartir(40,5),[8,8,8,8,8])&&eq(repartir(47.5,4),[11.75,11.75,12,12])&&eq(repartir(42,5),[8.25,8.25,8.25,8.25,9])&&eq(repartir(41.25,5),[8.25,8.25,8.25,8.25,8.25]);
 // 2) rythme 4 jours : 4 × 11 h, vendredi pas planifié → 44 h lissées sur 5 jours, vendredi = chantier du jeudi
 let L=S('2026-11-02',[11,11,11,11,null,null],{plan:[1,1,1,1,0],site:['A','A','A','B','B']});
-C.r2=L.etat==='lisse'&&eq(L.jours.slice(0,5).map(j=>j.h),[8.5,8.5,8.5,8.5,10])&&L.jours[4].site&&L.jours[4].site.nom==='B'&&L.jours[4].emprunt&&L.total===44&&L.hs125===8&&L.hs150===1&&L.versReport===0;
+C.r2=L.etat==='lisse'&&eq(L.jours.slice(0,5).map(j=>j.h),[8.75,8.75,8.75,8.75,9])&&L.jours[4].site&&L.jours[4].site.nom==='B'&&L.jours[4].emprunt&&L.total===44&&L.hs125===8&&L.hs150===1&&L.versReport===0;
 console.log('2)',L.etat,L.jours.map(j=>j.h),L.expl.join(' | '));
 // 3) 50 h (5 × 10) → plafond 48 : 2 h au-delà → 3 h au compteur à reporter ; HS 8 + 5
 L=S('2026-09-07',[10,10,10,10,10]);C.r3=L.etat==='lisse'&&L.declare===48&&L.versReport===2&&L.versReportMaj===3&&L.hs125===8&&L.hs150===5&&eq(L.jours.slice(0,5).map(j=>j.h),[9.5,9.5,9.5,9.5,10]);
@@ -36,6 +36,17 @@ L=S('2026-11-02',[null,null,null,null,null],{o:{soldes:{report:40,recup:40}}});c
 C.r12=L.etat==='vide'&&!L.deReport&&!L.deRecup&&L.flags.includes('rien')&&L12.etat==='encours';
 // 13) choix « reporter » : 40 h pointées + compteur 10 h → 8 h replacées (plein à 48)
 L=S('2026-11-16',[8,8,8,8,8],{o:{soldes:{report:10},placer:true}});C.r13=L.place===8&&L.total===48;
+// 16) 19/11 soir (Ethan : « le lissage en 0,25 h, arrondi à 0,25 à la semaine, au plus proche ») : 41,37 h → 41,25 h ; 41,40 h → 41,5 h ; au-delà du plafond : 50,1 h → 50 h (2 h au-delà) ;
+//     lissage retiré à la main (heures réelles) : pas d'arrondi ; toute la semaine lissée est en quarts d'heure
+{const q=v=>Math.abs(v*4-Math.round(v*4))<1e-9;
+ const A=S('2026-10-05',[8.27,8.27,8.27,8.28,8.28]),B=S('2026-10-05',[8.28,8.28,8.28,8.28,8.28]),D=S('2026-09-07',[10.02,10.02,10.02,10.02,10.02]),R=S('2026-10-05',[8.27,8.27,8.27,8.28,8.28],{o:{main:{mode:'reel',by:'RH'}}}),E=S('2026-10-05',[8,8,8,8,8]);
+ console.log('16)',A.reel,A.reelA,A.jours.map(j=>j.h),A.expl[1],'|',B.reel,B.reelA,B.jours.map(j=>j.h),'|',D.reel,D.reelA,D.declare,D.versReport,D.versReportMaj,'|',R.etat,R.total);
+ C.r16=arrondiSemaine(41.37)===41.25&&arrondiSemaine(41.4)===41.5&&arrondiSemaine(41.12)===41&&arrondiSemaine(41.13)===41.25&&arrondiSemaine(0)===0
+  &&A.reel===41.37&&A.reelA===41.25&&A.arrondi===-0.12&&A.declare===41.25&&A.total===41.25&&eq(A.jours.slice(0,5).map(j=>j.h),[8.25,8.25,8.25,8.25,8.25])&&A.expl.includes('Total arrondi au quart d\'heure le plus proche : 41,37 h → 41,25 h.')&&A.hs125===6.25&&A.versReport===0
+  &&B.reel===41.4&&B.reelA===41.5&&eq(B.jours.slice(0,5).map(j=>j.h),[8.25,8.25,8.25,8.25,8.5])&&B.total===41.5
+  &&D.reel===50.1&&D.reelA===50&&D.declare===48&&D.versReport===2&&D.versReportMaj===3
+  &&R.etat==='reel'&&R.total===41.37&&R.arrondi===0&&eq(R.jours.slice(0,5).map(j=>j.h),[8.27,8.27,8.27,8.28,8.28])
+  &&E.arrondi===0&&!E.expl.some(t=>/arrondi/.test(t))&&[A,B,D,E].every(L=>L.jours.every(j=>j.h===null||q(j.h))&&q(L.total));}
 // 14) majorations par rang
 C.r14=majRang(48,50,35)===3&&majRang(36,40,35)===5&&majRang(30,36,35)===6.25&&majRang(40,44,39)===5.25;
 // 15) frise des compteurs avec semaines lissées : S1 50 h (+3 h à reporter), S2 32 h (3 h reprises), S3 « reporter » choisi fin S2 → S3 40 h + 0 h (compteur vide)

@@ -13,7 +13,7 @@
 // l'écran montre les coûts horaires par poste (choix du lot, à valider par Ethan). Entrées : Pilotage → Achats & comptes → « Compte d'un chantier » ; chantier →
 // onglet Bureau → tuile « 💶 Compte chantier ».
 // SERVEUR : aucune lecture nouvelle — bons, notes de frais, affaires et base de prix sont chargés au démarrage ; pointages et navette viennent de l'espace.
-import {espaceState,espaceToday} from './espace.js';
+import {espaceState,espaceToday,espaceSitesPt} from './espace.js';
 import {heuresAffaire,tauxPoste,bonMontant,tvaOf,lignesOf,BC_COMPTE,DB_TYPES,posteLab,dbGoAffaire} from './debours.js';
 import {affAll} from './affaires.js';
 import {cmdAll,dbAll,cmdTotal,cmdState,BC_ETATS,NATURES,DB_ETATS} from './commandes.js';
@@ -75,7 +75,7 @@ const wrap=h=>`<div class="cc-root">${h}</div>`;
 function vChoix(me,ctx){const L=sitesAll(ctx);const PT=((espaceState()||{}).pointages||[]);const q=norm(CS.q).trim();
   const st=new Map();const inc=(id,k)=>{if(!id)return;const o=st.get(id)||{bc:0,nf:0,j:new Set()};if(k==='j')return o;o[k]++;st.set(id,o);return o;};
   cmdAll().forEach(c=>{if(c&&!c.deleted&&c.site)inc(c.site,'bc');});dbAll().forEach(d=>{if(d&&!d.deleted&&d.site&&d.etat!=='refuse')inc(d.site,'nf');});
-  PT.forEach(x=>{if(!x||!x.site||!x.d)return;const o=st.get(x.site)||{bc:0,nf:0,j:new Set()};o.j.add(x.d);st.set(x.site,o);});
+  PT.forEach(x=>{if(!x||!x.site||!x.d)return;let ids=[x.site];try{ids=espaceSitesPt(x);}catch(e){} /* 19/11 soir : une journée sur deux chantiers compte pour les deux */ids.forEach(id=>{const o=st.get(id)||{bc:0,nf:0,j:new Set()};o.j.add(x.d);st.set(id,o);});});
   const info=s=>{const o=st.get(s.id);return o?{bc:o.bc,nf:o.nf,j:o.j.size}:{bc:0,nf:0,j:0};};const mine=s=>s.conducteur===me.id||s.chef===me.id;
   const F=L.filter(s=>!q||norm(s.name+' '+(s.ville||'')).includes(q)).map(s=>Object.assign({},s,{i:info(s)}));const has=s=>s.i.bc||s.i.nf||s.i.j;
   const A1=F.filter(s=>mine(s)||has(s)).sort((a,b)=>(mine(b)?1:0)-(mine(a)?1:0)||(b.i.j+b.i.bc+b.i.nf)-(a.i.j+a.i.bc+a.i.nf)||String(a.name).localeCompare(String(b.name),'fr'));const A2=F.filter(s=>!(mine(s)||has(s))).sort((a,b)=>String(a.name).localeCompare(String(b.name),'fr'));

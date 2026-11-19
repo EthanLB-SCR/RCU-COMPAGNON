@@ -48,16 +48,17 @@ export const NOUVEAUTES = `## Préfabrication — soudures faites mais pas encor
 - Plus de crédit, ou saisie de quelqu'un d'autre : « 🛡 Demander l'annulation au chef » ; le chef tranche dans Pilotage → Demandes d'annulation.
 
 ## Pointage de la journée et trajet inter-chantier
-- Sur la carte de pointage du jour (Aujourd'hui) : « ▶ Commencer la journée », « Pause midi », « ▶ Reprise après la pause », « ■ Fin de journée ».
+- Sur la carte de pointage du jour (Aujourd'hui) : « ▶ Commencer la journée », « Pause », « ▶ Reprise après la pause », « ■ Fin de journée ». La position est relevée au début et à la fin de la journée, au départ et à l'arrivée d'un trajet : une trace de l'endroit, pas un suivi.
 - Si tu viens d'un autre chantier (le matin) ou si demain tu es sur un autre chantier (le soir), la carte demande « 🚐 trajet inter-chantier ? » : touche la durée, ou « Pas de trajet (je rentre chez moi) ». Ce trajet est payé à part (à 100 %, jamais majoré) et figure sur la navette.
 - Pas sur le chantier du planning (19/11) : avant de commencer, « 📍 Autre chantier » → choisir le chantier, puis « ▶ Commencer la journée ». Pas au planning du tout : la carte demande le chantier.
-- Changer de chantier dans la journée (19/11) : « 🚐 Changer de chantier » → choisir où tu vas → « 🚐 Partir maintenant », puis « 📍 Arrivée sur le chantier » ; le trajet compte dans les heures de la journée. (Avec deux chantiers au planning le même jour : « 🚐 Départ inter-chantier ».)
+- Changer de chantier dans la journée (19/11) : une fois la journée commencée, « 🚐 Début de trajet » (un toucher, position relevée), puis à l'arrivée « 📍 Fin de trajet » (position relevée) : tu repasses « Au travail » sur le chantier d'arrivée, avec de nouveau « Pause », « 🚐 Début de trajet » et « ■ Fin de journée ». Le trajet compte dans les heures de la journée. Pendant le trajet : « 📍 Tu vas sur quel chantier ? » (celui du planning est déjà choisi s'il y en a deux ce jour-là ; sinon le choisir en route ou à l'arrivée) et « Pause » possible, puis « ▶ Reprendre la route ». Chantier d'arrivée oublié ou faux : « 📍 Pas le bon chantier ? Changer le chantier d'arrivée » sur la carte, sinon le chef le corrige.
+- Une journée sur deux chantiers est comptée par chantier (débours, comptes de chantier) : le travail sur le chantier où il a été fait, le trajet sur le chantier d'arrivée.
 - Trajet inter-chantier entre deux journées que l'appli n'a pas demandé (19/11) : le matin avant la pause « 🚐 Déclarer un trajet inter-chantier (hier soir ou ce matin) », le soir après la fin « … ce soir » → toucher la durée ; payé à part, comme celui que l'appli propose.
 - Oubli de pointage ou heure fausse : prévenir son chef ; il corrige dans Pilotage → ✓ Pointages à valider (avec un motif). Tous ceux qui valident (chef, conducteur, responsable d'exploitation, RH) voient aussi « rien de pointé » pour ceux qui étaient au planning et saisissent leurs heures, le jour même aussi.
 
 ## Mes heures et ma navette (Compagnon → Heures)
 - Chaque semaine : les heures réellement pointées et la navette (feuille d'heures de paie) lissée, avec l'explication en clair.
-- Règles du lissage : heures réparties du lundi au vendredi au pas de ½ h ; 12 h par jour et 48 h par semaine au plus ; au-delà → compteur d'heures à reporter (majorées) ; semaine courte → complétée par les compteurs, sinon alerte « sans solde à poser » ; jours d'absence, fériés et ponts ne sont pas lissés.
+- Règles du lissage : total de la semaine arrondi au quart d'heure le plus proche (41,37 h → 41,25 h), puis heures réparties du lundi au vendredi au pas de ¼ h (depuis le 19/11 ; avant : ½ h), le reste sur le dernier jour ; 12 h par jour et 48 h par semaine au plus ; au-delà → compteur d'heures à reporter (majorées) ; semaine courte → complétée par les compteurs, sinon alerte « sans solde à poser » ; jours d'absence, fériés et ponts ne sont pas lissés.
 - En fin de mois, la RH ou le responsable d'exploitation choisit pour les heures à reporter : « ↪ Reporter » (replacées sur les semaines suivantes pas pleines) ou « 💶 Prime » (payées sur la navette du mois). Cela remplace l'ancienne règle « le surplus est payé sur la navette » du tutoriel des compteurs.
 - Les débours des affaires comptent toujours les heures RÉELLES (dimanche et trajets compris), jamais la navette lissée.
 
@@ -65,6 +66,7 @@ export const NOUVEAUTES = `## Préfabrication — soudures faites mais pas encor
 - Par jour, rangés par chantier : à valider en couleur, validés grisés. Corriger = un seul formulaire Début / Pause / Fin pré-rempli avec le pointé, l'écart s'affiche, motif obligatoire, la trace reste. « ↺ Revoir » sur un pointage validé. ◀ ▶ pour revenir sur un jour passé (21 jours).
 - Une anomalie « trajet inter-chantier non déclaré » (changement de chantier de plus de 20 km sans trajet déclaré) se règle en un toucher.
 - Depuis le 19/11 : ceux qui étaient au planning sans rien pointer apparaissent dans le groupe de leur chantier (« rien de pointé » → « ✏️ Saisir ses heures ») pour tous ceux qui valident, en « Par jour » comme en « Par personne » ; la correction et la saisie ont deux champs de plus : « Chantier » (changer le chantier du pointage) et « Trajet inter-chantier » (aucun, 30 min … 3 h, payé à part).
+- Trajets dans la journée (19/11) : la ligne d'un pointage montre chaque trajet (heures, chantier de départ → chantier d'arrivée, distance entre les deux positions relevées) et la répartition « Par chantier ». Alerte « chantier d'arrivée du trajet à préciser » quand le gars ne l'a pas choisi. « ✏️ Corriger » : départ, arrivée et chantier d'arrivée de chaque trajet, « retirer ce trajet », ou « ＋ Ajouter un trajet dans la journée » s'il ne l'a pas pointé.
 
 ## Ressources humaines (onglet RH)
 - RH, direction, responsables d'exploitation : 🏠 Tableau de bord, 🧾 Navettes, 🏖 Absences · congés, 🎖 Habilitations, 🎓 Formation, 🚔 Contraventions, 🩺 Mutuelle, ⚠ Accidents.
@@ -121,7 +123,7 @@ export const SITUATIONS = `- « J'ai fait une soudure mais elle n'est pas sur le
 - « Le plan n'est pas à jour » → prévenir le chef / le bureau (mise à jour du plan, onglet Modifications) ; en attendant, pointer les soudures déjà faites dans la Préfabrication.
 - « Je n'ai pas de réseau » → continuer normalement : tout est gardé sur le téléphone et part au retour du réseau.
 - « J'ai oublié de pointer la fin / mon heure est fausse » → fin oubliée : Compagnon → Heures → « 🕓 Indiquer l'heure de fin » (ton chef la voit) ; fin touchée par erreur : « ↩ Annuler la fin » tant que personne n'a validé ; sinon, ou journée pas pointée du tout : ton chef corrige dans Pilotage → ✓ Pointages à valider, avec un motif.
-- « Je change de chantier » → répondre à la question « 🚐 trajet inter-chantier » sur la carte de pointage (le soir ou le lendemain matin).
+- « Je change de chantier » → dans la journée : « 🚐 Début de trajet » puis « 📍 Fin de trajet » sur la carte de pointage (compté dans les heures) ; d'un jour à l'autre : répondre à la question « 🚐 trajet inter-chantier » (le soir ou le lendemain matin, payé à part).
 - « Où voir mes heures / ma navette » → Compagnon → Heures.
 - « Une note de frais » → Compagnon → Notes de frais. « Du matériel » → Compagnon → Mes demandes. « Mes habilitations » → Compagnon → Passeport.
 - « Un calcul de baïonnette, de coude, de pente » → Compagnon → 🧰 Outils.
@@ -172,7 +174,7 @@ export const GLOSSAIRE = `- Étapes d'une soudure : ① Soudure (soudeur, photo 
 - Crédits d'annulation : nombre d'erreurs de saisie qu'on peut annuler soi-même par semaine ; au-delà, demande au chef.
 - Navette : la feuille mensuelle des heures (variables de paie) ; lissage : répartition des heures de la semaine sur 5 jours selon les règles de SCR.
 - Compteur d'heures : heures à reporter ou à récupérer. Grands déplacements (GD) : cas 1 à 4 selon la distance domicile → chantier.
-- Trajet inter-chantier : temps de route entre deux chantiers, payé à part.
+- Trajet inter-chantier : temps de route entre deux chantiers d'un jour à l'autre, payé à part. Trajet dans la journée (« Début de trajet » → « Fin de trajet ») : compté dans les heures de la journée, sur le chantier d'arrivée.
 - DOE : dossier des ouvrages exécutés (carnet de soudures, plan, photos). PPSPS : plan particulier de sécurité. PGC : plan général de coordination. DT / DICT : déclarations avant travaux.
 - QSE : qualité, sécurité, environnement (accueil sécurité, quart d'heure sécurité, émargements).
 - TS : travaux supplémentaires (onglet Modifications : qualifier en TS, compris ou mémoire). RG : retenue de garantie. Débours : coûts engagés sur une affaire. FG : frais généraux.

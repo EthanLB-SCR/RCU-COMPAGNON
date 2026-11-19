@@ -175,7 +175,10 @@ export function mountMonde3D(host, DATA, opts) {
   }
   /* une image choisie : réduite ici, puis (dans l'appli) déposée au stockage — on n'enregistre que son adresse ; dans la maquette elle reste dans la fiche */
   function useImage(f, put) { readImage(f).then(url => { if (!opts.uploadImage) return url; toast('Envoi de l\'image…'); return Promise.resolve(opts.uploadImage(url)).then(u => { if (!u) throw new Error('Image non envoyée (connexion ?) : réessaie.'); return u; }); }).then(u => { put(u); }).catch(e => toastErr(e)); }
-  let toastT = null; function toast(msg) { const el = host.querySelector('.m3d-toast'); if (!el) return; el.textContent = String(msg); el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { el.hidden = true; }, 2600); } function toastErr(e) { toast(String(e && e.message || e)); }
+  /* 19/11 soir : le compte à rebours du message ne part qu'une fois le message réellement affiché (2 images plus tard). Avant, il partait tout de suite : après une dépose refusée,
+     la pièce est redessinée (lourd sur un téléphone lent) et les 2,6 s étaient mangées par ce redessin — le message s'effaçait à peine apparu, parfois sans avoir été vu. */
+  let toastT = null, toastN = 0; function toast(msg) { const el = host.querySelector('.m3d-toast'); if (!el) return; el.textContent = String(msg); el.hidden = false; clearTimeout(toastT); const n = ++toastN; const arm = () => { if (n !== toastN) return; clearTimeout(toastT); toastT = setTimeout(() => { if (n === toastN) el.hidden = true; }, 2600); };
+    if (typeof requestAnimationFrame === 'function') { requestAnimationFrame(() => requestAnimationFrame(arm)); toastT = setTimeout(arm, 6000); /* onglet en arrière-plan : pas d'image, on arme quand même */ } else arm(); } function toastErr(e) { toast(String(e && e.message || e)); }
   /* ── mes notes : écrire, coller (post-it), ouvrir en grand, décoller ── */
   const noteOf = id => DATA.notes.find(n => n.id === id) || null;
   function saveNotes() { const pos = H.pod && H.pod.userData.notes || {}; DATA.notes.forEach(n => { if (n.x == null && pos[n.id]) { n.x = pos[n.id][0]; n.z = pos[n.id][2]; } }); /* chaque post-it garde la place où il est */ DATA.notes = normNotes(DATA.notes); if (opts.onNotes) opts.onNotes(DATA.notes); }

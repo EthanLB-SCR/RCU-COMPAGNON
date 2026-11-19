@@ -156,16 +156,20 @@ export const NAV_STYLES={
    au-dessus de 48 h : compteur à reporter (ou prime), majorées (50 h → 2 h à 150 % → 3 h au compteur) ; une journée d'absence n'est pas lissée ; moins de 35 h :
    on pioche dans le compteur à reporter puis dans le compteur d'heures (vides : alerte, on demande de poser du sans solde) ; férié le mardi + pont le lundi :
    3 × 12 = 36 h au plus, le reste au compteur ; il faut toujours que ce soit expliqué, qu'on puisse avoir la main et comprendre comment on en arrive là. »
-   Pas de ½ h, le reste sur le dernier jour : c'est ce que fait la navette modèle de septembre (43,5 h → 8,5 × 4 + 9,5 ; 41 h → 8 × 4 + 9).
+   Le reste sur le dernier jour : c'est ce que fait la navette modèle de septembre (43,5 h → 8,5 × 4 + 9,5 ; 41 h → 8 × 4 + 9).
+   19/11 soir (Ethan : « le lissage, fais-le en 0,25 h et arrondi à 0,25 à la semaine, arrondi au plus proche ») : pas de ¼ h (avant : ½ h) et le total pointé de la
+   semaine est arrondi au quart d'heure le plus proche AVANT d'être réparti (41,37 h → 41,25 h ; 41,40 h → 41,5 h) — toute la navette lissée est en quarts d'heure.
    Les débours (Tracé Affaire) prennent les heures RÉELLES pointées, jamais la navette lissée. Les heures inter-chantier sont payées à part, à 100 %, jamais majorées. */
-export const HMAX_J=12,PAS_LISSE=0.5;
+export const HMAX_J=12,PAS_LISSE=0.25;
+/* total de la semaine arrondi au pas le plus proche (¼ h) */
+export const arrondiSemaine=v=>r2(Math.round((+v||0)/PAS_LISSE+1e-9)*PAS_LISSE);
 const JNOM=['lundi','mardi','mercredi','jeudi','vendredi','samedi'],JC=['lun','mar','mer','jeu','ven','sam'];
 const fx=v=>String(r2(v)).replace('.',',');
 const jdm=d=>String(d).slice(8,10)+'/'+String(d).slice(5,7);
 /* majoration des heures de rang a → b dans la semaine (jusqu'au contrat × 1 ; de la 36e à la 43e × 1,25 ; au-delà × 1,5) */
 export function majRang(a,b,contrat){const C=Math.max(+contrat||CONTRAT_H,H125_FROM),C2=Math.max(+contrat||CONTRAT_H,H150_FROM);let t=0;
   const seg=(lo,hi,k)=>{const x=Math.max(0,Math.min(b,hi)-Math.max(a,lo));t+=x*k;};seg(0,C,1);seg(C,C2,K125);seg(C2,Infinity,K150);return r2(t);}
-/* répartir T heures sur n jours : au pas de ½ h, le reste sur le dernier jour, jamais plus de 12 h (le surplus remonte sur les jours d'avant) */
+/* répartir T heures sur n jours : au pas de ¼ h, le reste sur le dernier jour, jamais plus de 12 h (le surplus remonte sur les jours d'avant) */
 export function repartir(T,n){if(!(n>0))return [];const base=Math.max(0,Math.floor(T/n/PAS_LISSE+1e-9)*PAS_LISSE);const out=Array(n).fill(base);let rest=r2(T-base*n);
   for(let i=n-1;i>=0&&rest>0.0001;i--){const add=Math.min(rest,r2(HMAX_J-out[i]));out[i]=r2(out[i]+add);rest=r2(rest-add);}return out.map(r2);}
 const ETATS={lisse:'lissée',main:'à la main',reel:'heures réelles (à la main)',encours:'en cours',vide:'rien de pointé',incomplet:'à compléter',sansjour:'sans jour à lisser'};
@@ -195,7 +199,8 @@ export function lisserSemaine(o){o=o||{};const C=+o.contrat>0?+o.contrat:CONTRAT
   const jours=J.map(x=>({d:x.d,i:x.i,reel:x.reel,it:x.it,h:null,st:x.st,liss:x.liss,plan:x.plan,site:x.sites[0]||null,emprunt:false,
     lab:x.st==='ferie'?'FÉRIÉ':x.st==='pont'?'PONT':x.st==='abs'?String(x.abs).toLocaleUpperCase('fr-FR'):''}));
   let declare=0,versReport=0,versReportMaj=0,R=[];
-  if(etat==='lisse'){const Tl=r2(Math.min(reel,cap));versReport=r2(reel-Tl);versReportMaj=versReport>0?majRang(Tl,reel,C):0;R=repartir(Tl,n);let k=0;jours.forEach(j=>{if(j.liss)j.h=R[k++];});declare=Tl;
+  const reelA=etat==='lisse'?arrondiSemaine(reel):reel; /* 19/11 soir : le total de la semaine lissée, arrondi au quart d'heure le plus proche */
+  if(etat==='lisse'){const Tl=r2(Math.min(reelA,cap));versReport=r2(Math.max(0,reelA-Tl));versReportMaj=versReport>0?majRang(Tl,reelA,C):0;R=repartir(Tl,n);let k=0;jours.forEach(j=>{if(j.liss)j.h=R[k++];});declare=Tl;
     /* le chantier d'un jour lissé non travaillé : celui du jour travaillé d'avant (le vendredi prend celui du jeudi), sinon celui d'après */
     jours.forEach((j,i)=>{if(!j.liss||j.reel!==null)return;let s=null;for(let q=i-1;q>=0&&!s;q--)if(jours[q].reel!==null&&jours[q].site)s=jours[q].site;for(let q=i+1;q<6&&!s;q++)if(jours[q].reel!==null&&jours[q].site)s=jours[q].site;if(s){j.site=s;j.emprunt=true;}});}
   else if(etat==='main'){jours.forEach((j,i)=>{const v=M.h[i];j.h=ok(v)&&+v>0?r2(+v):null;});declare=r2(jours.reduce((s,j)=>s+(j.h||0),0));if(reel>declare){versReport=r2(reel-declare);versReportMaj=majRang(declare,reel,C);}}
@@ -215,9 +220,10 @@ export function lisserSemaine(o){o=o||{};const C=+o.contrat>0?+o.contrat:CONTRAT
   const ex=J.filter(x=>x.wd&&(x.st==='ferie'||x.st==='pont'||x.st==='abs'||(OFF.has(x.d))||(ON.has(x.d)&&x.st!=='pointe'&&x.st!=='')));
   if(ex.length)E.push(ex.map(x=>JNOM[x.i]+' '+jdm(x.d)+' : '+(ON.has(x.d)?'lissé quand même (à la main)':OFF.has(x.d)?'retiré du lissage (à la main)':x.st==='ferie'?'férié':x.st==='pont'?'pont (entre le week-end et le férié), pas lissé':String(x.abs).toLowerCase()+', pas lissé')).join(' · '));
   if(etat==='lisse'){const base=R.length?R[0]:0;const resteJ=jours.filter(j=>j.liss&&j.h!==base);
-    E.push('Lissé sur '+n+' jour'+(n>1?'s':'')+' ('+L.map(x=>JC[x.i]).join(' ')+') au pas de ½ h : '+fx(base)+' h par jour'+(resteJ.length?', le reste sur '+resteJ.map(j=>JNOM[j.i]).join(' et ')+' ('+resteJ.map(j=>fx(j.h)+' h').join(', ')+')':'')+' — 12 h par jour au plus.');
+    if(Math.abs(reelA-reel)>0.004)E.push('Total arrondi au quart d\'heure le plus proche : '+fx(reel)+' h → '+fx(reelA)+' h.');
+    E.push('Lissé sur '+n+' jour'+(n>1?'s':'')+' ('+L.map(x=>JC[x.i]).join(' ')+') au pas de ¼ h : '+fx(base)+' h par jour'+(resteJ.length?', le reste sur '+resteJ.map(j=>JNOM[j.i]).join(' et ')+' ('+resteJ.map(j=>fx(j.h)+' h').join(', ')+')':'')+' — 12 h par jour au plus.');
     const em=jours.filter(j=>j.emprunt);if(em.length)E.push(em.map(j=>JNOM[j.i].charAt(0).toUpperCase()+JNOM[j.i].slice(1)+' non travaillé : chantier '+(j.i===4?'du jeudi':'du jour travaillé le plus proche')+' ('+(j.site&&j.site.nom||'?')+')').join(' · ')+'.');
-    if(versReport>0)E.push('Plafond '+fx(cap)+' h ('+(cap<HEBDO_MAX?'12 h × '+n+' j':HMAX_J*n===HEBDO_MAX?'48 h par semaine = 12 h × '+n+' j':'48 h par semaine')+') : '+fx(versReport)+' h au-delà ('+(Math.floor(declare)+1)+'e → '+Math.ceil(reel)+'e heure), majorées selon leur rang = '+fx(versReportMaj)+' h au compteur à reporter.');}
+    if(versReport>0)E.push('Plafond '+fx(cap)+' h ('+(cap<HEBDO_MAX?'12 h × '+n+' j':HMAX_J*n===HEBDO_MAX?'48 h par semaine = 12 h × '+n+' j':'48 h par semaine')+') : '+fx(versReport)+' h au-delà ('+(Math.floor(declare)+1)+'e → '+Math.ceil(reelA)+'e heure), majorées selon leur rang = '+fx(versReportMaj)+' h au compteur à reporter.');}
   else if(etat==='main')E.push('Heures saisies à la main'+(M.by?' par '+M.by:'')+(M.at?' le '+jdm(M.at)+'/'+String(M.at).slice(0,4):'')+(M.motif?' — '+M.motif:'')+' : '+jours.map(j=>JC[j.i]+' '+hv(j.h)).join(' · ')+' = '+fx(declare)+' h'+(versReport>0?' ; '+fx(versReport)+' h pointées en plus → '+fx(versReportMaj)+' h au compteur à reporter (majorées selon leur rang)':'')+'.');
   else if(etat==='reel')E.push('Lissage retiré à la main'+(M.by?' par '+M.by:'')+(M.motif?' — '+M.motif:'')+' : les heures réelles jour par jour.'+(versReport>0?' Au-delà de 48 h : '+fx(versReport)+' h → '+fx(versReportMaj)+' h au compteur à reporter.':''));
   else if(etat==='encours')E.push('Semaine en cours : elle sera lissée quand elle sera finie (heures réelles en attendant).');
@@ -234,5 +240,5 @@ export function lisserSemaine(o){o=o||{};const C=+o.contrat>0?+o.contrat:CONTRAT
   const flags=[];if(versReport>0)flags.push('plafond');if(deReport||deRecup)flags.push('comble');if(manque>0||manqueCouv>0)flags.push(known?'sansSolde':'soldeInconnu');if(etat==='incomplet')flags.push('incomplet');
   if(M&&(M.mode&&M.mode!=='auto'||M.off||M.on||M.force||M.comble===false))flags.push('main');if(it)flags.push('inter');if(place)flags.push('place');if(J.some(x=>x.st==='abs'))flags.push('absence');if(J.some(x=>x.st==='ferie'||x.st==='pont'))flags.push('ferie');
   if(etat==='vide'&&J.some(x=>x.wd&&x.plan&&!x.futur))flags.push('rien');
-  return {mon:o.mon,etat,etatTxt:ETATS[etat],jours,reel,it,n,cap,cible,declare,versReport,versReportMaj,repl,couvReport,couvRecup,manqueCouv,deReport,deRecup,manque,place,total,
+  return {mon:o.mon,etat,etatTxt:ETATS[etat],jours,reel,reelA,arrondi:r2(reelA-reel),it,n,cap,cible,declare,versReport,versReportMaj,repl,couvReport,couvRecup,manqueCouv,deReport,deRecup,manque,place,total,
     hs125:sp.hs125,hs150:sp.hs150,trous:trous.map(x=>x.d),main:M,expl:E,flags,known};}

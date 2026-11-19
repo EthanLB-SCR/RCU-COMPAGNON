@@ -96,7 +96,7 @@ compagnon:[
   {titre:'Hors réseau',texte:"Sans réseau, la photo du ticket reste dans la note et part avec elle au retour du réseau."}
 ],
 'compagnon:heures':[
-  {sel:'#eq-app section.ptc',titre:'Ton pointage du jour',texte:"Comme sur l'Accueil : « ▶ Commencer la journée », « Pause midi », « ▶ Reprise après la pause », « ■ Fin de journée »."},
+  {sel:'#eq-app section.ptc',titre:'Ton pointage du jour',texte:"Comme sur l'Accueil : « ▶ Commencer la journée », « Pause », « ▶ Reprise après la pause », « ■ Fin de journée ». Changement de chantier : « 🚐 Début de trajet », puis « 📍 Fin de trajet »."},
   {sel:'#eq-app section.ptc',titre:'Les couleurs du pointage',texte:"Gris : pas commencée ; vert : au travail ; orange : en pause ; bleu : en route vers un autre chantier ; noir : journée finie."},
   {sel:'#eq-app .pi-pts',titre:'Tes derniers pointages',texte:"Chaque jour passe par 3 étapes : déclaré › chef › conducteur. Fin oubliée : « 🕓 Indiquer l'heure de fin », ton chef la voit.",si:siEcran('compagnon:heures','#eq-app .pi-pts')},
   {sel:'#eq-app .eq-filtres',titre:'Tes heures par période',texte:"Semaine, Mois ou 12 semaines : heures travaillées, jours pointés, pauses. Touche une semaine pour le jour par jour."},
