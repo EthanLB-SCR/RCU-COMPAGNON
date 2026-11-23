@@ -73,7 +73,8 @@ const sheetTxt=page=>page.evaluate(()=>document.getElementById('sheet').textCont
 const glyphs=page=>page.evaluate(()=>Object.fromEntries([...document.querySelectorAll('#ptG [data-pt]')].map(g=>[g.dataset.pt,g.querySelector('text').textContent])));
 const toast=page=>page.evaluate(()=>(document.getElementById('toast')||{}).textContent||'');
 /* tap « doigt » sur une pastille : la même séquence pointer que le plan (pointerdown / pointerup sur la cible, sans bouger) — sans le clic de compatibilité du navigateur */
-const tapPt=async(page,key)=>page.evaluate(key=>{const g=document.querySelector(`#ptG [data-pt="${key}"] circle`);if(!g)return false;const r=g.getBoundingClientRect();const x=r.left+r.width/2,y=r.top+r.height/2;const o={bubbles:true,cancelable:true,clientX:x,clientY:y,pointerId:7,pointerType:'touch',isPrimary:true};g.dispatchEvent(new PointerEvent('pointerdown',o));document.getElementById('canvas').dispatchEvent(new PointerEvent('pointerup',o));return true;},key);
+const tapPt=async(page,key)=>{const ok=await page.evaluate(key=>{const g=document.querySelector(`#ptG [data-pt="${key}"] circle`);if(!g)return false;const r=g.getBoundingClientRect();const x=r.left+r.width/2,y=r.top+r.height/2;const o={bubbles:true,cancelable:true,clientX:x,clientY:y,pointerId:7,pointerType:'touch',isPrimary:true};g.dispatchEvent(new PointerEvent('pointerdown',o));document.getElementById('canvas').dispatchEvent(new PointerEvent('pointerup',o));return true;},key);
+  await page.waitForTimeout(350);await page.evaluate(()=>{const b=document.querySelector('#modal.show [data-pickel]');if(b)b.click();}); /* 19/11 : depuis le 04/11, un toucher qui tombe aussi sur des soudures ouvre « Quelle soudure ? » → on y choisit « le repère » (ce test n'avait pas suivi) */return ok;};
 const VK='L1|vanne@20.0';
 // ══ c1 · chef (PC) : tracé → chantier sur le serveur, 5 points ○, zoom, 👁, tap souris, bouton « 📍 Points »
 let {ctx,page}=await mkCtx(CHEF,{width:1366,height:900});

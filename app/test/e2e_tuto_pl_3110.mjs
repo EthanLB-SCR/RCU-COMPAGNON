@@ -65,14 +65,14 @@ const xgo=async v=>{await page.evaluate(v=>{const e=document.querySelector(`#eq-
 const where=()=>page.evaluate(()=>window.TRACE.tuto.where());
 /* écran de chaque clé : [module, ligne du hub] */
 const SCREEN={'pilotage:plan':['htExpl','plan'],'pilotage:orga':['htExpl','orga'],'pilotage:obj':['htExpl','obj'],'pilotage:agenda':['htExpl','agenda'],'pilotage:valid':['htExpl','valid'],'pilotage:prodEq':['htExpl','prodEq'],
-  'rh:paie':['htRh','rh|tab|paie'],'rh:gd':['htRh','rh|tab|gd'],'rh:cpt':['htRh','rh|tab|cpt'], /* 19/11 nuit : module RH — tableau de bord (raccourci) ou onglet */'pilotage:annul':['htExpl','annul'],'pilotage:x:mag':['htExpl','x:mag:equipe'],'pilotage:x:dem':['htExpl','x:dem:file'],
+  'rh:paie':['htRh','rh|tab|nav>rh|tab|paie'],'rh:gd':['htRh','rh|tab|gd'],'rh:cpt':['htRh','rh|tab|cpt'], /* 19/11 nuit : module RH — onglet ; le rapport de paie s'ouvre depuis les Navettes (plus de raccourci au tableau de bord pour qui a les Navettes) */'pilotage:annul':['htExpl','annul'],'pilotage:x:mag':['htExpl','x:mag:equipe'],'pilotage:x:dem':['htExpl','x:dem:file'],
   'pilotage:qhs':['htExpl','qhs'],'pilotage:controles':['htExpl','controles'],'pilotage:accident':['htExpl','accident'],'pilotage:habsEq':['htExpl','habsEq'],
   'affaire:cmd':['htAff','cmd'],'affaire:frais':['htAff','frais'],'affaire:x:cc':['htAff','x:cc:'],pilotage:['htExpl',null],affaire:['htAff',null]};
 /* NB (base, hors lot) : depuis le hub Affaire, « Notes de frais à valider » et « Comptes chantier » ouvrent le volet affiché la dernière fois (« Bons de commande » au départ) :
    ACT.xgo (espace.js) ne règle pas cmdState().tab quand la sous-vue est déjà dans l'onglet (goX le fait). La suite touche la puce du volet, comme le ferait la personne. */
 const VOLET={'affaire:cmd':'tab|cmd','affaire:frais':'tab|db'};
 const open=async k=>{if(k==='pilotage:secu'){await tab('htSecu'); /* 31/10 matin (R1) : plus de tuile Sécurité à l'accueil (Ethan : « sécurité, passe-le dans Pilotage ») — la vue Sécurité de Pilotage s'ouvre par son onglet (caché) ou au retour (‹) d'une sous-vue sécurité ouverte depuis une notification */await wait(800);return;}
-  const [t,v]=SCREEN[k];await tab(t);if(v&&t==='htRh'){await page.evaluate(v=>{const e=document.querySelector(`#eq-app [data-act="x"][data-v="${v}"]`);if(e)e.click();},v);await wait(800);}else if(v)await xgo(v);
+  const [t,v]=SCREEN[k];await tab(t);if(v&&t==='htRh'){for(const v1 of String(v).split('>')){await page.evaluate(v=>{const e=document.querySelector(`#eq-app [data-act="x"][data-v="${v}"]`);if(e)e.click();},v1);await wait(800);}}else if(v)await xgo(v);
   const back=await page.evaluate(()=>{const b=document.querySelector('#eq-app [data-act="cmd"][data-v="back|"], #eq-app [data-act="x"][data-v="dem|gback|"]');if(b){b.click();return true;}return false;});if(back)await wait(500); /* un bon / une demande resté ouvert */
   if(VOLET[k]){await page.evaluate(v=>{const b=document.querySelector(`#eq-app [data-act="cmd"][data-v="${v}"]`);if(b)b.click();},VOLET[k]);await wait(500);}};
 const card=()=>page.evaluate(()=>{const r=document.getElementById('tuto');if(!r)return null;const c=r.querySelector('.tutoCard'),h=r.querySelector('.tutoHole');const rc=c.getBoundingClientRect();

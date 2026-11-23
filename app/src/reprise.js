@@ -8,7 +8,7 @@
 import {matchWeldIds,sigOf} from './weldmatch.js';
 const RANK={a_souder:0,soudee:1,controlee:2,manchonnee:3};
 function weldsBy(site){const o={};((site&&site.lines)||[]).forEach(L=>{if(!L||!L.cond)return;['A','R'].forEach(c=>{const cd=L.cond[c];if(!cd||!Array.isArray(cd.welds))return;
-  o[L.id+'|'+c]={bar:+L.bar||12,ws:cd.welds.filter(w=>w&&w.weldId).map(w=>({m:+w.m||0,sig:sigOf(w.between),weldId:w.weldId}))};});});return o;}
+  o[L.id+'|'+c]={bar:+L.bar||12,ws:cd.welds.filter(w=>w&&w.weldId).map(w=>({m:+w.m||0,sig:sigOf(w.between),weldId:w.weldId,sst:!!w.sst}))};});});return o;} /* 19/11 : + sst → même appariement que le traceur pour les points de bout de ligne */
 export function rowHasData(r){const d=(r&&r.data)||{};return !!r&&((r.status&&r.status!=='a_souder')||(d.events||[]).length>0||(d.photos||[]).length>0||!!(d.steps&&Object.values(d.steps).some(s=>s&&s.done)));}
 // cur : le chantier actuel (format sites), ver : la version choisie, rows : lignes de la table welds du chantier → [{from, to, line, cond, d, row}]
 export function repriseMap(cur,ver,rows){const R={};(rows||[]).forEach(r=>{if(r&&r.weld_id)R[r.weld_id]=r;});const C=weldsBy(cur),V=weldsBy(ver);

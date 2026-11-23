@@ -6,12 +6,19 @@
    2) entre deux soudures restées en place, les soudures décalées TOUTES DU MÊME ÉCART (au moins 2, écart ≤ une barre, même sorte de soudure) gardent leur numéro, dans l'ordre —
       à égalité, l'écart qui garde le plus de soudures déjà faites, puis le plus petit ;
    3) ce qui reste entre deux soudures reconnues : une pour une, dans l'ordre, seulement si c'est le même nombre et exactement la même sorte deux à deux (tube-tube, tube-coude…) ;
-   sinon numéro neuf (les soudures de la pièce insérée). P : anciennes soudures {m, sig, status} ; N : nouvelles {m, sig} → pour chaque nouvelle, l'index de l'ancienne (ou −1). */
+   sinon numéro neuf (les soudures de la pièce insérée). P : anciennes soudures {m, sig, status} ; N : nouvelles {m, sig} → pour chaque nouvelle, l'index de l'ancienne (ou −1).
+   19/11 (Nantes, Ethan : « des photos avaient été mises pour les points SST … j'ai fait une modif qui les a supprimées ») — 0) LE POINT DE BOUT DE LIGNE RESTE LE POINT DE BOUT
+   DE LIGNE : une conduite n'a qu'un bout de chaque côté. Le point de bout (la « soudure » contre le raccordement, la sous-station, le kit : une photo, ni soudure ni manchon)
+   du départ et celui de la fin gardent leur numéro où que le bout soit maintenant — antenne allongée ou raccourcie de plus d'une barre, pièce déplacée en amont, remontée
+   ajoutée (la vraie soudure tube → coude, restée à l'ancienne place, prend alors un numéro neuf). Avant : le bout déplacé avec autre chose perdait son numéro, sa photo et son
+   « pris » restaient sur l'ancien numéro, hors du plan. Un bout se reconnaît à sst (traceur depuis le 28/10), sinon à sa pièce voisine (X… raccordement / sous-station, F… ou B… fin de ligne, U… coude de by-pass). */
 export function sigOf(b){return Array.isArray(b)&&b.length===2?b.map(x=>String(x==null?'':x).replace(/\d+b?$/,'')).sort().join('|'):'';}
 const famOf=s=>s.split('|').map(k=>k==='M'?'P':k).sort().join('|'); // barre, chute ou manchette : la même famille (tube)
 export function matchWeldIds(P,N,o){const res=N.map(()=>-1),usedP=new Set(),dmax=(o&&o.dmax)||12.5,TOL=0.1;
   const fam=(a,b)=>!a||!b||famOf(a)===famOf(b),same=(a,b)=>!a||!b||a===b,done=p=>!!(p.status&&p.status!=='a_souder');
-  N.forEach((n,k)=>{let b=-1,bd=0.35;P.forEach((p,i)=>{if(usedP.has(i))return;const d=Math.abs(p.m-n.m);if(d<bd){bd=d;b=i;}});if(b>=0){usedP.add(b);res[k]=b;}}); // 1) en place
+  {const bout=w=>!!w&&(!!w.sst||/(^|\|)[XFBU](\||$)/.test(w.sig||''));const ext=A=>{if(!A.length)return {d:-1,f:-1};let a=0,b=0;A.forEach((w,i)=>{if(w.m<A[a].m)a=i;if(w.m>A[b].m)b=i;});return {d:bout(A[a])?a:-1,f:bout(A[b])?b:-1};};
+   const eP=ext(P),eN=ext(N);if(eP.f>=0&&eN.f>=0){res[eN.f]=eP.f;usedP.add(eP.f);}if(eP.d>=0&&eN.d>=0&&eP.d!==eP.f&&eN.d!==eN.f){res[eN.d]=eP.d;usedP.add(eP.d);}} // 0) les points de bout de ligne
+  N.forEach((n,k)=>{if(res[k]>=0)return;let b=-1,bd=0.35;P.forEach((p,i)=>{if(usedP.has(i))return;const d=Math.abs(p.m-n.m);if(d<bd){bd=d;b=i;}});if(b>=0){usedP.add(b);res[k]=b;}}); // 1) en place
   const solve=(olds,news,depth)=>{if(!olds.length||!news.length||depth>60)return;let best=null;const seen=new Set();
     olds.forEach(i=>news.forEach(k=>{const d=N[k].m-P[i].m;if(Math.abs(d)>dmax||!fam(P[i].sig,N[k].sig))return;const key=Math.round(d*100);if(seen.has(key))return;seen.add(key);
       const pr=[];let a=0;news.forEach((kk,b)=>{while(a<olds.length&&P[olds[a]].m+d<N[kk].m-TOL)a++;if(a<olds.length&&Math.abs(P[olds[a]].m+d-N[kk].m)<TOL&&fam(P[olds[a]].sig,N[kk].sig)){pr.push([a,b]);a++;}});

@@ -60,7 +60,7 @@ C.p1=!o.rows.some(r=>TROIS.test(r))&&['Pointages à valider','Production par éq
 
 // ── p2 : RH → Grands déplacements, dans le module
 await tab('htRh');o={h:await rh()};await rhTab('gd');o.g=await rh();o.keys=await T(()=>window.TRACE.tuto.keys().filter(k=>/^(rh|pilotage):(gd|cpt|paie|rapport)$/.test(k)).sort());console.log('p2) RH, grands déplacements :',J(o));
-C.p2=/Ressources humaines/.test(o.h.titre)&&o.h.tabs.join('|').startsWith('🏠 Tableau de bord*|🧾 Navettes|🧳 Grands déplacements|⏱ Compteurs d\'heures|🏖 Absences · congés')&&o.g.gd&&o.g.tabs.includes('🧳 Grands déplacements*')&&/Ressources humaines/.test(o.g.titre)&&o.g.home==='rh'&&o.g.ou==='rh:gd'&&!o.g.back
+C.p2=/Ressources humaines/.test(o.h.titre)&&o.h.tabs.join('|').startsWith('🏠 Tableau de bord*|✅ Contrôle|🧾 Navettes|🧳 Grands déplacements|⏱ Compteurs d\'heures|🏖 Absences · congés') /* 19/11 nuit : + l'onglet Contrôle */&&o.g.gd&&o.g.tabs.includes('🧳 Grands déplacements*')&&/Ressources humaines/.test(o.g.titre)&&o.g.home==='rh'&&o.g.ou==='rh:gd'&&!o.g.back
   &&o.keys.join()==='rh:cpt,rh:gd,rh:paie';
 
 // ── p3 : compteurs ; p4 : rapport de la semaine depuis les Navettes
@@ -69,10 +69,10 @@ C.p3=o.c.cpt&&o.c.tabs.includes('⏱ Compteurs d\'heures*')&&o.c.ou==='rh:cpt'&&
 C.p4=o.n.nav&&['🧳 Grands déplacements','⏱ Compteurs d\'heures','📊 Rapport de la semaine (CSV)'].every(b=>o.n.btns.includes(b))&&o.p.paie&&/Variables de paie · rapport de la semaine/.test(o.p.sect)&&o.p.ou==='rh:paie'&&o.p.home==='rh'&&!o.p.tabs.some(t=>t.endsWith('*'))&&o.n.nb==='1'; /* pastille : Julien a des heures de la semaine dernière à valider */
 
 // ── p5 : raccourcis du tableau de bord ; p6 : les gestes marchent sur place
-o={};await rhTab('home');o.h=await rh();await page.evaluate(()=>[...document.querySelectorAll('#eq-app .eq-acts button')].find(b=>/Variables de paie/.test(b.textContent)).click());await wait(700);o.p=await rh();
+o={};await rhTab('home');o.h=await rh();await rhTab('nav');await page.evaluate(()=>[...document.querySelectorAll('#eq-app .eq-acts button')].find(b=>/Rapport de la semaine/.test(b.textContent)).click());await wait(700);o.p=await rh(); /* 19/11 nuit (Ethan : « sur le tableau de bord ça ne sert à rien, Variables de paie ») : le rapport s'ouvre depuis les Navettes */
 await rhTab('gd');await page.evaluate(()=>{const b=[...document.querySelectorAll('#eq-app [data-act="gdmode"]')].find(x=>!x.classList.contains('active')&&!x.classList.contains('primary'))||document.querySelector('#eq-app [data-act="gdmode"]');b.click();});await wait(900);o.g=await rh();
 await rhTab('nav');await rhTab('paie');await page.evaluate(()=>{const b=[...document.querySelectorAll('#eq-app [data-act="rpweek"]')].find(x=>!x.classList.contains('active'));if(b)b.click();});await wait(700);o.p2=await rh();console.log('p5-p6) raccourcis, gestes :',J(o));
-C.p5=['🧾 Navettes','🧳 Grands déplacements','⏱ Compteurs d\'heures','📊 Variables de paie · rapport de la semaine'].every(b=>o.h.btns.includes(b))&&o.p.paie&&o.p.home==='rh'&&o.h.nb==='1';
+C.p5=['🧾 Navettes','✅ Contrôle','🧳 Grands déplacements','⏱ Compteurs d\'heures'].every(b=>o.h.btns.includes(b))&&!o.h.btns.some(b=>/Variables de paie/.test(b))&&o.p.paie&&o.p.home==='rh'; /* la pastille des heures à valider : sur le bouton des Navettes (p4) */
 C.p6=o.g.gd&&o.g.home==='rh'&&o.g.tabs.includes('🧳 Grands déplacements*')&&o.p2.paie&&o.p2.home==='rh';
 
 // ── p7 : les anciens accès mènent au module RH
