@@ -21,7 +21,7 @@ const C={nuit:'#2B1B5A',violet:'#5E46B8',lav:'#E6E1F6',lav2:'#D6CEF2',trait:'#DD
 function norm(v){const o=v&&typeof v==='object'&&!Array.isArray(v)?v:{};const depots={};
   Object.entries(o.depots||{}).forEach(([k,d])=>{if(!d||typeof d!=='object'||!/^[a-z0-9_-]{1,24}$/.test(k))return;const lat=parseFloat(d.lat),lon=parseFloat(d.lon);
     depots[k]={nom:String(d.nom||'').slice(0,60),ville:String(d.ville||'').slice(0,60),lat:isFinite(lat)&&lat>41&&lat<51.5?lat:null,lon:isFinite(lon)&&lon>-5.5&&lon<10?lon:null,siege:d.siege===true};});
-  return {v:1,on:!!o.on,testeurs:Array.isArray(o.testeurs)?[...new Set(o.testeurs.filter(x=>typeof x==='string'&&x).map(x=>x.toLowerCase()))].slice(0,500):[],depots,magasin:typeof o.magasin==='string'?o.magasin:'',at:o.at||null,by:o.by||''};}
+  return {v:1,on:!!o.on,bureau:o.bureau!==false /* 24/11 : le bureau 3D de base pour tout le monde (oui par défaut) */,testeurs:Array.isArray(o.testeurs)?[...new Set(o.testeurs.filter(x=>typeof x==='string'&&x).map(x=>x.toLowerCase()))].slice(0,500):[],depots,magasin:typeof o.magasin==='string'?o.magasin:'',at:o.at||null,by:o.by||''};}
 function loadLocal(){try{return norm(JSON.parse(localStorage.getItem(KEY)||'null'));}catch(e){return norm(null);}}
 export const mondeCfg=()=>CFG||(CFG=loadLocal());
 export function initMonde(api){API=api||API;CFG=loadLocal();} /* écouteurs (glisser / zoomer) branchés seulement quand une scène 3D s'affiche : bindOnce() dans viewport() */
@@ -33,6 +33,10 @@ export async function saveMonde(patch){const A=API;const next=norm(Object.assign
 const idsOf=a=>a?[a.id,a.acc,a.email,a.key,a._acc&&a._acc.id,a._acc&&a._acc.email].filter(Boolean).map(x=>String(x).toLowerCase()):[];
 /** la personne (fiche de l'espace OU compte) voit-elle le Monde 3D ? — option allumée ET testeur ET écran large */
 export function mondeFor(p){const c=mondeCfg();if(!c.on||!p||!wide())return false;const T=new Set(c.testeurs);return idsOf(p).some(x=>T.has(x));}
+/* 24/11 (Ethan, recette : « la 3D, on garde le bureau qui fonctionne bien, plus en labo mais de base dans l'appli ; la flotte et les autres visuels 3D restent en labo ;
+   la vue bureau 3D doit être visible sur l'iPhone pliable déplié ») : MON BUREAU 3D pour tout le monde (réglage « bureau », oui par défaut), dès 700 px de large en affichage
+   large (le pliable déplié passe en affichage large tout seul) ; le reste du Monde 3D (dépôts, commerce, flotte, magasin, chantier) reste aux testeurs du Labo, sur PC. */
+export const bureauFor=p=>{const c=mondeCfg();if(!p||c.bureau===false)return false;if(typeof window==='undefined'||(window.innerWidth||0)<700)return false;try{const a=document.getElementById('app');if(!a||!a.classList.contains('wide'))return false;}catch(e){return false;}return true;};
 /* PC en « ⤢ Affichage large (ordinateur) » seulement : en colonne (téléphone ou PC en affichage normal), rien ne change */
 export const wide=()=>{if(typeof window==='undefined'||(window.innerWidth||0)<900)return false;const app=document.getElementById('app');return !!app&&app.classList.contains('wide');};
 let CTX0=null;
@@ -40,6 +44,7 @@ function ensureLoaded(ctx){if(ctx)CTX0=ctx;if(!API&&ctx&&ctx.api)initMonde(ctx.a
 /* vue classique / 3D par module (préférence de l'appareil) */
 const VK='trace:monde:vue';
 const vueOf=k=>{try{return (JSON.parse(localStorage.getItem(VK)||'{}')||{})[k]||'3d';}catch(e){return '3d';}};
+const vueRaw=k=>{try{return (JSON.parse(localStorage.getItem(VK)||'{}')||{})[k]||'';}catch(e){return '';}}; /* 24/11 : sans choix, le bureau de base s'ouvre en vue classique (un toucher pour la 3D) ; les testeurs, en 3D comme avant */
 function setVue(k,v){try{const o=JSON.parse(localStorage.getItem(VK)||'{}')||{};o[k]=v;localStorage.setItem(VK,JSON.stringify(o));}catch(e){}}
 /* ── outils de dessin (isométrique) ── */
 const f1=n=>Math.round(n*10)/10;
@@ -202,6 +207,7 @@ export function accueilCard(o){const me=o.me;const inner=sceneBureau({pref:o.pre
     <div class="m3d-side">${PERSO?persoHTML(o.pref):''}${typeof o.side.pointer==='function'?o.side.pointer():o.side.pointer||''}${o.side.todoHTML||''}${o.side.knowHTML||''}</div></div>`;}
 export const accueilVue=()=>vueOf('acc');
 export const switch3D=k=>`<div class="m3d-btns" style="justify-content:flex-end;margin:0 0 8px"><button type="button" class="m3d-switch" data-act="x" data-v="monde|vue|${k}|3d">🌍 Vue 3D</button></div>`;
+const switchBureau=()=>`<div class="m3d-btns" style="justify-content:flex-end;margin:0 0 8px" data-bureau3d="1"><button type="button" class="m3d-switch" data-act="x" data-v="monde|vue|acc|3d" title="Ton accueil posé sur ton bureau, en 3D — « Vue classique » pour revenir">🪑 Mon bureau en 3D</button></div>`; /* 24/11 : le bureau de base */
 /* ═══ CHANTIER RACCORDÉ (Bureau du chantier) — un bâtiment = un sujet de la checklist ; raccordé (allumé) = à jour ═══ */
 const RST={ok:{w:'#FFFFFF',r:'#ECEAF2',t:C.violet,win:C.lum,wo:1,pb:C.okF,pf:C.ok,pd:'#9FD2C5',ic:'✓'},warn:{w:'#FFFFFF',r:'#ECEAF2',t:'#B9B3CC',win:C.lum,wo:0.5,pb:C.attF,pf:C.att,pd:'#E8C98E',ic:'!'},
   bad:{w:'#F6EFEF',r:'#E9DEDE',t:'#B9B3CC',win:'#3A3550',wo:0.5,pb:C.bqF,pf:C.bq,pd:'#E9A9A4',ic:'✗'},off:{w:'#ECEAF2',r:'#DDD8EA',t:'#CFC9E0',win:'#B9B3CC',wo:0.4,pb:C.hlF,pf:C.hl,pd:'#CFCADC',ic:'○'}};
@@ -414,6 +420,7 @@ function cfgView(me,ctx){LASTCTX=ctx;ensureLoaded(ctx);bindPick();css();if(!me.a
   const inp=(k,f,lab,t)=>`<div><label class="f">${lab}</label><input class="f" type="${t||'text'}"${t==='number'?' step="any" inputmode="decimal"':''} value="${esc(c.depots[k]&&c.depots[k][f]!=null?c.depots[k][f]:'')}" data-xin="monde|dep|${k}|${f}"></div>`;
   return `<h2 class="vt">🌍 Monde 3D <span class="hint">· Labo · réglages</span></h2>
   <div class="card"><div class="m3d-btns" style="align-items:center"><button class="btn${c.on?' primary':''}" type="button" data-act="x" data-v="monde|on|${c.on?0:1}" style="min-height:48px">${c.on?'🟢 Allumé — éteindre':'⚪ Éteint — allumer'}</button><span class="hint">Éteint : personne ne voit rien de nouveau. Allumé : seulement les testeurs, sur PC (fenêtre ≥ 900 px). Au téléphone, rien ne change.</span></div>${statutHTML(me)}</div>
+  <div class="card"><div class="m3d-btns" style="align-items:center"><button class="btn${c.bureau!==false?' primary':''}" type="button" data-act="x" data-v="monde|bureau|${c.bureau!==false?0:1}" style="min-height:48px">${c.bureau!==false?'🪑 Bureau 3D de base : oui — retirer':'🪑 Bureau 3D de base : non — donner à tout le monde'}</button><span class="hint">Mon bureau 3D pour tout le monde (un toucher sur l'accueil, en affichage large, dès 700 px : PC, tablette, téléphone pliable déplié). Le reste du Monde 3D reste aux testeurs.</span></div></div>
   <div class="card"><h3 style="margin-top:0">Testeurs · ${gens.filter(isT).length}</h3><div class="m3d-objs">${gens.map(p=>`<button type="button" class="${isT(p)?'on':''}" data-act="x" data-v="monde|tst|${esc(p.id)}" aria-pressed="${isT(p)}">${esc(ctx.nomC(p))}${p.id===me.id?' (moi)':''}</button>`).join('')}</div></div>
   <div class="card"><h3 style="margin-top:0">Dépôts</h3><div class="hint" style="margin:0 0 8px">Un dépôt par secteur. Les personnes y sont rattachées par le secteur de leur fiche ; sa taille suit le nombre de personnes. Pour le placer : « 📍 Placer », puis clique sur la carte (ou tape latitude / longitude).</div>
     ${Object.keys(S).map(k=>`<div class="m3d-box" style="margin-bottom:8px"><h4>Secteur ${esc(S[k])}</h4><div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">${inp(k,'nom','Nom')}${inp(k,'ville','Ville')}${inp(k,'lat','Latitude','number')}${inp(k,'lon','Longitude','number')}</div>
@@ -431,6 +438,7 @@ function quiOu(gens,S,c,ctx){const keys=Object.keys(S).filter(k=>k!=='autres');c
 /* ═══ ACTIONS (data-act="x" data-v="monde|…") et CHAMPS (data-xin="monde|…") ═══ */
 function act(v,el,me,ctx){const q=String(v).split('|');const k=q[0],a=q[1]||'',b=q[2]||'';const R=()=>ctx.render();
   if(k==='vue'){setVue(a,b==='3d'?'3d':'classique');if(b!=='3d')glDispose();R();return;}
+  if(k==='bureau'){if(!me.admin)return;saveMonde({bureau:a==='1'}).then(r=>{if(r&&r.error){ctx.toast('Réglage non enregistré : '+r.error);return;}ctx.toast(a==='1'?'🪑 Bureau 3D de base pour tout le monde':'Bureau 3D : testeurs seulement');R();});return;} /* 24/11 */
   if(k==='perso'){PERSO=a==='1';R();return;}
   if(k==='pd'||k==='pm'||k==='po'){if(ctx.viewing()){ctx.toast('Lecture seule : tu vois l\'appli comme quelqu\'un d\'autre');return;}const data=ctx.peopleData(me.id)||{};const pf=prefsOf(data);
     if(k==='pd'&&DESK[a])pf.d=a;else if(k==='pm'&&MUR[a])pf.m=a;else if(k==='po'&&OBJ.some(x=>x[0]===a))pf.o=pf.o.includes(a)?pf.o.filter(x=>x!==a):pf.o.concat([a]);else return;
@@ -480,7 +488,7 @@ export function chantier3D(B,NET,A){if(!glAvailable()||!CTX0)return raccordeHTML
   const extra={cfg:mondeCfg(),network:networkOf(A.state&&A.state.lines),checklist:D,chantier:{id:NET.id,nom:NET.name,pct:B.pc,total:null,team:CTX0.people.filter(x=>team.some(n=>String(n).trim().toLowerCase()===String(x.prenom||'').trim().toLowerCase()||String(n).trim().toLowerCase()===CTX0.nomC(x).trim().toLowerCase())).map(x=>({id:x.id,prenom:x.prenom,posteLabel:CTX0.posteLabel(x),svg:CTX0.avSVG(x,240)})),chaufferie:'CHAUFFERIE'},
     onBur:t=>{if(t==='__orga'){if(A.goExpl)A.goExpl('orga');return;}if(t==='__valid'){if(A.goExpl)A.goExpl('valid');return;}if(A.tabAllowed&&!A.tabAllowed(t)){A.toast('Onglet non accessible avec tes droits');return;}A.state.tab=t;A.renderAll();},onWeld:id=>{A.toast('Soudure '+id+' : ouvre-la depuis le plan ou la liste');},onClassic:()=>{setVue('ch','classique');A.renderAll();}};
   if(vueOf('ch')==='classique')return switch3D('ch');return glSlot('chantier',p,CTX0,extra);}
-function accueil(me,ctx,o){ensureLoaded(ctx);if(!mondeFor(me)){const h=diagHTML(me);return h?{top:h}:null;}if(vueOf('acc')==='classique')return {top:switch3D('acc')};
+function accueil(me,ctx,o){ensureLoaded(ctx);const tst=mondeFor(me);if(!tst&&!(bureauFor(me)&&glAvailable())){const h=diagHTML(me);return h?{top:h}:null;}if((vueRaw('acc')||(tst?'3d':'classique'))==='classique')return {top:tst?switch3D('acc'):switchBureau()};
   if(glAvailable()){css();const side=o.side||{};return {html:`<div class="m3d-acc3d">${o.side&&o.side.hello||''}${glSlot('bureau',me,ctx,{cfg:mondeCfg(),todo:o.todo,know:o.know,spaces:o.spaces,topRight:glBtn('acc','m3d-chip') /* 09/11 : « Vue classique » dans la scène, en haut à droite — plus de ligne vide entre le bonjour et la pièce */,homeChips:[{k:'acc',t:'⚠ Accident',act:'accnew',cls:'warn'}],jour:{rdv:agendaJour(me,ctx)} /* 10/11 (Ethan) : plus de puce « ⏱ Ma journée » (le pointage reste dans Moi → Heures) ; les rendez-vous du jour viennent de l'agenda de l'appli (synchro Outlook comprise) */ /* 08/11 nuit (Ethan : « plein écran, on s'en fout du côté ») : plus de colonne ; « À faire » / « À savoir » sont sur les écrans et le tableau, le pointage du jour par-dessus la 3D */})}</div>`};}
   try{const data=ctx.peopleData(me.id)||{};const d=new Date((ctx.today()||'')+'T12:00:00');const M=['JANV.','FÉVR.','MARS','AVRIL','MAI','JUIN','JUIL.','AOÛT','SEPT.','OCT.','NOV.','DÉC.'];
     const jour=isNaN(d.getTime())?null:{n:String(d.getDate()),mois:M[d.getMonth()],sem:'semaine '+(o.sem||'')};
@@ -490,8 +498,8 @@ function hubRows(tab,me,ctx){if(tab!=='entreprise'||!ctx.row)return [];ensureLoa
   if(me.admin){const c=mondeCfg();const T=new Set(c.testeurs);const n=ctx.people.filter(p=>idsOf(p).some(x=>T.has(x))).length;out.push(ctx.row('🌍 Monde 3D · Labo',(c.on?'Allumé · '+n+' testeur'+(n>1?'s':''):'Éteint')+' · dépôts, testeurs, magasin','🌍','#E6E1F6','x:monde:cfg',null));}
   return out;}
 function xview(k,me,ctx){if(k==='depot'){ensureLoaded(ctx);if(!mondeFor(me)||!glAvailable())return '<div class="card"><div class="eq-s">La visite 3D n\'est pas disponible sur cet appareil.</div></div>';return `<h2 class="vt">Visite des dépôts <span class="hint">· qui est où, magasin, parking, plateformes</span></h2>`+glSlot('monde',me,ctx,{cfg:mondeCfg()});}return k==='cfg'?cfgView(me,ctx):null;}
-function moiSubs(me,ctx){ensureLoaded(ctx);if(!mondeFor(me)||!glAvailable())return [];return [['bureau3d','🪑 Mon bureau 3D',0,false]];}
-function view(sub,me,ctx){if(sub!=='bureau3d'||!mondeFor(me)||!glAvailable())return null;return `<h2 class="vt">Mon bureau 3D <span class="hint">· couleurs, matières, objets, raccourcis</span></h2><div class="hint" style="margin:0 0 8px">Ce que tu arranges ici est ton accueil, et ce que tes collègues voient de toi dans le dépôt.</div>`+glSlot('bureau',me,ctx,{cfg:mondeCfg(),perso:true,todo:[],know:[],spaces:(ctx.spaces||[])});}
+function moiSubs(me,ctx){ensureLoaded(ctx);if(!(mondeFor(me)||bureauFor(me))||!glAvailable())return [];return [['bureau3d','🪑 Mon bureau 3D',0,false]];}
+function view(sub,me,ctx){if(sub!=='bureau3d'||!(mondeFor(me)||bureauFor(me))||!glAvailable())return null;return `<h2 class="vt">Mon bureau 3D <span class="hint">· couleurs, matières, objets, raccourcis</span></h2><div class="hint" style="margin:0 0 8px">Ce que tu arranges ici est ton accueil, et ce que tes collègues voient de toi dans le dépôt.</div>`+glSlot('bureau',me,ctx,{cfg:mondeCfg(),perso:true,todo:[],know:[],spaces:(ctx.spaces||[])});}
 export function setChantierVue(v){setVue('ch',v==='3d'?'3d':'classique');if(v!=='3d')glDispose();}
 /* 10/11 (Ethan : « sur les post-it, une heure de rappel ; quand l'heure arrive, un petit rappel ») — côté appli : une ligne « À faire » par rappel arrivé,
    et toutes les 30 s un toast + une notification système (si autorisée, appli en arrière-plan) quand la 3D n'est pas à l'écran (sinon c'est elle qui prévient). Notes = celles de cet appareil. */

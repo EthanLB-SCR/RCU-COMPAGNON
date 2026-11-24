@@ -14,31 +14,64 @@
     return h + '</div>';
   };
 
+  /* 24/11 (Ethan, recette L36 : « il ne se passe rien quand je clique sur ＋ Nouvelle grille ; crée la grille toi, je dois juste mettre les valeurs et pouvoir les
+     modifier par la suite ») — sans grille, le formulaire plantait (il partait de la dernière grille, qui n'existait pas). Désormais : la grille SCR est posée d'office
+     (tous les postes, valeurs à saisir) ; chaque grille se modifie (« ✎ Modifier », même date d'effet) ; « ＋ Nouvelle grille » part de la dernière, ou d'une grille vide. */
+  function grilleVide() { return { effet: (D.aujourdhui || '2026').slice(0, 4) + '-01-01', fgch: null, fgst: null, sin: null, part: {}, vide: true }; }
+  function grilleAJour() { return D.grilles.slice().sort(function (a, b) { return a.effet < b.effet ? 1 : -1; })[0] || null; }
+  var eurOuVide = function (v) { return v === null || v === undefined || v === '' || !isFinite(v) ? '<span class="af-sec">à saisir</span>' : C.eur(v); };
   function taux() {
     var gs = D.grilles.slice().sort(function (a, b) { return a.effet < b.effet ? 1 : -1; });
-    var h = '<div class="af-filtres"><span class="af-note">Une heure est valorisée avec la grille en vigueur à sa date : une nouvelle grille ne réécrit pas le passé.</span><span style="margin-left:auto">' + AF.btn('Nouvelle grille', 'grille', { v: 'principal', i: 'plus' }) + '</span></div>';
+    var vide = !gs.length;
+    var h = '<div class="af-filtres"><span class="af-note">Une heure est valorisée avec la grille en vigueur à sa date : une nouvelle grille ne réécrit pas le passé.</span><span style="margin-left:auto">' + (vide ? '' : AF.btn('Nouvelle grille', 'grille', { v: 'principal', i: 'plus' })) + '</span></div>';
+    if (vide) { gs = [grilleVide()]; }
     gs.forEach(function (g, i) {
-      h += '<div class="af-carte"><h2>Grille du ' + C.date(g.effet) + (i === 0 ? ' · en vigueur' : '') + '</h2><div class="af-tabwrap"><table class="af-table"><thead><tr><th>Poste</th><th class="n">Part poste</th><th class="n">FG chantier</th><th class="n">FG structure</th><th class="n">Sinistre</th><th class="n">Coût complet</th></tr></thead><tbody>' +
+      var tot = function (pt) { return [pt, g.fgch, g.fgst, g.sin].every(function (v) { return v !== null && v !== undefined && isFinite(v); }) ? '<b>' + C.eur(pt + g.fgch + g.fgst + g.sin) + '/h</b>' : '<span class="af-sec">—</span>'; };
+      h += '<div class="af-carte" data-grille="' + AF.esc(g.effet) + '"><h2>' + (g.vide ? 'Grille SCR · à compléter' : 'Grille du ' + C.date(g.effet) + (i === 0 ? ' · en vigueur' : '')) + '</h2>' +
+        (g.vide ? '<p class="af-note" style="margin-top:0">Les postes sont posés : il reste à saisir les valeurs (€ par heure). Elles comptent pour les heures à partir du ' + C.date(g.effet) + ' (date modifiable).</p>' : '') +
+        '<div class="af-tabwrap"><table class="af-table"><thead><tr><th>Poste</th><th class="n">Part poste</th><th class="n">FG chantier</th><th class="n">FG structure</th><th class="n">Sinistre</th><th class="n">Coût complet</th></tr></thead><tbody>' +
         D.postes.map(function (p) {
           if (p.nonValorise) { return '<tr><td>' + p.nom + '</td><td colspan="5" class="af-sec">Non valorisé au chantier : frais généraux</td></tr>'; }
-          var pt = g.part[p.id]; return '<tr><td><b>' + p.nom + '</b></td><td class="n">' + C.eur(pt) + '</td><td class="n">' + C.eur(g.fgch) + '</td><td class="n">' + C.eur(g.fgst) + '</td><td class="n">' + C.eur(g.sin) + '</td><td class="n"><b>' + C.eur(pt + g.fgch + g.fgst + g.sin) + '/h</b></td></tr>';
-        }).join('') + '</tbody></table></div><p class="af-note">En apprentissage : même taux que le poste appris, ligne à part dans le débours. Inclus dans le taux : paniers, grands déplacements, fourgon ou camion de service.</p></div>';
+          var pt = g.part[p.id]; var ok = pt !== null && pt !== undefined && isFinite(pt);
+          return '<tr><td><b>' + p.nom + '</b></td><td class="n">' + (ok ? C.eur(pt) : eurOuVide(null)) + '</td><td class="n">' + eurOuVide(g.fgch) + '</td><td class="n">' + eurOuVide(g.fgst) + '</td><td class="n">' + eurOuVide(g.sin) + '</td><td class="n">' + (ok ? tot(pt) : '<span class="af-sec">—</span>') + '</td></tr>';
+        }).join('') + '</tbody></table></div>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">' + (g.vide ? AF.btn('Saisir les taux', 'grille', { v: 'principal', i: 'plus' }) : AF.btn('Modifier cette grille', 'grilleEdit', { d: { effet: g.effet } })) + '</div>' +
+        '<p class="af-note">En apprentissage : même taux que le poste appris, ligne à part dans le débours. Inclus dans le taux : paniers, grands déplacements, fourgon ou camion de service.</p></div>';
     });
     return h;
   }
+  function grilleForm(g, edit) {
+    var v = function (x) { return x === null || x === undefined || !isFinite(x) ? '' : String(x).replace('.', ','); };
+    return '<div class="af-grille"><div class="af-champ plein"><label for="g-effet">Date d\'effet</label><input id="g-effet" type="date" value="' + AF.esc(g.effet) + '"' + (edit ? ' readonly aria-readonly="true"' : '') + '>' + (edit ? '<span class="af-sec">Pour une autre date : « Nouvelle grille ».</span>' : '') + '</div>' +
+      D.postes.filter(function (p) { return !p.nonValorise; }).map(function (p) { return '<div class="af-champ"><label for="g-' + p.id + '">' + p.nom + ' · part poste (€/h)</label><input id="g-' + p.id + '" inputmode="decimal" autocomplete="off" value="' + v(g.part[p.id]) + '"></div>'; }).join('') +
+      '<div class="af-champ"><label for="g-fgch">FG chantier (€/h)</label><input id="g-fgch" inputmode="decimal" autocomplete="off" value="' + v(g.fgch) + '"></div><div class="af-champ"><label for="g-fgst">FG structure (€/h)</label><input id="g-fgst" inputmode="decimal" autocomplete="off" value="' + v(g.fgst) + '"></div>' +
+      '<div class="af-champ"><label for="g-sin">Sinistre (€/h)</label><input id="g-sin" inputmode="decimal" autocomplete="off" value="' + v(g.sin) + '"></div><p class="af-note plein" id="g-err" role="alert" style="color:#9b2c22;margin:0"></p></div>';
+  }
   AF.actions.grille = function () {
-    var g = D.grilles.slice().sort(function (a, b) { return a.effet < b.effet ? 1 : -1; })[0];
-    var corps = '<div class="af-grille"><div class="af-champ plein"><label for="g-effet">Date d\'effet</label><input id="g-effet" type="date" value="' + (D.aujourdhui || '').slice(0, 4) + '-01-01"></div>' +
-      D.postes.filter(function (p) { return !p.nonValorise; }).map(function (p) { return '<div class="af-champ"><label for="g-' + p.id + '">' + p.nom + ' · part poste (€/h)</label><input id="g-' + p.id + '" inputmode="decimal" value="' + g.part[p.id] + '"></div>'; }).join('') +
-      '<div class="af-champ"><label for="g-fgch">FG chantier (€/h)</label><input id="g-fgch" inputmode="decimal" value="' + g.fgch + '"></div><div class="af-champ"><label for="g-fgst">FG structure (€/h)</label><input id="g-fgst" inputmode="decimal" value="' + g.fgst + '"></div>' +
-      '<div class="af-champ"><label for="g-sin">Sinistre (€/h)</label><input id="g-sin" inputmode="decimal" value="' + g.sin + '"></div></div>';
-    AF.ouvrir('Nouvelle grille de taux', corps, AF.btn('Enregistrer la grille', 'grilleOk', { v: 'principal' }));
+    var g = grilleAJour() || grilleVide();
+    var base = { effet: g.vide ? g.effet : (D.aujourdhui || '').slice(0, 4) + '-01-01', fgch: g.fgch, fgst: g.fgst, sin: g.sin, part: Object.assign({}, g.part) };
+    if (!g.vide && base.effet <= g.effet) { base.effet = D.aujourdhui || base.effet; } /* une nouvelle grille vient après la dernière : aujourd'hui par défaut */
+    AF.etat.grilleEdit = null;
+    AF.ouvrir(g.vide ? 'Grille de taux SCR' : 'Nouvelle grille de taux', grilleForm(base, false), AF.btn('Enregistrer la grille', 'grilleOk', { v: 'principal' }));
+  };
+  AF.actions.grilleEdit = function (el) {
+    var eff = el && el.dataset ? el.dataset.effet : ''; var g = D.grilles.find(function (x) { return x.effet === eff; });
+    if (!g) { AF.message('Grille introuvable'); return; }
+    AF.etat.grilleEdit = g.effet;
+    AF.ouvrir('Modifier la grille du ' + C.date(g.effet), grilleForm(g, true), AF.btn('Enregistrer les modifications', 'grilleOk', { v: 'principal' }));
   };
   AF.actions.grilleOk = function () {
-    var g = { effet: AF.val('g-effet'), fgch: AF.num('g-fgch'), fgst: AF.num('g-fgst'), sin: AF.num('g-sin'), part: {} };
-    D.postes.forEach(function (p) { if (!p.nonValorise) { g.part[p.id] = AF.num('g-' + p.id); } });
+    var err = function (t) { var e = document.getElementById('g-err'); if (e) { e.textContent = t; } AF.message(t); };
+    var effet = AF.val('g-effet'); if (!/^\d{4}-\d{2}-\d{2}$/.test(effet)) { err('Indique la date d\'effet de la grille.'); return; }
+    var lire = function (id, nom) { var raw = AF.val(id).trim(); if (raw === '') { return { vide: true }; } var n = AF.num(id); if (!isFinite(n) || n < 0 || n > 500) { return { faux: nom + ' : « ' + raw + ' » n\'est pas un montant valable (0 à 500 € par heure).' }; } return { n: Math.round(n * 100) / 100 }; };
+    var g = { effet: effet, part: {} }; var faux = null, manque = [];
+    [['fgch', 'FG chantier'], ['fgst', 'FG structure'], ['sin', 'Sinistre']].forEach(function (x) { var r = lire('g-' + x[0], x[1]); if (r.faux) { faux = faux || r.faux; } else if (r.vide) { manque.push(x[1]); g[x[0]] = 0; } else { g[x[0]] = r.n; } });
+    D.postes.forEach(function (p) { if (p.nonValorise) { return; } var r = lire('g-' + p.id, p.nom); if (r.faux) { faux = faux || r.faux; } else if (r.vide) { manque.push(p.nom); } else { g.part[p.id] = r.n; } });
+    if (faux) { err(faux); return; }
+    if (!Object.keys(g.part).length) { err('Saisis au moins la part poste d\'un poste.'); return; }
     D.grilles = D.grilles.filter(function (x) { return x.effet !== g.effet; }); D.grilles.push(g); D.ecrire.grille(g); /* appli : enregistrée en base */
-    AF.fermer(); AF.render(); AF.message('Grille du ' + C.date(g.effet) + ' enregistrée : elle vaut pour les heures à partir de cette date.');
+    var edit = AF.etat.grilleEdit === g.effet; AF.etat.grilleEdit = null;
+    AF.fermer(); AF.render(); AF.message((edit ? 'Grille du ' + C.date(g.effet) + ' modifiée' : 'Grille du ' + C.date(g.effet) + ' enregistrée : elle vaut pour les heures à partir de cette date') + (manque.length ? ' — à compléter : ' + manque.join(', ') : '') + '.');
   };
 
   function natures() {

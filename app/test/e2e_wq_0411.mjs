@@ -1,4 +1,4 @@
-// e2e_wq_0411.mjs — 04/11 (Nantes, Ethan : « alors qu'il a mis ses photos, la production de Gary a disparu en milieu de journée ») : envoi des déclarations de soudure
+// e2e_wq_0411.mjs — 04/11 (Nantes, Ethan : « alors qu'il a mis ses photos, la production d'un soudeur a disparu en milieu de journée ») : envoi des déclarations de soudure
 //  q1 relecture du serveur PENDANT l'envoi des photos → la déclaration part AVEC son événement (qui, quand) et ses photos ; la soudure n'est pas écrasée à l'écran
 //  q2 envoi raté : « Pas de réseau… », « ⚠ 1 soudure en attente d'envoi », la relecture ne l'écrase pas, appli rechargée → toujours déclarée, réseau revenu → envoyée, file vide
 //  q3 console propre

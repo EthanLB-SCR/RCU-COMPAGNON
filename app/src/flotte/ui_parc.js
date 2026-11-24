@@ -4,19 +4,40 @@
 (function () {
   var FL = window.FL, C = window.FLC, D = window.FLD;
   var SIT = { chantier: 'Sur chantier', depot: 'Au dépôt', atelier: 'À l\'atelier', laisse: 'Laissé · à prendre' };
-  function ou(v) { var ch = C.chantier(v.chantier); return v.situation === 'chantier' && ch ? '🦺 ' + FL.esc(ch.nom) : SIT[v.situation] || '—'; }
+  function ou(v) { var ch = C.chantier(v.chantier); return v.situation === 'chantier' && ch ? '🦺 ' + FL.esc(ch.nom) + (v.aff && v.aff.id === ch.id ? '<br><span class="af-sec">affecté · resp. ' + FL.esc(v.aff.chef || 'le chef du chantier') + '</span>' : '') : SIT[v.situation] || '—'; }
+  /* 24/11 (Ethan) : « Qui a quoi : chercher un nom, et l'historique calendrier de tout ce qu'il a eu, de tel jour à tel jour tel véhicule, avec un raccourci vers la fiche » */
+  var sansAcc = function (s) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); };
+  function histoPersonnes(q) {
+    var Q = sansAcc(q).trim(), M = {};
+    if (Q.length < 2) { return []; }
+    Object.keys(D.conducteurs || {}).forEach(function (im) { (D.conducteurs[im] || []).forEach(function (p) { if (!p || !p.nom || sansAcc(p.nom).indexOf(Q) < 0) { return; } (M[p.nom] = M[p.nom] || []).push({ immat: im, du: p.du, au: p.au, how: p.how || '' }); }); });
+    D.vehicules.forEach(function (v) { var n = C.nomCond(v); if (!n || sansAcc(n).indexOf(Q) < 0) { return; } var L = M[n] = M[n] || []; if (!L.some(function (x) { return x.immat === v.immat && !x.au; })) { L.push({ immat: v.immat, du: v.depuis || '', au: null, how: 'actuel' }); } });
+    return Object.keys(M).sort().map(function (n) { return { nom: n, L: M[n].sort(function (a, b) { return String(b.du || '').localeCompare(String(a.du || '')); }) }; });
+  }
+  function histoHTML(H) {
+    var auj = D.aujourdhui;
+    return H.map(function (P) {
+      var d0 = P.L.reduce(function (m, x) { return x.du && (!m || x.du < m) ? x.du : m; }, null) || auj, span = Math.max(1, (Date.parse(auj + 'T12:00:00') - Date.parse(d0 + 'T12:00:00')) / 864e5);
+      var pos = function (d) { return Math.max(0, Math.min(100, (Date.parse((d || auj) + 'T12:00:00') - Date.parse(d0 + 'T12:00:00')) / 864e5 / span * 100)); };
+      return '<section class="af-carte fl-histo" data-histo="' + FL.esc(P.nom) + '"><div class="fl-sp__tete"><h2>' + FL.esc(P.nom) + '</h2><span class="af-sous">' + P.L.length + ' véhicule' + (P.L.length > 1 ? 's' : '') + ' depuis le ' + C.date(d0) + '</span></div>' +
+        '<div class="fl-frise" aria-hidden="true">' + P.L.map(function (x, i) { var a = pos(x.du), b = pos(x.au); return '<span class="fl-frise__s fl-frise--' + (i % 6) + '" style="left:' + a.toFixed(2) + '%;width:' + Math.max(1.2, b - a).toFixed(2) + '%" title="' + FL.esc(x.immat + ' · ' + C.date(x.du) + ' → ' + (x.au ? C.date(x.au) : 'aujourd\'hui')) + '"></span>'; }).join('') + '</div>' +
+        '<div class="af-tabwrap fl-tabsans"><table class="af-table"><thead><tr><th></th><th>Véhicule</th><th>Du</th><th>Au</th><th class="n">Jours</th><th>Comment</th></tr></thead><tbody>' + P.L.map(function (x, i) { var v = C.veh(x.immat); var j = x.du ? Math.max(1, Math.round((Date.parse((x.au || auj) + 'T12:00:00') - Date.parse(x.du + 'T12:00:00')) / 864e5) + 1) : '';
+          return '<tr class="af-clic" data-act="veh" data-immat="' + FL.esc(x.immat) + '" data-onglet="conducteurs"><td style="width:14px"><i class="fl-frise__k fl-frise--' + (i % 6) + '"></i></td><td><b>' + FL.esc(x.immat) + '</b>' + (v ? '<br><span class="af-sec">' + FL.esc(v.marque + ' ' + v.modele) + '</span>' : '') + '</td><td>' + C.date(x.du) + '</td><td>' + (x.au ? C.date(x.au) : '<span class="fl-tag fl-tag--ok">aujourd\'hui</span>') + '</td><td class="n">' + j + '</td><td class="af-sec">' + FL.esc(x.how) + ' ›</td></tr>'; }).join('') + '</tbody></table></div></section>';
+    }).join('');
+  }
   function prochaine(v) { var E = C.echeances(v).sort(function (a, b) { return a.j - b.j; }); return E[0] || null; }
 
   FL.pages.vehicules = function () {
     var e = FL.etat, q = (e.vehQ || '').toLowerCase(), all = FL.vehs();
-    var L = all.filter(function (v) { var et = C.etat(v); return (!e.vehType || v.type === e.vehType) && (!e.vehEtat || (e.vehEtat === 'alerte' ? et !== 'ok' : et === e.vehEtat)) && (!e.vehSit || v.situation === e.vehSit) &&
+    var L = all.filter(function (v) { var et = C.etat(v); return (!e.vehType || v.type === e.vehType) && (!e.vehEtat || (e.vehEtat === 'alerte' ? et !== 'ok' : et === e.vehEtat)) && (!e.vehSit || v.situation === e.vehSit) && (!e.vehAttr || C.attrib(v) === e.vehAttr) &&
       (!q || [v.immat, v.marque, v.modele, C.nomCond(v), v.type, v.n].join(' ').toLowerCase().indexOf(q) >= 0); });
     var h = '<div class="af-page"><div class="af-titre"><h1>Véhicules</h1><span class="af-sous">' + L.length + ' sur ' + all.length + '</span><div class="af-actions">' + FL.btn('Véhicule', 'existant', { i: 'plus', d: { x: 'new', t: 'Dans l\'appli : « ➕ Véhicule » (immatriculation → fiche)' } }) + (D.app && D.app.exportParc ? FL.btn('Export Excel', 'existant', { d: { x: 'export', t: 'Export du parc au format du « Suivi entretien parc de véhicules »' } }) : '') /* appli : pas d'export du parc aujourd'hui → masqué */ + '</div></div>';
     h += FL.alerteMouvements(true);
     h += '<div class="af-filtres"><label>Rechercher <input data-in="vehQ" value="' + FL.esc(e.vehQ || '') + '" placeholder="immatriculation, modèle, conducteur…" style="min-width:260px"></label>' +
       '<label>Type <select data-chg="vehType"><option value="">Tous</option>' + D.types.filter(function (t) { return all.some(function (v) { return v.type === t; }); }).map(function (t) { return '<option' + (e.vehType === t ? ' selected' : '') + ' value="' + FL.esc(t) + '">' + FL.esc(C.typeCourt(t)) + '</option>'; }).join('') + '</select></label>' +
       '<label>État <select data-chg="vehEtat">' + [['', 'Tous'], ['alerte', 'Avec alerte'], ['bad', 'Bloquant'], ['warn', 'À surveiller'], ['ok', 'Rien à signaler']].map(function (o) { return '<option value="' + o[0] + '"' + ((e.vehEtat || '') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>' +
-      '<label>Où <select data-chg="vehSit"><option value="">Partout</option>' + Object.keys(SIT).map(function (k) { return '<option value="' + k + '"' + (e.vehSit === k ? ' selected' : '') + '>' + SIT[k] + '</option>'; }).join('') + '</select></label></div>';
+      '<label>Où <select data-chg="vehSit"><option value="">Partout</option>' + Object.keys(SIT).map(function (k) { return '<option value="' + k + '"' + (e.vehSit === k ? ' selected' : '') + '>' + SIT[k] + '</option>'; }).join('') + '</select></label>' +
+      '<label>Confié <select data-chg="vehAttr"><option value="">À tous</option>' + Object.keys(C.ATTR).map(function (k) { return '<option value="' + k + '"' + (e.vehAttr === k ? ' selected' : '') + '>' + C.ATTR[k] + '</option>'; }).join('') + '</select></label></div>';
     h += '<div class="af-tabwrap"><table class="af-table"><thead><tr><th></th><th>Véhicule</th><th>Type</th><th>Conducteur</th><th>Où</th><th class="n">Km</th><th>Prochaine échéance</th><th>État</th></tr></thead><tbody>' +
       (L.length ? L.map(function (v) { var p = prochaine(v), a = C.alertes(v);
         return '<tr class="af-clic" data-act="veh" data-immat="' + v.immat + '"><td style="width:92px">' + FL.vignette(v, 'fl-vign--s') + '</td><td><b>' + v.immat + '</b><br><span class="af-sec">' + FL.esc(v.marque + ' ' + v.modele) + ' · n° ' + v.n + (FL.etat.agence ? '' : ' · ' + v.agence) + '</span></td>' +
@@ -33,6 +54,7 @@
     var h = '<div class="af-2col"><div>';
     h += '<section class="af-carte"><h2>Prochaines échéances</h2>' + (E.length ? E.map(function (e) { var x = C.ECH[e.k]; return '<div class="fl-ech"><span class="fl-li__date fl-sev--' + (e.sev || 'n') + '"><b>' + C.dateC(e.d) + '</b><small>' + C.dans(e.j) + '</small></span><span class="fl-li__txt"><b>' + x.i + ' ' + FL.esc(e.t) + (e.est ? ' <span class="fl-est">estimée</span>' : '') + '</b></span>' + (e.k === 'rdv' ? FL.btn('Fait', 'rdvFait', { s: true, v: 'discret', i: 'ok', d: { immat: v.immat, id: e.rdv.id } }) : e.k !== 'pv' ? FL.btn('Programmer', 'rdvNouveau', { s: true, d: { immat: v.immat, type: e.k === 'ct' ? 'ct' : e.k === 'vidange' ? 'vidange' : 'entretien', date: e.j < 0 ? D.aujourdhui : C.plusJours(e.d, -2) } }) : '') + '</div>'; }).join('') : '<div class="af-note">Aucune échéance connue.</div>') + '</section>';
     if (sig.length) { h += '<section class="af-carte"><h2>Signalements</h2>' + sig.map(function (s) { return '<div class="fl-sig"><span class="fl-sig__txt"><b>' + FL.esc(s.texte) + '</b><small>' + FL.esc(s.par) + ' · le ' + C.date(s.le) + '</small></span>' + FL.btn('Traité', 'sigOk', { s: true, v: 'discret', i: 'ok', d: { immat: v.immat, id: s.id } }) + '</div>'; }).join('') + '</section>'; }
+    h += sectionConfie(v);
     h += '</div><div>';
     if (mv.length) { h += '<section class="af-carte"><h2>Mouvement en cours</h2>' + mv.map(function (m) { var x = C.MV[m.k]; return '<div class="tr-alerte tr-alerte--' + (x.sev === 'bad' ? 'bloque' : 'attention') + '"><div class="tr-alerte__corps"><b class="tr-alerte__titre">' + x.i + ' ' + FL.esc(m.titre) + '</b><span class="tr-alerte__texte">' + FL.esc(m.motif) + ' · depuis le ' + C.date(m.depuis) + '</span></div></div>'; }).join('') + '<div style="margin-top:8px">' + FL.btn('Traiter', 'aller', { s: true, d: { h: 'mouvements' } }) + '</div></section>'; }
     var vi = C.vidange(v), co = C.courroie(v);
@@ -43,6 +65,21 @@
     var ct = (v.controles || [])[0]; h += '<section class="af-carte"><h2>Dernier contrôle visuel</h2>' + (ct ? '<div>' + C.date(ct.d) + ' · ' + FL.esc(ct.par) + ' · ' + C.nb(ct.km) + ' km<br><span class="af-sec">' + ct.ok + ' points OK' + (ct.revoir && ct.revoir.length ? ' · à revoir : ' + FL.esc(ct.revoir.join(', ')) : '') + '</span></div>' : '<div class="af-note">Aucun contrôle enregistré.</div>') + '<div style="margin-top:8px">' + FL.btn('Contrôle visuel', 'existant', { s: true, i: 'plus', d: { x: 'ctrl', immat: v.immat, t: 'Ouvre la fiche de contrôle existante (10 points + photos)' } }) + '</div></section>';
     return h + '</div></div>';
   }
+  /* 24/11 (Ethan) : à qui le véhicule est confié ; l'affecter à un chantier (sous la responsabilité du chef de ce chantier) ; l'historique des affectations */
+  function sectionConfie(v) {
+    var a = C.attrib(v), H = (v.affHist || []).slice().reverse();
+    var txt = a === 'chantier' && v.aff ? '🦺 Affecté au chantier <b>' + FL.esc(v.aff.nom) + '</b>' + (v.aff.chef ? ' · sous la responsabilité de <b>' + FL.esc(v.aff.chef) + '</b> (chef de chantier)' : ' · sous la responsabilité du chef de ce chantier') + (v.aff.le ? '<br><span class="af-sec">depuis le ' + C.date(v.aff.le) + (v.aff.par ? ' · par ' + FL.esc(v.aff.par) : '') + '</span>' : '')
+      : a === 'collab' ? '👤 Attribué à <b>' + FL.esc(C.nomCond(v)) + '</b>' + (v.depuis ? ' depuis le ' + C.date(v.depuis) : '') : a === 'laisse' ? '🔑 Laissé · à prendre' : '🏠 Au dépôt';
+    return '<section class="af-carte" data-confie="' + a + '"><h2>Confié à</h2><div>' + txt + '</div>' + (v.aff && C.nomCond(v) ? '<div class="af-note">Conducteur habituel : ' + FL.esc(C.nomCond(v)) + '</div>' : '') +
+      '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">' + FL.btn(v.aff ? 'Changer de chantier' : 'Affecter à un chantier', 'affecter', { s: true, i: 'plus', d: { immat: v.immat } }) + (v.aff ? FL.btn('Retirer du chantier', 'affRetirer', { s: true, v: 'discret', d: { immat: v.immat } }) : '') + '</div>' +
+      (H.length ? '<details class="fl-plus" style="margin-top:8px"><summary>Affectations · ' + H.length + '</summary>' + H.map(function (x) { return '<div class="fl-jr"><span class="fl-jr__pt fl-jr--' + (x.au ? 'info' : 'ok') + '"></span><span><b>' + FL.esc(x.nom) + '</b><small>du ' + C.date(x.du) + (x.au ? ' au ' + C.date(x.au) : ' · en cours') + (x.par ? ' · ' + FL.esc(x.par) : '') + '</small></span></div>'; }).join('') + '</details>' : '') + '</section>';
+  }
+  FL.actions.affecter = function (el) { var v = C.veh(el.dataset.immat); if (!v) { return; } var L = D.chantiers.filter(function (c) { return C.dansAgence ? (!FL.etat.agence || !c.agence || c.agence === FL.etat.agence) : true; }).slice().sort(function (a, b) { return String(a.nom).localeCompare(String(b.nom), 'fr'); });
+    if (!L.length) { FL.message('Aucun chantier à proposer'); return; }
+    FL.ouvrir('Affecter ' + v.immat + ' à un chantier', '<div class="af-champ"><label for="fl-aff">Chantier</label><select id="fl-aff">' + L.map(function (c) { return '<option value="' + FL.esc(c.id) + '"' + (v.aff && v.aff.id === c.id ? ' selected' : '') + '>' + FL.esc(c.nom) + (c.chef ? ' · chef : ' + FL.esc(c.chef) : '') + '</option>'; }).join('') + '</select><small>Le véhicule reste sur le chantier, sous la responsabilité de son chef : il dépanne dans la journée et passe de main en main.</small></div>',
+      FL.btn('Affecter', 'affecterOk', { v: 'principal', d: { immat: v.immat } })); };
+  FL.actions.affecterOk = function (el) { var im = el.dataset.immat, id = FL.val('fl-aff'), c = C.chantier(id); if (!c || !D.ecrire.affecter || !D.ecrire.affecter(im, id)) { return; } FL.fermer(); FL.render(); FL.message(im + ' affecté à ' + c.nom); };
+  FL.actions.affRetirer = function (el) { var im = el.dataset.immat; if (!D.ecrire.affecter || !D.ecrire.affecter(im, null)) { return; } FL.render(); FL.message(im + ' retiré du chantier'); };
   function ongletEntretien(v) {
     var R = (v.rdv || []).filter(function (r) { return !r.fait; }).sort(function (a, b) { return a.date < b.date ? -1 : 1; });
     var h = '<div class="af-2col"><div><section class="af-carte"><div class="fl-sp__tete"><h2>Programmé</h2>' + FL.btn('Programmer', 'rdvNouveau', { s: true, i: 'plus', d: { immat: v.immat } }) + '</div>' + (R.length ? R.map(function (r) { return '<div class="fl-ech"><span class="fl-li__date fl-sev--' + (C.jours(r.date) < 0 ? 'bad' : C.jours(r.date) <= 14 ? 'warn' : 'n') + '"><b>' + C.dateC(r.date) + '</b><small>' + C.dans(C.jours(r.date)) + '</small></span><span class="fl-li__txt"><b>' + FL.esc(C.rdvLabel(r.type)) + (r.garage ? ' · ' + FL.esc(r.garage) : '') + '</b><small>' + FL.esc(r.note || '') + '</small></span>' + FL.btn('Fait', 'rdvFait', { s: true, v: 'discret', i: 'ok', d: { immat: v.immat, id: r.id } }) + '</div>'; }).join('') : '<div class="af-note">Rien de programmé.</div>') + '</section>';
@@ -130,7 +167,11 @@
   /* ---------- qui a quoi ---------- */
   FL.pages.qui = function () {
     var V = FL.vehs().slice().sort(function (a, b) { return C.attenteDe(b.immat).length - C.attenteDe(a.immat).length || (a.immat < b.immat ? -1 : 1); });
+    var q = FL.etat.quiQ || '', Q = sansAcc(q).trim(), H = histoPersonnes(q);
+    if (Q.length >= 2) { V = V.filter(function (v) { return sansAcc([C.nomCond(v), v.immat, v.aff ? v.aff.nom : ''].join(' ')).indexOf(Q) >= 0 || H.some(function (P) { return P.L.some(function (x) { return x.immat === v.immat; }); }); }); }
     var h = '<div class="af-page"><div class="af-titre"><h1>Qui a quoi</h1><span class="af-sous">conducteur actuel, situation, ce qui est attendu</span><div class="af-actions">' + FL.btn('Imprimer (A4)', 'existant', { d: { x: 'quiprint', t: 'Même impression A4 qu\'aujourd\'hui (« 🖨 Qui a quoi »)' } }) + '</div></div>';
+    h += '<div class="af-filtres"><label>Chercher une personne <input type="search" data-in="quiQ" value="' + FL.esc(q) + '" placeholder="nom ou prénom : tout ce qu\'il a eu, de tel jour à tel jour" style="min-width:280px" aria-label="Chercher une personne"></label></div>';
+    if (Q.length >= 2) { h += H.length ? histoHTML(H) : '<div class="af-note" style="margin:0 0 10px">Personne de ce nom dans l\'historique des conducteurs.</div>'; }
     h += '<div class="af-tabwrap"><table class="af-table"><thead><tr><th></th><th>Véhicule</th><th>Conducteur</th><th>Depuis</th><th>Où</th><th>Attendu</th></tr></thead><tbody>' + V.map(function (v) { var m = C.attenteDe(v.immat);
       return '<tr class="af-clic" data-act="veh" data-immat="' + v.immat + '"><td style="width:92px">' + FL.vignette(v, 'fl-vign--s') + '</td><td><b>' + v.immat + '</b><br><span class="af-sec">' + FL.esc(v.marque + ' ' + v.modele) + ' · ' + FL.esc(C.typeCourt(v.type)) + '</span></td><td>' + (C.nomCond(v) ? '<b>' + FL.esc(C.nomCond(v)) + '</b>' : '<span class="af-sec">personne</span>') + '</td><td>' + C.date(v.depuis) + '</td><td>' + ou(v) + '</td>' +
         '<td>' + (m.length ? m.map(function (x) { return '<span class="fl-tag fl-tag--' + (C.MV[x.k].sev === 'bad' ? 'bad' : 'warn') + '">' + C.MV[x.k].i + ' ' + FL.esc(x.qui ? x.qui + ' · ' : '') + C.MV[x.k].nom + ' · J+' + (-C.jours(x.depuis)) + '</span>'; }).join(' ') : (v.edl1 === false && v.conducteur ? '<span class="fl-tag fl-tag--warn">📋 premier état des lieux</span>' : '<span class="af-sec">—</span>')) + '</td></tr>'; }).join('') + '</tbody></table></div></div>';

@@ -182,6 +182,7 @@ o.srv=(SITE.SRV_A.data.fiche||{}).horaires;
 console.log('u9) fiche :',J(o));
 C.u9=/Ouest · Chloé TESTCHEF · Denis TESTCONDUC/.test(o.sum)&&o.srv==='7 h – 15 h 30';
 // u10 : glisser-déposer (PC) : Théo → Moulin
+await pg.evaluate(()=>{const d=document.querySelector('#eq-app .pi-site[data-site=SRV_B] .pi-sh');if(d)d.scrollIntoView({block:'center'});});await W(pg,200); /* 24/11 : la publication du planning prend une ligne au-dessus des chantiers → la cible du glisser passait sous le bas de la fenêtre */
 o={};await pg.dragAndDrop(`#eq-app .pi-trayc .pi-chip[data-p="${TUY.email}"]`,'#eq-app .pi-site[data-site=SRV_B] .pi-sh');await W(pg,600);
 o.panel=await pg.evaluate(()=>({who:[...document.querySelectorAll('#pi-panel .pi-who .btn')].map(b=>b.textContent.trim()),days:[...document.querySelectorAll('#pi-panel .pi-days [data-act=pi]')].map(b=>(b.classList.contains('active')?'✓':'·')+b.dataset.v.slice(-2)).join(' '),ok:(document.querySelector('#pi-panel [data-act=pi][data-v="ok|"]')||{}).textContent||''}));
 if(o.panel.ok)await tapAct(pg,'pi','ok|',1200);o.plan=PLAN['2026-W46'].data.aff[TUY.email]||null;

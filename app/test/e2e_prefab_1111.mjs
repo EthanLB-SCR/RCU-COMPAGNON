@@ -28,6 +28,7 @@ const pointer=async(o)=>{await page.evaluate(()=>{const b=document.getElementByI
   if(o.kind==='complet'){await page.evaluate(()=>{const b=document.querySelector('#modal [data-attk=complet]');if(b)b.click();});await wait(250);}
   if(o.dn)await page.selectOption('#att-dn',String(o.dn));if(o.lieu!=null)await page.fill('#att-lieu',o.lieu);if(o.pres)await page.fill('#att-pres',o.pres);
   if(o.photo){await page.setInputFiles('#att-ph',{name:'soudure.png',mimeType:'image/png',buffer:PNG});await page.waitForFunction(()=>document.querySelectorAll('#att-phs img').length>0,null,{timeout:10000}).catch(()=>{});await wait(200);}
+  if(o.photo&&o.kind==='complet')for(const n of [2,3]){await page.setInputFiles('#att-ph'+n,{name:'etape'+n+'.png',mimeType:'image/png',buffer:PNG});await page.waitForFunction(n=>document.querySelectorAll('#att-phs'+n+' img').length>0,n,{timeout:10000}).catch(()=>{});await wait(200);} /* 24/11 (Ethan) : photos des fils et du manchon obligatoires, comme au pointage habituel */
   await page.evaluate(()=>document.getElementById('att-ok').click());await wait(600);};
 // ── p1) le bouton du plan et l'espace d'attente
 const sig0=await planSig();await ouvrir();
@@ -80,11 +81,11 @@ await pointer({dn:100,lieu:'Feeder, côté vanne fictive',photo:true});
 const p8=await page.evaluate(()=>({btn:!!document.getElementById('btnAttente'),neu:!!document.getElementById('att-new'),put:document.querySelectorAll('#modal [data-att-put]').length,del:document.querySelectorAll('#modal [data-att-del]').length,list:window.TRACE.att.list().length}));
 await page.evaluate(()=>{const b=document.querySelector('#modal [data-close]');if(b)b.click();});await wait(200);await page.selectOption('#roleSel','julien').catch(()=>{});await wait(400);await page.evaluate(()=>{window.TRACE.state.tab='plan';window.TRACE.renderAll();});await wait(400);await ouvrir();
 p8.julien=await page.evaluate(()=>({btn:!!document.getElementById('btnAttente'),neu:!!document.getElementById('att-new'),put:document.querySelectorAll('#modal [data-att-put]').length}));
-console.log('p8) droits :',J(p8));C.p8=p8.btn&&p8.neu&&p8.put===1&&p8.del===1&&p8.list===1&&p8.julien.btn&&!p8.julien.neu&&p8.julien.put===1;
+console.log('p8) droits :',J(p8));C.p8=p8.btn&&p8.neu&&p8.put===1&&p8.del===1&&p8.list===1&&p8.julien.btn&&p8.julien.neu&&p8.julien.put===1; /* 24/11 : le manchonneur pointe en attente pour le compte du soudeur (droit « étape ① pour le compte du soudeur », comme sur une fiche du plan) */
 await page.evaluate(()=>{const b=document.querySelector('#modal [data-close]');if(b)b.click();});await wait(200);await page.selectOption('#roleSel','karim').catch(()=>{});await wait(300);await page.evaluate(()=>{window.TRACE.state.tab='plan';window.TRACE.renderAll();});await wait(300);await ouvrir();
 // ── p9) téléphone 390 px
 await page.setViewportSize({width:390,height:844});await wait(300);await page.evaluate(()=>document.getElementById('att-new').click());await wait(400);
-const p9=await page.evaluate(()=>{const m=document.querySelector('#modal.show .box');return {doc:document.documentElement.scrollWidth<=window.innerWidth+1,modal:!!m&&m.scrollWidth<=m.clientWidth+1,h:Math.min(...[...document.querySelectorAll('#modal .att-f select,#modal .att-f input:not([type=file]),#modal .att-seg button')].map(x=>Math.round(x.getBoundingClientRect().height)))};});
+const p9=await page.evaluate(()=>{const m=document.querySelector('#modal.show .box');return {doc:document.documentElement.scrollWidth<=window.innerWidth+1,modal:!!m&&m.scrollWidth<=m.clientWidth+1,h:Math.min(...[...document.querySelectorAll('#modal .att-f select,#modal .att-f input:not([type=file]),#modal .att-seg button')].filter(x=>x.offsetParent!==null).map(x=>Math.round(x.getBoundingClientRect().height)))};}); /* 24/11 : le champ « écrire son nom » caché tant qu'on ne l'a pas choisi ne compte pas */
 console.log('p9) téléphone :',J(p9));C.p9=p9.doc&&p9.modal&&p9.h>=46;
 C.p10=logs.length===0;if(logs.length)console.log('logs :',J(logs.slice(0,8)));
 await browser.close();

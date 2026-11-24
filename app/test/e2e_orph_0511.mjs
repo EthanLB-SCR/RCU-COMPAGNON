@@ -33,7 +33,7 @@ s=await A();const w9=s.j.find(j=>j.id==='S-0900');o={jm,w9,toast:await page.eval
 C.r2=!!w9&&w9.ap&&Math.abs(w9.m-jm)<=0.2&&/au plus près/.test(o.toast);
 /* r3 */
 const row=(id,st,d)=>({weld_id:id,line_id:'L1',cond:'A',status:st,data:d,updated_at:'2026-11-03T09:00:00Z'});
-await page.evaluate(r=>{window.TRACE.orph.seen(r[0]);window.TRACE.orph.seen(r[1]);},[row('S-0950','manchonnee',{events:[{type:'soudee',at:'2026-11-03T08:00:00Z',by:'Gary'}],photos:['p1']}),row('S-0960','a_souder',{})]);await wait(300);
+await page.evaluate(r=>{window.TRACE.orph.seen(r[0]);window.TRACE.orph.seen(r[1]);},[row('S-0950','manchonnee',{events:[{type:'soudee',at:'2026-11-03T08:00:00Z',by:'Soudeur A'}],photos:['p1']}),row('S-0960','a_souder',{})]);await wait(300);
 o=await page.evaluate(()=>{const b=document.querySelector('#orphWarn');return {list:window.TRACE.orph.list(),show:!!b&&b.classList.contains('show'),txt:b?b.textContent:''};});console.log('r3) bandeau :',J(o));
 C.r3=J(o.list)===J(['S-0950'])&&o.show&&/1 soudure pointée hors du plan/.test(o.txt);
 /* r4 */
@@ -44,14 +44,14 @@ await wait(400);await tapAt(T4.x,T4.y);
 o=await page.evaluate(id=>{const T=window.TRACE;const j=T.state.lines.L1.cond.A.joints.find(x=>x.weldId===id);const b=document.querySelector('#orphWarn');return {st:j&&j.status,rep:!!(j&&(j.events||[]).some(e=>e.type==='reprise'&&e.data&&e.data.de==='S-0950')),ph:j&&(j.photos||[]).length,list:T.orph.list(),show:!!b&&b.classList.contains('show'),pose:T.orph.pose()};},T4.id);
 console.log('r4) rattachée :',J({m4,pose,T4:T4.id,o}));C.r4=m4.n===1&&/rien n'est effacé/.test(m4.txt)&&pose==='S-0950'&&o.st==='manchonnee'&&o.rep&&o.ph===1&&o.list.length===0&&!o.show&&o.pose===null;
 /* r5 */
-await page.evaluate(r=>window.TRACE.orph.seen(r),row('S-0951','soudee',{events:[{type:'soudee',at:'2026-11-03T10:00:00Z',by:'Gary'}]}));await wait(200);
+await page.evaluate(r=>window.TRACE.orph.seen(r),row('S-0951','soudee',{events:[{type:'soudee',at:'2026-11-03T10:00:00Z',by:'Soudeur A'}]}));await wait(200);
 await page.click('#orphWarn');await wait(300);await page.click('#modal [data-orph-put="S-0951"]');await wait(300);
 tg=await page.evaluate(()=>{const T=window.TRACE;const A=T.state.lines.L1.cond.A;const e=A.els.filter(e=>e.kind==='pipe').sort((a,b)=>b.len-a.len)[0];const pl=e.axis[0];const wx=pl[0].x+(pl[pl.length-1].x-pl[0].x)*0.4,wy=pl[0].y+(pl[pl.length-1].y-pl[0].y)*0.4;T.centerOn(wx,wy,60);return {wx,wy};});
 await wait(400);await tapAt(tg.wx,tg.wy);s=await A();const w51=s.j.find(j=>j.id==='S-0951');
 o={w51,rec:s.recs.find(r=>r.id==='S-0951'),list:await page.evaluate(()=>window.TRACE.orph.list())};console.log('r5) remise avec son numéro :',J(o));
 C.r5=!!w51&&w51.st==='soudee'&&w51.x&&!!o.rec&&o.rec.rem&&!o.rec.del&&o.list.length===0;
 /* r6 */
-await page.evaluate(()=>window.TRACE.closeSheet&&window.TRACE.closeSheet());await page.evaluate(r=>window.TRACE.orph.seen(r),row('S-0952','controlee',{events:[{type:'controlee',at:'2026-11-03T11:00:00Z',by:'Gary'}]}));await wait(200);
+await page.evaluate(()=>window.TRACE.closeSheet&&window.TRACE.closeSheet());await page.evaluate(r=>window.TRACE.orph.seen(r),row('S-0952','controlee',{events:[{type:'controlee',at:'2026-11-03T11:00:00Z',by:'Soudeur A'}]}));await wait(200);
 await page.click('#orphWarn');await wait(300);await page.click('#modal [data-orph-ign="S-0952"]');await wait(400);
 o=await page.evaluate(()=>{const b=document.querySelector('#orphWarn');return {list:window.TRACE.orph.list(),show:!!b&&b.classList.contains('show')};});console.log('r6) ignorée :',J(o));
 C.r6=o.list.length===0&&!o.show;

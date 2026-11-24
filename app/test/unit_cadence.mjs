@@ -13,7 +13,7 @@
 //  u17 chauffeur d'engin dans l'équipe (ou sur le chantier, sans lettre) → cadence S+T+P ; il n'est pas compté lui-même
 import fs from 'fs';import path from 'path';import {fileURLToPath} from 'url';
 import {parsePrixWorkbook} from '../src/prix.js';
-import {cadRef,cadRefOk,cadSoud,cadPan,cadManch,cadDH,cadPanKey,cadBareme,cadSemaine,cadEtat,cadSerie,cadCompteurs,cadAvatar,cadCle,CAD_KEY,CAD_MINH} from '../src/cadence.js';
+import {cadRef,cadRefOk,cadSoud,cadPan,cadManch,cadDH,cadPanKey,cadBareme,cadSemaine,cadEtat,cadSerie,cadCompteurs,cadAvatar,cadCle,CAD_KEY,CAD_MINH,cadSstTypes} from '../src/cadence.js';
 const HERE=path.dirname(fileURLToPath(import.meta.url));const C={};const J=x=>JSON.stringify(x);const eq=(a,b)=>Math.abs(a-b)<1e-6;
 const buf=fs.readFileSync(path.join(HERE,'fixture_prix.xlsx'));const base=await parsePrixWorkbook(buf.buffer.slice(buf.byteOffset,buf.byteOffset+buf.byteLength),{name:'fixture_prix.xlsx'});
 const ref=cadRef(base,{par:'Ana TESTADMIN',rev:'r1',at:'2026-11-16T08:00:00.000Z'});
@@ -22,7 +22,7 @@ const txt=J(ref);const d100=ref.dn.find(r=>r.dn===100);
 const u1={cles:Object.keys(ref).sort().join(),n:ref.dn.length,H:ref.H,minH:ref.minH,etinc:ref.etinc,d100:J(d100),pan:Object.keys(ref.pan).sort().join(),sst:ref.pan.sst.id,sst100:J(ref.pan.sst.dn[100]),ins:J(ref.pan.insertion.dn[100]),att:J(ref.pan.attente.dn[100]),pec:J(ref.pan.pec.dn[100]),fonds:J(ref.pan.fonds.dn[100]),bp:J(ref.pan.bypass.dn[100]),ext:ref.ext[110],
   sansPrix:!/taux|"fo"|postes|rate|amount|pu"|prix|total|fgC|sin"/i.test(txt),taille:txt.length,ok:cadRefOk(ref),cle:CAD_KEY};
 console.log('u1) référence :',J(u1));
-C.u1=u1.cles==='H,at,base,dn,etinc,ext,minH,pan,par,pour,v'&&ref.pour==='enc'&&u1.n===18&&u1.H===10&&u1.minH===20&&CAD_MINH===20&&u1.etinc==='record'&&u1.d100===J({dn:100,po:4,s:[5,10,10],mt:[[10,5],[10,5],[10,5]],me:[[8,4],[8,4],[8,4]],dh:3})
+C.u1=u1.cles==='H,at,base,dn,etinc,ext,minH,pan,par,pour,rep,sstT,v'&&ref.rep==='chacun'&& /* 24/11 : + rep (répartition), sstT (typologies de SST) */ref.pour==='enc'&&u1.n===18&&u1.H===10&&u1.minH===20&&CAD_MINH===20&&u1.etinc==='record'&&u1.d100===J({dn:100,po:4,s:[5,10,10],mt:[[10,5],[10,5],[10,5]],me:[[8,4],[8,4],[8,4]],dh:3})
   &&u1.pan==='attente,bypass,fonds,insertion,pec,sst'&&u1.sst==='sst_vannes_bs_pn25'&&u1.sst100==='[4,0]'&&u1.ins==='[8,8]'&&u1.att==='[6,6]'&&u1.pec==='[10,0]'&&u1.fonds==='[2,0]'&&u1.bp==='[4,0]'&&u1.ext===4&&u1.sansPrix&&u1.taille<12000&&u1.ok&&u1.cle==='cadences_prod';
 // ── u2
 const u2={s0:cadSoud(ref,100,0).h,s1:cadSoud(ref,100,1).h,s5:cadSoud(ref,'100',0.5).h,s50:cadSoud(ref,50,1).h,s200:cadSoud(ref,200,0).h,po:cadSoud(ref,100,1).po,approx:J([cadSoud(ref,110,1).dn,cadSoud(ref,110,1).approx]),nul:cadSoud(ref,'?',1),
@@ -117,5 +117,22 @@ const R17=cadSemaine(ref3c,{jours:JS,gens:g17,h:h17,ici:i17,eq:e17,ops:[].concat
 const u17={hd:['sa','ta','sb','tb','sc','sd','td'].map(id=>id+':'+R17.par[id].hd).join(),stp:['sa','sb','sc','sd'].map(id=>!!R17.par[id].jours[LU].L[0].stp).join(),cad:['sa','sb','sd'].map(id=>R17.par[id].jours[LU].L[0].cST).join(),pa:[R17.par.pa===undefined,R17.par.py===undefined,R17.autres.length].join(),eqP:[R17.par.sa.jours[LU].eq[0].P,R17.par.sb.jours[LU].eq[0].P,R17.par.sd.jours[LU].eq[0].P].join(),
   bar:J((b=>[b.soudS,b.soudST,b.soudSTP])(cadBareme(ref3c)[0])),un:[cadSoud(ref3c,100,1,true).h,cadSoud(ref3c,100,1,false).h,cadSoud(ref3c,100,0,true).h,cadSoud(ref3c,100,0.5,true).h].join()};
 console.log('u17) chauffeur dans l\'équipe :',J(u17));
-C.u17=u17.hd==='sa:8,ta:8,sb:10,tb:10,sc:8,sd:8,td:8'&&u17.stp==='true,false,false,true'&&u17.cad==='10,8,10'&&u17.pa==='true,true,2'&&u17.eqP==='1,0,1'&&u17.bar==='[2,1.25,1]'&&u17.un==='1,1.25,2,1.5';
+/* 24/11 (Ethan, recette L16) : le chauffeur d'engin est crédité avec son équipe — pa (lettre A) : la moyenne de sa (8 h) ; py (sans lettre, chantier Y) : la moyenne des
+   soudeurs du chantier ce jour-là, sc (8 h) et sd (8 h) = 8 h ; ce qu'il signe reste noté à part (2 soudures) */
+u17.pa2=[R17.par.pa&&R17.par.pa.hd,R17.par.py&&R17.par.py.hd,R17.par.pa&&R17.par.pa.m,R17.par.pa&&R17.par.pa.jours[LU].L.map(l=>l.t+'/'+l.nS).join()].join();console.log('u17b) chauffeurs :',u17.pa2);
+C.u17=u17.hd==='sa:8,ta:8,sb:10,tb:10,sc:8,sd:8,td:8'&&u17.stp==='true,false,false,true'&&u17.cad==='10,8,10'&&u17.pa==='false,false,2'&&u17.pa2==='8,8,P,recu/1'&&u17.eqP==='1,0,1'&&u17.bar==='[2,1.25,1]'&&u17.un==='1,1.25,2,1.5';
+// ── u18 (24/11) : répartition « équipe » — les heures d'une personne débloquées par les soudures, partagées entre soudeur, tuyauteur et chauffeur au prorata des heures
+//   équipe A : sa (10 h) + ta (10 h) + pa (5 h), 8 soudures à 1 h (cadence S+T+P 10 / jour) = 8 h → sa 3,2 h, ta 3,2 h, pa 1,6 h ; pouces : sa garde ses 32 pouces
+const refE=cadRef({mo:{hJour:10,cad:[{dn:100,pouce:4,soud:{S:5,'S+T':8,'S+T+P':10},manch:{thermo:[[10,5]]},ctrl:{}}]},op:{}},{rep:'equipe'});
+const g18={sa:{m:'S'},ta:{m:'T'},pa:{m:'P'}};const h18={sa:{[LU]:10},ta:{[LU]:10},pa:{[LU]:5}};const i18={sa:{[LU]:['X']},ta:{[LU]:['X']},pa:{[LU]:['X']}};const e18={sa:{X:'A'},ta:{X:'A'},pa:{X:'A'}};
+const R18=cadSemaine(refE,{jours:JS,gens:g18,h:h18,ici:i18,eq:e18,ops:rep('sa',LU,1,8)}).par;const R18c=cadSemaine(Object.assign({},refE,{rep:'chacun'}),{jours:JS,gens:g18,h:h18,ici:i18,eq:e18,ops:rep('sa',LU,1,8)}).par;
+const u18={rep:refE.rep,hd:['sa','ta','pa'].map(id=>id+':'+R18[id].hd).join(),po:R18.sa.po,L:R18.sa.jours[LU].L.map(l=>l.t+'/'+l.pot+'/'+Math.round(l.part*100)+'/'+(l.lignes||[]).map(x=>x.t+'×'+x.n).join('+')).join(),chacun:['sa','ta','pa'].map(id=>id+':'+R18c[id].hd).join(),tot:Math.round((R18.sa.hd+R18.ta.hd+R18.pa.hd)*100)/100};
+console.log('u18) répartition équipe :',J(u18));
+C.u18=u18.rep==='equipe'&&u18.hd==='sa:3.2,ta:3.2,pa:1.6'&&u18.po===32&&u18.L==='part/8/40/soud×8'&&u18.chacun==='sa:8,ta:8,pa:8'&&u18.tot===8;
+// ── u19 (24/11) : typologie de SST choisie au pointage — chaque panier SST de la base est publié (sans prix) ; un point avec sa typologie prend son panier,
+//   sans typologie le panier de référence ; typologie inconnue → référence
+const TY=cadSstTypes(ref);const autreT=TY.find(t=>t.id!==ref.pan.sst.id);const R19=cadSemaine(ref,{jours:JS,gens:{s:{m:'S'}},h:{s:{[LU]:10}},ici:{s:{[LU]:['X']}},eq:{},ops:[{by:'s',d:LU,k:'sst',dn:'100',site:'X',end:'sousstation'},{by:'s',d:LU,k:'sst',dn:'100',site:'X',end:'sousstation',sstT:autreT&&autreT.id},{by:'s',d:LU,k:'sst',dn:'100',site:'X',end:'sousstation',sstT:'inconnu'}]}).par.s;
+const u19={n:TY.length,ids:TY.map(t=>t.id).join(),L:R19.jours[LU].L.map(l=>l.sub+'×'+l.n+'='+Math.round(l.h*100)/100).join(' ; '),sansPrix:!/prix|€|taux/i.test(JSON.stringify(ref.sstT)),autre:autreT&&cadPan(ref,'sstT:'+autreT.id,100)};
+console.log('u19) typologies de SST :',J(u19));
+C.u19=u19.n>=2&&!!autreT&&u19.sansPrix&&R19.jours[LU].L.length===2&&R19.jours[LU].L.some(l=>l.sub==='sst'&&l.n===2)&&R19.jours[LU].L.some(l=>l.sub==='sstT:'+autreT.id&&l.n===1&&Math.abs(l.h-u19.autre.hS)<1e-9);
 const bad=Object.entries(C).filter(([k,v])=>!v).map(([k])=>k);console.log(bad.length?'RESULTAT: ECHEC '+bad.join(','):'RESULTAT: TOUT VERT');process.exit(bad.length?1:0);

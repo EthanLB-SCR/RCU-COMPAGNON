@@ -47,11 +47,14 @@ export function cadRef(base,opt){opt=opt||{};if(!base||!base.mo||!Array.isArray(
     P.rows.forEach(r=>{let row=null;try{row=panierRow(base,pid,r.dn);}catch(e){row=null;}if(!row)return;let s=0,m=0;(row.mo||[]).forEach(L=>{const c=compOf(base,L.eq);const h=num(L.h);if(c.S>0)s+=h;if(c.M>0)m+=h*c.M;});if(s>0||m>0)o[num(r.dn)]=[r2(s),r2(m)];});
     return Object.keys(o).length?{id:pid,t:String(P.title||pid),u:2,dn:o}:null;};
   const P={};let sstL=[];try{sstL=sstTypes(base);}catch(e){sstL=[];}const sstId=sstL.some(x=>x.id===opt.sst)?opt.sst:(sstL[0]||{}).id;const sst=pan(sstId);if(sst)P.sst=sst;
+  /* 24/11 (Ethan, recette L14 : « au moment de pointer la SST, on choisit sa typologie ; une règle d'ensemble par chantier ») : toutes les typologies de SST de la base
+     (titre + heures par DN, aucun prix) — le point SST pointé avec sa typologie prend son propre panier ; sans typologie : le panier de référence ci-dessus */
+  const sstT={};sstL.forEach(t=>{const p=t&&t.id===sstId&&sst?sst:pan(t&&t.id);if(p)sstT[t.id]={t:String(t.name||p.t||t.id),u:p.u,dn:p.dn};});
   let rL=[];try{rL=raccTypes(base);}catch(e){rL=[];}Object.keys(RACC_RE).forEach(k=>{const t=rL.find(x=>RACC_RE[k].test(x.name||'')||RACC_RE[k].test(x.id||''));const p=t?pan(t.id):null;if(p)P[k]=p;});
   const bp=fonds=>{const o={};(((base.op||{}).bypass)||[]).forEach(r=>{if(!r||!num(r.dn))return;const h=hRef(fonds?r.hFonds:r.hBypass,fonds?r.hfF:r.hfB,r.dn);if(!(h>0))return;const c=compOf(base,r.eq||'S+T');o[num(r.dn)]=[c.S>0||!c.M?r2(h):0,c.M>0?r2(h*c.M):0];});return Object.keys(o).length?o:null;};
   const f=bp(true);if(f)P.fonds={id:'fonds',t:'BY-PASS - FONDS BOMBÉS (fonds bombés)',u:2,dn:f};const b=bp(false);if(b)P.bypass={id:'bypass',t:'BY-PASS - FONDS BOMBÉS (by-pass)',u:2,dn:b};
   const ext={};(((base.op||{}).extrusion||{}).rows||[]).forEach(r=>{const h=num(r&&r.h&&r.h.manchons);if(!r||!num(r.dnPehd)||!(h>0))return;const c=compOf(base,r.eq||'M+M');ext[num(r.dnPehd)]=r2(h*Math.max(1,c.M));});
-  return {v:1,at:opt.at||new Date().toISOString(),par:String(opt.par||''),base:{version:String(base.version||''),rev:String(opt.rev||'')},H,minH:num(opt.minH)>0?num(opt.minH):CAD_MINH,etinc:opt.etinc==='serie'?'serie':'record',pour:opt.pour==='tous'?'tous':'enc' /* qui voit : l'encadrement seulement (essai, par défaut) ou les équipes aussi */,dn,pan:P,ext};}
+  return {v:1,at:opt.at||new Date().toISOString(),par:String(opt.par||''),base:{version:String(base.version||''),rev:String(opt.rev||'')},H,minH:num(opt.minH)>0?num(opt.minH):CAD_MINH,etinc:opt.etinc==='serie'?'serie':'record',pour:opt.pour==='tous'?'tous':'enc' /* qui voit : l'encadrement seulement (essai, par défaut) ou les équipes aussi */,rep:opt.rep==='equipe'?'equipe':'chacun' /* 24/11 : répartition des heures d'une soudure (voir cadSemaine) */,dn,pan:P,ext,sstT};}
 /* une référence reçue (serveur, appareil) : forme attendue, sinon null — on n'affiche rien plutôt qu'un calcul faux */
 export function cadRefOk(r){return !!(r&&typeof r==='object'&&r.v===1&&Array.isArray(r.dn)&&r.dn.length&&r.dn.every(x=>x&&num(x.dn)>0&&Array.isArray(x.s)));}
 /* ═════════ 2 · BARÈME ═════════ */
@@ -62,8 +65,10 @@ export function cadSoud(ref,dn,f,p){const x=cadDn(ref,dn);if(!x)return null;cons
   return {h:f*a+(1-f)*b,hS:b,hST:a,cS,cST,stp,f,dn:x.r.dn,approx:x.approx,po:num(x.r.po)};}
 const END_PAN={sousstation:'sst',chaufferie:'sst',attente_chaufferie:'sst',endpoint:'sst',pec:'pec',insertion:'insertion',attente:'attente',kit:'fonds',endcap:'fonds',provisoire:'fonds',fondbombe_regard:'fonds',bypass:'bypass',bypass_regard:'bypass',bypass_extrusion:'bypass',bypassEnd:'bypass'};
 export const cadPanKey=(end,k)=>END_PAN[end]||(k==='sst'?'sst':null);
+const key0=o=>cadPanKey(o.end,o.k);
 /* un point de bout de ligne : heures du soudeur (hS) et heures-personne des manchonneurs (phM), pour UN point (le panier vaut u points : 2 = aller + retour) */
-export function cadPan(ref,key,dn){const P=ref&&ref.pan&&ref.pan[key];const d=num(parseFloat(dn));if(!P||!P.dn||!(d>0))return null;const ks=Object.keys(P.dn).map(Number).filter(n=>n>0);if(!ks.length)return null;const k=near(ks,d);const v=P.dn[k]||P.dn[String(k)]||[0,0];const u=num(P.u)||2;
+export const cadSstTypes=ref=>Object.keys((ref&&ref.sstT)||{}).map(id=>({id,t:ref.sstT[id].t})); /* 24/11 : les typologies de SST publiées (id, titre) — la liste du point SST */
+export function cadPan(ref,key,dn){const P=String(key||'').indexOf('sstT:')===0?(ref&&ref.sstT&&ref.sstT[String(key).slice(5)]):(ref&&ref.pan&&ref.pan[key]);const d=num(parseFloat(dn));if(!P||!P.dn||!(d>0))return null;const ks=Object.keys(P.dn).map(Number).filter(n=>n>0);if(!ks.length)return null;const k=near(ks,d);const v=P.dn[k]||P.dn[String(k)]||[0,0];const u=num(P.u)||2;
   return {hS:num(v[0])/u,phM:num(v[1])/u,pan:num(v[0]),u,t:P.t,key,dn:k,approx:k!==d};}
 /* un manchon : g = part du temps à deux manchonneurs (0 = seul → cadence M ; 1 = cadence M+M, 2 personnes) ; iso = classe d'isolation (1 à 3) ; extrudé : table d'extrusion (DN de la gaine PEHD) */
 export function cadManch(ref,dn,type,iso,g,pehd){const H=num(ref&&ref.H)||10;
@@ -75,7 +80,7 @@ export function cadDH(ref,dn){const x=cadDn(ref,dn);return x?{h:num(x.r.dh)/60,m
 export function cadBareme(ref){if(!cadRefOk(ref))return [];const pk=Object.keys(ref.pan||{});
   return ref.dn.map(r=>{const s=cadSoud(ref,r.dn,0),st=cadSoud(ref,r.dn,1),stp=cadSoud(ref,r.dn,1,true),m=cadManch(ref,r.dn,'thermo',2,0),mm=cadManch(ref,r.dn,'thermo',2,1),e=cadManch(ref,r.dn,'electro',2,0),dh=cadDH(ref,r.dn);const o={dn:r.dn,po:r.po,soudS:s?s.hS:0,soudST:st?st.hST:0,soudSTP:stp&&stp.stp?stp.hST:0,manchM:m?m.phM:0,manchMM:mm?mm.phMM/2:0,electroM:e?e.phM:0,dh:dh?dh.h:0,pan:{}};
     pk.forEach(k=>{const p=ref.pan[k];if(p&&p.dn&&(p.dn[r.dn]||p.dn[String(r.dn)])){const b=cadPan(ref,k,r.dn);o.pan[k]=b?b.hS:0;}});return o;});}
-const ORD={soud:0,sst:1,bout:2,manch:3,dh:4,recu:5,pot:6};
+const ORD={soud:0,sst:1,bout:2,manch:3,dh:4,recu:5,pot:6,part:7};
 /* ═════════ 3 · LA SEMAINE ═════════
    W = { jours : les 7 jours (lundi → dimanche),
          gens  : {clé : {m : 'S' soudeur | 'T' tuyauteur | 'M' manchonneur | 'P' chauffeur d'engin (présence seulement) | '' (pas opérateur)}},
@@ -86,9 +91,12 @@ const ORD={soud:0,sst:1,bout:2,manch:3,dh:4,recu:5,pot:6};
    → { par : {clé : {m, hd, hp, hpTot, po, n, jours : {jour : {hp, hd, po, hors, eq, L : [lignes du calcul]}}}}, autres : [opérations signées par un non-opérateur] } */
 export function cadSemaine(ref,W){const out={par:{},autres:[]};if(!cadRefOk(ref)||!W)return out;
   const J=(W.jours||[]).slice();const inW=new Set(J);const G=W.gens||{};const Hh=W.h||{};const hOf=(id,d)=>num((Hh[id]||{})[d]);const met=id=>{const m=(G[id]||{}).m||'';return m==='S'||m==='T'||m==='M'?m:'';}; /* opérateur compté */
+  const EQUIPE=ref.rep==='equipe'; /* 24/11 (Ethan, recette L16 : « que ça débloque juste les heures d'un gars, à diviser entre le soudeur, les tuyauteurs et les chauffeurs d'engin de l'équipe ») :
+     « chacun » (défaut) = une soudure débloque les heures d'UNE personne pour le soudeur, et autant pour chaque tuyauteur / chauffeur d'engin de son équipe (moyenne de ses soudeurs) ;
+     « equipe » = les heures d'une personne débloquées par les soudures sont PARTAGÉES entre tous les membres de l'équipe du jour (soudeurs, tuyauteurs, chauffeurs), au prorata de leurs heures. */
   const estP=id=>(G[id]||{}).m==='P';const siteP={}; /* chauffeurs d'engin du jour sur un chantier, sans lettre d'équipe : ils valent pour toutes les équipes du chantier */
   const lettre=(id,site)=>String((((W.eq||{})[id])||{})[site]||'');
-  const P=id=>out.par[id]||(out.par[id]={m:met(id),hd:0,hp:0,hpTot:0,po:0,n:0,jours:{}});
+  const P=id=>out.par[id]||(out.par[id]={m:met(id)||(estP(id)?'P':''),hd:0,hp:0,hpTot:0,po:0,n:0,jours:{}});
   const Jr=(id,d)=>{const p=P(id);return p.jours[d]||(p.jours[d]={hp:0,hd:0,po:0,hors:0,eq:[],L:[]});};
   const credit=(id,d,h,po)=>{const j=Jr(id,d);j.hd+=h;j.po+=po||0;};
   /* lignes identiques d'un même jour : regroupées (« 8 soudures DN 100 ») */
@@ -97,32 +105,47 @@ export function cadSemaine(ref,W){const out={par:{},autres:[]};if(!cadRefOk(ref)
   const all=(W.ops||[]).filter(o=>o&&inW.has(o.d));all.forEach(o=>{if(!met(o.by))out.autres.push(o);});
   const ops=all.filter(o=>met(o.by)).map(o=>Object.assign({},o,{d0:o.d,d:eff(o.by,o.d)}));
   /* équipes du jour : (jour, chantier, lettre) → soudeurs, tuyauteurs, manchonneurs présents avec des heures ; + le signataire sur le chantier de son opération */
-  const GR={};const grp=(id,d,site)=>{const e=lettre(id,site);const k=d+'|'+site+'|'+e;const g=GR[k]||(GR[k]={k,d,site,e,S:[],T:[],M:[],P:[],sumS:0,poS:0,potM:0,poM:0,LM:[]});const m=met(id)||(estP(id)?'P':'');if(m&&!g[m].includes(id))g[m].push(id);return g;};
-  Object.keys(G).forEach(id=>{const op=!!met(id);if(!op&&!estP(id))return;if(op)P(id);J.forEach(d=>{if(!(hOf(id,d)>0))return;((((W.ici||{})[id])||{})[d]||[]).forEach(site=>{grp(id,d,site);if(!op&&!lettre(id,site))siteP[d+'|'+site]=(siteP[d+'|'+site]||0)+1;});});});
+  const GR={};const grp=(id,d,site)=>{const e=lettre(id,site);const k=d+'|'+site+'|'+e;const g=GR[k]||(GR[k]={k,d,site,e,S:[],T:[],M:[],P:[],sumS:0,poS:0,potM:0,poM:0,LM:[],LS:[]});const m=met(id)||(estP(id)?'P':'');if(m&&!g[m].includes(id))g[m].push(id);return g;};
+  Object.keys(G).forEach(id=>{const op=!!met(id);if(!op&&!estP(id))return;P(id); /* 24/11 : le chauffeur d'engin a aussi sa ligne (crédité avec son équipe) */J.forEach(d=>{if(!(hOf(id,d)>0))return;((((W.ici||{})[id])||{})[d]||[]).forEach(site=>{grp(id,d,site);if(!op&&!lettre(id,site))siteP[d+'|'+site]=(siteP[d+'|'+site]||0)+1;});});});
   ops.forEach(o=>grp(o.by,o.d,o.site));
   ops.forEach(o=>{const m=met(o.by);const g=grp(o.by,o.d,o.site);const late=o.d0!==o.d?o.d0:'';
     if(o.k===1||o.k==='sst'||o.k==='bout'){const f=m==='S'?Math.min(1,g.T.length/Math.max(1,g.S.length)):0;const aP=m==='S'&&f>0&&(g.P.length>0||(siteP[o.d+'|'+o.site]||0)>0);
       if(o.k===1){const b=cadSoud(ref,o.dn,f,aP);if(!b||!(b.h>0)){line(o.by,o.d,{t:'soud',dn:String(o.dn),sub:'sans',sans:1,site:o.site});return;}
-        line(o.by,o.d,{t:'soud',dn:b.dn,sub:b.stp?'stp':'',hu:b.h,h:b.h,f:b.f,cS:b.cS,cST:b.cST,stp:b.stp,approx:b.approx,site:o.site,late});credit(o.by,o.d,b.h,b.po);P(o.by).n++;if(m==='S'){g.sumS+=b.h;g.poS+=b.po;}return;}
-      const key=cadPanKey(o.end,o.k);const b=key?cadPan(ref,key,o.dn):null;
+        const LL={t:'soud',dn:b.dn,sub:b.stp?'stp':'',hu:b.h,h:b.h,f:b.f,cS:b.cS,cST:b.cST,stp:b.stp,approx:b.approx,site:o.site,late};P(o.by).n++;
+        if(EQUIPE&&m==='S'){g.LS.push(Object.assign({by:o.by,n:1},LL));g.sumS+=b.h;g.poS+=b.po;credit(o.by,o.d,0,b.po);return;} /* les pouces restent au soudeur */
+        line(o.by,o.d,LL);credit(o.by,o.d,b.h,b.po);if(m==='S'){g.sumS+=b.h;g.poS+=b.po;}return;}
+      const kT=o.sstT&&key0(o)==='sst'&&ref.sstT&&ref.sstT[o.sstT]?'sstT:'+o.sstT:null; /* 24/11 : typologie de SST choisie au pointage (ou règle du chantier) */
+      const key=kT||cadPanKey(o.end,o.k);const b=key?cadPan(ref,key,o.dn):null;
       if(!b||!(b.hS>0||b.phM>0)){line(o.by,o.d,{t:o.k,dn:String(o.dn),sub:(key||o.end||'')+'|sans',key:key||'',end:o.end||'',sans:1,site:o.site});return;}
-      line(o.by,o.d,{t:o.k,dn:b.dn,sub:key,key,hu:b.hS,h:b.hS,pan:b.pan,u:b.u,titre:b.t,approx:b.approx,site:o.site,late});credit(o.by,o.d,b.hS,0);P(o.by).n++;if(m==='S')g.sumS+=b.hS;
+      const LB={t:o.k,dn:b.dn,sub:key,key,hu:b.hS,h:b.hS,pan:b.pan,u:b.u,titre:b.t,approx:b.approx,site:o.site,late};P(o.by).n++;
+      if(EQUIPE&&m==='S'&&b.hS>0){g.LS.push(Object.assign({by:o.by,n:1},LB));g.sumS+=b.hS;}else{line(o.by,o.d,LB);credit(o.by,o.d,b.hS,0);if(m==='S')g.sumS+=b.hS;}
       if(b.phM>0&&g.M.length){g.potM+=b.phM;g.LM.push({t:o.k,dn:b.dn,sub:key,key,hu:b.phM,h:b.phM,titre:b.t,by:o.by,n:1});}return;}
     if(o.k===2){const b=cadDH(ref,o.dn);if(!b||!(b.h>0)){line(o.by,o.d,{t:'dh',dn:String(o.dn),sub:'sans',sans:1,site:o.site});return;}
       if(m==='M'){g.potM+=b.h;g.LM.push({t:'dh',dn:b.dn,hu:b.h,h:b.h,min:b.min,by:o.by,n:1});P(o.by).n++;}else{line(o.by,o.d,{t:'dh',dn:b.dn,hu:b.h,h:b.h,min:b.min,site:o.site,late});credit(o.by,o.d,b.h,0);P(o.by).n++;}return;}
     if(o.k===3){const gg=m==='M'&&g.M.length>=2?1:0;const b=cadManch(ref,o.dn,o.mt,o.iso,gg,o.pehd);if(!b||!(b.ph>0)){line(o.by,o.d,{t:'manch',dn:String(o.dn),sub:'sans',sans:1,site:o.site});return;}
       const L={t:'manch',dn:b.dn,sub:(b.ext?'ext':b.electro?'electro':'thermo')+(gg?'2':'1'),hu:b.ph,h:b.ph,ext:!!b.ext,electro:!!b.electro,g:gg,cM:b.cM,cMM:b.cMM,pehd:b.pehd,approx:b.approx,site:o.site,late};
       if(m==='M'){g.potM+=b.ph;g.poM+=b.po;g.LM.push(Object.assign({by:o.by,n:1},L));P(o.by).n++;}else{line(o.by,o.d,L);credit(o.by,o.d,b.ph,0);P(o.by).n++;}}});
+  /* chauffeurs d'engin sans lettre d'équipe sur un chantier : ils travaillent avec tous les soudeurs du chantier ce jour-là (toutes les équipes) */
+  const siteS={};Object.values(GR).forEach(g=>{const k=g.d+'|'+g.site;const x=siteS[k]||(siteS[k]={S:[],sumS:0,poS:0});g.S.forEach(id=>{if(!x.S.includes(id))x.S.push(id);});x.sumS+=g.sumS;x.poS+=g.poS;});
+  const pSite=(g,id)=>!g.e&&!lettre(id,g.site)?siteS[g.d+'|'+g.site]:null;
   Object.values(GR).forEach(g=>{
+    if(EQUIPE){/* 24/11 : mode « équipe » — le pot des soudures de l'équipe (heures d'une personne par soudure) partagé entre soudeurs, tuyauteurs et chauffeurs, au prorata des heures du jour */
+      const mem=[].concat(g.S,g.T,g.P).filter((x,i,a)=>a.indexOf(x)===i&&hOf(x,g.d)>0);const tot=mem.reduce((a,id)=>a+hOf(id,g.d),0);
+      if(g.sumS>0&&mem.length){const LS=[];g.LS.forEach(L=>{const k=[L.t,L.dn,L.sub||'',Math.round((L.hu||0)*1000),L.by].join('|');const x=LS.find(y=>y._k===k);if(x){x.n+=1;x.h+=L.h;}else LS.push(Object.assign({},L,{_k:k}));});
+        mem.forEach(id=>{const part=tot>0?hOf(id,g.d)/tot:1/mem.length;const j=Jr(id,g.d);if(g.S.length)j.avecS=true;j.L.push({t:'part',n:1,h:g.sumS*part,pot:g.sumS,part,avec:mem.filter(x=>x!==id),lignes:LS,site:g.site,e:g.e});credit(id,g.d,g.sumS*part,0);});}
+      g.T.concat(g.P).forEach(t=>{const j=Jr(t,g.d);if(g.S.length)j.avecS=true;if(g.S.length&&g.poS>0){const n=g.T.length+g.P.length;credit(t,g.d,0,g.poS/Math.max(1,n));}});}
+    else{
     /* tuyauteurs : la moyenne des heures débloquées par les soudeurs de l'équipe ce jour-là ; pouces : le cumul de ses soudeurs, partagé entre tuyauteurs */
     g.T.forEach(t=>{const j=Jr(t,g.d);if(g.S.length)j.avecS=true;if(g.S.length&&g.sumS>0){const h=g.sumS/g.S.length;j.L.push({t:'recu',n:1,h,de:g.S.slice(),somme:g.sumS,nS:g.S.length,site:g.site,e:g.e});credit(t,g.d,h,g.poS/g.T.length);}});
+    /* 24/11 : chauffeurs d'engin — comme le tuyauteur : la moyenne des heures débloquées par les soudeurs avec qui il travaillait ce jour-là (pas de pouces) */
+    g.P.forEach(t=>{const ss=pSite(g,t);const S=ss?ss.S:g.S,sum=ss?ss.sumS:g.sumS;const j=Jr(t,g.d);if(S.length)j.avecS=true;if(S.length&&sum>0&&!j.L.some(x=>x.t==='recu')){const h=sum/S.length;j.L.push({t:'recu',n:1,h,de:S.slice(),somme:sum,nS:S.length,site:g.site,e:g.e,P:1});credit(t,g.d,h,0);}});}
     /* manchonneurs : le pot de l'équipe du jour, partagé au prorata des heures pointées ce jour-là */
     if(g.potM>0&&g.M.length){const tot=g.M.reduce((a,id)=>a+hOf(id,g.d),0);const LM=[];g.LM.forEach(L=>{const k=[L.t,L.dn,L.sub||'',Math.round((L.hu||0)*1000)].join('|');const x=LM.find(y=>y._k===k);if(x){x.n+=1;x.h+=L.h;}else LM.push(Object.assign({},L,{_k:k}));});
       g.M.forEach(id=>{const part=tot>0?hOf(id,g.d)/tot:1/g.M.length;const j=Jr(id,g.d);j.L.push({t:'pot',n:1,h:g.potM*part,pot:g.potM,part,avec:g.M.filter(x=>x!==id),lignes:LM,site:g.site,e:g.e});credit(id,g.d,g.potM*part,g.poM*part);});}
-    [].concat(g.S,g.T,g.M).forEach(id=>{const j=Jr(id,g.d);if(!j.eq.some(x=>x.k===g.k))j.eq.push({k:g.k,site:g.site,e:g.e,S:g.S.slice(),T:g.T.slice(),M:g.M.slice(),P:g.P.length+(g.e?(siteP[g.d+'|'+g.site]||0):0)});});});
+    [].concat(g.S,g.T,g.M,g.P).forEach(id=>{const j=Jr(id,g.d);if(!j.eq.some(x=>x.k===g.k))j.eq.push({k:g.k,site:g.site,e:g.e,S:g.S.slice(),T:g.T.slice(),M:g.M.slice(),P:g.P.length+(g.e?(siteP[g.d+'|'+g.site]||0):0),PP:g.P.slice()});});});
   const tri=L=>L.map((x,i)=>[x,i]).sort((a,b)=>(ORD[a[0].t]-ORD[b[0].t])||(parseFloat(a[0].dn)||0)-(parseFloat(b[0].dn)||0)||a[1]-b[1]).map(x=>x[0]); /* toujours dans le même ordre, quel que soit l'ordre des soudures sur le plan */
   Object.keys(out.par).forEach(id=>{const p=out.par[id];J.forEach(d=>{const h=hOf(id,d);if(!(h>0)&&!p.jours[d])return;const j=Jr(id,d);p.hpTot+=h;j.L=tri(j.L);j.L.forEach(x=>{if(x.lignes)x.lignes=tri(x.lignes);});
-      if(p.m==='T'&&!j.avecS&&!(j.hd>0)){j.hors=h;j.hp=0;}else j.hp=h; /* tuyauteur : seuls comptent ses jours avec un soudeur dans son équipe (ou une opération à son nom) */
+      if((p.m==='T'||p.m==='P')&&!j.avecS&&!(j.hd>0)){j.hors=h;j.hp=0;}else j.hp=h; /* tuyauteur, chauffeur d'engin : seuls comptent ses jours avec un soudeur dans son équipe (ou une opération à son nom) */
       p.hp+=j.hp;p.hd+=j.hd;p.po+=j.po;});
     p.hd=r2(p.hd);p.hp=r2(p.hp);p.hpTot=r2(p.hpTot);p.po=Math.round(p.po*10)/10;});
   return out;}

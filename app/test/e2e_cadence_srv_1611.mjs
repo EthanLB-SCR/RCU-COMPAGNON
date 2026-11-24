@@ -132,7 +132,7 @@ await tap(A.page,'#cad-admin [data-v="cad|pub"]',900);await W(A.page,4000);
 await prodEq(A);v1.tab=await equipe(A.page);await tap(A.page,'#eq-app [data-act="jour"][data-v="cadp|'+SOUD.email+'"]',500);
 v1.avis=await A.page.evaluate(()=>{const m=document.getElementById('cad-manque');return m?{txt:m.textContent.replace(/[\s  ]+/g,' ').trim(),btn:[...m.querySelectorAll('[data-act="opensite"]')].map(b=>b.dataset.v+':'+b.textContent.trim())}:null;});
 console.log('v1) publication, plan absent :',J(Object.assign({},v1,{etat:v1.etat&&{off:v1.etat.off,last:v1.etat.last&&{n:v1.etat.last.n,saute:v1.etat.last.saute}}})));
-C.v1=v1.base&&v1.carte&&v1.set&&v1.par==='Ana TESTADMIN'&&v1.cles==='H,at,base,dn,etinc,ext,minH,pan,par,pour,v'&&v1.pour==='tous'&&v1.sansPrix&&v1.taille<12000&&v1.rpc==='cadences_prod:true,cadences_prod:true'&&v1.plan===false&&v1.envois===0
+C.v1=v1.base&&v1.carte&&v1.set&&v1.par==='Ana TESTADMIN'&&v1.cles==='H,at,base,dn,etinc,ext,minH,pan,par,pour,rep,sstT,v'&& /* 24/11 : + rep, sstT */v1.pour==='tous'&&v1.sansPrix&&v1.taille<12000&&v1.rpc==='cadences_prod:true,cadences_prod:true'&&v1.plan===false&&v1.envois===0
   &&v1.etat&&v1.etat.off===false&&v1.etat.last&&v1.etat.last.n===0&&v1.etat.last.saute===3&&v1.tab.length>=2&&v1.tab.every(x=>/\|⚡ Débloqué$/.test(x.th))&&v1.tab.filter(x=>x.r.includes('? incomplet')).length>=2
   &&!!v1.avis&&/^⚠ Calcul incomplet sur cet appareil : le plan de « Chantier fictif des Tilleuls » n'y est pas\. Ouvre le chantier une fois, puis reviens ici\./.test(v1.avis.txt)&&J(v1.avis.btn)===J(['SRV_A:Ouvrir Chantier fictif des Tilleuls']);
 // ── v1b : elle ouvre le chantier une fois → la semaine 46 est figée

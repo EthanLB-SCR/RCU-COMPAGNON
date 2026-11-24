@@ -50,48 +50,49 @@ export const famColor=p=>FAM_COLOR[POSTE_FAM[p]]||FAM_COLOR.exterieur;
 /* ---------- DROITS ---------- */
 // [clé, libellé, groupe]
 export const PERMS=[
- ['weld.step1','Étape ① soudure','Terrain'],
- ['weld.step1.for','Étape ① pour le compte du soudeur : prendre la photo de la soudure et la valider au nom du soudeur de l\'équipe','Terrain'], // 01/11 soir (Ethan : « le tuyauteur, le manchonneur ou le pelleur de l'équipe peuvent prendre la photo de la soudure et dire c'est XX qui a soudé »)
- ['weld.step2','Étape ② fils raccordés + DH','Terrain'],
- ['weld.step3','Étape ③ manchon posé','Terrain'],
- ['weld.step4','Étape ④ moussage + finition','Terrain'],
- ['weld.extra','Ajouter une soudure supplémentaire sur le plan','Terrain'],
- ['weld.transfer','Transférer / échanger l\'avancement d\'une soudure','Terrain'],
- ['dh.measure','DH : mesures, localisation de défaut, bouclage','Terrain'],
- ['conv.post','Conversation : écrire, notes sur le plan, photos','Terrain'],
- ['undo.own','Annuler ses propres saisies (étape, soudure ajoutée) dans la limite de ses crédits — au-delà : demande au chef','Annulations'],
- ['undo.validate','Valider les demandes d\'annulation des autres, redonner des crédits','Annulations'],
- ['plan.view','Voir le plan, les fiches de soudure, le récap','Chantier'],
- ['weld.admin','Corriger une fiche : contrôle, annuler une étape, remettre « à souder », transférer une fiche vide','Chantier'],
- ['conv.task','Conversation : créer et assigner des tâches','Chantier'],
- ['hydro','Hydro : essais, hydrants, calendrier','Chantier'],
- ['stock.edit','Stock : livraisons, zones, prélèvements','Chantier'],
- ['phasage.edit','Phasage : phases, planning, marché','Chantier'],
- ['ts.qualify','Modifications : qualifier (TS / compris / mémoire), re-figer le marché','Chantier'],
- ['dossier.edit','Dossier administratif : déposer / retirer des documents','Chantier'],
- ['export.doe','Export DOE (carnet, plan, photos, zip)','Chantier'],
- ['qse.sign','QSE : émarger les documents','QSE'],
- ['qse.manage','QSE : créer accueils et quarts d\'heure, déposer des documents','QSE'],
- ['pointage.self','Pointer sa journée','Pointage'],
- ['pointage.validate','Valider les pointages de l\'équipe','Pointage'],
- ['site.tracer','Traceur : créer / modifier un réseau, calepinage, import DXF / PDF','Bureau'],
- ['site.versions','Versions du plan (historique, restauration)','Bureau'],
- ['site.delete','Supprimer un chantier','Bureau'],
- ['team.view','Voir l\'équipe (noms, postes)','Équipe'],
- ['planning.edit','Planning : placer les équipes sur les chantiers de la semaine, fiche chantier (secteur, chef, conducteur)','Équipe'], // 09/10 soir : conducteurs, responsables d'exploitation, direction — pas le chef de chantier (planning imposé)
- ['rh.voir','RH : voir les contrats (heures / semaine), compteurs d\'heures et cas de déplacement forcés — d\'office : gérant, direction, RH','Équipe'], // 13/10 (Ethan) : « visibles que par le gérant et la direction, moi et RH »
- ['rh.edit','RH : modifier les contrats, compteurs d\'heures (soldes, plafond, repos, primes, import) et cas de déplacement forcés — d\'office : RH','Équipe'], // « … et modifiables que par moi et RH » (Ethan = administrateur)
- ['rh.abs','RH : saisir les absences et congés de l\'équipe (module Ressources humaines) — d\'office : responsables d\'exploitation, RH, assistante RH','Équipe'], // 10/11 (Ethan)
- ['rh.nav','RH : contrôler les navettes (semaines lissées, réglage à la main, choix « reporter ou prime » en fin de mois) — d\'office : responsables d\'exploitation, RH, assistante RH','Équipe'], // 10/11 nuit (Ethan : « la RH ou le responsable d'exploitation »)
- ['affaires.view','Affaires : voir les affaires, chiffrages, situations et facturation','Commerce'], // nuit 09→10/10 : volet commerce (chargés d'affaires, direction, exploitation)
- ['affaires.edit','Affaires : créer et modifier (affaire, DCE, chiffrage, situations, facturation)','Commerce'],
- ['prix.edit','Base de prix SCR : modifier (taux, cadences, fournitures, paramètres, paniers) — d\'office : le gérant ; les autres au cas par cas','Commerce'], // 13/10 (Ethan) : « consultable et modifiable par moi, Jérôme et le gérant »
- ['flotte.manage','Flotte : parc véhicules, contrôles, affectations, alertes','Bureau'], // nuit 09→10/10 : responsable flotte, direction, exploitation
- ['mag.manage','Magasin : préparer et remettre les demandes, stock, réceptions, inventaire, catalogue et prix — d\'office : le référent magasin','Bureau'], // 14/10 nuit : module magasin (Parc → Magasin)
+ ['weld.step1','Étape ① soudure','🔥 Chantier · soudures et terrain'],
+ ['weld.step1.for','Étape ① pour le compte du soudeur : prendre la photo de la soudure et la valider au nom du soudeur de l\'équipe','🔥 Chantier · soudures et terrain'], // 01/11 soir (Ethan : « le tuyauteur, le manchonneur ou le pelleur de l'équipe peuvent prendre la photo de la soudure et dire c'est XX qui a soudé »)
+ ['weld.step2','Étape ② fils raccordés + DH','🔥 Chantier · soudures et terrain'],
+ ['weld.step3','Étape ③ manchon posé','🔥 Chantier · soudures et terrain'],
+ ['weld.step4','Étape ④ moussage + finition','🔥 Chantier · soudures et terrain'],
+ ['weld.extra','Ajouter une soudure supplémentaire sur le plan','🔥 Chantier · soudures et terrain'],
+ ['weld.transfer','Transférer / échanger l\'avancement d\'une soudure','🔥 Chantier · soudures et terrain'],
+ ['dh.measure','DH : mesures, localisation de défaut, bouclage','🔥 Chantier · soudures et terrain'],
+ ['conv.post','Conversation : écrire, notes sur le plan, photos','💬 Chantier · conversation'],
+ ['undo.own','Annuler ses propres saisies (étape, soudure ajoutée) dans la limite de ses crédits — au-delà : demande au chef','↶ Chantier · annulations'],
+ ['undo.validate','Valider les demandes d\'annulation des autres, redonner des crédits','↶ Chantier · annulations'],
+ ['plan.view','Voir le plan, les fiches de soudure, le récap','📐 Chantier · plan et suivi'],
+ ['weld.admin','Corriger une fiche : contrôle, annuler une étape, remettre « à souder », transférer une fiche vide','📐 Chantier · plan et suivi'],
+ ['conv.task','Conversation : créer et assigner des tâches','💬 Chantier · conversation'],
+ ['hydro','Hydro : essais, hydrants, calendrier','📐 Chantier · plan et suivi'],
+ ['stock.edit','Stock : livraisons, zones, prélèvements','📐 Chantier · plan et suivi'],
+ ['phasage.edit','Phasage : phases, planning, marché','📐 Chantier · plan et suivi'],
+ ['ts.qualify','Modifications : qualifier (TS / compris / mémoire), re-figer le marché','📐 Chantier · plan et suivi'],
+ ['dossier.edit','Dossier administratif : déposer / retirer des documents','📐 Chantier · plan et suivi'],
+ ['export.doe','Export DOE (carnet, plan, photos, zip)','📐 Chantier · plan et suivi'],
+ ['qse.sign','QSE : émarger les documents','🦺 QSE'],
+ ['qse.manage','QSE : créer accueils et quarts d\'heure, déposer des documents','🦺 QSE'],
+ ['pointage.self','Pointer sa journée','⏱ Pointage'],
+ ['pointage.validate','Valider les pointages de l\'équipe','⏱ Pointage'],
+ ['site.tracer','Traceur : créer / modifier un réseau, calepinage, import DXF / PDF','✏️ Concepteur'],
+ ['site.versions','Versions du plan (historique, restauration)','✏️ Concepteur'],
+ ['site.delete','Supprimer un chantier','✏️ Concepteur'],
+ ['team.view','Voir l\'équipe (noms, postes)','👥 Équipe et planning'],
+ ['planning.edit','Planning : placer les équipes sur les chantiers de la semaine, fiche chantier (secteur, chef, conducteur)','👥 Équipe et planning'], // 09/10 soir : conducteurs, responsables d'exploitation, direction — pas le chef de chantier (planning imposé)
+ ['rh.voir','RH : voir les contrats (heures / semaine), compteurs d\'heures et cas de déplacement forcés — d\'office : gérant, direction, RH','🧑‍💼 Ressources humaines'], // 13/10 (Ethan) : « visibles que par le gérant et la direction, moi et RH »
+ ['rh.edit','RH : modifier les contrats, compteurs d\'heures (soldes, plafond, repos, primes, import) et cas de déplacement forcés — d\'office : RH','🧑‍💼 Ressources humaines'], // « … et modifiables que par moi et RH » (Ethan = administrateur)
+ ['rh.abs','RH : saisir les absences et congés de l\'équipe, accorder ou refuser les demandes de congé (module Ressources humaines) — d\'office : responsables d\'exploitation, RH, assistante RH','🧑‍💼 Ressources humaines'], // 10/11 (Ethan)
+ ['rh.nav','RH : contrôler les navettes (semaines lissées, réglage à la main, choix « reporter ou prime » en fin de mois) — d\'office : responsables d\'exploitation, RH, assistante RH','🧑‍💼 Ressources humaines'], // 10/11 nuit (Ethan : « la RH ou le responsable d'exploitation »)
+ ['affaires.view','Affaires : voir les affaires, chiffrages, situations et facturation','💼 Affaire et commerce'], // nuit 09→10/10 : volet commerce (chargés d'affaires, direction, exploitation)
+ ['affaires.edit','Affaires : créer et modifier (affaire, DCE, chiffrage, situations, facturation)','💼 Affaire et commerce'],
+ ['prix.edit','Base de prix SCR : modifier (taux, cadences, fournitures, paramètres, paniers) — d\'office : le gérant ; les autres au cas par cas','💼 Affaire et commerce'], // 13/10 (Ethan) : « consultable et modifiable par moi, Jérôme et le gérant »
+ ['flotte.manage','Flotte : parc véhicules, contrôles, affectations, alertes','🚐 Flotte'], // nuit 09→10/10 : responsable flotte, direction, exploitation
+ ['mag.manage','Magasin : préparer et remettre les demandes, stock, réceptions, inventaire, catalogue et prix — d\'office : le référent magasin','📦 Magasin'], // 14/10 nuit : module magasin (Parc → Magasin)
 ];
 export const STEP_PERMS=['weld.step1','weld.step2','weld.step3','weld.step4'];
 export const PENDING=new Set([]); // 09/10 : tous les droits déclarés sont appliqués (plan.view à l'ouverture, dh.measure sur les états DH, pointage.*, qse.sign / manage, team.view sur la liste des personnes)
-const GROUPS=[...new Set(PERMS.map(p=>p[2]))];
+const GROUPS=[...new Set(PERMS.map(p=>p[2]))]; /* 24/11 (Ethan, L35 : « réorganiser tout ce qui est droit admin, par module / fonctionnalité des modules ») : un groupe = un module */
+const G_ANNUL='↶ Chantier · annulations';
 const ALL=Object.fromEntries(PERMS.map(([k])=>[k,true]));
 const pick=(...ks)=>Object.fromEntries(PERMS.map(([k])=>[k,ks.includes(k)]));
 const SOCLE=['plan.view','conv.post','qse.sign','team.view']; // ce que tout salarié a — le pointage n'en fait plus partie (Ethan 09/10 soir : « seuls certains chefs de chantier et tous les opérateurs pointent des heures, tous les autres non »)
@@ -332,14 +333,17 @@ function postesHTML(){const diffAll=POSTES_DEF.filter(p=>posteDiff(p[0]).length)
 function posteListHTML(){const p=AD.pp;const rights=posteRights(p);const diff=posteDiff(p);const base=DEFAULT_RIGHTS[p]||{};const n=countBy(p);
   return `<div class="admFams">${Object.entries(FAMILLES).map(([f,fl])=>`<div class="admFam"><div class="admFamT"><span class="famDot" style="background:${FAM_COLOR[f]}"></span>${esc(fl)}</div><div class="admChips">${POSTES_DEF.filter(x=>x[2]===f).map(x=>`<button class="pchip ${AD.pp===x[0]?'on':''}" data-pp="${x[0]}" style="--c:${FAM_COLOR[f]}">${esc(x[1])}${countBy(x[0])?' <b>'+countBy(x[0])+'</b>':''}${posteDiff(x[0]).length?' <i title="modifié par rapport aux défauts SCR">●</i>':''}</button>`).join('')}</div></div>`).join('')}</div>
    <div class="admPoste"><div class="admPosteH"><span class="ini" style="background:${famColor(p)}">${esc(POSTE_SHORT[p].slice(0,2))}</span><div style="flex:1;min-width:0"><h3 style="margin:0">${esc(POSTES[p])}</h3><div class="dim">${n?n+' personne'+(n>1?'s':''):'personne pour l\'instant'} · ${Object.values(rights).filter(Boolean).length} / ${PERMS.length} droits${diff.length?' · <b>'+diff.length+' écart'+(diff.length>1?'s':'')+' avec les défauts SCR</b>':' · défauts SCR'}</div></div>${diff.length?`<button class="btn sm" id="admPReset">↺ Défauts SCR</button>`:''}</div>
-    ${GROUPS.map(g=>`<div class="admGrp">${esc(g)}</div>`+PERMS.filter(x=>x[2]===g).map(([k,lab])=>`<label class="admPerm"><input type="checkbox" data-pr="${k}" ${rights[k]?'checked':''}><span>${esc(lab)}${PENDING.has(k)?' <span class="dim" title="prévu">◌</span>':''}${diff.includes(k)?' '+chip('≠ SCR : '+(base[k]?'oui':'non'),'#fff0e3','#b8560f'):''}</span></label>`).join('')+(g==='Annulations'?`<div class="admPerm" style="align-items:center"><input type="number" min="0" max="99" class="f" data-pcred value="${posteCredits(p)}" style="width:64px;padding:4px 6px;text-align:center" ${rights['weld.admin']?'disabled':''}><span><b>Crédits d'annulation par semaine</b> (7 jours glissants) — au-delà, demande au chef${rights['weld.admin']?' · <span class="dim">sans objet : ce poste corrige les fiches, illimité</span>':''}${diff.includes('undo.credits')?' '+chip('≠ SCR : '+defaultCredits(p),'#fff0e3','#b8560f'):' <span class="dim">· défaut SCR : '+defaultCredits(p)+'</span>'}<br><span class="dim" style="font-size:10.5px">Intérimaire : toujours 0 (chaque annulation passe par le chef). Réglable aussi personne par personne (🔑).</span></span></div>`:'')).join('')}
+    ${GROUPS.map(g=>`<div class="admGrp">${esc(g)}</div>`+PERMS.filter(x=>x[2]===g).map(([k,lab])=>`<label class="admPerm"><input type="checkbox" data-pr="${k}" ${rights[k]?'checked':''}><span>${esc(lab)}${PENDING.has(k)?' <span class="dim" title="prévu">◌</span>':''}${diff.includes(k)?' '+chip('≠ SCR : '+(base[k]?'oui':'non'),'#fff0e3','#b8560f'):''}</span></label>`).join('')+(g===G_ANNUL?`<div class="admPerm" style="align-items:center"><input type="number" min="0" max="99" class="f" data-pcred value="${posteCredits(p)}" style="width:64px;padding:4px 6px;text-align:center" ${rights['weld.admin']?'disabled':''}><span><b>Crédits d'annulation par semaine</b> (7 jours glissants) — au-delà, demande au chef${rights['weld.admin']?' · <span class="dim">sans objet : ce poste corrige les fiches, illimité</span>':''}${diff.includes('undo.credits')?' '+chip('≠ SCR : '+defaultCredits(p),'#fff0e3','#b8560f'):' <span class="dim">· défaut SCR : '+defaultCredits(p)+'</span>'}<br><span class="dim" style="font-size:10.5px">Intérimaire : toujours 0 (chaque annulation passe par le chef). Réglable aussi personne par personne (🔑).</span></span></div>`:'')).join('')}
    </div>`;}
 function posteTableHTML(){const caps=[['interim','Intérim.','plafond intérimaire (fixe)'],['visiteur','Visit.','plafond visiteur (fixe)']];
   return `<div class="admMxWrap"><table class="admMx"><thead><tr><th class="mxl">Droit</th>${POSTES_DEF.map(p=>`<th style="border-top:3px solid ${FAM_COLOR[p[2]]}" title="${esc(p[1])}${posteDiff(p[0]).length?' — modifié':''}"><span>${esc(p[3])}</span><small>${countBy(p[0])||'·'}</small></th>`).join('')}${caps.map(c=>`<th class="mxcap" title="${c[2]}"><span>${c[1]}</span><small>plaf.</small></th>`).join('')}</tr></thead><tbody>
    ${GROUPS.map(g=>`<tr class="mxg"><td colspan="${POSTES_DEF.length+3}">${esc(g)}</td></tr>`+PERMS.filter(x=>x[2]===g).map(([k,lab])=>`<tr><td class="mxl" title="${esc(lab)}">${esc(lab.length>38?lab.slice(0,37)+'…':lab)}${PENDING.has(k)?' <span class="dim">◌</span>':''}</td>${POSTES_DEF.map(p=>{const on=posteRights(p[0])[k];const mod=(PR[p[0]]||{})[k]!==undefined;return `<td class="mxc ${on?'on':''} ${mod?'mod':''}" data-mx="${p[0]}|${k}" title="${esc(p[1])} — ${esc(lab)}${mod?' (modifié, défaut SCR : '+((DEFAULT_RIGHTS[p[0]]||{})[k]?'oui':'non')+')':''}">${on?'✓':'·'}</td>`;}).join('')}${caps.map(c=>`<td class="mxcap">${TYPE_CAP[c[0]][k]?'<span class="ok">✓</span>':'<span class="ko">✕</span>'}</td>`).join('')}</tr>`).join('')).join('')}<tr class="mxg"><td colspan="${POSTES_DEF.length+3}">Crédits d'annulation / semaine</td></tr><tr><td class="mxl" title="au-delà, demande au chef ; illimité pour qui corrige les fiches">Crédits / semaine</td>${POSTES_DEF.map(p=>{const r=posteRights(p[0]);const mod=(PR[p[0]]||{})['undo.credits']!==undefined;return r['weld.admin']?`<td class="mxcap" title="illimité (corrige les fiches)">∞</td>`:`<td class="mxc mxn ${mod?'mod':''}" data-mxc="${p[0]}" title="${esc(p[1])} — crédits par semaine (défaut SCR : ${defaultCredits(p[0])})">${posteCredits(p[0])}</td>`;}).join('')}<td class="mxcap" title="intérimaire : toujours une demande">0</td><td class="mxcap">—</td></tr></tbody></table></div>
    <div class="hint">Touche une case pour changer le droit du poste. Point orange = modifié par rapport aux défauts SCR. Les deux dernières colonnes sont les plafonds des intérimaires et des visiteurs (fixes).</div>`;}
 /* ----- vue QUI PEUT QUOI ----- */
-function whoHTML(){const k=AD.who;const lab=(PERMS.find(p=>p[0]===k)||[])[1]||k;const have=admRows.filter(r=>effectiveRights(r)[k]);const not=admRows.filter(r=>!effectiveRights(r)[k]);const postes=POSTES_DEF.filter(p=>posteRights(p[0])[k]);
+/* 24/11 (Ethan, L35 : « réorganiser tout ce qui est droit admin, par module / fonctionnalité ») : la liste par module — chaque droit, combien de personnes l'ont ; touche → le détail dessous */
+function whoModsHTML(){const k=AD.who;return `<div class="card" data-whomods="1"><h3 style="margin:0 0 4px">Par module</h3><div class="hint" style="margin-bottom:6px">Chaque module, ses droits et le nombre de personnes qui les ont. Touche un droit : le détail (postes, personnes, d'où vient le droit) s'affiche dessous.</div>${GROUPS.map(g=>{const L=PERMS.filter(x=>x[2]===g);return `<details class="admMod" data-whog="${esc(g)}"${L.some(x=>x[0]===k)?' open':''}><summary><b>${esc(g)}</b> <span class="dim">· ${L.length} droit${L.length>1?'s':''}</span></summary>${L.map(([kk,l])=>{const n=admRows.filter(r=>effectiveRights(r)[kk]).length;return `<button type="button" class="admWhoR${kk===k?' on':''}" data-whok="${kk}" title="${esc(l)}"><span>${esc(l.split(' — ')[0])}</span><b>${n}</b></button>`;}).join('')}</details>`;}).join('')}</div>`;}
+function whoHTML(){return whoModsHTML()+whoOneHTML();}
+function whoOneHTML(){const k=AD.who;const lab=(PERMS.find(p=>p[0]===k)||[])[1]||k;const have=admRows.filter(r=>effectiveRights(r)[k]);const not=admRows.filter(r=>!effectiveRights(r)[k]);const postes=POSTES_DEF.filter(p=>posteRights(p[0])[k]);
   const line=r=>{const o=rightOrigin(r,k);return `<div class="admWhoL"><span class="ini sm" style="background:${famColor(r.poste)}">${esc(ini(r.name))}</span><span style="flex:1;min-width:0"><b>${esc(r.name)}</b> <span class="dim">· ${esc(posteLabel(r.poste))}${r.type!=='salarie'?' · '+esc(TYPES[r.type]):''}</span></span>${chip(ORIGIN_LABEL[o]||o,o==='admin'?'#f3eefc':o==='perso+'?'#e6f6ea':o==='perso-'?'#fdecec':o==='plafond'?'#fff0e3':'#f1f0eb',o==='admin'?'#6b4bd6':o==='perso+'?'#1d7a3a':o==='perso-'?'#a01212':o==='plafond'?'#b8560f':'#555')}</div>`;};
   return `<div class="card"><label class="f">Un droit</label><select class="f" id="admWho">${GROUPS.map(g=>`<optgroup label="${esc(g)}">${PERMS.filter(x=>x[2]===g).map(([kk,l])=>`<option value="${kk}" ${kk===k?'selected':''}>${esc(l)}</option>`).join('')}</optgroup>`).join('')}</select>
    <div class="hint">${esc(lab)}${PENDING.has(k)?' — ◌ prévu, pas encore vérifié par l\'appli':''}</div>
@@ -365,7 +369,8 @@ function bind(el,me){const rerender=async()=>{const {rows,server}=await listAcco
     const md=document.getElementById('modal');md.querySelector('#mc-ok').onclick=async()=>{const r=await setPosteCredits(p,md.querySelector('#mc-n').value);A.closeModal();A.toast(r.error?('Refusé : '+r.error):(POSTES[p]+' : '+posteCredits(p)+' crédits / semaine'));paint();};md.querySelector('#mc-def').onclick=async()=>{const r=await setPosteCredits(p,null);A.closeModal();A.toast(r.error?('Refusé : '+r.error):(POSTES[p]+' : défaut SCR'));paint();};});
   const pr=el.querySelector('#admPReset');if(pr)pr.onclick=async()=>{const r=await resetPoste(AD.pp);A.toast(r.error?('Refusé : '+r.error):POSTES[AD.pp]+' : défauts SCR rétablis');await syncRoles(admRows);paint();};
   el.querySelectorAll('[data-mx]').forEach(td=>td.onclick=async()=>{const [p,k]=td.dataset.mx.split('|');const on=!posteRights(p)[k];const r=await setPosteRight(p,k,on);if(r.error){A.toast('Refusé : '+r.error);return;}A.toast(`${POSTES[p]} : « ${(PERMS.find(x=>x[0]===k)||[])[1]} » → ${on?'autorisé':'retiré'}`);await syncRoles(admRows);const wrap=el.querySelector('.admMxWrap');const sl=wrap?wrap.scrollLeft:0,st=wrap?wrap.scrollTop:0;paint();const w2=el.querySelector('.admMxWrap');if(w2){w2.scrollLeft=sl;w2.scrollTop=st;}});
-  const who=el.querySelector('#admWho');if(who)who.onchange=()=>{AD.who=who.value;paint();};}
+  const who=el.querySelector('#admWho');if(who)who.onchange=()=>{AD.who=who.value;paint();};
+  el.querySelectorAll('[data-whok]').forEach(b=>b.onclick=()=>{AD.who=b.dataset.whok;paint();setTimeout(()=>{try{const d=document.getElementById('admWho');if(d)d.scrollIntoView({behavior:'smooth',block:'start'});}catch(e){}},60);}); /* 24/11 : la liste par module */}
 function bindList(el,me,rerender){
   el.querySelectorAll('[data-admpalier]').forEach(b=>b.onclick=async()=>{const r=rowOf(b.dataset.admpalier);if(!r)return;const to=personPalier(r)==='labo'?'socle':'labo';const res=await setPersonPalier(r,to);A.toast(res.error?('Refusé : '+res.error):`${r.name} : ${to==='labo'?'🧪 Labo — voit toutes les options':'Socle — ne voit que la V1'} (${res.where})`);if(A.onPaliers)A.onPaliers();paint();}); /* 30/10 : palier de la personne */
   el.querySelectorAll('[data-adm]').forEach(x=>x.onchange=async()=>{const r=rowOf(x.dataset.id);if(!r)return;const k=x.dataset.adm;const v=x.type==='checkbox'?x.checked:x.value;

@@ -26,12 +26,12 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const nomDe=p=>p?((p.prenom||'')+' '+(p.nom||'')).trim()||p.name||p.id:'';
 const AG_NOM={OUEST:'Ouest',IDF:'Île-de-France',SUD:'Sud','SUD OUEST':'Sud-Ouest',SCR:'SCR',RCTP:'RCTP'};
 const AGENCE_OF={ouest:'OUEST',idf:'IDF',sudouest:'SUD OUEST',sudest:'SUD'}; /* même table qu'espace.js (flCtx) */
-const PV_STATUT={recue:'reçue',designee:'désignée',payee:'payée',contestee:'contestée',classee:'classée'}; /* registre rhpv (module RH) → mots de la maquette */
+const PV_STATUT={recue:'reçue',designee:'désignée',payee:'payée',payee_sal:'payée (salarié)',payee_ent:'payée (entreprise)',contestee:'contestée',classee:'classée'}; /* registre rhpv (module RH) → mots de la maquette */
 const ST_JOURNAL={ok:'ok',attente:'warn',contest:'bad',info:'info'};
 let DEMO=null,LOADED=false,CTX=null,FSV=null,FSC=null,PREMIER=true;
-let ANCIEN=(()=>{try{return localStorage.getItem('trace:flotteAncien')==='1';}catch(e){return false;}})(); /* « Ancien écran Flotte » : choix gardé sur l'appareil */
+let ANCIEN=(()=>{try{if(!/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)){localStorage.removeItem('trace:flotteAncien');return false;}return localStorage.getItem('trace:flotteAncien')==='1';}catch(e){return false;}})(); /* 24/11 (Ethan : « enlève l'ancienne vision Flotte ») : plus de bouton « Ancien écran Flotte » ; un appareil qui l'avait gardé revient au nouvel écran. Le code de l'ancien reste (ses fiches s'ouvrent encore depuis le nouvel écran) et ne s'affiche plus que sur un serveur local, pour les tests qui le visent */
 function hook(ctx){CTX=ctx;if(!LOADED){LOADED=true;regLoad(['vehicule','vrec','vcfg','rhpv']).catch(()=>{});}
-  try{if(typeof window!=='undefined'&&window.TRACE&&!window.TRACE.flotteM)window.TRACE.flotteM={fld:()=>FLD,calc:()=>window.FLC,fl:()=>window.FL,demo:D=>{DEMO=D||null;PREMIER=true;if(CTX)CTX.render();},ancien:on=>{ANCIEN=!!on;if(CTX)CTX.render();},rafraichir:()=>rafraichir(CTX)};}catch(e){} /* TRACE.flotte existe déjà (flotte.js) : le module est TRACE.flotteM */}
+  try{if(typeof window!=='undefined'&&window.TRACE&&!window.TRACE.flotteM)window.TRACE.flotteM={fld:()=>FLD,calc:()=>window.FLC,fl:()=>window.FL,demo:D=>{DEMO=D||null;PREMIER=true;if(CTX)CTX.render();},ancien:on=>{ANCIEN=!!on;try{const FS=flotteState();FS.view='list';FS.cur=null;FSV='list';FSC=null;if(!ANCIEN&&window.FL)window.FL.etat.route='accueil';}catch(e){}if(CTX)CTX.render();} /* 24/11 : comme l'ancien bouton (liste de l'ancien écran) — seul accès restant, pour les tests */,rafraichir:()=>rafraichir(CTX)};}catch(e){} /* TRACE.flotte existe déjà (flotte.js) : le module est TRACE.flotteM */}
 /* qui a le droit de voir le module : le droit « Flotte » (responsable flotte, direction, exploitation…) ou administrateur */
 const peut=(me,ctx)=>!!me&&(me.admin||ctx.can('flotte.manage'));
 /* ── personnes : la personne de l'annuaire derrière un conducteur de véhicule (clé, sinon nom dans un ordre ou l'autre) ── */
@@ -41,14 +41,20 @@ function indexPersonnes(ctx){const P=(ctx.people||[]).filter(p=>p&&p.id);const b
 /* où est le véhicule aujourd'hui (comme le Monde 3D) : planning du conducteur → chantier ; intervention du jour → atelier ; laissé sans conducteur → laissés ; sinon dépôt */
 function situationDe(v,p,ctx,today){const rdvAuj=(v.rdv||[]).some(r=>r&&!r.done&&d10(r.date)===today);if(rdvAuj)return {situation:'atelier',chantier:null};
   if(v.laisse&&!v.conducteurKey&&!v.conducteur)return {situation:'laisse',chantier:null};
+  {const a=v.chantierAffecte;const ch=a&&a.id&&(ctx.chantiers||[]).find(c=>c.id===a.id&&!c.bureau);if(ch)return {situation:'chantier',chantier:ch.id};} /* 24/11 (Ethan) : un véhicule affecté à un chantier y reste (sous la responsabilité du chef de ce chantier) */
   if(p&&ctx.planDe){const ids=ctx.planDe(p.id,today)||[];const ch=ids.map(id=>(ctx.chantiers||[]).find(c=>c.id===id&&!c.bureau)).find(Boolean);if(ch)return {situation:'chantier',chantier:ch.id};}
   return {situation:'depot',chantier:null};}
+/* 24/11 (Ethan, Flotte : « où sont les véhicules : attribué à un collaborateur, sur chantier, au dépôt, et ceux laissés à prendre ; des véhicules peuvent être attribués à un
+   chantier et sont alors sous la responsabilité du chef de chantier de ce chantier — pour des véhicules qui dépannent et jonglent dans la journée entre plusieurs personnes ») */
+function affDe(v,I,ctx){const a=v.chantierAffecte;if(!a||!a.id)return null;const ch=(ctx.chantiers||[]).find(c=>c.id===a.id);const chef=ch&&ch.chef?I.P.find(p=>p.id===ch.chef):null;
+  return {id:a.id,nom:(ch&&ch.nom)||a.nom||a.id,chef:chef?nomDe(chef):'',le:d10(a.at)||'',par:a.by||''};}
+const attribDe=(v,aff)=>v.laisse&&!v.conducteurKey&&!v.conducteur?'laisse':aff?'chantier':(v.conducteurKey||v.conducteur)?'collab':'depot';
 /* un véhicule de l'appli → la forme de data.js (champs de fiche : mêmes noms) */
-function vehDeLAppli(v,I,ctx,today){const p=I.de(v);const sit=situationDe(v,p,ctx,today);const nb=x=>x===''||x===null||x===undefined||!isFinite(+x)?null:+x;
+function vehDeLAppli(v,I,ctx,today){const p=I.de(v);const sit=situationDe(v,p,ctx,today);const aff=affDe(v,I,ctx);const nb=x=>x===''||x===null||x===undefined||!isFinite(+x)?null:+x;
   const ctl=(v.controles||[]).filter(Boolean).slice().sort((a,b)=>String(b.at||'').localeCompare(String(a.at||''))).map(c=>{const it=c.items||{};const ko=Object.keys(it).filter(k=>/revoir|ko|non/i.test(String(it[k])));const lab=k=>(CTRL_ITEMS.find(x=>x[0]===k)||[k,k])[1];
     return {d:d10(c.at),par:c.by||'',km:nb(c.km),ok:Object.keys(it).length-ko.length,revoir:ko.map(lab)};});
   const photoAt=v.photoAt||v.vignetteAt||null;
-  return {immat:v.immat,n:v.n||'',agence:String(v.agence||'').toUpperCase(),type:vehType(v)||'Autre',marque:v.marque||'',modele:v.modele||'',conducteur:p?p.id:(v.conducteur?'nom:'+v.conducteur:null),situation:sit.situation,chantier:sit.chantier,energie:v.energie||'',
+  return {immat:v.immat,n:v.n||'',agence:String(v.agence||'').toUpperCase(),type:vehType(v)||'Autre',marque:v.marque||'',modele:v.modele||'',conducteur:p?p.id:(v.conducteur?'nom:'+v.conducteur:null),situation:sit.situation,chantier:sit.chantier,aff,attrib:attribDe(v,aff),affHist:(Array.isArray(v.chantierHist)?v.chantierHist:[]).filter(Boolean).map(x=>({id:x.id||'',nom:x.nom||'',du:d10(x.du)||'',au:d10(x.au)||null,par:x.par||''})),energie:v.energie||'',
     immat1:d10(v.immat1),acquisition:d10(v.acquisition),dureeLoc:nb(v.dureeLoc),restitution:d10(v.restitution),entretien:v.entretien||'',contratMois:nb(v.contratMois),contratFin:d10(v.contratFin),contratKm:nb(v.contratKm),loyerHT:nb(v.loyerHT),
     ctDernier:d10(v.ctDernier),ctProchain:d10(v.ctProchain),km:nb(v.km),kmFinAnnee:nb(v.kmFinAnnee),cadenceVidange:nb(v.cadenceVidange),kmVidange:nb(v.kmVidange),cadenceCourroie:nb(v.cadenceCourroie),kmCourroie:nb(v.kmCourroie),pneus:v.pneus||'',taillePneu:v.taillePneu||'',depuis:d10(v.depuis),
     rdv:(v.rdv||[]).filter(r=>r&&r.date).map(r=>({id:r.id||('R'+r.date),date:d10(r.date),type:r.type||'autre',garage:r.garage||'',note:r.note||'',par:r.by||'',fait:!!r.done})),
@@ -86,7 +92,7 @@ function rafraichir(ctx){const me=ctx&&ctx.me;const today=(ctx&&ctx.today&&ctx.t
     return {id:r.id,immat:im,avis:d10(r.recu)||d10(r.date)||'',infraction:d10(r.date)||d10(r.recu)||'',lieu:r.lieu||'',quoi:r.infraction||'Contravention',montant:+r.montant||0,statut:PV_STATUT[r.statut]||r.statut||'reçue',conducteur:p?nomDe(p):''};}).filter(x=>vehNom.has(x.immat));
   const ag=agencesDe(me,ctx,V);const C=vcfg()||{};
   Object.assign(FLD,{aujourdhui:today,edl1Ref:d10(C.premierAt||C.at)||today,agences:ag.liste,personnes:pers,postes:Object.assign({},POSTES),
-    chantiers:(ctx.chantiers||[]).filter(c=>!c.bureau).map(c=>({id:c.id,nom:c.nom,agence:AGENCE_OF[c.secteur]||''})),vehicules:V,attente:attenteDeLAppli(),
+    chantiers:(ctx.chantiers||[]).filter(c=>!c.bureau).map(c=>{const ch=c.chef?I.P.find(p=>p.id===c.chef):null;return {id:c.id,nom:c.nom,agence:AGENCE_OF[c.secteur]||'',chef:ch?nomDe(ch):''};}),vehicules:V,attente:attenteDeLAppli(),
     journal:mvEvents().filter(e=>e&&e.immat).slice(0,400).map(e=>({at:String(e.at).slice(0,16),immat:e.immat,st:ST_JOURNAL[e.st]||'info',t:e.t+(e.s?' · '+e.s:'')})),conducteurs:cond,pv,
     rdvTypes:RDV_TYPES.map(([k,t])=>[k,String(t).replace(/^\S+\s/,'')]),types:TYPES_V.slice(),ctrlItems:CTRL_ITEMS.map(x=>x[1]),
     responsable:I.P.filter(p=>p.poste==='resp_flotte').map(nomDe).join(', ')});
@@ -116,6 +122,11 @@ function ecritures(ctx){const who=()=>{try{return (ctx.api&&ctx.api.userName&&ct
       if(demo(()=>{const m=(DEMO.attente||[]).find(x=>x.k==='laisse'&&x.immat===immat);if(m){m.k='sig';m.titre='Laissé · attribué à '+p.nom;m.motif=p.nom+' doit signer l\'état des lieux de sortie (ou le contester)';m.qui=p.nom;m.depuis=FLD.aujourdhui;}}))return true;
       if(lecture())return false;const v=vehGet(immat);if(!v||!v.laisse)return false;vehSet(immat,{laisse:Object.assign({},v.laisse,{aKey:pid,aNom:p.nom,attribueAt:now(),attribuePar:who()})});
       if(v.laisse.recId&&regGet('vrec',v.laisse.recId))regSet('vrec',v.laisse.recId,{a:{key:pid,nom:p.nom},attribueAt:now(),attribuePar:who()});return true;},
+    /* 24/11 : affecter le véhicule à un chantier (id) ou le retirer (null) — l'historique des affectations reste sur la fiche (chantierHist) */
+    affecter(immat,chId){const ch=chId?(FLD.chantiers||[]).find(c=>c.id===chId):null;if(chId&&!ch)return false;
+      if(demo(()=>{const v=dv(immat);if(!v)return;const H=(v.affHist||[]).map(x=>x.au?x:Object.assign({},x,{au:FLD.aujourdhui}));if(ch){H.push({id:ch.id,nom:ch.nom,du:FLD.aujourdhui,au:null,par:'Démo'});v.aff={id:ch.id,nom:ch.nom,chef:ch.chef||'',le:FLD.aujourdhui,par:'Démo'};v.attrib='chantier';v.situation='chantier';v.chantier=ch.id;}else{v.aff=null;v.attrib=v.conducteur?'collab':'depot';if(v.situation==='chantier'){v.situation='depot';v.chantier=null;}}v.affHist=H;}))return true;
+      if(lecture())return false;const v=vehGet(immat);if(!v)return false;const t=now();const H=(Array.isArray(v.chantierHist)?v.chantierHist:[]).map(x=>x&&!x.au?Object.assign({},x,{au:t,fin:who()}):x);
+      if(ch)H.push({id:ch.id,nom:ch.nom,du:t,au:null,par:who()});vehSet(immat,{chantierAffecte:ch?{id:ch.id,nom:ch.nom,at:t,by:who()}:null,chantierHist:H.slice(-40)});return true;},
     /* photo du véhicule : celle de l'appli (flottePhoto : compressée, enregistrée sur la fiche) */
     async photo(immat,file){if(DEMO){const v=dv(immat);if(!v)return false;const u=await new Promise(res=>{const rd=new FileReader();rd.onload=()=>res(rd.result);rd.onerror=()=>res(null);rd.readAsDataURL(file);});if(u){v.photo=u;v.photoEdl={le:FLD.aujourdhui,par:'Démo'};}return !!u;}
       if(lecture())return false;try{await flottePhoto(immat,file,true);return true;}catch(e){console.warn(e);ctx.toast('Photo non enregistrée');return false;}}};}
@@ -153,8 +164,7 @@ function suivreAncien(){const FS=flotteState();if(FS.view===FSV&&FS.cur===FSC)re
   else if(FS.view==='list'&&/^veh-/.test(FL.etat.route))FL.etat.route='vehicules';}
 function html(me,ctx){cssFlotte();bridge(ctx);ecritures(ctx);rafraichir(ctx);suivreAncien();const FL=window.FL;
   if(FL.etat.ficheAncienne&&FL.etat.route!=='veh-'+FL.etat.ficheAncienne)FL.etat.ficheAncienne=null;
-  const top=`<div class="fl-bascule"><button class="btn sm ghost" data-act="x" data-v="${ID}|ancien|1" title="L'écran Flotte d'avant (chips Véhicules, Échéances, Mouvements, Qui a quoi, Historique) : tout y est encore">Ancien écran Flotte</button></div>`;
-  return FL.html()+top;}
+  return FL.html();}
 /* l'ancien écran, au-dessus de sa liste : le retour au nouveau */
 flotteHook('liste',()=>ANCIEN?`<div class="eq-acts" style="margin:0 0 8px"><button class="btn primary" data-act="x" data-v="${ID}|ancien|0">← Nouvel écran Flotte</button></div>`:'');
 export default {id:ID,kinds:['vehicule','vrec','vcfg','rhpv'],

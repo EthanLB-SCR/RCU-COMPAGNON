@@ -1,6 +1,10 @@
 /* affaire_css.js — 10/11 (module Tracé Affaire, lot A) : feuilles de la maquette validée (kit Tracé « tr- » + affaire.css), injectées une fois ; sélecteurs globaux de la maquette (html, body, *) portés par .af-root pour ne rien changer au reste de l'appli. Polices Barlow : déjà servies par l'appli. */
 let done=false;
-export function cssAffaire(){if(done||typeof document==='undefined')return;done=true;const s=document.createElement('style');s.id='af-css';s.textContent=CSS;document.head.appendChild(s);}
+/* 24/11 (Ethan : « veille au cadrage visuel, le bas de l'écran est coupé ») — les écrans Affaire et Flotte suivaient la largeur de la FENÊTRE (@media) : dans l'appli en
+   colonne étroite sur un PC (430 px dans une fenêtre de 1 280), ils prenaient la mise en page « grand écran » (menu à gauche) → contenu coupé à droite et menu coupé en bas.
+   Chaque règle « @media (max-width:…) » est doublée d'une règle « @container » sur la largeur réelle du module (.af-root) ; le menu de gauche tient dans la zone visible. */
+export function avecConteneur(css){let out='';const re=/@media\s*\(max-width:\s*(\d+)px\)\s*\{/g;let m;while((m=re.exec(css))){let i=re.lastIndex,depth=1;while(i<css.length&&depth>0){const c=css[i];if(c==='{')depth++;else if(c==='}')depth--;i++;}out+='\n@container afroot (max-width:'+m[1]+'px){'+css.slice(re.lastIndex,i-1)+'}';}return css+out;}
+export function cssAffaire(){if(done||typeof document==='undefined')return;done=true;const s=document.createElement('style');s.id='af-css';s.textContent=avecConteneur(CSS)+'\n.af-root{container-type:inline-size;container-name:afroot}\n.af-root .af-nav{max-height:calc(100dvh - 236px);min-height:240px}';document.head.appendChild(s);}
 const CSS=String.raw`
 /* Tracé · kit d'interface terrain. Classes préfixées tr-. Valeurs de repli = thème Terrain. */
 .tr-root{font-family:var(--font-texte, Barlow, 'Segoe UI', system-ui, sans-serif);color:var(--encre, #1B1530);font-size:17px;line-height:1.4;-webkit-font-smoothing:antialiased;background:var(--fond, #F5F4FA);padding:16px;box-sizing:border-box}

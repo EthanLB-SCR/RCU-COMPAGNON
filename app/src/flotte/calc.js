@@ -19,6 +19,9 @@
   C.nomCond = function (v) { var p = C.pers(v.conducteur); return p ? p.nom : ''; };
   C.veh = function (immat) { return D.vehicules.find(function (v) { return v.immat === immat; }) || null; };
   C.chantier = function (id) { return D.chantiers.find(function (c) { return c.id === id; }) || null; };
+  /* 24/11 (Ethan) : à qui / où le véhicule est confié — collaborateur, chantier (sous la responsabilité de son chef), dépôt, laissé à prendre */
+  C.ATTR = { collab: 'Attribué à un collaborateur', chantier: 'Affecté à un chantier', depot: 'Au dépôt', laisse: 'Laissé · à prendre' };
+  C.attrib = function (v) { return v.attrib || (v.situation === 'laisse' ? 'laisse' : v.aff ? 'chantier' : v.conducteur ? 'collab' : 'depot'); };
   C.rdvLabel = function (t) { var x = D.rdvTypes.find(function (r) { return r[0] === t; }); return x ? x[1] : 'Autre'; };
   C.typeCourt = function (t) { return t === "Pelleur (conducteur d'engins)" ? 'Pelleur' : t; };
   C.dansAgence = function (v, ag) { return !ag || v.agence === ag; };
@@ -88,6 +91,6 @@
   C.zone = function (v) { if (v.situation === 'atelier') { return 'atelier'; } if (v.situation === 'laisse') { return 'laisse'; } var r = C.jours(v.restitution); if (v.dureeLoc && r != null && r <= 30 && !v.conducteur) { return 'restituer'; } return 'rang'; };
   C.pourParking = function (ag) {
     return D.vehicules.filter(function (v) { return C.dansAgence(v, ag); }).map(function (v) { var a = C.alertes(v), ch = C.chantier(v.chantier);
-      return { immat: v.immat, marque: v.marque, modele: v.modele, type: v.type, couleur: v.couleur, groupe: C.groupe(v), etat: C.etat(v), zone: C.zone(v), chantier: v.situation === 'chantier' && ch ? ch.nom : null, conducteur: C.nomCond(v), alerte: a.length ? a[0].t : '', photo: v.photo || null, silhouette: v.silhouette || null }; });
+      return { immat: v.immat, marque: v.marque, modele: v.modele, type: v.type, couleur: v.couleur, groupe: C.groupe(v), etat: C.etat(v), zone: C.zone(v), chantier: v.situation === 'chantier' && ch ? ch.nom : null, attrib: C.attrib(v), conducteur: C.nomCond(v), alerte: a.length ? a[0].t : '', photo: v.photo || null, silhouette: v.silhouette || null }; });
   };
 })();

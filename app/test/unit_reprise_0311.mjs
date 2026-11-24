@@ -8,15 +8,15 @@ const cur=site([['S-0301',0,'T1','M1'],['S-0527',0.5,'M1','C1'],['S-0528',2.5,'C
 const ev=(t,at,by)=>({type:t,at,by,photos:[]});
 const rows=[{weld_id:'S-0301',status:'soudee',data:{events:[ev('soudee','2026-10-30T08:00:00Z','Karim')]}},
  {weld_id:'S-0302',status:'soudee',data:{events:[ev('soudee','2026-10-30T09:00:00Z','Karim')],photos:['https://x/p1.jpg','https://x/p2.jpg'],wire:'ok'}},
- {weld_id:'S-0303',status:'manchonnee',data:{events:[ev('manchonnee','2026-10-31T10:00:00Z','Gary')],photos:['https://x/p3.jpg'],steps:{0:{done:true},1:{done:true},2:{done:true},3:{done:true}},note:'gaine reprise'}},
+ {weld_id:'S-0303',status:'manchonnee',data:{events:[ev('manchonnee','2026-10-31T10:00:00Z','Soudeur A')],photos:['https://x/p3.jpg'],steps:{0:{done:true},1:{done:true},2:{done:true},3:{done:true}},note:'gaine reprise'}},
  {weld_id:'S-0304',status:'soudee',data:{events:[ev('soudee','2026-10-31T11:00:00Z','Karim')]}},
  {weld_id:'S-0305',status:'a_souder',data:{}},
- {weld_id:'S-0528',status:'manchonnee',data:{events:[ev('manchonnee','2026-11-03T09:00:00Z','Gary')],photos:['https://x/n1.jpg']}},
+ {weld_id:'S-0528',status:'manchonnee',data:{events:[ev('manchonnee','2026-11-03T09:00:00Z','Soudeur A')],photos:['https://x/n1.jpg']}},
  {weld_id:'S-0527',status:'soudee',data:{events:[ev('soudee','2026-11-03T08:30:00Z','Karim')]}}];
 const pairs=repriseMap(cur,ver,rows);console.log('paires',J(pairs.map(p=>p.from+'→'+p.to+'('+p.d+')')));
 C.r1=J(pairs.map(p=>p.from+'→'+p.to))===J(['S-0302→S-0528','S-0303→S-0529','S-0304→S-0530']);
 // fusion : la déclaration d'aujourd'hui gardée, l'avancement ne recule pas, photos additionnées
-const J528={weldId:'S-0528',line:'L2',cond:'A',status:'manchonnee',events:[{...ev('manchonnee','2026-11-03T09:00:00Z','Gary'),at:new Date('2026-11-03T09:00:00Z')}],photos:['https://x/n1.jpg']};
+const J528={weldId:'S-0528',line:'L2',cond:'A',status:'manchonnee',events:[{...ev('manchonnee','2026-11-03T09:00:00Z','Soudeur A'),at:new Date('2026-11-03T09:00:00Z')}],photos:['https://x/n1.jpg']};
 const J529={weldId:'S-0529',line:'L2',cond:'A',status:'a_souder',events:[],photos:[]};
 const J530={weldId:'S-0530',line:'L2',cond:'A',status:'controlee',events:[],photos:[],note:'vu'};
 const at=new Date('2026-11-03T15:00:00Z');

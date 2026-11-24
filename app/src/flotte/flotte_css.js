@@ -1,8 +1,10 @@
 /* flotte_css.js — 10/11 nuit (module Tracé Flotte, lot F1) : flotte.css de la maquette validée, porté par .fl-root (le cadre commun = affaire.css, déjà
    injecté par affaire/affaire_css.js et porté par .af-root : la rubrique Flotte est dans <div class="af-root fl-root">). Rien n'est changé au reste de l'appli. */
-import {cssAffaire} from '../affaire/affaire_css.js';
+import {cssAffaire,avecConteneur} from '../affaire/affaire_css.js';
 let done=false;
-export function cssFlotte(){cssAffaire();if(done||typeof document==='undefined')return;done=true;const s=document.createElement('style');s.id='fl-css';s.textContent=CSS;document.head.appendChild(s);}
+/* 24/11 : frise de l'historique d'une personne (Qui a quoi) */
+const CSS_HISTO='.fl-root .fl-histo{margin-bottom:12px}.fl-root .fl-histo td b{white-space:nowrap}.fl-root .fl-frise{position:relative;height:16px;border-radius:999px;background:#eef0f3;margin:6px 0 10px;overflow:hidden}.fl-root .fl-frise__s{position:absolute;top:0;bottom:0;border-radius:999px;opacity:.9}.fl-root .fl-frise__k{display:inline-block;width:10px;height:10px;border-radius:3px}.fl-root .fl-frise--0{background:#2a6fdb}.fl-root .fl-frise--1{background:#17824a}.fl-root .fl-frise--2{background:#c46a00}.fl-root .fl-frise--3{background:#7a4bd1}.fl-root .fl-frise--4{background:#b3261e}.fl-root .fl-frise--5{background:#2b8a9e}';
+export function cssFlotte(){cssAffaire();if(done||typeof document==='undefined')return;done=true;const s=document.createElement('style');s.id='fl-css';s.textContent=avecConteneur(CSS)+CSS_HISTO; /* 24/11 : mise en page sur la largeur réelle du module (voir affaire_css.js) */document.head.appendChild(s);}
 const CSS=String.raw`
 .fl-root .fl-badge--bad{background:var(--bloque,#A3221F)!important;color:#fff!important}
 .fl-root .fl-sev--bad{color:var(--bloque,#A3221F)}

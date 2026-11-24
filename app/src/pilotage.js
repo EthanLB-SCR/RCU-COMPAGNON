@@ -16,7 +16,7 @@ const CSS=`
 /* 31/10 (lot PI) : affichage étroit sur grand écran (.app sans « affichage large ») — les grilles qui suivent la largeur de l'ÉCRAN (hub, compteurs) restent en une colonne */
 .app:not(.wide) .eq-hubrows{grid-template-columns:1fr}.app:not(.wide) .eq-kpis{grid-template-columns:repeat(2,1fr)}
 .eq-hubmore{grid-column:1/-1;margin:-4px 0 4px}.eq-hubmore[open]>summary{color:var(--ink,#222)}
-.pi-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 8px}.pi-bar .btn{min-height:44px}.pi-bar .btn.sm{min-height:36px;font-size:13px}
+.pi-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 8px}.pi-vue{display:inline-flex;flex-wrap:wrap;gap:6px}.pi-vue .chip{min-height:44px}.pi-bar .btn{min-height:44px}.pi-bar .btn.sm{min-height:36px;font-size:13px}
 .pi-sum{font-size:13px;color:var(--ink2,#555);margin:0 0 8px}.pi-sum b{color:var(--ink,#222)}.pi-sum .bad{color:#9a3410}
 .pi-panel{border:2px solid #e8501c;border-radius:16px;padding:12px;margin:0 0 10px;background:var(--surface,#fff)}
 .pi-panel h3{margin:0 0 6px;font-size:15px}.pi-step{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted,#777);font-weight:700;margin:8px 0 4px}
@@ -195,20 +195,23 @@ export function piPlan(me,X){const S=X.S;const M=planModel(me,X);X.ensureWeeks([
   return `<h2 class="vt">Planning de la semaine <span class="hint">· semaine ${X.numSemaine(js[0])} · du ${X.fDate(js[0]).slice(0,5)} au ${X.fDate(js[4])}</span></h2>
     ${X.weekNav({k:M.k,js,act:'plweek',marks:d=>X.DATA.personnes.filter(p=>M.sitesOf(p,d).length).length})}
     <input class="f pi-q" id="pi-q" type="search" placeholder="🔍 Chercher quelqu'un (nom, poste, agence)…" value="${esc(S.plQ||'')}" autocomplete="off" aria-label="Chercher quelqu'un"><div class="eq-s pi-qn" id="pi-qn" style="display:none"></div>
-    <div class="pi-bar">${edit?`<button class="btn primary" data-act="pi" data-v="open|">＋ Placer</button><button class="btn" data-act="pi" data-v="copy|">↩ Copier la semaine dernière</button>`:''}${S.plNew?'':nouv}${sectSel}</div>
+    <div class="pi-bar">${edit?`<button class="btn primary" data-act="pi" data-v="open|">＋ Placer</button><button class="btn" data-act="pi" data-v="copy|">↩ Copier la semaine dernière</button>`:''}${S.plNew?'':nouv}${sectSel}<span class="pi-vue" role="group" aria-label="Vue du planning">${[['chantiers','🏗 Par chantier'],['grille','📅 Grille']].map(([v,t])=>`<button class="chip${(S.plVue||'chantiers')===v?' active':''}" data-act="plvue" data-v="${v}" aria-pressed="${(S.plVue||'chantiers')===v}" title="${v==='grille'?'Les gars à gauche, les jours à droite':'Un bloc par chantier'}">${t}</button>`).join('')}</span></div>
     ${S.plNew?nouv:''}${opts}
     <div class="pi-sum"><b>${complets} / ${M.mine.length}</b> placé${complets>1?'s':''} toute la semaine${jl?` · <b class="bad">${jl} jour${jl>1?'s':''} à pourvoir</b>`:M.mine.length?' · 🎉 tout le monde est placé':''}${fers.length?' · férié : '+fers.map(d=>esc(X.fJour(d))).join(', '):''}</div>
     ${panel}
+    ${X.plPubHTML?X.plPubHTML(me,M.wk,js,M.sect,aff):'' /* 24/11 (Ethan) : publier la semaine par secteur, export, mail */}
+    ${S.plVue==='grille'&&X.plGrilleHTML?X.plGrilleHTML(me,M.wk,js,M.sect,aff,M.mine.concat(S.plEnc?[]:[]),{embed:true,chips:`<div style="margin:0 0 8px">${posteChips}</div>`}):`
     <div class="card pi-trayc"><h3>À placer <span class="hint">· ${aPlacer.length}${S.plPoste?' · filtre '+esc(posteLab):''}</span></h3>${posteChips}
       ${aPlacer.length||teamChips?`<div class="pi-tray" id="pi-tray">${teamChips}${aPlacer.map(chip).join('')}</div>${edit?'<div class="hint" style="margin-top:6px">Touche une personne (ou une équipe), puis le chantier : ses jours libres sont cochés, « Placer ». Sur PC, tu peux aussi la glisser sur un chantier.</div>':''}`:`<div class="eq-s">${M.mine.length?(S.plPoste?'Personne à placer avec ce filtre.':'🎉 Tout le monde est placé cette semaine.'):'Personne dans ce secteur : choisis « Tous les secteurs ».'}</div>`}
       ${aPlacerAutres.length?`<details class="pi-autres" data-det="piAutres"${S.piAutres?' open':''}><summary class="eq-s">Autres secteurs · ${aPlacerAutres.length} à placer</summary><div class="pi-tray">${aPlacerAutres.map(chip).join('')}</div></details>`:''}</div>
     <div class="pi-sites">${sites.map(carte).join('')||'<div class="card"><div class="eq-s">Aucun chantier dans ce secteur.</div></div>'}</div>
     ${hors.length?`<details class="card" data-det="piHors"${S.piHors?' open':''}><summary class="eq-s" style="min-height:44px;display:flex;align-items:center;cursor:pointer">Autres chantiers · ${hors.length} <span class="hint">&nbsp;(personne ces deux semaines, ou autre secteur)</span></summary><div class="pi-sites" style="margin-top:8px">${hors.map(carte).join('')}</div></details>`:''}
-    <div class="pi-leg"><span><i class="pi-c on">●</i> sur ce chantier</span><span><i class="pi-c oth">Abc</i> sur un autre</span><span><i class="pi-c on warn">⚠</i> deux chantiers le même jour</span><span><i class="pi-c fer">F</i> férié</span><span><i class="pi-c out">—</i> hors contrat</span></div>`;}
+    `}<div class="pi-leg"><span><i class="pi-c on">●</i> sur ce chantier</span><span><i class="pi-c oth">Abc</i> sur un autre</span><span><i class="pi-c on warn">⚠</i> deux chantiers le même jour</span><span><i class="pi-c fer">F</i> férié</span><span><i class="pi-c out">—</i> hors contrat</span></div>`;}
 /* 🔍 recherche par nom : filtre en place (sans re-rendu, la saisie garde le clavier) — À placer, « Qui ? », lignes et cartes des chantiers ; accents ignorés */
 export function piFilter(q){if(typeof document==='undefined')return;const root=document.getElementById('eq-app');if(!root||!root.querySelector('#pi-q'))return;
   const W=norm(q).trim().split(/\s+/).filter(Boolean);const hit=el=>!W.length||W.every(w=>(el.dataset.q||'').includes(w));const found=new Set();
   root.querySelectorAll('.pi-tray [data-q], #pi-panel .pi-pick [data-q]').forEach(c=>{const ok=hit(c);c.style.display=ok?'':'none';if(ok&&W.length&&c.dataset.p)found.add(c.dataset.p);});
+  root.querySelectorAll('.pg tbody tr[data-q]').forEach(r=>{const ok=hit(r);r.style.display=ok?'':'none';if(ok&&W.length&&r.dataset.pgp)found.add(r.dataset.pgp);}); /* 24/11 : la grille gars × jours */
   root.querySelectorAll('.pi-site').forEach(card=>{let n=0;card.querySelectorAll('.pi-row[data-q]').forEach(r=>{const ok=hit(r);r.style.display=ok?'':'none';if(ok){n++;if(W.length)found.add(r.dataset.p);}});
     card.querySelectorAll('.pi-team').forEach(t=>{let e=t.nextElementSibling,vis=false;while(e&&!e.classList.contains('pi-team')){if(e.classList.contains('pi-row')&&e.style.display!=='none')vis=true;e=e.nextElementSibling;}t.style.display=!W.length||vis?'':'none';});
     card.style.display=!W.length||n?'':'none';});

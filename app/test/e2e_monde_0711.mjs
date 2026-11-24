@@ -70,7 +70,9 @@ console.log('m8) chantier :',J({o8,o8b}));C.m8=!o8.scene&&o8.tiles>0&&!!o8.first
 await page.evaluate(()=>{window.TRACE.showScreen('home');window.TRACE.renderHome();});await W(400);await home('htEnt');await W(1500);
 const rr=await page.$('#eq-app .ac-row[data-v="x:monde:cfg"]');if(rr){await rr.click();await W(400);}const cfg=await page.evaluate(()=>!!document.querySelector('#eq-app [data-v="monde|on|0"]'));
 if(cfg){await page.click('#eq-app [data-v="monde|on|0"]');await W(500);}await home('htHome');const o9=await q();
-console.log('m9) éteint par l\'administrateur :',J({row:!!rr,cfg,o9}));C.m9=!!rr&&cfg&&!o9.slot&&o9.classic;
+/* 24/11 (Ethan : « le bureau 3D, plus en labo mais de base dans l'appli ») : Labo éteint → le bureau reste (de base) ; le réglage « Bureau 3D de base : non » le retire */
+await home('htEnt');await W(1200);{const r2=await page.$('#eq-app .ac-row[data-v="x:monde:cfg"]');if(r2){await r2.click();await W(400);}}const bOff=await page.evaluate(()=>{const b=document.querySelector('#eq-app [data-v="monde|bureau|0"]');if(b){b.click();return true;}return false;});await W(500);await home('htHome');const o9x=await q();
+console.log('m9) éteint par l\'administrateur :',J({row:!!rr,cfg,o9,bOff,o9x}));C.m9=!!rr&&cfg&&o9.slot==='bureau'&&bOff&&!o9x.slot&&o9x.classic;
 // ── m9b) allumé mais pas testeur → carte qui dit ce qui manque + « Me mettre testeur » → le bureau 3D apparaît
 await page.evaluate(()=>{const c=JSON.parse(localStorage.getItem('trace:monde'));c.on=true;c.testeurs=[];localStorage.setItem('trace:monde',JSON.stringify(c));location.reload();});await W(1500);
 {const s=await page.$('#loginSkip');if(s&&await s.isVisible())await s.click();await W(600);}await asEthan();await home('htHome');

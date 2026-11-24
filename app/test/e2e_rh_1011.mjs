@@ -54,12 +54,13 @@ const other=await T(()=>{const c=window.TRACE.monde.ctx();const p=c.people.find(
 await T(id=>{const Tr=window.TRACE;Tr.state.userId=id;Tr.renderHome();},other);await W(800);await home('htEnt');await W(800);
 await home('htRh');await W(700);const r7={row:await T(()=>(document.querySelector('#eq-app h2')||{}).textContent||'')};await click('[data-act="x"][data-v="rh|tab|abs"]');await W(600);const r7t=await txt();r7.plus=await T(()=>!!document.querySelector('[data-act="x"][data-v="rh|new|rhabs"]'));r7.mine=/mon dossier/.test(r7t);r7.ethan=/Congés payés · 16\/11/.test(r7t);
 console.log('r7)',J(r7));C.r7=/Ressources humaines · mon dossier/.test(r7.row)&&!r7.plus&&r7.mine&&!r7.ethan;
-// r9) un responsable d'exploitation sans droit RH : rubrique « Ressources humaines » limitée, ＋ absence possible, pas d'onglet Contraventions
+// r9) un responsable d'exploitation sans droit RH : rubrique « Ressources humaines » limitée, ＋ absence possible ; 24/11 (Ethan, L31 : « que le gars voie ses PV ») : l'onglet Contraventions est là, mais SES contraventions seulement, sans ＋
 /* faute de responsable d'exploitation dans les personnages de démo : le droit « rh.abs » est accordé au poste soudeur par le réglage des droits par poste (comme le ferait l'administrateur) */
 await T(()=>{localStorage.setItem('trace:posteRights',JSON.stringify({soudeur:{'rh.abs':true}}));});await page.reload();await W(1500);{const s=await page.$('#loginSkip');if(s&&await s.isVisible())await s.click();await W(700);}
 const rex=await T(()=>{const Tr=window.TRACE;Tr.state.userId='karim';Tr.renderHome();return 'l:karim';});await W(800);
 if(rex){await home('htRh');await W(800);
   const r9={pv:await T(()=>!!document.querySelector('[data-act="x"][data-v="rh|tab|pv"]'))};await click('[data-act="x"][data-v="rh|tab|abs"]');await W(600);r9.plus=await T(()=>!!document.querySelector('[data-act="x"][data-v="rh|new|rhabs"]'));r9.ethan=/Congés payés · 16\/11/.test(await txt());
-  console.log('r9)',J({rex,...r9}));C.r9=!r9.pv&&r9.plus&&r9.ethan;}else{console.log('r9) pas de responsable d\'exploitation autre qu\'Ethan dans les données : étape passée');C.r9=true;}
+  if(r9.pv){await click('[data-act="x"][data-v="rh|tab|pv"]');await W(500);r9.pvPlus=await T(()=>!!document.querySelector('[data-act="x"][data-v="rh|new|rhpv"]'));r9.pvTxt=/Tes contraventions/.test(await txt());}
+  console.log('r9)',J({rex,...r9}));C.r9=r9.pv&&!r9.pvPlus&&r9.pvTxt&&r9.plus&&r9.ethan;}else{console.log('r9) pas de responsable d\'exploitation autre qu\'Ethan dans les données : étape passée');C.r9=true;}
 C.r8=!logs.length;if(logs.length)console.log('logs',J(logs.slice(0,3)));
 const ko=Object.keys(C).filter(k=>!C[k]);console.log('RESULTAT',J(C),ko.length?'ECHEC '+ko.join(','):'TOUT VERT');await browser.close();

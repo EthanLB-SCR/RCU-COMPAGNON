@@ -6,8 +6,10 @@
 --   Le férié travaillé au réel ne dépend pas de ce fichier : il est calculé, sans rien d'enregistré.
 --   Politique de lecture = celle de retours_ia_1111.sql, mot pour mot, + cette ligne. À passer APRÈS retours_ia_1111.sql. Ré-exécutable.
 --   Ne repasse pas retours_ia_1111.sql ni navettes_1011.sql APRÈS celui-ci (ils remettraient la lecture sans la règle commune).
+--   24/11 : refuse de s'exécuter si retours_2411.sql est déjà passé (il le contient).
 do $do$ begin
   if not exists (select 1 from pg_proc p where p.proname = 'registre_set' and pg_get_functiondef(p.oid) like '%''retour''%') then raise exception 'Passe d''abord sql/retours_ia_1111.sql (registre « retour » absent de registre_set).'; end if;
+  if exists (select 1 from pg_proc p where p.proname = 'registre_set' and pg_get_functiondef(p.oid) like '%rhdem%') then raise exception 'Fichier dépassé : retours_2411.sql est déjà passé et contient déjà cette lecture. Ne le repasse pas : il retirerait la lecture des demandes de congé. Rien n''a été modifié.'; end if; -- 24/11
 end $do$;
 drop policy if exists registre_read on public.registre;
 create policy registre_read on public.registre for select using (

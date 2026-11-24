@@ -1,4 +1,4 @@
-// e2e_prod_0511.mjs — 05/11 (Ethan : « production de Gary disparue… règle ça pour que ce ne soit pas le cas ») : la production d'un chantier PAS ouvert sur l'appareil
+// e2e_prod_0511.mjs — 05/11 (Ethan : « production d'un soudeur disparue… règle ça pour que ce ne soit pas le cas ») : la production d'un chantier PAS ouvert sur l'appareil
 //  r1 appli redémarrée, chantier pas rouvert : sa production vient des soudures relues du serveur (copie gardée sur l'appareil) — étapes 1 et 3 comptées, au bon nom
 //  r2 sans copie ni réseau : rien d'inventé (0) ; r3 console propre
 import { chromium } from 'playwright';

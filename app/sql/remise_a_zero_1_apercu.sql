@@ -22,7 +22,7 @@
 --   2. Colle et lance le fichier 2 (effacement). Elle refuse de tourner si elle ne trouve pas exactement 2 comptes à garder.
 --   3. Sur TES appareils (PC, téléphone) : ferme et rouvre Tracé. L'appli voit la remise à zéro, vide ses copies locales et se recharge une fois
 --      (sinon tes appareils afficheraient encore les anciennes données). Le planning et ce qui attend d'être envoyé ne sont pas touchés.
---   4. Si tu t'es connecté avec le compte de quelqu'un (ex. Gary) : Administrateur → sa carte → 🔐 Nouveau code, et envoie-lui son lien :
+--   4. Si tu t'es connecté avec le compte de quelqu'un (ex. un soudeur) : Administrateur → sa carte → 🔐 Nouveau code, et envoie-lui son lien :
 --      il choisira son propre mot de passe.
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 

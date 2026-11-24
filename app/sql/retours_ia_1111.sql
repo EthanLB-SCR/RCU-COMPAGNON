@@ -4,10 +4,12 @@
 --   Lecture : l'administrateur voit tout ; chacun voit les siens.
 -- CONTIENT TOUT navettes_1011.sql pour registre_set et la lecture (même texte + « retour ») : à passer APRÈS navettes_1011.sql. Ré-exécutable.
 -- Ne repasse pas navettes_1011.sql ni affaire_a_1011.sql APRÈS celui-ci (ils remettraient registre_set sans « retour »).
+-- 24/11 : refuse de s'exécuter si retours_2411.sql est déjà passé (il le contient) — il retirerait le registre « rhdem ».
 -- Sans ce fichier : les bugs et idées restent sur le téléphone qui les a envoyés, et l'appli le dit.
 -- + § 2 : les soudures préfabriquées « en attente » ne comptent pas dans l'avancement des chantiers (site_stats) tant qu'elles ne sont pas transférées.
 do $do$ begin
   if not exists (select 1 from pg_proc p where p.proname = 'registre_set' and pg_get_functiondef(p.oid) like '%navliss%') then raise exception 'Passe d''abord sql/navettes_1011.sql (registres des navettes absents de registre_set).'; end if;
+  if exists (select 1 from pg_proc p where p.proname = 'registre_set' and pg_get_functiondef(p.oid) like '%rhdem%') then raise exception 'Fichier dépassé : retours_2411.sql est déjà passé et contient déjà tout retours_ia_1111.sql (registre_set). Ne le repasse pas : il retirerait les demandes de congé. Rien n''a été modifié.'; end if; -- 24/11
 end $do$;
 -- registre_set : celle de navettes_1011.sql + le registre « retour »
 create or replace function public.registre_set(p_kind text, p_id text, p_patch jsonb, p_mode text default 'merge') returns jsonb

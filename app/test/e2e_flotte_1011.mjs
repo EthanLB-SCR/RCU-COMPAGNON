@@ -7,6 +7,8 @@
 //      retard → « Programmer le rendez-vous » crée le RDV ; mois suivant ; vue Liste ; filtre Vidange ; RDV CT « Fait » → prochain CT à +2 ans et plus d'alerte CT
 //  f3  données réelles de l'appli : Parc → Flotte s'ouvre sur le module ; « ➕ Véhicule » (écran existant) crée la fiche → Véhicules ; fiche → « Fiche complète (modifier) »
 //      = l'ancienne fiche ; programmer une intervention (enregistrée sur la fiche, registre vehicule) ; « Ancien écran Flotte » et retour
+//      (24/11 : plus de bouton « Ancien écran Flotte » ; l'ancien écran, intact, s'ouvre par le crochet de test ; accueil et Qui a quoi changent à la demande
+//      d'Ethan — « où sont les véhicules » par attribution, recherche par nom — ces deux pages ne sont plus comparées pixel à pixel à la maquette)
 //  f4  console propre
 import { chromium } from 'playwright'; import fs from 'fs';
 let PNG=null,pixelmatch=null;try{PNG=(await import('pngjs')).PNG;pixelmatch=(await import('pixelmatch')).default;}catch(e){console.log('pixelmatch / pngjs absents : captures non comparées pixel à pixel');}
@@ -17,7 +19,7 @@ const HIDE='.fl-vign{visibility:hidden!important}.tuHelp{display:none!important}
 async function shot(pg,name){const el=await pg.$('.af-main');const buf=await el.screenshot({path:SHOTS?SHOTS+'/'+name+'.png':undefined});return PNG?PNG.sync.read(buf):null;}
 function diff(a,b,name){const w=Math.min(a.width,b.width),h=Math.min(a.height,b.height);const crop=img=>{const o=new PNG({width:w,height:h});PNG.bitblt(img,o,0,0,w,h,0,0);return o;};const A=crop(a),B=crop(b),D=new PNG({width:w,height:h});
   const n=pixelmatch(A.data,B.data,D.data,w,h,{threshold:0.1});if(SHOTS)fs.writeFileSync(SHOTS+'/'+name+'_diff.png',PNG.sync.write(D));return {wa:a.width,ha:a.height,wb:b.width,hb:b.height,n,pct:Math.round(n/(w*h)*10000)/100};}
-const PAGES=['accueil','calendrier','vehicules','mouvements','qui','journal'];
+const PAGES=['accueil','calendrier','vehicules','mouvements','qui','journal'];const PIX_HORS=['accueil','qui']; /* 24/11 : pages changées à la demande d'Ethan (voir en tête) */
 /* ── la maquette ── */
 const M=await browser.newPage({viewport:{width:1440,height:1000},deviceScaleFactor:1});let MAQ_OK=!!PNG;const mm={};
 try{await M.goto(MAQ+'/index.html#accueil',{timeout:8000});}catch(e){MAQ_OK=false;console.log('maquette non servie ('+MAQ+') : captures non comparées');}
@@ -50,20 +52,21 @@ await T(()=>{const b=document.querySelector('#eq-app [data-act=ficheNouvelle]');
 await T(()=>{const b=[...document.querySelectorAll('#eq-app .fl-id__act button')].find(x=>/Programmer/.test(x.textContent));b.click();});await W(page,400);
 await T(()=>{document.getElementById('rv-date').value='2026-11-20';document.getElementById('rv-type').value='vidange';document.getElementById('rv-garage').value='Garage fictif';const b=[...document.querySelectorAll('.fl-root .af-fenetre button')].find(x=>/^\s*Programmer\s*$/.test(x.textContent));b.click();});await W(page,700);
 f3.rdv=await T(()=>{const v=window.TRACE.flotte.get('ZZ-901-ZZ');return (v&&v.rdv||[]).map(r=>r.date+'|'+r.type+'|'+r.garage);});
-// l'ancien écran, et retour
-await T(()=>{const b=document.querySelector('#eq-app [data-v="fl|ancien|1"]');b.click();});await W(page,700);
+// l'ancien écran, et retour — 24/11 (Ethan : « enlève l'ancienne vision Flotte ») : plus de bouton dans le nouvel écran ; l'ancien reste intact, ouvert ici par le crochet de test
+f3.sansBouton=await T(()=>!document.querySelector('#eq-app [data-v="fl|ancien|1"]'));
+await T(()=>{window.TRACE.flotteM.ancien(true);});await W(page,700);
 f3.ancien=await T(()=>({root:!!document.querySelector('#eq-app .fl-root'),chips:[...document.querySelectorAll('#eq-app .chip')].map(c=>c.textContent.trim()).filter(t=>/Véhicules|Échéances/.test(t)).length,retour:!!document.querySelector('#eq-app [data-v="fl|ancien|0"]')}));
 await T(()=>{const b=document.querySelector('#eq-app [data-v="fl|ancien|0"]');if(b)b.click();});await W(page,700);f3.nouveau=await T(()=>!!document.querySelector('#eq-app .fl-root'));
 console.log('f3) données réelles :',J(f3));
 C.f3=f3.root&&f3.nav.includes('Accueil')&&f3.nav.includes('Véhicules')&&f3.nav.some(t=>/À traiter/.test(t))&&f3.ask&&f3.ficheApres&&f3.liste===1&&f3.fiche.h1!==undefined&&f3.fiche.onglets.length===5&&f3.ancienne&&f3.ancienne.n>200&&/Fiche complète/.test(f3.ancienne.fil)
-  &&J(f3.rdv)===J(['2026-11-20|vidange|Garage fictif'])&&!f3.ancien.root&&f3.ancien.chips>=2&&f3.ancien.retour&&f3.nouveau;
+  &&J(f3.rdv)===J(['2026-11-20|vidange|Garage fictif'])&&f3.sansBouton&&!f3.ancien.root&&f3.ancien.chips>=2&&f3.ancien.retour&&f3.nouveau;
 // ── le jeu de la maquette dans l'appli ; l'accueil de l'appli ne défile plus (haut comme la page, comme la maquette)
 await page.addStyleTag({content:'#app,#homeView,#homeBody{overflow:visible!important;height:auto!important;max-height:none!important;position:static!important}'+HIDE});
 await T(src=>{new Function(src)();window.TRACE.flotteM.demo(window.__FLDEMO);},FIX);await W(page,800);
 // ── f1 : captures
 const res={};for(const p of PAGES){await nav(p);await W(page,200);const a=await shot(page,'app_'+p);if(MAQ_OK)res[p]=diff(mm[p],a,p);}
 console.log('f1) écarts (% des pixels) :',J(Object.fromEntries(Object.entries(res).map(([k,v])=>[k,[v.pct,v.ha,v.hb]]))));
-C.f1=!MAQ_OK||PAGES.every(p=>res[p]&&res[p].pct<=1&&Math.abs(res[p].ha-res[p].hb)<=2);
+C.f1=!MAQ_OK||PAGES.filter(p=>!PIX_HORS.includes(p)).every(p=>res[p]&&res[p].pct<=1&&Math.abs(res[p].ha-res[p].hb)<=2);
 // ── f2 : contrôles de la maquette
 const f2={};await nav('accueil');await T(()=>{const b=[...document.querySelectorAll('#eq-app .fl-mvalerte button')].find(x=>/Traiter/.test(x.textContent));b.click();});await W(page,500);
 f2.traiter=await T(()=>(document.querySelector('#eq-app .af-titre h1')||{}).textContent||'');

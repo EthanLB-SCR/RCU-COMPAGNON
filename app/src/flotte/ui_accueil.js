@@ -38,6 +38,7 @@
     var al = V.map(function (v) { return { v: v, a: C.alertes(v) }; }), bad = al.filter(function (x) { return x.a.some(function (y) { return y.sev === 'bad'; }); }), warn = al.filter(function (x) { return x.a.length && !x.a.some(function (y) { return y.sev === 'bad'; }); });
     var sig = []; V.forEach(function (v) { (v.signalements || []).filter(function (s) { return !s.fait; }).forEach(function (s) { sig.push({ v: v, s: s }); }); });
     var sit = { chantier: 0, depot: 0, atelier: 0, laisse: 0 }; V.forEach(function (v) { sit[v.situation] = (sit[v.situation] || 0) + 1; });
+    var att = { collab: 0, chantier: 0, depot: 0, laisse: 0 }; V.forEach(function (v) { var a = C.attrib(v); att[a] = (att[a] || 0) + 1; }); /* 24/11 (Ethan) : collaborateur · chantier · dépôt · à prendre */
     var loc = V.filter(function (v) { var r = C.jours(v.restitution), c = C.jours(v.contratFin); return (v.dureeLoc && r != null && r <= 90) || (c != null && c <= 90); });
     var agNom = (D.agences.find(function (a) { return a.id === ag; }) || {}).nom;
 
@@ -65,8 +66,9 @@
     h += '<section class="af-carte fl-sp"><div class="fl-sp__tete"><h2>' + moisT + '</h2><button type="button" class="af-lien" data-act="aller" data-h="calendrier">Ouvrir ›</button></div>' + miniCal() +
       '<div class="fl-leg">' + ['ct', 'vidange', 'rdv', 'restitution', 'contrat', 'pv'].map(function (k) { return '<span><i class="fl-dot fl-dot--' + C.ECH[k].cl + '"></i>' + C.ECH[k].nom + '</span>'; }).join('') + '</div></section>';
     /* sous-partie : où sont les véhicules */
-    h += '<section class="af-carte fl-sp"><div class="fl-sp__tete"><h2>Où sont les véhicules</h2><button type="button" class="af-lien" data-act="aller" data-h="parking">Parking 3D ›</button></div><div class="fl-sit">' +
-      [['chantier', 'Sur chantier', 'chantier'], ['depot', 'Au dépôt', 'flotte'], ['atelier', 'À l\'atelier', 'concepteur'], ['laisse', 'Laissés · à prendre', 'attention']].map(function (s) { return '<button type="button" class="fl-sit__c" data-act="aller" data-h="parking">' + FL.ico(s[2], 22) + '<b>' + (sit[s[0]] || 0) + '</b><span>' + s[1] + '</span></button>'; }).join('') + '</div>' +
+    h += '<section class="af-carte fl-sp" data-flou="1"><div class="fl-sp__tete"><h2>Où sont les véhicules</h2><button type="button" class="af-lien" data-act="aller" data-h="parking">Parking 3D ›</button></div><div class="fl-sit">' +
+      [['collab', 'Attribués à un collaborateur', 'equipe'], ['chantier', 'Affectés à un chantier', 'chantier'], ['depot', 'Au dépôt', 'flotte'], ['laisse', 'Laissés · à prendre', 'attention']].map(function (s) { return '<button type="button" class="fl-sit__c" data-act="vehAttr" data-a="' + s[0] + '" title="Voir la liste">' + FL.ico(s[2], 22) + '<b>' + (att[s[0]] || 0) + '</b><span>' + s[1] + '</span></button>'; }).join('') + '</div>' +
+      '<div class="af-note" style="margin-top:6px">Un véhicule affecté à un chantier est sous la responsabilité du chef de ce chantier (il dépanne dans la journée).' + (sit.atelier ? ' · <b>' + sit.atelier + '</b> à l\'atelier aujourd\'hui.' : '') + (sit.chantier ? ' · <b>' + sit.chantier + '</b> sur un chantier aujourd\'hui (affectés ou avec leur conducteur).' : '') + '</div>' +
       '<div class="fl-types">' + D.types.filter(function (t) { return V.some(function (v) { return v.type === t; }); }).map(function (t) { var n = V.filter(function (v) { return v.type === t; }).length; return '<span class="fl-type"><b>' + n + '</b> ' + FL.esc(C.typeCourt(t)) + '</span>'; }).join('') + '</div></section>';
     /* sous-partie : locations et contrats */
     h += '<section class="af-carte fl-sp"><div class="fl-sp__tete"><h2>Locations et contrats</h2><span class="af-sous">sous 90 jours</span></div>' + (loc.length ? loc.map(function (v) { var r = C.jours(v.restitution), c = C.jours(v.contratFin);
@@ -75,5 +77,6 @@
     return h;
   };
   FL.actions.vehFiltre = function (el) { FL.etat.vehEtat = el.dataset.e || ''; FL.aller('vehicules'); };
+  FL.actions.vehAttr = function (el) { FL.etat.vehAttr = el.dataset.a || ''; FL.etat.vehEtat = ''; FL.etat.vehSit = ''; FL.aller('vehicules'); }; /* 24/11 : « Où sont les véhicules » → la liste filtrée */
   FL.actions.sigOk = function (el) { if (D.ecrire.sigFait && !D.ecrire.sigFait(el.dataset.immat, el.dataset.id)) { return; } FL.render(); FL.message('Signalement classé traité'); }; /* appli : enregistré sur la fiche (sigok de flotte.js) */
 })();
