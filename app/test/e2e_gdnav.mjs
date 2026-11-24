@@ -38,12 +38,13 @@ let out=await page.evaluate(async()=>{const w=ms=>new Promise(r=>setTimeout(r,ms
   const card=document.querySelector('#eq-app details[data-gdaddr]');return {addr:card?card.textContent.replace(/\s+/g,' '):'',open:card&&card.open};});
 out.julien=await rowOf('Julien');out.karim=await rowOf('Karim');
 console.log('1) S42 :',JSON.stringify({...out,addr:out.addr.slice(0,700)}));
-C.c1=/4 j · ~1\d\d km · cas 2 · 5 nuitées · 10 repas · 15 €/.test(out.julien)&&/cas 3/.test(out.karim)&&/Adresses à vérifier · \d+/.test(out.addr)&&/Ethan L\..*introuvable \(99999 Xyzville\)/.test(out.addr)&&out.open;
+/* 24/11 : les nuits disent « province » ou « Île-de-France » (deux hôtels) — Caen : province */
+C.c1=/4 j · ~1\d\d km · cas 2 · 5 nuitées province · 10 repas · 15 €/.test(out.julien)&&/cas 3/.test(out.karim)&&/Adresses à vérifier · \d+/.test(out.addr)&&/Ethan L\..*introuvable \(99999 Xyzville\)/.test(out.addr)&&out.open;
 // ── 2) Karim : S42 est sa semaine de détente (cycle) → « ✗ pas de détente » : il reste sur place → 7 nuitées · 14 repas · 0 € ; S43 = détente, sans arrivée (resté le week-end) → 5 nuitées · 11 repas · 15 €
 out={};out.before=await rowOf('Karim');await page.evaluate(async()=>{const r=[...document.querySelectorAll('#eq-app .eq-row')].find(x=>/Karim/.test(x.textContent)&&x.querySelector('[data-act=gdx]'));r.querySelector('[data-act=gdx]').click();await new Promise(x=>setTimeout(x,300));});
 out.after=await rowOf('Karim');await go(1);out.s43=await rowOf('Karim');await go(0);
 console.log('2) pas de détente :',JSON.stringify(out));
-C.c2=/🏠 détente/.test(out.before)&&/7 nuitées · 14 repas · 0 €/.test(out.after)&&/réglé/.test(out.after)&&/🏠 détente/.test(out.s43)&&/5 nuitées · 11 repas · 15 €/.test(out.s43);
+C.c2=/🏠 détente/.test(out.before)&&/7 nuitées province · 14 repas · 0 €/.test(out.after)&&/réglé/.test(out.after)&&/🏠 détente/.test(out.s43)&&/5 nuitées province · 11 repas · 15 €/.test(out.s43);
 // ── 3) vue du mois de Julien (octobre) : S42, S43 calculées (5 n chacune) ; dim. 18/10 🌙, dim. 25/10 rien (congé S44) ; totaux du mois : 10 nuitées, 20 repas, 2 A/R
 await page.evaluate(async()=>{[...document.querySelectorAll('#eq-app [data-act=gdpers]')].find(b=>b.dataset.v==='l:julien').click();await new Promise(r=>setTimeout(r,500));});
 const cell=d=>page.evaluate(d2=>{const b=document.querySelector(`#eq-app [data-act=gdday][data-v="l:julien|${d2}"]`);return b?{cls:b.className,txt:b.textContent.replace(/\s+/g,' ').trim()}:null;},d);
@@ -53,7 +54,7 @@ out.wk=await page.evaluate(()=>[...document.querySelectorAll('#eq-app .gd-wkh')]
 out.nav=await page.evaluate(()=>[...document.querySelectorAll('#eq-app table.gd-nav tr')].map(tr=>tr.cells[0].textContent+'='+tr.cells[tr.cells.length-1].textContent));
 console.log('3) mois de Julien :',JSON.stringify(out));
 C.c3=/🌙/.test(out.c18.txt)&&/calc/.test(out.c18.cls)&&!/🌙/.test(out.c25.txt)&&/none/.test(out.c25.cls)&&/🌙🍽×2/.test(out.c14.txt)&&/🍽m🚗½/.test(out.c16.txt)&&!/🌙/.test(out.c16.txt)&&!/🌙|🍽/.test(out.c17.txt)
-  &&out.stats.some(t=>/^0\s*nuitées accordées · \+10 à accorder/.test(t))&&out.stats.some(t=>/^0\s*repas accordés · \+20 à accorder/.test(t))&&out.stats.some(t=>/^2\s*trajets A\/R/.test(t))&&out.stats.some(t=>/^30 €\s*indemnités trajet/.test(t))
+  &&out.stats.some(t=>/^0\s*nuits province accordées · \+10 à accorder/.test(t))&&out.stats.some(t=>/^0\s*nuits Île-de-France accordées$/.test(t))&&out.nav.includes('dont Île-de-France=0')&&out.stats.some(t=>/^0\s*repas accordés · \+20 à accorder/.test(t)) /* 24/11 : deux tuiles (province, Île-de-France) et une ligne « dont Île-de-France » sous « Nuitée GD » */&&out.stats.some(t=>/^2\s*trajets A\/R/.test(t))&&out.stats.some(t=>/^30 €\s*indemnités trajet/.test(t))
   &&out.wk.length===5&&/S44 · pas planifié/.test(out.wk[4])&&out.nav.includes('Nuitée GD=10')&&out.nav.includes('Repas midi GD=10')&&out.nav.includes('Repas soir GD=10');
 // ── 4) la RH ajuste le mercredi 14/10 (rentré le soir : pas de nuitée ni de repas du soir, motif) → la semaine S42 est accordée avec ce jour ajusté ; pas d'« écart planning »
 await page.evaluate(()=>document.querySelector('#eq-app [data-act=gdday][data-v="l:julien|2026-10-14"]').click());await wait(300);
@@ -65,7 +66,7 @@ out.c14=await cell('2026-10-14');out.c13=await cell('2026-10-13');out.stats=awai
 out.wk=await page.evaluate(()=>(document.querySelectorAll('#eq-app .gd-wkh')[2]||{}).textContent.replace(/\s+/g,' ').trim());
 console.log('4) ajustement :',JSON.stringify(out));
 C.c4=/mer\. 14\/10\/2026 — Julien R\./.test(out.title||'')&&/accorder la semaine/.test(out.btn||'')&&out.reg&&out.reg.wk==='2026-W42'&&out.reg.nuits===4&&out.reg.repas===9&&out.reg.eur===15&&out.reg.adj===1&&out.reg.d14.N===0&&out.reg.d14.D===0&&out.reg.d14.L===1&&out.reg.d14.adj===true&&/familiale/.test(out.reg.d14.note)&&out.reg.adjBy==='Ethan L.'
-  &&/acc/.test(out.c14.cls)&&/adj/.test(out.c14.cls)&&/✎/.test(out.c14.txt)&&/acc/.test(out.c13.cls)&&out.stats.some(t=>/^4\s*nuitées accordées · \+5 à accorder/.test(t))&&out.stats.some(t=>/^1\s*jour ajusté/.test(t))&&/✓ accordé/.test(out.wk||'')&&!/planning changé/.test(out.wk||'');
+  &&/acc/.test(out.c14.cls)&&/adj/.test(out.c14.cls)&&/✎/.test(out.c14.txt)&&/acc/.test(out.c13.cls)&&out.stats.some(t=>/^4\s*nuits province accordées · \+5 à accorder/.test(t))&&out.stats.some(t=>/^1\s*jour ajusté/.test(t))&&/✓ accordé/.test(out.wk||'')&&!/planning changé/.test(out.wk||'');
 // ── 5) navette du mois (CSV Excel) : jours en colonnes, nuitées 9 · repas midi 10 · repas soir 9 · 2 A/R ; novembre : lundi 2/11 pas travaillé → pas de nuit du dimanche 1/11, arrivée lundi soir
 const dl=page.waitForEvent('download',{timeout:5000}).catch(()=>null);await page.evaluate(()=>document.querySelector('#eq-app [data-act=gdnavcsv]').click());const d=await dl;let csv='';if(d){csv=fs.readFileSync(await d.path(),'utf8');}
 const L=csv.split(/\r\n/);out={name:d&&d.suggestedFilename(),head:L[0],nuit:(L.find(l=>/^Nuitée GD;/.test(l))||'').split(';').pop(),midi:(L.find(l=>/^Repas midi GD;/.test(l))||'').split(';').pop(),soir:(L.find(l=>/^Repas soir GD;/.test(l))||'').split(';').pop(),ar:(L.find(l=>/^Trajet/.test(l))||'').split(';').pop(),cols:(L.find(l=>/^;1;2;3/.test(l))||'').split(';').length};

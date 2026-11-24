@@ -8,7 +8,9 @@
 //  f6  règle commune « toute la semaine aux heures réelles » ; f7 la main sur la semaine d'une personne passe avant (lissé quand même · lissée malgré la règle · heures
 //      réelles · heures saisies) ; un ancien réglage « auto » sans « malgré la règle » n'annule pas la règle « semaine au réel »
 //  f10 la règle peut rendre un férié travaillé au lissage pour tout le monde ; f11 férié travaillé un samedi : au réel aussi
-//  f8  plafond : 48 h moins les heures au réel ; le surplus va au compteur à reporter, majoré selon son rang ; f9 arrondi au ¼ h : seulement la part lissée
+//  f12 férié travaillé plafonné à 12 h (le reste est lissé, ou en surplus au-delà de 48 h) ; f13 règle « jour non travaillé pour tout le monde » (pont, fermeture) ;
+//  f14 les semaines pas lissées (à compléter, en cours) sont en quarts d'heure aussi
+//  f8  plafond : 48 h moins les heures au réel ; le surplus va au compteur à reporter, majoré selon son rang ; f9 arrondi au ¼ h : le jour au réel aussi (24/11)
 //  h1  heures sup : 600 semaines tirées au hasard (fériés travaillés ou non, absences, samedis, règles, contrats 35 et 39 h) — le total, les 125 % et les 150 % de chaque
 //      semaine recalculés à part (formule du contrat) = ceux du tableau ; le mois = la somme des semaines
 //  h2  la feuille Excel : les lignes « HEURES SUP - 125 % / 150 % » et les récaps du bas (« HS du mois » : 125 %, 150 %, total ; « au-delà du plafond ») évalués avec le
@@ -51,13 +53,28 @@ C.f7=eq(H(a),[8.25,8.25,8.25,8.25,8.5,null])&&a.flags.includes('main')&&!a.flags
 L=S(MON,[12,12,10,12,12],{fer:FER});console.log('f8)',H(L),L.cap,L.versReport,L.versReportMaj,L.total,L.hs125,L.hs150,'|',L.expl.filter(t=>/Plafond/.test(t)).join(''));
 C.f8=eq(H(L),[9.5,9.5,10,9.5,9.5,null])&&L.cap===38&&L.versReport===10&&L.versReportMaj===15&&L.total===HEBDO_MAX&&L.hs125===8&&L.hs150===5&&L.expl.some(t=>/^Plafond 38 h \(48 h par semaine moins 10 h au réel\) : 10 h au-delà/.test(t));
 L=S(MON,[8.4,8.3,7.87,8.4,8.3],{fer:FER});console.log('f9)',H(L),L.reel,L.reelA,L.total);
-C.f9=eq(H(L),[8.25,8.25,7.87,8.25,8.75,null])&&L.reel===41.27&&L.reelA===41.37&&L.total===41.37&&L.expl.some(t=>/^Total arrondi au quart d'heure le plus proche : 41,27 h → 41,37 h\.$/.test(t));
+/* 24/11 (Ethan : « il faut que les totaux affichés aient le même arrondi ») : le jour au réel est lui aussi en quarts d'heure, le total = le total réel arrondi */
+C.f9=eq(H(L),[8.25,8.25,7.75,8.25,8.75,null])&&L.reel===41.27&&L.reelA===41.25&&L.total===41.25&&L.fixeH===7.75&&L.expl.some(t=>/^Total arrondi au quart d'heure le plus proche : 41,27 h → 41,25 h\.$/.test(t))&&L.expl.some(t=>/férié travaillé — 7,75 h au réel/.test(t));
 // f10 : la règle rend le férié travaillé au lissage pour tout le monde · f11 : férié travaillé un samedi (15 août 2026) → au réel, pas reporté sur la semaine
 L=S(MON,[10,9,6.5,9,7],{fer:FER,o:{regle:{liss:['2026-11-11'],motif:'accord d\'entreprise (fictif)',by:'Claude FICTIF'}}});console.log('f10)',H(L),L.flags.join(),'|',L.expl.filter(t=>/règle/i.test(t)).join(' | '));
 C.f10=L.etat==='lisse'&&eq(H(L),[8.25,8.25,8.25,8.25,8.5,null])&&L.n===5&&L.fixeH===0&&!L.jours[2].fixe&&!L.jours[2].fixe0&&L.jours[2].ferT&&L.flags.includes('regle')&&!L.flags.includes('ferieT')&&!L.flags.includes('main')
   &&L.expl.some(t=>/^Mercredi 11\/11 : férié travaillé, lissé comme un autre jour pour tout le monde \(règle de la semaine\)\.$/.test(t));
 L=S('2026-08-10',[8,8,8,8,8,5],{fer:[0,0,0,0,0,1]});console.log('f11)',H(L),L.total,L.flags.join());
 C.f11=L.etat==='lisse'&&eq(H(L),[8,8,8,8,8,5])&&L.total===45&&L.jours[5].fixe&&L.jours[5].ferT&&L.jours[5].tag==='FÉRIÉ TRAVAILLÉ'&&L.flags.includes('ferieT')&&L.hs125===8&&L.hs150===2;
+// f12 : férié travaillé PLAFONNÉ à 12 h — le reste rejoint les heures lissées ; au-delà de 48 h : en surplus (compteur à reporter)
+L=S(MON,[10,10,13.5,10,4],{fer:FER});const L12=S(MON,[12,12,13,12,12],{fer:FER});console.log('f12)',H(L),L.total,L.fixeH,'|',H(L12),L12.total,L12.versReport,L12.versReportMaj,'|',L.expl.filter(t=>/plafonn/.test(t)).join(''));
+C.f12=eq(H(L),[8.75,8.75,12,8.75,9.25,null])&&L.total===47.5&&L.fixeH===12&&L.versReport===0&&L.expl.some(t=>/^Mercredi 11\/11 : férié travaillé — 12 h au réel \(heures majorées\), pas lissé \(13,5 h pointées, plafonné à 12 h : le reste est lissé sur les autres jours\)\.$/.test(t))
+  &&eq(H(L12),[9,9,12,9,9,null])&&L12.total===48&&L12.versReport===13&&L12.reel===61;
+// f13 : règle commune « jour non travaillé pour tout le monde » (pont, fermeture) : pas attendu, pas lissé, son libellé sur la navette
+{const sansR=S('2026-11-16',[8,8,8,8,null]);const avecR=S('2026-11-16',[8,8,8,8,null],{o:{regle:{ferme:['2026-11-20'],fermeLab:'fermeture',motif:'dépôt fermé (fictif)',by:'Claude FICTIF'}}});const pt=S('2026-11-16',[8,8,8,8,6],{o:{regle:{ferme:['2026-11-20']}}});
+ console.log('f13)',sansR.etat,H(sansR),'|',avecR.etat,H(avecR),avecR.jours[4].lab,avecR.cible,avecR.flags.join(),'|',H(pt),pt.jours[4].lab,'|',avecR.expl.filter(t=>/fermeture/i.test(t)).join(' | '));
+ /* 24/11 : sans la règle, le vendredi non pointé n'est plus « attendu » (la semaine se lisse sur 5 jours, objectif 35 h) ; avec la règle, 4 jours et un objectif de 28 h */
+ C.f13=sansR.etat==='lisse'&&eq(H(sansR),[6.25,6.25,6.25,6.25,7,null])&&sansR.cible===35&&avecR.etat==='lisse'&&eq(H(avecR),[8,8,8,8,null,null])&&avecR.jours[4].lab==='FERMETURE'&&avecR.jours[4].ferme&&avecR.n===4&&avecR.cible===28&&avecR.flags.includes('regle')&&avecR.trous.length===0
+  &&avecR.expl.some(t=>/vendredi 20\/11 : fermeture pour tout le monde \(règle de la semaine\), pas lissé/.test(t))&&eq(H(pt),[7.5,7.5,7.5,7.5,8,null])&&pt.jours[4].lab===''&&!pt.jours[4].ferme;}
+// f14 : semaines pas lissées (à compléter, en cours, heures réelles) : en quarts d'heure aussi, la somme = le total réel arrondi
+{const inc=S('2026-11-16',[8.48,null,7.9,8.1,8.02]);const J2=[0,1,2,3,4,5].map(i=>({d:addDay('2026-11-23',i),h:i===0?8.48:null,it:0,plan:i<5,ferie:false,abs:null,sites:[],futur:i>0}));const enc=lisserSemaine({mon:'2026-11-23',contrat:35,jours:J2});
+ console.log('f14)',inc.etat,H(inc),inc.total,inc.reel,'|',enc.etat,H(enc),enc.total,enc.reel);
+ C.f14=inc.etat==='incomplet'&&eq(H(inc),[8.5,null,8,8,8,null])&&inc.total===32.5&&inc.reel===32.5&&enc.etat==='encours'&&eq(H(enc),[8.5,null,null,null,null,null])&&enc.total===8.5&&enc.reel===8.48&&enc.expl.some(t=>/^Total arrondi au quart d'heure le plus proche : 8,48 h → 8,5 h\.$/.test(t));}
 // ── heures sup : recalcul à part ──
 let seed=20261119;const rnd=()=>{seed=(seed*1103515245+12345)%2147483648;return seed/2147483648;};const pick=a=>a[Math.floor(rnd()*a.length)];
 const hsRef=(T,Ct)=>{const t=Math.min(T,48);return {h125:r2(Math.max(0,Math.min(t,43)-Math.max(Ct,35))),h150:r2(Math.max(0,t-Math.max(Ct,43)))};};

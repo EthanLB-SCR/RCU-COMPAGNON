@@ -29,40 +29,48 @@ const r2=v=>Math.round(v*100)/100;
 /* buildNavette(o) — o = {ym, nom, prenom, adresse, contrat?, today?,
      day(d) → {sites:[{id, nom, km, idf}], worked, hours (h décimales | null), N, L, D, ar, cas} pour TOUT jour affiché (dimanche → dimanche, puis les jours de régul.)}
    → {ym, weeks:[{mon, n, cas, total, hs125, hs150}], lines:[…], tot:{hotel, idf, repas}, ar:{2,3,4}, hs:{h125, h150}, regulTo} */
+/* 24/11 (Ethan : « deux types d'hôtel, GD IDF et GD province : c'est le montant de la nuit qui change, il doit y avoir deux colonnes ») — la règle était écrite dans la
+   navette seulement ; elle est sortie ici pour que les écrans (Grands déplacements, « Toutes les navettes ») comptent EXACTEMENT comme la navette Excel :
+   la nuit d'un jour est « Île-de-France » si le chantier de ce jour-là y est ; un jour sans chantier (dimanche, samedi, vendredi non travaillé) : le chantier du 1er jour travaillé de la semaine. */
+const gdOfDay=(x,idf0)=>{const N=+x.N||0;const s=x.sites&&x.sites[0];const idf=N&&(s?!!s.idf:!!idf0);return {hotel:idf?0:N,idf:idf?N:0,repas:(+x.L||0)+(+x.D||0)};};
+const gdWeekIdf=X=>{const f=[1,2,3,4,5].find(i=>X[i]&&X[i].worked);return f!==undefined&&X[f].sites&&X[f].sites[0]?!!X[f].sites[0].idf:false;};
+/* X = les 7 jours dim → sam : {N, L, D, worked, sites:[{idf}]} → {hotel (nuits province), idf (nuits Île-de-France), repas, jours:[le détail par jour]} */
+export function gdSplitWeek(X){X=X||[];const w=gdWeekIdf(X);const t={hotel:0,idf:0,repas:0,jours:[]};for(let i=0;i<7;i++){const g=gdOfDay(X[i]||{},w);t.hotel+=g.hotel;t.idf+=g.idf;t.repas+=g.repas;t.jours.push(g);}return t;}
 export function buildNavette(o){const ym=o.ym;const W=navWeeks(ym);const day=o.day||(()=>({}));const C=+o.contrat||CONTRAT_H;const REPL=o.repl||{};const RECUP=o.recup||{};const LISS=typeof o.liss==='function'?o.liss:()=>null;let itM=0; /* 10/11 nuit : o.liss(lundi) → la semaine lissée (lisserSemaine) ; sans : heures réelles, comme avant */ /* 13/10 (f) : REPL[lundi] = heures « à reporter » replacées sur la semaine ; RECUP[jour] = [{type:'repos'|'pose', h}] pris sur le compteur */const lines=[];const weeks=[];const tot={hotel:0,idf:0,repas:0};const ar={2:0,3:0,4:0};
-  const gdOfDay=(x,idf0)=>{const N=+x.N||0;const s=x.sites&&x.sites[0];const idf=N&&(s?!!s.idf:!!idf0);return {hotel:idf?0:N,idf:idf?N:0,repas:(+x.L||0)+(+x.D||0)};}; /* dimanche / samedi (pas de chantier ce jour-là) : hôtel du chantier de la semaine */
-  const add=(x,g)=>{tot.hotel+=g.hotel;tot.idf+=g.idf;tot.repas+=g.repas;};
+  let GW=null;const add=(x,g)=>{tot.hotel+=g.hotel;tot.idf+=g.idf;tot.repas+=g.repas;if(GW){GW.hotel+=g.hotel;GW.idf+=g.idf;GW.repas+=g.repas;}}; /* 24/11 : + le compte de la semaine (weeks[i].gd), pour « Toutes les navettes » */
   W.forEach((mon,wi)=>{const sun=addDay(mon,-1);const ds=[0,1,2,3,4,5,6].map(i=>addDay(sun,i));const X=ds.map(d=>Object.assign({d},day(d)||{}));const LS=LISS(mon)||null;
-    const cas=Math.max(0,...X.map(x=>+x.cas||0));const f=[1,2,3,4,5].find(i=>X[i].worked);
+    const cas=Math.max(0,...X.map(x=>+x.cas||0));const f=[1,2,3,4,5].find(i=>X[i].worked);const gw=GW={hotel:0,idf:0,repas:0,ar:0};
     // ½ trajet de l'aller (porté par la veille au soir) → affiché sur le 1er jour travaillé, comme sur le modèle
     const arD=X.map(()=>0);X.forEach((x,i)=>{const a=+x.ar||0;if(!a)return;arD[f!==undefined&&i<f?f:i]+=a;});
     if(cas>=2&&cas<=4)ar[cas]+=arD.reduce((s,a)=>s+a,0);
     const cnt={};X.slice(1,6).forEach(x=>{if(x.worked&&x.sites&&x.sites[0])cnt[x.sites[0].nom]=(cnt[x.sites[0].nom]||0)+1;});const main=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0]||null;
-    const wIdf=f!==undefined&&X[f].sites&&X[f].sites[0]?!!X[f].sites[0].idf:false;
+    const wIdf=gdWeekIdf(X);gw.ar=r2(arD.reduce((s,a)=>s+a,0));
     // dimanche : arrivée de la semaine (hôtel, repas) ; heures sup de la semaine d'avant (sauf 1re semaine du mois)
     {const g=gdOfDay(X[0],wIdf);add(X[0],g);lines.push({kind:'sun',d:sun,j:'D',n:+sun.slice(8),...g,hsOf:wi>0?wi-1:null,cas});if(wi>0)lines.push({kind:'hs150',hsOf:wi-1});}
     let total=0,miss=0;
-    for(let i=1;i<=5;i++){const x=X[i];const g=gdOfDay(x);add(x,g);const s=x.sites&&x.sites[0];const first=i===f;const rc=(RECUP[x.d]||[]).filter(m=>+m.h>0);const rcTxt=rc.length?rc.map(m=>(m.type==='pose'?'RÉCUP (ENTREPRISE) ':'RÉCUP ')+String(+m.h).replace('.',',')+' H').join(' + '):'';
+    /* 24/11 (Ethan : « les totaux affichés doivent avoir le même arrondi ») : une semaine SANS lissage (avant le départ des compteurs) est elle aussi au quart d'heure — la semaine arrondie, l'écart sur le dernier jour pointé */
+    const QH=LS?null:quartsJours([1,2,3,4,5,6].map(i=>{const h=X[i].hours;return h!==null&&h!==undefined&&isFinite(+h)?+h:null;}));
+    for(let i=1;i<=5;i++){const x=X[i];const g=gdOfDay(x,wIdf);add(x,g); /* 24/11 : un jour de semaine sans chantier (vendredi d'un grand déplacement où l'on reste le week-end) prend l'hôtel du chantier de la semaine, comme le dimanche et le samedi — il tombait en « province » même en Île-de-France */const s=x.sites&&x.sites[0];const first=i===f;const rc=(RECUP[x.d]||[]).filter(m=>+m.h>0);const rcTxt=rc.length?rc.map(m=>(m.type==='pose'?'RÉCUP (ENTREPRISE) ':'RÉCUP ')+String(+m.h).replace('.',',')+' H').join(' + '):'';
       const km=s&&isFinite(+s.km)&&+s.km>0?(first?(+s.km)+' KM'+(cas>=2?'/GD':''):(s.nom!==main?(+s.km)+' KM':'')):'';
       if(LS){const lj=LS.jours[i-1]||{};const h=lj.h!==null&&lj.h!==undefined&&isFinite(+lj.h)?r2(+lj.h):null;if(h!==null)total+=h;
         const vu=lj.reel!==null||lj.h!==null||(x.worked&&LS.etat!=='lisse');const nomJ=vu?(lj.site?lj.site.nom:(x.worked&&s?s.nom:'')):''; /* jour pointé ou lissé : son chantier (vendredi non travaillé : celui du jeudi) ; semaine pas lissée : le chantier planifié, heures à saisir */
         const ch=[nomJ,lj.reel===null&&lj.lab?lj.lab:'',lj.tag||'',rcTxt,lj.it>0?'INTER-CHANTIER '+fx(lj.it)+' H':''].filter(Boolean).join(' · '); /* 19/11 nuit : + « FÉRIÉ TRAVAILLÉ » (heures au réel ce jour-là) */
         lines.push({kind:'day',d:x.d,j:JL[i],n:+x.d.slice(8),cas:first&&cas?'CAS '+cas:'',casN:cas,ar:arD[i]||0,...g,chantier:ch,hours:h,km,worked:!!x.worked,recup:rc,reel:lj.reel,it:lj.it||0,emprunt:!!lj.emprunt});continue;}
-      const h=x.hours!==null&&x.hours!==undefined&&isFinite(+x.hours)?r2(+x.hours):null;if(h!==null)total+=h;else if(x.worked)miss++;
+      const h=x.hours!==null&&x.hours!==undefined&&isFinite(+x.hours)?r2(QH[i-1]||0):null;if(h!==null)total+=h;else if(x.worked)miss++;
       lines.push({kind:'day',d:x.d,j:JL[i],n:+x.d.slice(8),cas:first&&cas?'CAS '+cas:'',casN:cas,ar:arD[i]||0,...g,chantier:x.worked&&s?s.nom+(rcTxt?' · '+rcTxt:''):(x.worked?rcTxt:(x.ferie?'FÉRIÉ'+(rcTxt?' · '+rcTxt:''):rcTxt)),hours:h,km,worked:!!x.worked,recup:rc});}
     if(LS){const x=X[6];const g=gdOfDay(x,wIdf);add(x,g);const ls=LS.jours[5]||{};const hs=ls.h!==null&&ls.h!==undefined&&isFinite(+ls.h)?r2(+ls.h):0;total+=hs;
       const rpl=r2(LS.repl+LS.deReport+LS.place),rcp=r2(LS.deRecup),ext=r2(rpl+rcp);itM+=LS.it||0;
       lines.push({kind:'sat',d:x.d,j:'S',n:+x.d.slice(8),...g,ar:arD[6]||0,casN:cas,wi,satHours:hs,repl:ext,label:'TOTAL SEMAINE - '+isoWeekNum(mon)+(rpl?' (DONT '+fx(rpl)+' H REPORTÉES)':'')+(rcp?' (DONT '+fx(rcp)+' H DE RÉCUP)':'')});
-      total=r2(total+ext);weeks.push({mon,n:isoWeekNum(mon),cas,total,repl:ext,miss:LS.trous.length,hs125:LS.hs125,hs150:LS.hs150,report:LS.versReport,reportMaj:LS.versReportMaj,main,liss:LS,it:LS.it,reel:LS.reel});return;}
+      total=r2(total+ext);weeks.push({mon,n:isoWeekNum(mon),cas,gd:gw,total,repl:ext,miss:LS.trous.length,hs125:LS.hs125,hs150:LS.hs150,report:LS.versReport,reportMaj:LS.versReportMaj,main,liss:LS,it:LS.it,reel:LS.reel});return;}
     const rp=r2(+REPL[mon]||0);
-    {const x=X[6];const g=gdOfDay(x,wIdf);add(x,g);const hs=x.hours!==null&&x.hours!==undefined&&isFinite(+x.hours)?r2(+x.hours):0;total+=hs;
+    {const x=X[6];const g=gdOfDay(x,wIdf);add(x,g);const hs=x.hours!==null&&x.hours!==undefined&&isFinite(+x.hours)?r2(QH[5]||0):0;total+=hs;
       lines.push({kind:'sat',d:x.d,j:'S',n:+x.d.slice(8),...g,ar:arD[6]||0,casN:cas,wi,satHours:hs,repl:rp,label:'TOTAL SEMAINE - '+isoWeekNum(mon)+(rp?' (DONT '+String(rp).replace('.',',')+' H REPORTÉES)':'')});}
-    total=r2(total+rp);const sp=hsSplit(total,C);weeks.push({mon,n:isoWeekNum(mon),cas,total,repl:rp,miss,hs125:sp.hs125,hs150:sp.hs150,report:sp.report,reportMaj:r2(sp.report*KREP),main});}); /* 13/10 (f) : rang absolu — contrat 39 h : 125 % de la 40e à la 43e, 150 % de la 44e à la 48e */
+    total=r2(total+rp);const sp=hsSplit(total,C);weeks.push({mon,n:isoWeekNum(mon),cas,gd:gw,total,repl:rp,miss,hs125:sp.hs125,hs150:sp.hs150,report:sp.report,reportMaj:r2(sp.report*KREP),main});}); /* 13/10 (f) : rang absolu — contrat 39 h : 125 % de la 40e à la 43e, 150 % de la 44e à la 48e */
   // dimanche qui suit la dernière semaine : ses heures sup (l'arrivée suivante appartient au mois suivant)
   let regulTo=null;if(W.length){const lastSun=addDay(W[W.length-1],6);lines.push({kind:'sun',d:lastSun,j:'D',n:+lastSun.slice(8),hotel:0,idf:0,repas:0,hsOf:W.length-1,tail:true});lines.push({kind:'hs150',hsOf:W.length-1});
     // jours du mois après ce dimanche : leur semaine compte le mois suivant (« Régul. HS et dépla. sur … »)
     const [y,m]=ym.split('-').map(Number);const last=iso(new Date(y,m,0,12));let d=addDay(lastSun,1);const nxt=MOIS_NAV[m%12].toLowerCase();let firstR=true;
-    while(d<=last){const x=day(d)||{};const h=x.hours!==null&&x.hours!==undefined&&isFinite(+x.hours)?r2(+x.hours):null;lines.push({kind:'regul',d,j:JL[DT(d).getDay()],n:+d.slice(8),chantier:firstR?'Régul. HS et dépla. sur '+nxt:'',hours:h});if(firstR)regulTo=nxt;firstR=false;d=addDay(d,1);}}
+    while(d<=last){const x=day(d)||{};const h=x.hours!==null&&x.hours!==undefined&&isFinite(+x.hours)?arrondiSemaine(+x.hours):null; /* 24/11 : au quart d'heure, comme le reste de la navette (ces jours se lissent avec leur semaine, le mois suivant) */lines.push({kind:'regul',d,j:JL[DT(d).getDay()],n:+d.slice(8),chantier:firstR?'Régul. HS et dépla. sur '+nxt:'',hours:h});if(firstR)regulTo=nxt;firstR=false;d=addDay(d,1);}}
   const hs={h125:r2(weeks.reduce((s,w)=>s+w.hs125,0)),h150:r2(weeks.reduce((s,w)=>s+w.hs150,0)),report:r2(weeks.reduce((s,w)=>s+w.report,0)),reportMaj:r2(weeks.reduce((s,w)=>s+(+w.reportMaj||0),0))};
   return {ym,mois:MOIS_NAV[+ym.slice(5)-1],annee:+ym.slice(0,4),nom:o.nom||'',prenom:o.prenom||'',adresse:o.adresse||'',contrat:C,weeks,lines,tot,ar,hs,regulTo,today:o.today||'',cpt:o.cpt||null,it:r2(itM),lisse:weeks.some(w=>w.liss&&w.liss.etat==='lisse')};} /* cpt : soldes connus pour pré-remplir (recup, report, prime) */
 /* ── COMPTEURS D'HEURES PAR PERSONNE (13/10, Ethan : « rajouter les compteurs d'heures que l'on ne traite pas jusque-là ; tout le monde n'a pas le même
@@ -80,10 +88,10 @@ export function reportBalance(sol,primes,upto,weekTotal){upto=String(upto).slice
   (primes||[]).forEach(m=>{const ma=m&&String(m.at||'').slice(0,10);if(ma&&(!at||ma>at)&&ma<=upto)pr+=+m.h||0;});
   return {h:r2(h+ex-pr),sol:sol&&isFinite(+sol.h)?+sol.h:null,at,ex:r2(ex),pr:r2(pr)};}
 /* navetteSheet(N, name) → feuille pour makeStyledXlsx : mise en page du modèle, formules Excel (totaux, heures sup, compteurs) */
-export function navetteSheet(N,name){const cells={};const merges=[];const heights={};const S=(a,v,s,f)=>{cells[a]={v,s,f};};
+export function navetteSheet(N,name,opt){const cells={};const merges=[];const heights={};const images=[];const S=(a,v,s,f)=>{cells[a]={v,s,f};}; /* 24/11 : opt.logo = {w, h} (pixels du logo de l'entreprise) → l'image remplace le texte « SCR » en haut à gauche (posée par makeStyledXlsx, id « logo ») */
   const up=t=>String(t||'').toLocaleUpperCase('fr-FR');
   // en-tête
-  S('A1','SCR','logo');merges.push('A1:C3');S('H1',"FEUILLE D'HEURES RECAPITULATIVE MENSUELLE",'title');S('I1',null,'title');S('J1',null,'title');merges.push('H1:J1');
+  {const lg=opt&&opt.logo&&+opt.logo.w>0&&+opt.logo.h>0?opt.logo:null;if(lg){const k=Math.min(150/lg.w,56/lg.h);images.push({id:'logo',name:'Logo',col:0,row:0,dx:4,dy:2,w:Math.max(1,Math.round(lg.w*k)),h:Math.max(1,Math.round(lg.h*k))});S('A1',null,'logo');}else S('A1','SCR','logo');}merges.push('A1:C3');S('H1',"FEUILLE D'HEURES RECAPITULATIVE MENSUELLE",'title');S('I1',null,'title');S('J1',null,'title');merges.push('H1:J1');
   S('H2','NOM : '+up(N.nom),'hl');S('J2','MOIS DE : '+N.mois,'hl');S('H3','PRENOM : '+up(N.prenom),'hl');S('J3','ANNEE : '+N.annee,'hl');S('H4','ADRESSE : '+up(N.adresse),'hl');merges.push('H4:J4');
   const H=6;heights[H]=30;[['A','TYPE CAS','thO'],['B','IND. TPS DE TRAJET','thO'],['C','','th'],['D','','th'],['E','HOTEL','th'],['F','HOTEL IDF','thO'],['G','REPAS','th'],['H','CHANTIER','th'],['I','NB HEURES','th'],['J','NB KM','th']].forEach(([c,t,s])=>S(c+H,t,s));
   let r=H+1;const first=r;const satRow={};const hs125Rows=[],hs150Rows=[];const dayRows={};
@@ -137,7 +145,7 @@ export function navetteSheet(N,name){const cells={};const merges=[];const height
   const rPrime=box('Payées en prime ce mois',nv(K.prime)||0,'bin');const rRepl=box('Replacées sur une semaine plus légère',nv(K.repl)||0,'bin');const rFin=box('Compteur à reporter fin de mois',null,'bvB','I'+rPrev+'+I'+rEnt+'-I'+rPrime+'-I'+rRepl);
   let rIt=null;if(N.it>0){r++;S('H'+r,'HEURES INTER-CHANTIER (100 %, JAMAIS MAJORÉES)','bh');S('I'+r,null,'bh');merges.push('H'+r+':I'+r);r++;rIt=box('Payées en plus des heures ci-dessus',N.it,'bin');} /* 10/11 nuit (Ethan) : pointées à part, payées, jamais majorées */
   r++;S('A'+r,'Pré-rempli par Tracé'+(N.today?' le '+N.today:'')+' (planning, pointage, grands déplacements, compteurs) — à vérifier, compléter et signer. Cases vertes : à remplir par les RH.'+(K.reconstitue?' Compteur reconstitué depuis le pointage (pas de solde de départ importé).':'')+(N.lisse?' Heures lissées sur 5 jours (12 h par jour, 48 h par semaine) : le détail de chaque semaine est dans Tracé RH → Navettes.':''),'note');merges.push('A'+r+':J'+r);
-  return {name:name||(up(N.nom)+' '+up(N.prenom)).trim()||'Navette',cells,merges,heights,widths:[9,9,3,4,7,8,7,30,11,15,4,4],hidden:[11,12],fit:true,rows:r,
+  return {name:name||(up(N.nom)+' '+up(N.prenom)).trim()||'Navette',cells,merges,heights,images,widths:[9,9,3,4,7,8,7,30,11,15,4,4],hidden:[11,12],fit:true,rows:r,
     refs:{first,lastRow,totRow,ind0,cPrev,cRec,cTot,h125,h150,hTot,gTot,p125,p150,pTot,cEnt,cFin,rPrev,rMois,rEnt,rPrime,rRepl,rFin,rIt,satRow,hs125Rows,hs150Rows,dayRows}};}
 /* styles du modèle (orange = colonnes RH, gris = fins de semaine, bleu = cas / trajet, vert = à remplir) */
 export const NAV_STYLES={
@@ -172,6 +180,11 @@ export function majRang(a,b,contrat){const C=Math.max(+contrat||CONTRAT_H,H125_F
 /* répartir T heures sur n jours : au pas de ¼ h, le reste sur le dernier jour, jamais plus de 12 h (le surplus remonte sur les jours d'avant) */
 export function repartir(T,n){if(!(n>0))return [];const base=Math.max(0,Math.floor(T/n/PAS_LISSE+1e-9)*PAS_LISSE);const out=Array(n).fill(base);let rest=r2(T-base*n);
   for(let i=n-1;i>=0&&rest>0.0001;i--){const add=Math.min(rest,r2(HMAX_J-out[i]));out[i]=r2(out[i]+add);rest=r2(rest-add);}return out.map(r2);}
+/* 24/11 (Ethan : « on a fait un travail d'arrondi pour les navettes, il faut que les totaux affichés aient le même arrondi ») : TOUT ce qui part sur la navette est en quarts
+   d'heure, lissé ou non. quartsJours([h | null]) → les mêmes jours arrondis au ¼ h, dont la somme = le total réel arrondi au ¼ h le plus proche (l'écart va sur le
+   dernier jour qui a des heures) : 5 jours à 8,12 h (40,6 h) → 8 · 8 · 8 · 8 · 8,5 = 40,5 h, pas 40 h. */
+export function quartsJours(H){const T=arrondiSemaine(r2((H||[]).reduce((s,v)=>s+(+v||0),0)));const out=(H||[]).map(v=>v===null||v===undefined||!(+v>0)?null:arrondiSemaine(+v));let d=r2(T-out.reduce((s,v)=>s+(v||0),0));
+  for(let i=out.length-1;i>=0&&Math.abs(d)>0.001;i--){if(out[i]===null)continue;const nv=Math.max(0,r2(out[i]+d));d=r2(d-(nv-out[i]));out[i]=nv;}return out;}
 const ETATS={lisse:'lissée',main:'à la main',reel:'heures réelles (à la main)',encours:'en cours',vide:'rien de pointé',incomplet:'à compléter',sansjour:'sans jour à lisser'};
 export const ETAT_LISSE=ETATS;
 /* lisserSemaine(o) → la semaine telle qu'elle part sur la navette, et POURQUOI (expl : phrases lisibles par la RH et par le gars).
@@ -182,7 +195,8 @@ export const ETAT_LISSE=ETATS;
         placer (choix « reporter » en cours : le compteur à reporter se replace sur les semaines pas pleines),
         main:{mode:'auto'|'reel'|'main', h:[6 h | null] (mode main), off:[jours retirés du lissage], on:[jours ajoutés], comble:false (ne pas compléter), force:true (valider
               la semaine telle quelle malgré un jour sans pointage), malgre:true (lissée malgré la règle commune « semaine au réel »), motif, by, at} | null,
-        regle:{reel:[jours AU RÉEL pour tout le monde], liss:[fériés travaillés LISSÉS quand même pour tout le monde], mode:'reel' (toute la semaine aux heures réelles),
+        regle:{reel:[jours AU RÉEL pour tout le monde], liss:[fériés travaillés LISSÉS quand même pour tout le monde], ferme:[jours NON TRAVAILLÉS pour tout le monde :
+               pont, fermeture…], fermeLab (leur libellé sur la navette, « PONT » par défaut), mode:'reel' (toute la semaine aux heures réelles),
                motif, by, at} | null — la RÈGLE COMMUNE de la semaine}
    19/11 nuit (Ethan : « sur certaines semaines, des règles communes à tout le monde : ce mercredi 11 novembre, on lisse les heures sur tout sauf le mercredi férié qui a
    été travaillé — les heures étant majorées, il faut les heures au réel sur ce jour ») : un jour AU RÉEL garde ses heures pointées telles quelles et sort du lissage ; le
@@ -190,7 +204,7 @@ export const ETAT_LISSE=ETATS;
    de la semaine (regle.reel, samedi compris), ou toute la semaine (regle.mode = 'reel') ; regle.liss rend un férié travaillé au lissage pour tout le monde. La main sur la
    semaine d'une personne passe avant : « lissé quand même » (on), lissage automatique, heures réelles, heures saisies.
    États : lisse · main (heures saisies à la main) · reel (lissage retiré à la main) · encours · vide · incomplet (jour attendu sans pointage ni absence) · sansjour. */
-export function lisserSemaine(o){o=o||{};const C=+o.contrat>0?+o.contrat:CONTRAT_H;const M=o.main||null;const RG=o.regle&&!o.regle.deleted?o.regle:null;const REEL=new Set((RG&&Array.isArray(RG.reel)?RG.reel:[]).map(d=>String(d).slice(0,10)));const RLISS=new Set((RG&&Array.isArray(RG.liss)?RG.liss:[]).map(d=>String(d).slice(0,10)));
+export function lisserSemaine(o){o=o||{};const C=+o.contrat>0?+o.contrat:CONTRAT_H;const M=o.main||null;const RG=o.regle&&!o.regle.deleted?o.regle:null;const REEL=new Set((RG&&Array.isArray(RG.reel)?RG.reel:[]).map(d=>String(d).slice(0,10)));const RLISS=new Set((RG&&Array.isArray(RG.liss)?RG.liss:[]).map(d=>String(d).slice(0,10)));const RFERME=new Set((RG&&Array.isArray(RG.ferme)?RG.ferme:[]).map(d=>String(d).slice(0,10)));const FLAB=String(RG&&RG.fermeLab||'PONT').toLocaleUpperCase('fr-FR').slice(0,24)||'PONT'; /* 24/11 : jours NON TRAVAILLÉS pour tout le monde (pont, fermeture, intempéries…) */
   /* 19/11 nuit : règle commune de la semaine (jours au réel, ou toute la semaine). « Toute la semaine au réel » s'applique à chacun, sauf heures saisies à la main, heures
      réelles déjà choisies, ou « lissé malgré la règle » (main.malgre, posé par la fenêtre de la semaine) — un ancien réglage « auto » (jours, validation) ne l'annule pas. */
   const semReel=!!(RG&&RG.mode==='reel')&&!(M&&(M.mode==='main'||M.mode==='reel'||M.malgre));const mode=semReel?'reel':(M&&M.mode?M.mode:'auto');
@@ -199,23 +213,27 @@ export function lisserSemaine(o){o=o||{};const C=+o.contrat>0?+o.contrat:CONTRAT
     return {i,d,reel:h,it:r2(Math.max(0,+x.it||0)),plan:!!x.plan,ferie:!!x.ferie,abs:x.abs||null,sites:(x.sites||[]).filter(Boolean),futur:!!x.futur,incomplet:!!x.incomplet,wd:i<5,st:h!==null?'pointe':x.ferie?'ferie':x.abs?'abs':''};});
   /* pont : jour non travaillé entre le week-end et un férié (lundi avant un mardi férié, vendredi après un jeudi férié) */
   if(!J[0].st&&J[1].st==='ferie')J[0].st='pont';if(!J[4].st&&J[3].st==='ferie')J[4].st='pont';
+  J.forEach(x=>{if(RFERME.has(x.d)&&(x.st===''||x.st==='pont')){x.st='pont';x.ferme=true;}}); /* règle commune : ce jour-là n'est pas travaillé — pas attendu, pas lissé (s'il est pointé quand même, il compte comme un jour normal) */
   /* au réel : férié travaillé (lun → ven), ou jour de la règle commune — sauf « lissé quand même » à la main sur la semaine de la personne */
   J.forEach(x=>{x.ferT=x.ferie&&x.reel!==null;x.fixe0=(x.ferT&&!RLISS.has(x.d))||REEL.has(x.d);x.fixe=!ON.has(x.d)&&x.fixe0;x.liss=x.wd&&(x.st==='pointe'||x.st==='')&&!x.fixe;if(x.wd&&ON.has(x.d))x.liss=true;if(OFF.has(x.d))x.liss=false;});
-  const reel=r2(J.reduce((s,x)=>s+(x.reel||0),0)),it=r2(J.reduce((s,x)=>s+x.it,0));const fixeH=r2(J.reduce((s,x)=>s+(x.fixe&&x.reel!==null?x.reel:0),0));
+  const reel=r2(J.reduce((s,x)=>s+(x.reel||0),0)),it=r2(J.reduce((s,x)=>s+x.it,0));J.forEach(x=>{x.fx=x.fixe&&x.reel!==null?Math.min(HMAX_J,arrondiSemaine(x.reel)):null;}); /* 24/11 (Ethan : « au réel travaillé mais quand même plafonné à 12 h, et le reste lissé sur les autres jours ou en surplus si on dépasse les 48 h ») */
+  const fixeH=r2(J.reduce((s,x)=>s+(x.fx||0),0));
   const L=J.filter(x=>x.liss);const n=L.length;const cap=r2(Math.max(0,Math.min(HEBDO_MAX-fixeH,HMAX_J*n)));const cible=r2(C/5*n);
-  /* jour attendu au travail, passé, sans pointage ni absence : du lundi au jeudi toujours ; le vendredi seulement si la semaine n'a pas déjà ses heures (rythme 4 jours) */
-  const trous=J.filter(x=>x.wd&&!x.futur&&(x.incomplet||(x.st===''&&x.plan&&(x.i<4||reel<cible))));
+  /* jour attendu au travail, passé, sans pointage ni absence : du lundi au jeudi. 24/11 (Ethan : « les vendredis ne doivent pas donner de à régulariser, on travaille rarement
+     le vendredi ») : le vendredi n'est plus jamais attendu — avant, il l'était quand la semaine n'avait pas ses heures, et la semaine restait « à compléter » pour rien
+     (une affectation au planning couvre le vendredi d'office). Une semaine courte se lisse ; ce qui manque sous l'objectif se complète avec les compteurs, sinon alerte « sans solde ». */
+  const trous=J.filter(x=>x.wd&&!x.futur&&(x.incomplet||(x.st===''&&x.plan&&x.i<4)));
   const force=!!(M&&M.force);
   const etat=mode==='reel'?'reel':mode==='main'&&M&&Array.isArray(M.h)?'main':J.some(x=>x.futur)&&!force?'encours':!(reel>0)?'vide':trous.length&&!force?'incomplet':!n?'sansjour':'lisse';
   const jours=J.map(x=>({d:x.d,i:x.i,reel:x.reel,it:x.it,h:null,st:x.st,liss:x.liss,plan:x.plan,site:x.sites[0]||null,emprunt:false,fixe:!!x.fixe,fixe0:!!x.fixe0,ferT:!!x.ferT,
-    lab:x.st==='ferie'?'FÉRIÉ':x.st==='pont'?'PONT':x.st==='abs'?String(x.abs).toLocaleUpperCase('fr-FR'):'',tag:x.ferT?'FÉRIÉ TRAVAILLÉ':''})); /* fixe0 : au réel d'office (férié travaillé, règle de la semaine) — ce que la case « Jours lissés » montre décochée · tag : écrit sur la navette à côté du chantier */
+    ferme:!!x.ferme,lab:x.st==='ferie'?'FÉRIÉ':x.st==='pont'?(x.ferme?FLAB:'PONT'):x.st==='abs'?String(x.abs).toLocaleUpperCase('fr-FR'):'',tag:x.ferT?'FÉRIÉ TRAVAILLÉ':''})); /* fixe0 : au réel d'office (férié travaillé, règle de la semaine) — ce que la case « Jours lissés » montre décochée · tag : écrit sur la navette à côté du chantier */
   let declare=0,versReport=0,versReportMaj=0,R=[];
-  const reelA=etat==='lisse'?r2(arrondiSemaine(r2(reel-fixeH))+fixeH):reel; /* 19/11 soir : le total de la semaine lissée, arrondi au quart d'heure le plus proche — 19/11 nuit : la part au réel (férié travaillé…) reste telle quelle */
-  if(etat==='lisse'){const Tl=r2(Math.min(r2(reelA-fixeH),cap));versReport=r2(Math.max(0,r2(reelA-fixeH)-Tl));declare=r2(Tl+fixeH);versReportMaj=versReport>0?majRang(declare,reelA,C):0;R=repartir(Tl,n);let k=0;jours.forEach(j=>{if(j.liss)j.h=R[k++];else if(j.fixe)j.h=j.reel;});
+  const reelA=etat==='main'?reel:arrondiSemaine(reel); /* 19/11 soir : le total de la semaine, arrondi au quart d'heure le plus proche — 24/11 : dans tous les états (lissée, heures réelles, en cours, à compléter), jours au réel compris */
+  if(etat==='lisse'){const Tl=r2(Math.min(r2(reelA-fixeH),cap));versReport=r2(Math.max(0,r2(reelA-fixeH)-Tl));declare=r2(Tl+fixeH);versReportMaj=versReport>0?majRang(declare,reelA,C):0;R=repartir(Tl,n);let k=0;jours.forEach((j,i)=>{if(j.liss)j.h=R[k++];else if(j.fixe)j.h=J[i].fx>0?J[i].fx:null;});
     /* le chantier d'un jour lissé non travaillé : celui du jour travaillé d'avant (le vendredi prend celui du jeudi), sinon celui d'après */
     jours.forEach((j,i)=>{if(!j.liss||j.reel!==null)return;let s=null;for(let q=i-1;q>=0&&!s;q--)if(jours[q].reel!==null&&jours[q].site)s=jours[q].site;for(let q=i+1;q<6&&!s;q++)if(jours[q].reel!==null&&jours[q].site)s=jours[q].site;if(s){j.site=s;j.emprunt=true;}});}
   else if(etat==='main'){jours.forEach((j,i)=>{const v=M.h[i];j.h=ok(v)&&+v>0?r2(+v):null;});declare=r2(jours.reduce((s,j)=>s+(j.h||0),0));if(reel>declare){versReport=r2(reel-declare);versReportMaj=majRang(declare,reel,C);}}
-  else{jours.forEach(j=>{j.h=j.reel;});declare=reel;if(reel>HEBDO_MAX){versReport=r2(reel-HEBDO_MAX);versReportMaj=majRang(HEBDO_MAX,reel,C);}} /* comme avant : au-delà de 48 h → à reporter */
+  else{const Q=quartsJours(jours.map(j=>j.reel));jours.forEach((j,i)=>{j.h=Q[i]>0?Q[i]:null;});declare=reelA;if(reelA>HEBDO_MAX){versReport=r2(reelA-HEBDO_MAX);versReportMaj=majRang(HEBDO_MAX,reelA,C);}} /* comme avant : au-delà de 48 h → à reporter ; 24/11 : jours en quarts d'heure (somme = total arrondi) */
   /* compteurs : d'abord le compteur à reporter, puis le compteur d'heures */
   const settled=etat==='lisse'||etat==='main'||etat==='reel';const so=o.soldes||{};const known=ok(so.report)||ok(so.recup);
   let rR=ok(so.report)?Math.max(0,+so.report):0,rC=ok(so.recup)?Math.max(0,+so.recup):0;
@@ -229,14 +247,14 @@ export function lisserSemaine(o){o=o||{};const C=+o.contrat>0?+o.contrat:CONTRAT
   const E=[];const hv=v=>v===null||v===undefined?'—':fx(v);
   E.push('Pointé : '+J.map(x=>JC[x.i]+' '+hv(x.reel)).join(' · ')+' = '+fx(reel)+' h'+(it?' · inter-chantier '+fx(it)+' h, payées à part à 100 % (jamais majorées)':''));
   const ex=J.filter(x=>x.wd&&(x.st==='ferie'||x.st==='pont'||x.st==='abs'||(OFF.has(x.d))||(ON.has(x.d)&&x.st!=='pointe'&&x.st!=='')));
-  if(ex.length)E.push(ex.map(x=>JNOM[x.i]+' '+jdm(x.d)+' : '+(ON.has(x.d)?'lissé quand même (à la main)':OFF.has(x.d)?'retiré du lissage (à la main)':x.st==='ferie'?'férié':x.st==='pont'?'pont (entre le week-end et le férié), pas lissé':String(x.abs).toLowerCase()+', pas lissé')).join(' · '));
-  {const fx2=J.filter(x=>x.fixe);if(fx2.length&&mode==='auto')E.push(fx2.map(x=>{const nm=JNOM[x.i].charAt(0).toUpperCase()+JNOM[x.i].slice(1)+' '+jdm(x.d);return x.ferT?nm+' : férié travaillé — '+fx(x.reel)+' h au réel (heures majorées), pas lissé':nm+' : au réel pour tout le monde (règle de la semaine) — '+(x.reel!==null?fx(x.reel)+' h':'rien de pointé')+', pas lissé';}).join(' · ')+'.');
-   if(RG&&(REEL.size||RLISS.size||RG.mode==='reel')&&(RG.by||RG.motif))E.push('Règle de la semaine pour tout le monde'+(RG.by?' posée par '+RG.by:'')+(RG.at?' le '+jdm(RG.at)+'/'+String(RG.at).slice(0,4):'')+(RG.motif?' — '+RG.motif:'')+'.');
+  if(ex.length)E.push(ex.map(x=>JNOM[x.i]+' '+jdm(x.d)+' : '+(ON.has(x.d)?'lissé quand même (à la main)':OFF.has(x.d)?'retiré du lissage (à la main)':x.st==='ferie'?'férié':x.st==='pont'?(x.ferme?FLAB.toLowerCase()+' pour tout le monde (règle de la semaine), pas lissé':'pont (entre le week-end et le férié), pas lissé'):String(x.abs).toLowerCase()+', pas lissé')).join(' · '));
+  {const fx2=J.filter(x=>x.fixe);if(fx2.length&&mode==='auto')E.push(fx2.map(x=>{const nm=JNOM[x.i].charAt(0).toUpperCase()+JNOM[x.i].slice(1)+' '+jdm(x.d);const plaf=x.reel!==null&&x.reel>HMAX_J?' ('+fx(x.reel)+' h pointées, plafonné à '+HMAX_J+' h : le reste est lissé sur les autres jours)':'';return x.ferT?nm+' : férié travaillé — '+fx(x.fx)+' h au réel (heures majorées), pas lissé'+plaf:nm+' : au réel pour tout le monde (règle de la semaine) — '+(x.reel!==null?fx(x.fx)+' h':'rien de pointé')+', pas lissé'+plaf;}).join(' · ')+'.');
+   if(RG&&(REEL.size||RLISS.size||RFERME.size||RG.mode==='reel')&&(RG.by||RG.motif))E.push('Règle de la semaine pour tout le monde'+(RG.by?' posée par '+RG.by:'')+(RG.at?' le '+jdm(RG.at)+'/'+String(RG.at).slice(0,4):'')+(RG.motif?' — '+RG.motif:'')+'.');
    if(RG&&RG.mode==='reel'&&M&&(M.mode==='main'||M.malgre))E.push('La règle de la semaine (heures réelles pour tout le monde) ne s\'applique pas ici : cette semaine est réglée à la main pour cette personne.');
    if(RLISS.size&&J.some(x=>x.ferT&&RLISS.has(x.d)))E.push(J.filter(x=>x.ferT&&RLISS.has(x.d)).map(x=>JNOM[x.i].charAt(0).toUpperCase()+JNOM[x.i].slice(1)+' '+jdm(x.d)).join(', ')+' : férié travaillé, lissé comme un autre jour pour tout le monde (règle de la semaine).');
    if(ON.size&&J.some(x=>ON.has(x.d)&&x.fixe0))E.push(J.filter(x=>ON.has(x.d)&&x.fixe0).map(x=>JNOM[x.i]+' '+jdm(x.d)).join(', ')+' : lissé quand même (à la main), malgré '+(J.some(x=>ON.has(x.d)&&x.ferT)?'le férié travaillé':'la règle de la semaine')+'.');}
+  if(etat!=='main'&&Math.abs(reelA-reel)>0.004)E.push('Total arrondi au quart d\'heure le plus proche : '+fx(reel)+' h → '+fx(reelA)+' h.');
   if(etat==='lisse'){const base=R.length?R[0]:0;const resteJ=jours.filter(j=>j.liss&&j.h!==base);
-    if(Math.abs(reelA-reel)>0.004)E.push('Total arrondi au quart d\'heure le plus proche : '+fx(reel)+' h → '+fx(reelA)+' h.');
     E.push('Lissé sur '+n+' jour'+(n>1?'s':'')+' ('+L.map(x=>JC[x.i]).join(' ')+') au pas de ¼ h : '+fx(base)+' h par jour'+(resteJ.length?', le reste sur '+resteJ.map(j=>JNOM[j.i]).join(' et ')+' ('+resteJ.map(j=>fx(j.h)+' h').join(', ')+')':'')+' — 12 h par jour au plus.');
     const em=jours.filter(j=>j.emprunt);if(em.length)E.push(em.map(j=>JNOM[j.i].charAt(0).toUpperCase()+JNOM[j.i].slice(1)+' non travaillé : chantier '+(j.i===4?'du jeudi':'du jour travaillé le plus proche')+' ('+(j.site&&j.site.nom||'?')+')').join(' · ')+'.');
     if(versReport>0)E.push('Plafond '+fx(cap)+' h ('+(fixeH>0&&cap===r2(HEBDO_MAX-fixeH)?'48 h par semaine moins '+fx(fixeH)+' h au réel':cap<HEBDO_MAX?'12 h × '+n+' j':HMAX_J*n===HEBDO_MAX?'48 h par semaine = 12 h × '+n+' j':'48 h par semaine')+') : '+fx(versReport)+' h au-delà ('+(Math.floor(declare)+1)+'e → '+Math.ceil(reelA)+'e heure), majorées selon leur rang = '+fx(versReportMaj)+' h au compteur à reporter.');}
@@ -256,7 +274,7 @@ export function lisserSemaine(o){o=o||{};const C=+o.contrat>0?+o.contrat:CONTRAT
   const flags=[];if(versReport>0)flags.push('plafond');if(deReport||deRecup)flags.push('comble');if(manque>0||manqueCouv>0)flags.push(known?'sansSolde':'soldeInconnu');if(etat==='incomplet')flags.push('incomplet');
   if(M&&(M.mode&&M.mode!=='auto'||M.off||M.on||M.force||M.comble===false||M.malgre))flags.push('main');if(it)flags.push('inter');if(place)flags.push('place');if(J.some(x=>x.st==='abs'))flags.push('absence');if(J.some(x=>x.st==='ferie'||x.st==='pont'))flags.push('ferie');
   if(etat==='vide'&&J.some(x=>x.wd&&x.plan&&!x.futur))flags.push('rien');
-  if(J.some(x=>x.ferT&&x.fixe))flags.push('ferieT');if(semReel||J.some(x=>(x.fixe&&!x.ferT)||(x.ferT&&RLISS.has(x.d)&&!x.fixe)))flags.push('regle'); /* 19/11 nuit : férié travaillé au réel · règle commune de la semaine */
+  if(J.some(x=>x.ferT&&x.fixe))flags.push('ferieT');if(semReel||J.some(x=>(x.fixe&&!x.ferT)||(x.ferT&&RLISS.has(x.d)&&!x.fixe)||x.ferme))flags.push('regle'); /* 19/11 nuit : férié travaillé au réel · règle commune de la semaine */
   const res={mon:o.mon,etat,etatTxt:ETATS[etat],jours,reel,reelA,arrondi:r2(reelA-reel),it,n,cap,cible,declare,versReport,versReportMaj,repl,couvReport,couvRecup,manqueCouv,deReport,deRecup,manque,place,total,
     hs125:sp.hs125,hs150:sp.hs150,trous:trous.map(x=>x.d),main:M,expl:E,flags,known,fixeH,regle:RG};
   /* 19/11 nuit (Ethan : « que ce soit dynamique, que les valeurs lissées s'ajustent en direct ») : la semaine garde ce qui a servi à la calculer (jours, soldes, contrat…) pour qu'on
