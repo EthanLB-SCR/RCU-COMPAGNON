@@ -113,7 +113,7 @@ o.off={ou:await T(()=>window.TRACE.tuto.where()),best:await T(()=>window.TRACE.t
 await page.evaluate(async()=>{const T=window.TRACE;await T.band.setModules([]);T.renderHome();});await wait(600);await T(()=>localStorage.removeItem('trace:tuto:l:ethan'));
 console.log('p11) tutoriels :',J({help:o.help,card:o.card,vu0:o.vu0,vu1:o.vu1,cat:{rh:o.cat['Tracé Ressources humaines'],pil:(o.cat['Tracé Pilotage']||[]).filter(t=>TROIS.test(t))},ov:o.ov.filter(t=>TROIS.test(t)),ovOff:o.ovOff.filter(t=>TROIS.test(t)),off:o.off}));
 C.p11=o.help&&!!o.card&&o.card.k==='rh:gd'&&o.card.mod.startsWith('Tracé Ressources humaines · Grands déplacements')&&o.card.hole&&o.vu0.join()==='false,false,false'&&o.vu1.join()==='true,false,true'
-  &&J(o.cat['Tracé Ressources humaines'])===J(['Compteurs d\'heures','Grands déplacements ✓','Variables de paie ✓'])&&!(o.cat['Tracé Pilotage']||[]).some(t=>TROIS.test(t))&&(o.cat['Tracé Pilotage']||[]).length>=10
+  &&['Compteurs d\'heures','Grands déplacements ✓','Variables de paie ✓','Vue d\'ensemble du module','Navettes','Contrôle','Absences et congés','Contraventions','Mutuelle'].every(t=>(o.cat['Tracé Ressources humaines']||[]).includes(t)) /* 24/11 nuit : + les tutoriels des autres onglets du module (tutos_rh.js) */&&!(o.cat['Tracé Pilotage']||[]).some(t=>TROIS.test(t))&&(o.cat['Tracé Pilotage']||[]).length>=10
   &&o.ov.length>=8&&!o.ov.some(t=>TROIS.test(t))&&['Variables de paie · rapport RH','Grands déplacements','Compteurs d\'heures'].every(t=>o.ovOff.includes(t))&&o.off.ou==='pilotage:gd'&&o.off.best==='rh:gd'&&o.off.help;
 
 // ── p12 : manuel de l'assistant et renvois écrits
@@ -125,7 +125,8 @@ await page.evaluate(async()=>{const w=ms=>new Promise(r=>setTimeout(r,ms));const
 o.fiche=await T(()=>[...document.querySelectorAll('#eq-app .cpt-card .hint')].map(h=>h.textContent.replace(/\s+/g,' ')).join(' ¦ '));await T(()=>window.TRACE.espace.fiche(null));await wait(200);
 await tab('htExpl');await page.evaluate(()=>[...document.querySelectorAll('#eq-app .ac-row')].find(x=>/Production par équipe/.test(x.textContent)).click());await wait(600);o.prod=(await txt()).match(/Le rapport de paie est à part[^.]*\./);o.prod=o.prod?o.prod[0]:'';
 console.log('p12) assistant et renvois :',J({e:o.e,k:o.k,pil:o.pil,struct:o.struct.slice(0,170),rhl:o.rhl.slice(0,150),dit:o.dit,fiche:(o.fiche.match(/Import des soldes[^.]*\./)||[''])[0],prod:o.prod}));
-C.p12=J(o.e)===J(['Tracé Ressources humaines · Variables de paie','Tracé Ressources humaines · Grands déplacements','Tracé Ressources humaines · Compteurs d\'heures'])&&o.k.length===0&&Array.isArray(o.pil)&&o.pil.length===0
+const RH3=['Tracé Ressources humaines · Variables de paie','Tracé Ressources humaines · Grands déplacements','Tracé Ressources humaines · Compteurs d\'heures'],RHG=RH3.concat(['Tracé Ressources humaines · Navettes','Tracé Ressources humaines · Contrôle','Tracé Ressources humaines · Accidents']); /* 24/11 nuit : tutoriels RH ajoutés — Karim a ceux de SON dossier, jamais ceux de la gestion */
+C.p12=RH3.every(t=>o.e.includes(t))&&o.e.includes('Tracé Ressources humaines · Navettes')&&!RHG.some(t=>o.k.includes(t))&&o.k.includes('Tracé Ressources humaines · Absences et congés')&&Array.isArray(o.pil)&&o.pil.length===0
   &&o.struct.length>40&&!/variables de paie|grands déplacements|compteurs d'heures/i.test(o.struct)&&/grands déplacements, compteurs d'heures, variables de paie/.test(o.rhl)&&o.dit
   &&/Import des soldes de tout le monde : RH → ⏱ Compteurs d'heures\./.test(o.fiche)&&!/Pilotage → Heures & paie/.test(o.fiche)&&/à part \(RH → Variables de paie\)\./.test(o.prod);
 

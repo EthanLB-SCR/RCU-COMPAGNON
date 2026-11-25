@@ -22,7 +22,7 @@ const BASE=process.env.BASE||'http://127.0.0.1:8844';const SHOTS=process.env.SHO
 const M=await import(path.join(here,'..','src','tutos_pilotage.js'));const TU=M.default,NOMS=M.NOMS;
 const C={};const logs=[];const J=x=>JSON.stringify(x);
 /* ── c1 : le fichier ── */
-const KEYS=['pilotage','pilotage:plan','pilotage:orga','pilotage:obj','pilotage:agenda','pilotage:valid','pilotage:prodEq','rh:paie','rh:gd','rh:cpt' /* 19/11 nuit (Ethan) : ces trois écrans, et leurs tutoriels, sont dans le module RH */,'pilotage:annul','pilotage:x:mag','pilotage:x:dem','pilotage:secu','pilotage:qhs','pilotage:controles','pilotage:accident','pilotage:habsEq','affaire','affaire:cmd','affaire:frais','affaire:x:cc'];
+const KEYS=['pilotage','pilotage:plan','pilotage:orga','pilotage:obj','pilotage:agenda','pilotage:valid','pilotage:prodEq','rh:paie','rh:gd','rh:cpt' /* 19/11 nuit (Ethan) : ces trois écrans, et leurs tutoriels, sont dans le module RH */,'pilotage:annul','pilotage:x:mag','pilotage:x:dem','pilotage:secu','pilotage:qhs','pilotage:controles','pilotage:accident','pilotage:habsEq','affaire','affaire:cmd','affaire:frais','affaire:x:cc','pilotage:pub','pilotage:grille','affaire:fiche','affaire:reglages' /* 24/11 nuit : publication et grille du planning — déroulés sur leur écran par e2e_tuto_nv_2411 */];
 const phrases=s=>(String(s).replace(/« \? »/g,'').match(/[.!?](\s|$)/g)||[]).length;
 let o={keys:Object.keys(TU),miss:KEYS.filter(k=>!TU[k]),extra:Object.keys(TU).filter(k=>!KEYS.includes(k)),noms:KEYS.filter(k=>k.includes(':')&&!NOMS[k]),pb:[]};
 for(const [k,st] of Object.entries(TU)){const T=st.map(s=>s.titre);if(new Set(T).size!==T.length)o.pb.push(k+' : titres en double');
@@ -102,7 +102,7 @@ const SH={pilotage:{at:'Planning de la semaine',file:'tu_pl_pilotage_390.png'},'
 await page.evaluate(()=>{const W=window.TRACE.tuto;W.keys&&W.keys();});
 o={keysApp:await page.evaluate(K=>K.filter(k=>!window.TRACE.tuto.keys().includes(k)),KEYS),res:{}};
 const WHO={'pilotage:x:mag':['sophie'],'pilotage:orga':['julien','chef']}; /* 01/11 soir : « orga » n'existe plus que pour le chef de chantier (Ta semaine) — l'encadrement arrive sur le planning unique */
-for(const k of KEYS){const w0=WHO[k]||['ethan'];const who=w0[0];await as(...w0);await open(k);const w=await where();const hb=await help();const r=await run(k,SH[k]);r.who=who;r.where=w;r.help=hb;o.res[k]=r;
+for(const k of KEYS.filter(k=>k==='pilotage:secu'||SCREEN[k])){const w0=WHO[k]||['ethan'];const who=w0[0];await as(...w0);await open(k);const w=await where();const hb=await help();const r=await run(k,SH[k]);r.who=who;r.where=w;r.help=hb;o.res[k]=r;
   if(!(w===k&&hb&&ok(r)&&nOk(r,k)&&r.mod.startsWith((k.startsWith('affaire')?'Tracé Affaire':k.startsWith('rh:')?'Tracé Ressources humaines':'Tracé Pilotage')+(k.includes(':')?' · '+NOMS[k]:''))))console.log('  ✗',k,J(r));}
 const bad2=Object.entries(o.res).filter(([k,r])=>!(r.where===k&&r.help&&ok(r)&&nOk(r,k)&&r.mod.startsWith((k.startsWith('affaire')?'Tracé Affaire':k.startsWith('rh:')?'Tracé Ressources humaines':'Tracé Pilotage')+(k.includes(':')?' · '+NOMS[k]:'')))).map(([k])=>k);
 console.log('c2) 390 px, chaque clé :',J({keysApp:o.keysApp,n:Object.keys(o.res).length,etapes:Object.values(o.res).reduce((a,r)=>a+r.n,0),bad:bad2,detail:Object.fromEntries(Object.entries(o.res).map(([k,r])=>[k,r.n+' · '+r.steps.filter(s=>s.endsWith('◉')).length+' ◉']))}));

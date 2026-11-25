@@ -21,7 +21,7 @@ const BASE=process.env.BASE||'http://localhost:8765';const SHOTS=process.env.SHO
 const C={};const logs=[];const J=x=>JSON.stringify(x);
 /* ── s1 : textes ── */
 {const pb=[];const phr=t=>(t.replace(/«\s\?\s»/g,'').match(/[.!?](?=\s|$)/g)||[]).length+(t.match(/…(?=\s+[A-ZÀ-ÝÉ«])/g)||[]).length;
-  const KEYS=['accueil','compagnon','compagnon:docs','compagnon:planning','compagnon:chantiers','compagnon:prod','compagnon:frais','compagnon:heures','compagnon:habs','compagnon:avatar','compagnon:dem','compagnon:mag','compagnon:vlaisse','compagnon:vx',
+  const KEYS=['accueil','compagnon','compagnon:docs','compagnon:planning','compagnon:chantiers','compagnon:prod','compagnon:frais','compagnon:heures','compagnon:habs','compagnon:avatar','compagnon:dem','compagnon:mag','compagnon:vlaisse','compagnon:vx','compagnon:outils' /* 24/11 nuit : outils de tuyauterie — déroulé par e2e_tuto_nv_2411 */,
     'equipe','equipe:annu','equipe:docs','equipe:info','equipe:x:acc','equipe:x:dob','equipe:x:pack','reglages'];
   KEYS.forEach(k=>{if(!Array.isArray(DEF[k])||!DEF[k].length)pb.push(k+' : absent');});Object.keys(DEF).forEach(k=>{if(!KEYS.includes(k))pb.push(k+' : clé en trop');});
   Object.entries(DEF).forEach(([k,L])=>{if(k.includes(':')&&!NOMS[k])pb.push(k+' : pas de nom');const T=new Set();

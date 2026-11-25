@@ -11,7 +11,7 @@
 // Écrans (clé passée par app.js → tutoArrive) : accueil, chantiers (Carte / Liste), chantier (un chantier ouvert), pilotage, compagnon, affaires, flotte, magasin, equipe.
 // Robots de test (navigator.webdriver) : rien ne s'affiche tout seul, sauf localStorage « trace:tuto:test » = '1' (e2e_mo_3110) ; tutoStart reste utilisable.
 export const TUTO_TITRES={reglages:'Tracé · Réglages',concepteur:'Tracé Concepteur',accueil:'Tracé',chantiers:'Tracé Chantier',chantier:'Tracé Chantier',pilotage:'Tracé Pilotage',compagnon:'Tracé Compagnon',commerce:'Tracé Commerce',affaire:'Tracé Affaire',flotte:'Tracé Flotte',magasin:'Tracé Magasin',equipe:'Tracé Équipe',rh:'Tracé Ressources humaines' /* 19/11 nuit : les tutoriels Grands déplacements, Compteurs d'heures et Variables de paie sont dans le module RH */};
-import T_CH,{NOMS as N_CH} from './tutos_chantier.js';import T_TE,{NOMS as N_TE} from './tutos_technique.js';import T_CO,{NOMS as N_CO} from './tutos_compagnon.js';import T_PI,{NOMS as N_PI,POUR as P_PI} from './tutos_pilotage.js';import T_CM,{NOMS as N_CM} from './tutos_commerce.js'; /* 31/10 : tutoriels détaillés, un fichier par famille de modules */
+import T_CH,{NOMS as N_CH} from './tutos_chantier.js';import T_TE,{NOMS as N_TE} from './tutos_technique.js';import T_CO,{NOMS as N_CO} from './tutos_compagnon.js';import T_PI,{NOMS as N_PI,POUR as P_PI} from './tutos_pilotage.js';import T_CM,{NOMS as N_CM} from './tutos_commerce.js';import T_RH,{NOMS as N_RH,POUR as P_RH} from './tutos_rh.js'; /* 24/11 nuit : module Ressources humaines (vue d'ensemble + un tutoriel par onglet) */ /* 31/10 : tutoriels détaillés, un fichier par famille de modules */
 export const TUTOS={
  accueil:[
   {titre:'Bienvenue dans Tracé',texte:'L\'appli de SCR pour tes chantiers : soudures, pointage, documents. Trente secondes pour faire le tour.'},
@@ -81,8 +81,9 @@ export const TUTOS={
  ]
 };
 /* 31/10 : fusion des tutoriels détaillés (ils remplacent la vue d'ensemble de base quand ils la redéfinissent) + titres « Tracé Module · Option » */
-export const TUTO_NOMS=Object.assign({},N_CH,N_TE,N_CO,N_PI,N_CM);
-Object.assign(TUTOS,T_CH,T_TE,T_CO,T_PI,T_CM);
+export const TUTO_NOMS=Object.assign({},N_CH,N_TE,N_CO,N_PI,N_CM,N_RH);
+Object.assign(TUTOS,T_CH,T_TE,T_CO,T_PI,T_CM,T_RH);
+const P_TOUS=Object.assign({},P_PI,P_RH); /* 24/11 nuit : écrans réservés (assistant : tutoriels des seuls écrans de la personne) */
 Object.keys(TUTOS).forEach(k=>{if(k.includes(':')&&!TUTO_TITRES[k]){const m=k.split(':')[0];TUTO_TITRES[k]=(TUTO_TITRES[m]||'Tracé')+' · '+(TUTO_NOMS[k]||k.split(':').slice(1).join(' '));}});
 
 let A=null;const SEEN_KEY='trace:tuto:';const W=typeof navigator!=='undefined'&&navigator.webdriver;
@@ -113,9 +114,12 @@ export function tutoClose(how){if(!cur){const r0=document.getElementById('tuto')
 export const tutoOpen=()=>cur?{k:cur.k,i:cur.i,n:cur.st.length}:null;
 /* 31/10 (lots te / pl) : la cible est-elle vraiment à l'écran ? un « toucher » en haut de sa partie visible l'atteint (calque du tuto transparent le temps du test) — sinon elle est sous le bandeau, la barre d'onglets ou hors de la zone qui défile */
 function onTop(el,r){const root=document.getElementById('tuto');const pe=root?root.style.pointerEvents:'';if(root)root.style.pointerEvents='none';let ok=true;try{const x=(Math.max(0,r.left)+Math.min(innerWidth,r.right))/2,y=Math.max(0,r.top)+Math.min(8,r.height/2);const h=document.elementFromPoint(Math.min(innerWidth-1,Math.max(0,x)),Math.min(innerHeight-1,Math.max(0,y)));ok=!h||h===el||el.contains(h)||h.contains(el);}catch(e){}if(root)root.style.pointerEvents=pe;return ok;}
+/* 24/11 nuit : la cible est-elle coupée par un cadre qui défile (liste, barre d'onglets, corps de l'écran sous le bandeau) ? onTop ne le voit pas quand le point testé tombe sur le cadre lui-même */
+function clipped(el,r){let p=el.parentElement;while(p&&p!==document.body&&p!==document.documentElement){const cs=getComputedStyle(p);if(/(auto|scroll|hidden|clip)/.test(cs.overflowY+' '+cs.overflowX)){const pr=p.getBoundingClientRect();const vy=Math.min(r.bottom,pr.bottom)-Math.max(r.top,pr.top),vx=Math.min(r.right,pr.right)-Math.max(r.left,pr.left);if(vy<0.6*Math.min(r.height,pr.height)||vx<0.6*Math.min(r.width,pr.width))return true;}p=p.parentElement;}return false;}
 function target(s){if(!s||!s.sel)return null;for(const q of String(s.sel).split(',')){let el=null;try{el=document.querySelector(q.trim());}catch(e){}if(!el)continue;let r=el.getBoundingClientRect();if(r.width<4||r.height<4)continue;
   const cs=getComputedStyle(el);if(cs.visibility==='hidden'||cs.display==='none')continue;
-  if((r.bottom<0||r.top>innerHeight||!onTop(el,r))&&cur&&cur.scrolled!==cur.i){cur.scrolled=cur.i;const ap=document.getElementById('app'),y0=ap?ap.scrollTop:0;try{el.scrollIntoView({block:'center'});}catch(e){}if(ap&&ap.scrollTop!==y0)ap.scrollTop=y0;r=el.getBoundingClientRect();} /* plus bas dans la page, ou cachée sous un bandeau / la barre d'onglets : on la fait venir, une fois (31/10, lot ch : sans faire défiler #app — sinon le bandeau restait coupé de 27 px après le tuto) */
+  const horsX=r.left>innerWidth-8||r.right<8||r.right>innerWidth+1||r.left<-1,visY=Math.max(0,Math.min(r.bottom,innerHeight)-Math.max(r.top,0)),coupe=r.top>innerHeight*0.5&&visY<0.6*Math.min(r.height,innerHeight); /* 24/11 nuit : + une cible dans une barre qui défile de côté (onglets RH, Technique…) et une cible à cheval sur le bas de l'écran (moins de 60 % visibles) */
+  if(cur&&cur.scrolled!==cur.i&&(r.bottom<0||r.top>innerHeight||!onTop(el,r)||horsX||coupe||clipped(el,r))){cur.scrolled=cur.i;const ap=document.getElementById('app'),y0=ap?ap.scrollTop:0;try{el.scrollIntoView({block:'center',inline:horsX?'center':'nearest'});}catch(e){}if(ap&&ap.scrollTop!==y0)ap.scrollTop=y0;r=el.getBoundingClientRect();} /* plus bas dans la page, ou cachée sous un bandeau / la barre d'onglets : on la fait venir, une fois (31/10, lot ch : sans faire défiler #app — sinon le bandeau restait coupé de 27 px après le tuto) */
   if(r.bottom<0||r.top>innerHeight||r.right<0||r.left>innerWidth)continue;return el;}return null;}
 function paint(){let root=document.getElementById('tuto');if(!root){root=document.createElement('div');root.id='tuto';root.setAttribute('role','dialog');root.setAttribute('aria-modal','false');document.body.appendChild(root);
     root.addEventListener('click',e=>{const b=e.target.closest('[data-tuto]');if(b){e.stopPropagation();const v=b.dataset.tuto;if(v==='next'){if(cur.i<cur.st.length-1){cur.i++;paint();}else tutoClose('fait');}else if(v==='prev'){if(cur.i>0){cur.i--;paint();}}else tutoClose('passe');return;}
@@ -135,5 +139,5 @@ function place(){if(!cur)return;const root=document.getElementById('tuto');if(!r
 export const tutoKeys=()=>Object.keys(TUTOS);
 /* 11/11 (assistant 💬) : les tutoriels en texte, pour le manuel de l'assistant — étapes filtrées par les droits de la personne (mêmes conditions `si` que l'affichage) ;
    keep(clé) : garder le tutoriel (l'assistant ne garde que ceux des onglets ouverts à la personne) */
-export function tutoManuel(keep){const out=[];Object.keys(TUTOS).forEach(k=>{if(keep){try{if(!keep(k))return;}catch(e){}}try{if(P_PI&&P_PI[k]&&!P_PI[k](A))return;}catch(e){} /* 19/11 nuit : tutoriel réservé à qui a l'écran */const st=stepsOf(k).filter(s=>s&&(s.titre||s.texte));if(!st.length)return;out.push('## '+(TUTO_TITRES[k]||k));
+export function tutoManuel(keep){const out=[];Object.keys(TUTOS).forEach(k=>{if(keep){try{if(!keep(k))return;}catch(e){}}try{if(P_TOUS[k]&&!P_TOUS[k](A))return;}catch(e){} /* 19/11 nuit : tutoriel réservé à qui a l'écran */const st=stepsOf(k).filter(s=>s&&(s.titre||s.texte));if(!st.length)return;out.push('## '+(TUTO_TITRES[k]||k));
   st.forEach(s=>out.push('- '+(s.titre?String(s.titre).trim()+' : ':'')+String(s.texte||'').replace(/\s+/g,' ').trim()));out.push('');});return out.join('\n');}

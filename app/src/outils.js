@@ -126,9 +126,9 @@ function outilHTML(tool) {
   if (tool === 'equ') champs = `<div class="ot-fields">${field('equ', 'a', 'Côté a', 'm')}${field('equ', 'b', 'Côté b', 'm', 'vide = 3-4-5')}</div>`;
   return `<div class="card ot-card" data-ot="${tool}"><div class="ot-head"><button type="button" class="btn" data-act="x" data-v="${ID}|open|">‹ Outils</button><h3>${esc(T[1])}</h3></div>${champs}<div id="ot-res" aria-live="polite">${resultats(tool)}</div><div id="ot-svg">${schema(tool)}</div><div class="ot-formule">${esc(FORMULE[tool])}</div><div class="eq-acts" style="margin-top:10px"><button type="button" class="btn" data-act="x" data-v="${ID}|reset|${tool}">Effacer</button></div></div>`;
 }
-function vueHTML() { css(); const s = st();
-  if (s.tool && TOOLS.some(x => x[0] === s.tool)) return outilHTML(s.tool);
-  return `<div class="card"><h3 style="margin-top:0">🧰 Outils de tuyauterie</h3><div class="hint" style="margin:0 0 10px">Calcul sur le téléphone, rien n'est envoyé. Valeurs gardées sur cet appareil.</div><div class="ot-grid">${TOOLS.map(([k, n, d]) => `<button type="button" class="ot-tile" data-act="x" data-v="${ID}|open|${k}">${ICO[k]}<b>${esc(n)}</b><span>${esc(d)}</span></button>`).join('')}</div></div>`; }
+function vueHTML() { css(); const s = st(); const tt = '<h2 class="vt">Outils</h2>'; /* 24/11 nuit : un titre d'écran comme les autres rubriques de Compagnon (le « ? » du tutoriel s'y pose) */
+  if (s.tool && TOOLS.some(x => x[0] === s.tool)) return tt + outilHTML(s.tool);
+  return tt + `<div class="card"><h3 style="margin-top:0">🧰 Outils de tuyauterie</h3><div class="hint" style="margin:0 0 10px">Calcul sur le téléphone, rien n'est envoyé. Valeurs gardées sur cet appareil.</div><div class="ot-grid">${TOOLS.map(([k, n, d]) => `<button type="button" class="ot-tile" data-act="x" data-v="${ID}|open|${k}">${ICO[k]}<b>${esc(n)}</b><span>${esc(d)}</span></button>`).join('')}</div></div>`; }
 /* mise à jour en direct : seuls les résultats et le schéma sont redessinés (le champ en cours garde le focus et le curseur) */
 function rafraichir(tool) { const a = document.getElementById('ot-res'), b = document.getElementById('ot-svg'); if (a) a.innerHTML = resultats(tool); if (b) b.innerHTML = schema(tool); }
 export default {

@@ -20,7 +20,8 @@ export const NOMS={
  'chantier:phasage':'Phasage',
  'chantier:ts':'Modifications',
  'chantier:points':'Points de contrôle',
- 'chantier:catalogue':'Catalogue des pièces'
+ 'chantier:catalogue':'Catalogue des pièces',
+ 'chantier:fzcheck':'Ai-je la fourniture ?' /* 24/11 nuit : la vérification sur le plan (« ? » dans sa barre) */
 };
 export default {
  /* ── 💧 Détection d'humidité (droit « DH : mesures » : soudeurs, manchonneurs, encadrement) ── */
@@ -108,6 +109,14 @@ export default {
   {titre:'Une cote fausse ?',texte:'La source du catalogue est indiquée en haut. Une cote fausse donne un plan faux : signale-la au bureau, avec la référence du fournisseur.'}
  ],
  /* ── Tracé Concepteur (le traceur, traceur.html — bouton ?) : vue d'ensemble, une étape par option ── */
+ /* 24/11 nuit : « 🔍 Ai-je la fourniture ? » — la vérification sur le plan (Stockage ou outils du plan) ; lancé par le « ? » de sa barre (le tableau est une fenêtre : pas de tutoriel par-dessus) */
+ 'chantier:fzcheck':[
+  {titre:"Entoure une zone",texte:"Touche les coins de la partie à vérifier (3 au moins), puis ✓ : le calcul porte sur ce que tu as entouré. Rien n'est enregistré."},
+  {sel:'#fzChkMsg',titre:"Le résultat",texte:"Ce qui manque dans les zones entourées, en une ligne ; sur le plan, les zones se colorent."},
+  {sel:'#fzChkTab',titre:"📋 Le tableau",texte:"Pièce par pièce : total, posé, reste à poser, livré, disponible, Δ. Les manques d'abord, en rouge."},
+  {titre:"🗺 Voir sur le plan",texte:"Dans le tableau : zones en couleur (manque, ok, posé) et repères là où il manque des pièces."},
+  {sel:'#fzChkClr',titre:"Recommencer",texte:"Efface tes zones et recommence autant que tu veux."}
+ ],
  concepteur:[
   {titre:'Tracé Concepteur',texte:'On dessine ici le réseau (lignes, pièces) sur un plan de fond, puis on l\'envoie dans le chantier. Pour le bureau et l\'encadrement, plutôt sur ordinateur.'},
   {sel:'#mTrace',titre:'✎ Tracer une ligne',texte:'Clique les sommets de l\'axe un à un, puis Entrée (ou « Terminer ») ; ou saisis longueur et angle, puis « Ajouter ». Les soudures se placent toutes seules.'},

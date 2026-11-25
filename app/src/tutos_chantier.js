@@ -77,7 +77,7 @@ export default {
   {titre:"La fiche d'une soudure",texte:"En haut : n°, statut, DN, aller ou retour, PK. « Faire l'étape … » ouvre la tienne : 1 Soudure (soudeur), puis 2 Fils raccordés, 3 Manchon posé, 4 Moussage (manchonneur)."},
   {titre:"Photo, puis « Valider l'étape »",texte:"📷 Photo du cordon (obligatoire pour la soudure), puis « Valider l'étape » : ton nom et la date restent sur la fiche. Sans réseau, c'est gardé et envoyé au retour du réseau."},
   {titre:"👥 Pour le compte du soudeur",texte:"Tuyauteur, manchonneur, pelleur : le soudeur a fini ? Ouvre la soudure, « Soudé par » : choisis-le, prends la photo du cordon et valide. La soudure compte pour lui, ton nom reste dans l'historique.",si:a=>C(a,'weld.step1.for')},
-  {sel:'#planFab, #btnMenu',titre:"＋ Poser sur le plan",texte:"Le ＋ orange en bas du plan (ou ☰ › Terrain & chantier) : une note avec photo, une soudure faite sur place, une modif… Choisis, puis touche l'endroit. Une barre t'explique chaque étape.",si:a=>C(a,'phasage.edit','stock.edit','conv.post','site.tracer')}, /* 01/11 soir : ＋ remis, en bas au milieu (il chevauchait la colonne zoom) */
+  {sel:'#planFab, #btnMenu',titre:"＋ Poser sur le plan",texte:"Le ＋ orange en bas du plan : une note avec photo, une soudure faite sur place, ⏳ « Soudure faite, pas sur le plan » (préfabrication)… Choisis, puis suis la barre.",si:a=>C(a,'phasage.edit','stock.edit','conv.post','site.tracer')}, /* 01/11 soir : ＋ remis, en bas au milieu (il chevauchait la colonne zoom) */
   {sel:'.zoomctl [data-z="eye"]',titre:"👁 Ce qui s'affiche",texte:"Les calques : DN, longueurs, n° de soudure, fils, notes, points… « Épuré » allège le plan, « Par défaut » remet tout. 📅 juste dessous : qui a fait quoi, et quand."},
   {sel:'#btnSearch',titre:"🔍 Retrouver une soudure",texte:"Tape son n° (ex. 24) puis Entrée : le plan se centre dessus et sa fiche s'ouvre. Le même menu ☰ filtre le plan : « Pour moi », « À souder »…"},
   {sel:'#pxPlanBtn',titre:"📄 Mes plans",texte:"Les plans d'exé du chantier, ceux de ta zone en premier. Depuis la fiche d'une soudure, « 📄 Plan d'exé » ouvre directement la bonne planche.",si:a=>F(a,'plansexe')}
@@ -88,7 +88,7 @@ export default {
   {sel:'#bureau .okbox, #bureau .ac-notif',titre:"Ce qui t'attend ici",texte:"Ton accueil chantier, un quart d'heure sécurité, des documents à émarger, tes tâches : touche une ligne pour t'en occuper. Bandeau vert : rien ne t'attend."},
   {sel:'#bureau .ac-notif.warn, #bureau .ac-kt.bad, #bureau .ac-kt.warn',titre:"Ce qui coince",texte:"Pour l'encadrement : les points bloquants (✗) et à surveiller (!) du chantier. Touche une ligne pour ouvrir l'onglet concerné.",si:ENC},
   {sel:'#bureau .ac-kt.ok, #bureau .ac-kt.warn, #bureau .ac-kt.bad, #bureau .ac-kt.off',titre:"La checklist du chantier",texte:"Une case par sujet : ✓ complet, ! manque, ✗ bloquant, ○ pas commencé. 👥 Équipe et ⏱ Pointages ouvrent Pilotage.",si:ENC},
-  {sel:'#bureau .dx-stat',titre:"🗂 Pièces du dossier",texte:"Les pièces obligatoires en règle (ex. 5/8). Touche le compteur pour compléter le Dossier du chantier.",si:a=>F(a,'dossier')&&C(a,'dossier.edit')},
+  {sel:'#bureau .dx-stat',titre:"🗂 Pièces du dossier",texte:"Les pièces obligatoires en règle (ex. 3/5). Touche le compteur pour compléter le Dossier du chantier.",si:a=>F(a,'dossier')&&C(a,'dossier.edit')},
   {sel:'#bureau .ac-kt:not(.ok):not(.warn):not(.bad):not(.off)',titre:"Le chantier : raccourcis",texte:"Une case par onglet auquel tu as accès : touche-la pour y aller directement, sans passer par la barre du bas."},
   {sel:'#bureau [data-bur="__compte"]',titre:"💶 Compte chantier",texte:"Bons de commande, dépenses et heures par poste de ce chantier, en lecture seule et imprimable. Pas de compta.",si:a=>F(a,'comptechantier')&&(C(a,'planning.edit')||(C(a,'affaires.edit')&&C(a,'pointage.validate','qse.manage')))},
   {sel:'#bureau [data-nc-fiche]',titre:"✎ Fiche du chantier",texte:"Ville, client, date de début, fournisseur, note : touche « ✎ Fiche » pour compléter la fiche du chantier.",si:a=>C(a,'site.tracer','planning.edit')}
@@ -105,7 +105,7 @@ export default {
  ],
  /* ── 🗂 le Dossier du chantier ── */
  'chantier:admin':[
-  {sel:'#admin .dx-sum, #admin .dx-top',titre:"Pièces obligatoires en règle",texte:"Le compteur du chantier (ex. 5/8) et la liste de ce qui manque. Le chef et le conducteur le retrouvent aussi en tête du chantier."},
+  {sel:'#admin .dx-sum, #admin .dx-top',titre:"Pièces obligatoires en règle",texte:"Le compteur des 5 pièces obligatoires (ex. 3/5) et ce qui manque ; PGC, qualifications et planning d'exé sont en « Pièces utiles », hors compteur."},
   {sel:'#admin .dx-p',titre:"Une ligne par pièce",texte:"DT / DICT, PPSPS, PGC, plans d'exé… : ✓ présente, ✗ manquante, ⚠ à mettre à jour (échéance). Touche une pièce présente pour l'ouvrir."},
   {sel:'#admin .dx-dep, #admin .dx-man',titre:"📎 Déposer une pièce",texte:"« 📎 Déposer », puis choisis le fichier (PDF, photo…). DICT, arrêté, qualification : indique la date de fin, l'appli prévient 15 jours avant.",si:a=>C(a,'dossier.edit')},
   {sel:'#admin .dx-man',titre:"⋯ Versions, échéance, sans objet",texte:"Le ⋯ d'une pièce : ses versions, sa date de fin, « à mettre à jour », ou « sans objet » sur ce chantier (elle sort alors du compteur).",si:a=>C(a,'dossier.edit')},

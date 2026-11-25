@@ -35,7 +35,7 @@ export const NOMS={
  'pilotage:valid':'Pointages à valider','pilotage:prodEq':'Production par équipe','rh:paie':'Variables de paie','rh:gd':'Grands déplacements',
  'rh:cpt':'Compteurs d\'heures', /* 19/11 nuit (Ethan) : ces trois écrans sont dans le module RH — leurs tutoriels les suivent (clés rh:…) */'pilotage:annul':'Demandes d\'annulation','pilotage:x:mag':'Commandes au dépôt','pilotage:x:dem':'Demandes de matériel',
  'pilotage:secu':'Sécurité','pilotage:qhs':'Quart d\'heure sécurité','pilotage:controles':'Contrôles chantier','pilotage:accident':'Déclarer un accident',
- 'pilotage:habsEq':'Habilitations de l\'équipe',
+ 'pilotage:habsEq':'Habilitations de l\'équipe','pilotage:pub':'Publier et envoyer le planning','pilotage:grille':'Grille de la semaine', /* 24/11 nuit */ 'affaire:fiche':'Une affaire ouverte','affaire:reglages':'Réglages (taux horaires)', /* 24/11 nuit : pages du module Affaire */
  'affaire:cmd':'Bons de commande','affaire:frais':'Notes de frais à valider','affaire:x:cc':'Compte d\'un chantier' /* 10/11 soir : plus de tuto « Comptes chantier » (le volet renvoie au module Affaire) */
 };
 
@@ -46,7 +46,7 @@ export default {
  /* ═══ PILOTAGE — vue d'ensemble : une étape par ligne du hub ═══ */
  pilotage:[
   {titre:"Pilotage",texte:"Le suivi des équipes : planning, objectifs, heures, production, matériel et sécurité. Chaque ligne ouvre une option, avec son tutoriel (« ? » à droite du titre)."},
-  {sel:L('plan'),titre:"Planning de la semaine",texte:"Le planning, en un seul écran : cherche quelqu'un par son nom, place-le en 3 touchers, copie la semaine dernière. Chacun voit « Demain : chantier » dans Compagnon.",si:ligne('pilotage',L('plan'),a=>opt(a,'planning')&&peut(a,'planning.edit'))},
+  {sel:L('plan'),titre:"Planning de la semaine",texte:"Place les équipes en 3 touchers, par chantier ou en grille, puis publie la semaine par secteur : les compagnons la voient alors dans Compagnon.",si:ligne('pilotage',L('plan'),a=>opt(a,'planning')&&peut(a,'planning.edit'))},
   {sel:L('orga'),titre:"Mon planning et mon équipe",texte:"Qui est avec toi, quels jours, sur quels chantiers : le planning que ton conducteur a fait.",si:a=>sans(a,'planning.edit')&&(ici(a,'pilotage')?vu(L('orga')):opt(a,'planning'))},
   {sel:L('obj'),titre:"Objectifs des équipes",texte:"Par chantier, équipe et jour : une mission et ses heures estimées, posée sur le plan si tu veux. Un repère, pas un plafond.",si:ligne('pilotage',L('obj'),a=>opt(a,'objectifs'))},
   {sel:L('agenda'),titre:"Ma semaine",texte:"Compose ta semaine (visites, réunions, rendez-vous), reliée à Outlook, et regarde celle de ceux qui dépendent de toi.",si:ligne('pilotage',L('agenda'))},
@@ -75,6 +75,22 @@ export default {
   {sel:'#eq-app .pi-trayc',titre:"À placer",texte:"Ceux qui ont encore des jours libres, filtrés par métier si tu veux. Touche une personne (ou 👥 une équipe), puis le chantier ; sur PC, glisse-la sur la carte."},
   {sel:'#eq-app .pi-sites > .pi-site .eq-plfd > summary',titre:"⚙ La fiche du chantier",texte:"Sous le nom : secteur, chef, conducteur, horaires et point de rassemblement. Ils servent à l'accueil chantier et aux pointages."},
   {sel:'#eq-app .pi-sites > .pi-site [data-act="pi"][data-v^="edit|"], #eq-app .pi-sites > .pi-site [data-act="pi"][data-v^="here|"]',titre:"Modifier une personne",texte:"Touche sa ligne sur la carte du chantier : ses jours, son équipe, son secteur, ou « Retirer de ce chantier ». « ＋ Placer quelqu'un ici » part du chantier."}
+ ],
+ /* 24/11 nuit : publication du planning par secteur (« ? » de la carte 📣) et vue « 📅 Grille » */
+ 'pilotage:pub':[
+  {sel:'#eq-app .eq-plpub',titre:'La semaine publiée ou pas',texte:'La semaine à venir reste cachée aux compagnons tant qu\'elle n\'est pas publiée. La semaine en cours est toujours visible.'},
+  {sel:'#eq-app [data-act="plpub"], #eq-app [data-act="plunpub"], #eq-app .eq-plpub',titre:'📣 Publier',texte:'Publie la semaine pour le secteur choisi, ou pour tous. Ensuite, chaque changement est vu tout de suite.'},
+  {sel:'#eq-app select[data-chg="plSect"]',titre:'Par secteur',texte:'Ouest, Île-de-France, Sud-Ouest, Sud-Est ou tous : la publication, le PDF et le mail suivent le secteur choisi.'},
+  {sel:'#eq-app [data-act="plexport"]',titre:'🖨 Le PDF du secteur',texte:'Le planning du secteur en A4 paysage, à imprimer ou à joindre au mail.'},
+  {sel:'#eq-app [data-act="plmail"]',titre:'✉ Préparer le mail',texte:'Les compagnons du secteur en destinataires, la RH et les conducteurs en copie : le mail s\'ouvre prêt, ou copie les adresses.'},
+  {sel:'#eq-app [data-act="plpubregle"]',titre:'Obligatoire ou libre',texte:'Réglage de l\'entreprise : publication obligatoire (semaine cachée avant) ou libre (tout se voit dès que c\'est placé).',si:a=>vu('#eq-app [data-act="plpubregle"]')} /* bouton de l'administrateur seulement */
+ ],
+ 'pilotage:grille':[
+  {sel:'#eq-app [data-act="plvue"][data-v="grille"]',titre:'📅 La grille',texte:'Les personnes à gauche, les jours à droite : toute la semaine d\'un coup d\'œil. « 🏗 Par chantier » pour revenir.'},
+  {sel:'#eq-app .eq-plgrille [data-act="plposte"], #eq-app [data-act="plposte"]',titre:'Par métier',texte:'Soudeurs, tuyauteurs, manchonneurs… : la grille ne garde que ce métier. La recherche en haut marche aussi.'},
+  {sel:'#eq-app .pg-cell',titre:'Une case = un jour',texte:'Une case vide (＋) est à placer ; une case en couleur, c\'est le chantier. Touche-la pour placer, changer ou libérer la journée.'},
+  {sel:'#eq-app .pg-leg, #eq-app .eq-plgrille',titre:'Les couleurs',texte:'Une couleur par chantier, rappelée sous la grille.'},
+  {sel:'#eq-app .eq-plpub',titre:'Puis publier',texte:'La même carte 📣 qu\'en vue par chantier : publier la semaine, le PDF du secteur, le mail.'}
  ],
 
  /* ═══ Planning des équipes (détaillé) — ou, pour un chef de chantier, « Mon planning et mon équipe » (écran « Ta semaine ») ═══ */
@@ -113,7 +129,7 @@ export default {
   {sel:'#eq-app [data-act="valjour"].active, #eq-app [data-act="valpers"].active, #eq-app [data-act="valjour"]',titre:"Choisis le jour",texte:"Le chiffre sur un jour : pointages à valider ; en rouge : quelqu'un de placé n'a rien pointé. Le lundi, le vendredi d'avant est proposé."},
   {sel:'#eq-app [data-act="toutvalider"]',titre:"✅ Tout valider",texte:"Valide d'un coup les journées complètes et cohérentes. Fin manquante, pas de pause, plus de 12 h : ces lignes se traitent à part."},
   {sel:'#eq-app .eq-vrow',titre:"Une journée",texte:"Début → fin, pause, objectif et production du jour, et l'état. « ⚠ aucune fiche de soudure ce jour-là » : vérifie avant de valider."},
-  {sel:'#eq-app [data-act="corr"]',titre:"✏️ Corriger",texte:"Quoi corriger (début, pause, reprise, fin), l'heure et le motif : la plus probable est proposée. La personne voit « Pointage corrigé » et par qui."},
+  {sel:'#eq-app [data-act="corr"]',titre:"✏️ Corriger",texte:"Un seul formulaire Début · Pause · Fin pré-rempli, l'écart affiché, motif obligatoire ; chantier, trajet inter-chantier et trajets du jour aussi. La personne voit qui a corrigé."},
   {sel:'#eq-app [data-act="pi"][data-v^="saisie|"]',titre:"Pas de pointage",texte:"Quelqu'un de placé n'a rien pointé : « ✏️ Saisir ses heures » avec un motif. La journée est enregistrée et validée à ton niveau.",si:()=>vu('#eq-app [data-act="pi"][data-v^="saisie|"]')},
   {titre:"Qui valide quoi",texte:"Le chef de chantier valide d'abord, puis le conducteur : les heures deviennent définitives pour la paie. La personne suit chaque étape dans Compagnon → Heures."}
  ],
@@ -158,7 +174,7 @@ export default {
   {sel:'#eq-app .cpt-tab',titre:"Une ligne par personne",texte:"Contrat, compteur (solde, plafond et jauge), heures à reporter, déplacement : cas forcé ou selon la distance."},
   {sel:'#eq-app .cpt-tab [data-act="fiche"], #eq-app .cpt-tab tr[data-pid]',titre:"Fiche",texte:"Au bout de la ligne : contrat, plafond, repos, posé par l'entreprise, prime, replacer, cas forcé. Les RH modifient ; gérant et direction lisent."},
   {sel:'#eq-app [data-act="cptxls"]',titre:"⬇ Tableau Excel",texte:"Les soldes arrêtés à la fin de la navette du mois, prêts pour la paie."},
-  {titre:"Comment ça compte",texte:"Chaque semaine finie, les heures sup entrent majorées jusqu'au plafond ; le surplus est payé sur la navette."}
+  {titre:"Comment ça compte",texte:"Chaque semaine finie, les heures sup entrent majorées jusqu'au plafond. En fin de mois, au-delà : « ↪ Reporter » ou « 💶 Prime », au choix de la RH (🧾 Navettes)."}
  ],
 
  /* ═══ Demandes d'annulation ═══ */
@@ -242,6 +258,22 @@ export default {
  ],
 
  /* ═══ Bons de commande ═══ */
+ /* 24/11 nuit : pages du module Affaire (10/11) — la fiche d'une affaire (débours par nature) et les Réglages (grilles de taux horaires : recette L36-L37) */
+ 'affaire:fiche':[
+  {sel:'#af-main .af-kpis',titre:"L'affaire en chiffres",texte:"Marché et avenants, facturé, produit, avancement Tracé, débours et marge, à date."},
+  {sel:'#af-main select[data-chg="fichePer"]',titre:"La période",texte:"Depuis le début (à date) ou un mois : les chiffres et les débours suivent."},
+  {sel:'#af-main [data-act="onglet"][data-v="debours"]',titre:"💶 Débours",texte:"Les dépenses par nature : main-d'œuvre (heures réelles × taux de la grille), équipements, sous-traitance, matériel, location…"},
+  {sel:'#af-main details.af-nat, #af-main [data-act="onglet"][data-v="debours"]',titre:"Une nature à la fois",texte:"Touche une nature pour son détail : qui, combien d'heures, quel coût. « À vérifier » signale ce qui cloche."},
+  {sel:'#af-main [data-act="onglet"][data-v="factures"]',titre:"Factures",texte:"Les factures de l'affaire ; « Saisir une facture » en haut pour en ajouter une."},
+  {sel:'#af-main [data-act="depense"]',titre:"Ajouter une dépense",texte:"Une dépense qui ne passe ni par un bon de commande ni par une note de frais : nature, montant, date."}
+ ],
+ 'affaire:reglages':[
+  {sel:'#af-main [data-act="onglet"][data-k="regOnglet"]',titre:"Quatre réglages",texte:"Taux horaires, natures de dépense, équipements partagés, étapes de facturation."},
+  {sel:'#af-main [data-act="grille"]',titre:"Nouvelle grille",texte:"Les taux horaires par poste, à une date d'effet : la main-d'œuvre des débours prend la grille en vigueur le jour pointé."},
+  {sel:'#af-main [data-act="grilleEdit"], #af-main [data-act="grille"]',titre:"Modifier cette grille",texte:"Corrige un taux, la date d'effet reste. Les montants vont de 0 à 500 € de l'heure."},
+  {titre:"Sans grille",texte:"Sans grille de taux, la main-d'œuvre compte 0 € : un bandeau « Saisir les taux » le rappelle en haut du module."},
+  {sel:'#af-main [data-act="onglet"][data-v="natures"]',titre:"Natures de dépense",texte:"Les rubriques des débours (matériel, location, sous-traitance…), communes à toutes les affaires."}
+ ],
  'affaire:cmd':[
   {sel:'#eq-app [data-act="cmd"][data-v="tab|cmd"]',titre:"Trois volets",texte:"Bons de commande, Notes de frais, Comptes chantier (qui renvoie au reporting de Tracé Affaire) : touche une puce pour passer de l'un à l'autre."},
   {sel:'#eq-app [data-act="cmd"][data-v="new|"]',titre:"➕ Bon de commande",texte:"Crée un bon en brouillon, numéroté tout seul, et l'ouvre pour le remplir."},

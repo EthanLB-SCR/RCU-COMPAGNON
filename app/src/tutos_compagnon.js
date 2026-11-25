@@ -28,7 +28,7 @@ const QSE=a=>adm()||can(a,'qse.manage');
 export const NOMS={
   'compagnon:docs':'Documents','compagnon:planning':'Planning','compagnon:chantiers':'Chantiers','compagnon:prod':'Productions','compagnon:frais':'Notes de frais',
   'compagnon:heures':'Heures','compagnon:habs':'Passeport','compagnon:avatar':'Avatar','compagnon:dem':'Mes demandes · commande','compagnon:mag':'Mes demandes · dépôt',
-  'compagnon:vlaisse':'Véhicule laissé','compagnon:vx':'Véhicule',
+  'compagnon:vlaisse':'Véhicule laissé','compagnon:vx':'Véhicule','compagnon:outils':'Outils' /* 24/11 nuit */,
   'equipe:annu':'Annuaire','equipe:docs':"Documents d'entreprise",'equipe:info':'Communication interne',
   'equipe:x:acc':'Accueil RH','equipe:x:dob':'Documents administratifs','equipe:x:pack':'Pack SCR'
 };
@@ -39,11 +39,12 @@ accueil:[
   {titre:'Bienvenue dans Tracé',texte:"Aujourd'hui, c'est ta page d'accueil : ta journée, ce qui t'attend, tes modules. Elle s'adapte à ton poste et à tes droits."},
   {sel:'#tbHomeMod',titre:'Tracé + le module',texte:"Touche « Tracé ▾ » pour changer de module, revoir le tutoriel de l'écran ou les voir tous (📚). Le logo te ramène ici."},
   {sel:'#eq-app .ac-hero',titre:'Ta journée',texte:"Ton chantier du jour, la météo, ton équipe et l'objectif posé par ton chef (la semaine en chiffres pour l'encadrement). Un bouton t'y emmène."},
-  {sel:'#eq-app .ac-two section.ptc',titre:'Pointer ta journée',texte:"« ▶ Commencer la journée » en arrivant, puis pause midi et fin de journée : un toucher à chaque fois. Ton chef valide ensuite.",si:siEcran('accueil','#eq-app .ac-two section.ptc',pointe)},
+  {sel:'#eq-app .ac-two section.ptc',titre:'Pointer ta journée',texte:"« ▶ Commencer la journée », la pause, la fin : un toucher à chaque fois. Pas sur le chantier prévu : « 📍 Autre chantier » ; changement dans la journée : « 🚐 Début de trajet ».",si:siEcran('accueil','#eq-app .ac-two section.ptc',pointe)},
   {sel:'#eq-app .ac-notif, #eq-app .ac-two .ac-empty',titre:'À faire',texte:"Ce qui attend un geste de toi : document à signer, accueil chantier, tâche… Touche la ligne pour le faire ; bord rouge = urgent ou en retard."},
   {sel:'#eq-app .ac-kgrid',titre:'À savoir',texte:"L'info sans geste à faire : planning, objectifs, demandes… Touche une tuile pour le détail."},
   {sel:'#eq-app .ac-spaces',titre:'Tes espaces',texte:"Un module par tuile, selon ton poste. Un chiffre sur une tuile : des choses t'y attendent."},
   {sel:'#eq-app [data-act="accnew"]',titre:'Déclarer un accident',texte:"Accident, presque-accident ou soin bénin : touche ce bouton tout de suite, même incomplet. La RH est prévenue et complète."},
+  {sel:'#eq-app [data-bureau3d] .m3d-switch',titre:'🪑 Mon bureau en 3D',texte:"Sur tablette ou grand écran : ton accueil posé sur ton bureau, en 3D. « Vue classique » pour revenir.",si:a=>vu('#eq-app [data-bureau3d] .m3d-switch')}, /* 24/11 nuit : le bureau 3D de base (affichage large) */
   {sel:'#homeAva',titre:'Ta pastille',texte:"Touche ton avatar, en haut à droite : ton compte, ton nom affiché, ton mot de passe, la déconnexion."}
 ],
 
@@ -84,7 +85,17 @@ compagnon:[
   {sel:'#eq-app .eq-tiles, #eq-app .eq-scroll .card',titre:'Ton total',texte:"Ce que tu as fait sur la période : soudures, manchons… et le détail par DN juste en dessous."},
   {sel:'#eq-app .eq-sem-h',titre:'Semaine par semaine',texte:"Touche une semaine pour la déplier jour par jour : ton chantier et ta production de chaque jour."},
   {titre:"D'où viennent les chiffres",texte:"Chaque soudure ou manchon pointé sur le plan à ton nom compte ici. En cas d'erreur, vois avec ton chef de chantier."},
-  {titre:'Ta récompense',texte:"Ta production fait monter ton palier : il se voit sur ton avatar (carte « Tes récompenses » de l'Accueil, rubrique Avatar)."}
+  {titre:'Ta récompense',texte:"Ta production fait monter ton palier : il se voit sur ton avatar (carte « Tes récompenses » de l'Accueil, rubrique Avatar)."},
+  {sel:'#eq-app #cad-card',titre:'⚡ Ta cadence',texte:'Les heures débloquées par ta production face à tes heures pointées : ▲ au-dessus, ▼ en dessous. Le détail dit d\'où viennent les chiffres.',si:a=>vu('#eq-app #cad-card')} /* 24/11 nuit : la carte de la cadence (16/11), quand l\'entreprise l\'a réglée */
+],
+/* 24/11 nuit : les outils de tuyauterie (11/11) */
+'compagnon:outils':[
+  {sel:'#eq-app [data-v="outils|open|baio"]',titre:'Baïonnette',texte:'Le décalage entre deux axes avec deux coudes : la longueur de tube à couper, le rayon des coudes proposé selon le DN.'},
+  {sel:'#eq-app [data-v="outils|open|coude"]',titre:'Coupe de coude',texte:'Couper un coude 90° à l\'angle voulu : les longueurs à tracer sur l\'extrados, l\'axe et l\'intrados.'},
+  {sel:'#eq-app [data-v="outils|open|cint"]',titre:'Développé de cintrage',texte:'L\'arc, la tangente, le gain et la longueur de tube à couper.'},
+  {sel:'#eq-app [data-v="outils|open|pente"]',titre:'Pente',texte:'En ‰, en mm par mètre, en % ou en degrés, dans les deux sens.'},
+  {sel:'#eq-app [data-v="outils|open|equ"]',titre:'Équerrage 3-4-5',texte:'Contrôler un angle droit au mètre, ou la diagonale de deux côtés.'},
+  {titre:'Sur ton téléphone',texte:'Gros champs, résultat en direct et schéma coté. Rien n\'est envoyé : tes valeurs restent sur le téléphone.'}
 ],
 'compagnon:frais':[
   {sel:'#eq-app .ac-stats',titre:'Tes notes de frais',texte:"Le total de tes notes de frais et combien attendent d'être validées."},
@@ -227,7 +238,7 @@ reglages:[
   {sel:'#homeBody .admNav [data-av="people"]',titre:'👥 Personnes',texte:"Chaque compte : poste, type, chantiers 🏗, droits 🔑, Socle ou 🧪 Labo, actif ou non. ★ = administrateur."},
   {sel:'#admNew, #homeBody .admNav [data-av="people"]',titre:'➕ Créer un accès',texte:"Prénom, nom, e-mail, poste, type, puis « Créer l'accès ». 1re connexion : donne le « 🔐 Code de 1re connexion » de sa carte ; la personne choisit son mot de passe."},
   {sel:'#homeBody .admNav [data-av="postes"]',titre:'🧩 Postes',texte:"Les droits d'un poste valent pour toutes ses personnes (sauf ajustement 🔑). Coche, décoche : c'est enregistré tout de suite."},
-  {sel:'#homeBody .admNav [data-av="who"]',titre:'🔎 Qui peut quoi ?',texte:"Choisis un droit : tu vois qui l'a et pourquoi (poste, ajustement personnel, administrateur)."},
+  {sel:'#homeBody .admNav [data-av="who"]',titre:'🔎 Qui peut quoi ?',texte:"Choisis un droit : qui l'a et pourquoi (poste, ajustement, administrateur). « Par module » range les droits par module : Chantier, RH, Flotte, Magasin…"},
   {sel:'#homeBody .admNav [data-av="options"]',titre:'🧪 Options',texte:"Les options rangées par module : Socle (tout le monde) ou 🧪 Labo (les testeurs). Désigne les testeurs, toi compris."},
   {sel:'#homeBody .admPalBan, #homeBody .admNav [data-av="options"]',titre:'⏻ Les paliers',texte:"Éteints : tout le monde voit tout. Allumés : chacun ne voit que son palier — passe-toi en 🧪 Labo avant d'allumer."},
   {sel:'#homeBody .admNav [data-av="entreprise"]',titre:'🏢 Entreprise et modules',texte:"Le logo et le nom en haut à droite, chez tout le monde. Plus bas, les modules pris : un module décoché disparaît partout."},

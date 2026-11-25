@@ -45,7 +45,7 @@ for(const [k,st] of Object.entries(DEF)){const opt=k.startsWith('chantier:');if(
     if(s.sel&&/:nth-|:contains|:first-child|:last-child/.test(s.sel))o.bad.push(w+' sélecteur fragile');if(REAL.test(s.titre+' '+s.texte))o.bad.push(w+' donnée réelle');if(/les gars/i.test(s.texte))o.bad.push(w+' « les gars »');
     if(s.si&&typeof s.si!=='function')o.bad.push(w+' si');});}
 console.log('t0) fichier :',J(o));
-C.t0=o.keys.join()==='chantier:bouclage,chantier:hydro,chantier:stock,chantier:fourniture,chantier:phasage,chantier:ts,chantier:points,chantier:catalogue,concepteur'&&TABS.every(t=>NOMS['chantier:'+t])&&!o.bad.length;
+C.t0=o.keys.join()==='chantier:bouclage,chantier:hydro,chantier:stock,chantier:fourniture,chantier:phasage,chantier:ts,chantier:points,chantier:catalogue,chantier:fzcheck,concepteur' /* 24/11 nuit : + Ai-je la fourniture ? (déroulé par e2e_tuto_nv_2411) */&&TABS.every(t=>NOMS['chantier:'+t])&&!o.bad.length;
 /* ── outils ── */
 const fresh=async()=>{await page.goto(BASE+'/index.html');await wait(400);await page.evaluate(()=>localStorage.clear());await page.evaluate(()=>new Promise(r=>{try{const q=indexedDB.deleteDatabase('trace-kv');q.onsuccess=q.onerror=q.onblocked=()=>r();}catch(e){r();}}));
   await page.reload();await wait(1500);const sk=await page.$('#loginSkip');if(sk&&await sk.isVisible())await sk.click();await wait(700);};

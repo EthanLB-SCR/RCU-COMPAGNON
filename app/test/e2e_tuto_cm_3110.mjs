@@ -21,7 +21,7 @@ import fs from 'fs';import path from 'path';import {fileURLToPath} from 'url';
 const here=path.dirname(fileURLToPath(import.meta.url));const SRCDIR=path.join(here,'..','src');
 const {default:TUT,NOMS}=await import(path.join(SRCDIR,'tutos_commerce.js'));
 const BASE=process.env.BASE||'http://127.0.0.1:8845';const SHOTS=process.env.SHOTS||'/root/work/tu_cm_shots';fs.mkdirSync(SHOTS,{recursive:true});
-const KEYS=['commerce','commerce:aff','flotte','flotte:x:veh','magasin','magasin:materiel'];
+const KEYS=['commerce','commerce:aff','flotte','flotte:x:veh','magasin','magasin:materiel','flotte:vehicules','flotte:fiche','flotte:qui','flotte:calendrier','flotte:mouvements','flotte:journal'] /* 24/11 nuit : + les pages du module Flotte, déroulées par e2e_tuto_fl_2411 */;
 const C={};const logs=[];const J=x=>JSON.stringify(x);const DOM=[];
 const browser=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_PATH||undefined});
 const ctx=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:2,hasTouch:true,isMobile:true});await ctx.addInitScript(()=>{try{localStorage.setItem('trace:flotteAncien','1');}catch(e){}}); /* 11/11 : parcours joué sur l'ancien écran Flotte (toujours là) */const page=await ctx.newPage();
@@ -78,7 +78,7 @@ const show=o=>({key:o.key,label:o.label,where:o.where,best:o.best,n:o.n,closed:o
 /* ── c1 : le fichier ── */
 const SRC=fs.readdirSync(SRCDIR).filter(f=>/\.js$/.test(f)&&!/^tutos?_|^tuto\.js$/.test(f)).map(f=>fs.readFileSync(path.join(SRCDIR,f),'utf8')).join('\n').replace(/\\'/g,"'");
 const LABELS=[];const lint=[];
-for(const k of KEYS){const L=TUT[k];if(!L){lint.push(k+' : absente');continue;}if(L.length<3||L.length>12)lint.push(k+' : '+L.length+' étapes');
+for(const k of KEYS){const L=TUT[k];if(!L){lint.push(k+' : absente');continue;}const nb=k==='flotte'?Math.max(L.filter(s=>!s.si||s.si({can:()=>true,feat:()=>true})).length,L.filter(s=>!s.si||s.si({can:x=>x!=='flotte.manage',feat:()=>true})).length):L.length; /* 24/11 nuit : « flotte » = le module OU l'ancien écran, jamais les deux */if(nb<3||nb>12)lint.push(k+' : '+nb+' étapes');
   L.forEach((s,i)=>{if(!s.titre||s.titre.length>40)lint.push(k+' · titre trop long : '+s.titre);if(!s.texte||s.texte.length>230)lint.push(k+' · texte trop long ('+(s.texte||'').length+') : '+s.titre);
     const nP=(s.texte.match(/[.!](\s|$)/g)||[]).length;if(nP>2||(!k.includes(':')&&i>0&&nP>1))lint.push(k+' · trop de phrases ('+nP+') : '+s.titre); /* vue d'ensemble : une phrase par option */if(/\bgars\b/i.test(s.titre+' '+s.texte))lint.push(k+' · vocabulaire : '+s.titre);
     [...s.texte.matchAll(/«\s*([^»]+?)\s*»/g)].forEach(m=>LABELS.push([k,m[1]]));if(/^[^\p{L}\d]/u.test(s.titre))LABELS.push([k,s.titre]);});

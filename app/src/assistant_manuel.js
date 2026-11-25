@@ -28,7 +28,10 @@ Règles générales :
 - Le « ? » en haut d'un écran lance le tutoriel de cet écran.
 - Rien n'est jamais effacé : une saisie annulée reste dans l'historique avec qui, quand et pourquoi.`;
 
-export const NOUVEAUTES = `## Préfabrication — soudures faites mais pas encore sur le plan (espace d'attente)
+export const NOUVEAUTES = `## Tutoriels (mis à jour le 25/11)
+- « ? » à droite du titre de chaque écran = le tutoriel de cet écran ; « Tracé … ▾ » → 📚 Tous les tutoriels. Nouveaux : Ressources humaines (vue d'ensemble + Contrôle, Navettes, Absences et congés, Habilitations, Formation, Contraventions, Mutuelle, Accidents), Flotte (le module et ses pages), Planning (« ? » de la carte 📣 : publier et envoyer ; vue 📅 Grille), Compagnon → Outils. Les sections ci-dessous gardent le détail.
+
+## Préfabrication — soudures faites mais pas encore sur le plan (espace d'attente)
 - Pour quoi : une soudure (ou soudure + manchon) faite en avance, en préfabrication ou sur un tronçon que le plan ne montre pas encore. On la pointe SANS toucher au plan, puis on la transfère quand le plan est mis à jour.
 - Où : ouvrir le chantier → le « ＋ » en bas du plan → « ⏳ Soudure faite, pas sur le plan » ; ou ☰ Menu (en haut à droite) → « ⏳ Préfabrication (en attente) ». Puis « ＋ Pointer une soudure en attente ».
 - Remplir : « Soudure faite » ou « Soudure + manchon faits », DN, procédé (ou manchon), « Où elle ira » (obligatoire), ligne prévue et « Près de la soudure » (facultatifs), au moins une photo (obligatoire), note → « Enregistrer en attente ».
@@ -104,7 +107,7 @@ export const NOUVEAUTES = `## Préfabrication — soudures faites mais pas encor
 - Nouvel écran (depuis le 11/11) : Accueil (à faire en retard et 7 jours, calendrier, alertes, signalements des conducteurs), Calendrier des échéances, Parking 3D, Véhicules, Qui a quoi, À traiter, Journal et historique ; Paramètres : Silhouettes 3D, Pack véhicules.
 - « Parking 3D » : le parking du dépôt en 3D (chaque véhicule à sa place, son conducteur ; toucher un véhicule le montre de près). Il n'est plus affiché en tête de l'onglet Flotte. Il fait partie du Monde 3D (Labo) : s'il n'apparaît pas, l'administrateur l'allume dans Équipe → 🌍 Monde 3D · Labo.
 - Qui a quoi (24/11) : « Chercher une personne » → tous les véhicules qu'elle a eus, du … au … (frise), une ligne ouvre la fiche du véhicule sur ses conducteurs successifs. « Où sont les véhicules » (accueil) : attribués à un collaborateur · affectés à un chantier · au dépôt · laissés à prendre ; un bouton ouvre la liste filtrée (filtre « Confié »). Fiche → « Confié à » → « Affecter à un chantier » : le véhicule reste sur le chantier, sous la responsabilité de son chef (il dépanne dans la journée) ; « Retirer du chantier » ; l'historique des affectations reste.
-- Le tutoriel « Tracé Flotte » décrit l'ANCIEN écran, retiré le 24/11 (plus de bouton « Ancien écran Flotte »). Correspondances : Échéances & interventions → Calendrier des échéances ; Mouvements → À traiter ; Historique → Journal et historique.
+- Tutoriels (25/11) : « Tracé Flotte » décrit le module pour qui a le droit « gérer la flotte » ; chaque page du module (Véhicules, fiche d'un véhicule, Qui a quoi, Calendrier, À traiter, Journal) a son tutoriel (« ? » à droite du titre). Sans ce droit, l'ancien écran reste, avec ses étapes d'avant. Correspondances avec l'ancien écran : Échéances & interventions → Calendrier des échéances ; Mouvements → À traiter ; Historique → Journal et historique.
 
 ## Affaire (onglet Affaire)
 - Suivi : Reporting des chantiers (→ fiche de l'affaire : marché, facturé, produit, avancement, débours, marge ; Débours par nature ; Factures ; Paramètres), Facturation du mois, RG à facturer. Achats : Bons de commande, Notes de frais à valider, Compte d'un chantier (ancien calcul). Agence : Compte d'agence. Paramètres : Reprise des chantiers, Réglages (grilles de taux horaires, natures de dépense). Sans grille de taux, la main-d'œuvre est comptée à 0 € (bandeau « Aucune grille de taux horaires »).
