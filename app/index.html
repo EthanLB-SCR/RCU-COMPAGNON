@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script>/* 26/11 (démo sur iPhone : fiche soudure « coupée » à gauche) : iOS zoome tout seul quand on touche un champ écrit en moins de 16 px (sélecteur des fils d'alarme, 14 px → loupe ×1,14 qui reste après le choix). maximum-scale=1 supprime ce zoom automatique ; le zoom à deux doigts reste possible sur iPhone (iOS 10 et plus). Seulement iPhone / iPad : sur Android ce réglage empêcherait de zoomer. */(function(){try{var u=navigator.userAgent||"";var ios=/iPad|iPhone|iPod/.test(u)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);if(!ios)return;var m=document.querySelector('meta[name="viewport"]');if(m&&!/maximum-scale/.test(m.content))m.setAttribute("content",m.content+", maximum-scale=1");}catch(e){}})();</script>
 <title>Tracé</title>
 <!-- 30/10/2026 (charte « Tracé ») : icône de l'appli, favicon, icône iPhone, manifest — fichiers servis à côté de la page (public/ → racine et docs/) -->
 <link rel="manifest" href="manifest.webmanifest">

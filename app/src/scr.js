@@ -23,7 +23,7 @@ function ptOf(){const NET=A.net();if(!NET||NET.id==='__vide')return null;if(!NET
 function ptEntry(P,day,name,create){const D=P.days[day]||(create?(P.days[day]={}):null);if(!D)return null;let e=Object.keys(D).find(k=>sameName(k,name));if(e)return D[e];if(!create)return null;D[name]={events:[],status:'declare',val:[],corr:null};return D[name];}
 // géolocalisation ponctuelle : une trace de l'endroit, jamais un suivi (8 s maxi, sinon « sans position »)
 function getPos(){return new Promise(res=>{if(!('geolocation' in navigator)){res(null);return;}let done=false;const fin=v=>{if(done)return;done=true;res(v);};
-  try{navigator.geolocation.getCurrentPosition(p=>fin({lat:+p.coords.latitude.toFixed(5),lon:+p.coords.longitude.toFixed(5),acc:Math.round(p.coords.accuracy||0)}),()=>fin(null),{enableHighAccuracy:true,timeout:8000,maximumAge:60000});}catch(e){fin(null);}setTimeout(()=>fin(null),8500);});}
+  try{navigator.geolocation.getCurrentPosition(p=>fin({lat:+p.coords.latitude.toFixed(3),lon:+p.coords.longitude.toFixed(3),acc:Math.round(p.coords.accuracy||0)}) /* 26/11 (RGPD) : ≈ 100 m */,()=>fin(null),{enableHighAccuracy:true,timeout:8000,maximumAge:60000});}catch(e){fin(null);}setTimeout(()=>fin(null),8500);});}
 // état d'une journée d'après ses événements : hors / au travail / en pause / parti (inter-chantier) / terminé
 export function ptState(e){const ev=(e&&e.events)||[];const last=ev[ev.length-1];if(!last)return 'off';if(last.t==='end')return 'done';if(last.t==='pause')return 'pause';if(last.t==='leave')return 'inter';return 'work';}
 // durées : travail (hors pauses et inter-chantier), pause, inter-chantier — un compteur ouvert court jusqu'à « maintenant » (le jour même seulement)

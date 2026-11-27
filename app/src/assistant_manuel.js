@@ -28,7 +28,14 @@ Règles générales :
 - Le « ? » en haut d'un écran lance le tutoriel de cet écran.
 - Rien n'est jamais effacé : une saisie annulée reste dans l'historique avec qui, quand et pourquoi.`;
 
-export const NOUVEAUTES = `## Tutoriels (mis à jour le 25/11)
+export const NOUVEAUTES = `## Tes données personnelles (26/11)
+- « 🔒 Tes données dans Tracé » : ce que l'appli garde sur la personne, pourquoi, qui le voit, combien de temps, où, ses droits. Ouvrir : Compagnon → Accueil (carte en bas, tant qu'elle n'est pas lue), « Ta fiche » → « 🔒 Tes données dans Tracé », Compagnon → Documents, Équipe → « Données personnelles (RGPD) », ou « Tes données » sur la carte de pointage.
+- « ⬇ Télécharger mes données » (dans cette page) : un fichier JSON avec la fiche et les pointages de la personne.
+- Position au pointage : notée seulement au moment où on pointe (début et fin de journée, départ et arrivée d'un trajet), arrondie à 100 m environ, gardée 2 mois ; jamais de suivi en continu ; sans localisation, le pointage marche quand même.
+- Qui voit quoi : la personne voit tout ce qui la concerne ; encadrement, bureau et RH voient pointages et fiches ; les collègues voient nom, poste, avatar et téléphone ; les clients et visiteurs ne voient aucune donnée personnelle. Pour une correction ou une question : le référent RGPD (Administrateur → Entreprise) ou la RH.
+- Assistant : ne rien écrire sur la santé ni sur un collègue.
+
+## Tutoriels (mis à jour le 25/11)
 - « ? » à droite du titre de chaque écran = le tutoriel de cet écran ; « Tracé … ▾ » → 📚 Tous les tutoriels. Nouveaux : Ressources humaines (vue d'ensemble + Contrôle, Navettes, Absences et congés, Habilitations, Formation, Contraventions, Mutuelle, Accidents), Flotte (le module et ses pages), Planning (« ? » de la carte 📣 : publier et envoyer ; vue 📅 Grille), Compagnon → Outils. Les sections ci-dessous gardent le détail.
 
 ## Préfabrication — soudures faites mais pas encore sur le plan (espace d'attente)

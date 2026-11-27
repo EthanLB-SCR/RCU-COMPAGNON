@@ -22,7 +22,8 @@ import {distLL} from './geo.js';
 import {buildNavette,navetteSheet,NAV_STYLES,navWeeks,inIDF,addDay as navAddDay,CPT_H,reportBalance,HEBDO_MAX,lisserSemaine,ETAT_LISSE,gdSplitWeek} from './navette.js'; // 13/10 : navette de paie au format SCR (feuille d'heures récapitulative mensuelle)
 import {makeStyledXlsx,makeXlsx,openXlsx} from './xlsx.js';
 import {compteurTimeline,moisCompteurs,parseSoldes,splitPaste,navEnd,ymOfNavEnd,snapSolde,mondayOf as cptMonday,IMPORT_COLS as CPT_IMPORT_COLS,K125,K150,KREP} from './compteurs.js'; // 13/10 (f) : compteur d'heures majoré + plafond, à reporter ×1,5, import des soldes
-import {regAll,regSet,regLoad,regGet,regReload,regDelete} from './reg.js'; // 12/10 : personnes provisoires créées depuis le planning (registre « prov »), agenda de l'encadrant (« agenda »)
+import {regAll,regSet,regLoad,regGet,regReload,regDelete,regPurge} from './reg.js';
+import {rgpdHTML,rgpdExport} from './rgpd.js'; /* 26/11 : « 🔒 Tes données dans Tracé » */ // 12/10 : personnes provisoires créées depuis le planning (registre « prov »), agenda de l'encadrant (« agenda »)
 import {ptseqDash} from './ptseq.js'; // 20/10 (lot PA) : checklist du Bureau — points de contrôle (vannes sans état, points sans photo)
 import {dossierDash} from './dossier.js'; // 31/10 (lot DX) : checklist du Bureau — Dossier = pièces obligatoires (« 5 / 8 »)
 import {magPersBadge,magMineHTML,magHubRow,magPersCard} from './magasin2.js'; // 19/10 (lot MG) : pastilles « 📦 commandes au dépôt » dans le planning (cartes de personnes, Ta semaine), compteur du hub du chef, fiche de personne
@@ -120,6 +121,54 @@ function savePointage(row){const i=POINTAGES.findIndex(x=>x.p===row.p&&x.d===row
   if(!String(row.p).includes('@'))return;const clean={p:row.p,d:row.d,site:row.site||null,events:row.events||[],status:row.status||'declare',val:row.val||[],corr:row.corr||null};
   PENDING=PENDING.filter(w=>!(w.kind==='pt'&&w.row.p===row.p&&w.row.d===row.d));PENDING.push({kind:'pt',row:clean});kvSet('trace:espacePending',PENDING);
   clearTimeout(flushT);flushT=setTimeout(()=>flushPending().catch(e=>console.warn(e)),700);}
+/* 26/11 (RGPD) — « 🔒 TES DONNÉES DANS TRACÉ » : la page d'information (rgpd.js), ouverte depuis Ta fiche, l'accueil (une fois), Documents, l'annuaire de l'entreprise
+   et la carte de pointage ; « ⬇ Télécharger mes données » = ce que l'appareil a de la personne (fichier JSON). */
+const rgpdLuK=me=>'trace:rgpdLu:'+(me&&me.id||'');
+const rgpdLu=me=>{try{return !!localStorage.getItem(rgpdLuK(me));}catch(e){return true;}};
+function rgpdMesDonnees(me){const k=String(me.id||'').toLowerCase();const mine=id=>String(id||'').toLowerCase().split('|')[0]===k;const R=kind=>{try{return regAll(kind)||[];}catch(e){return [];}};
+  const pts=POINTAGES.filter(x=>String(x.p).toLowerCase()===k).map(x=>({jour:x.d,chantier:x.site?(site_(x.site).nom||x.site):null,evenements:(x.events||[]).map(e=>Object.assign({},e)),etat:x.status,validations:x.val,correction:x.corr}));
+  const fiche=Object.assign({},PEOPLE[me.id]||{});
+  const reg={};const pick=(kind,f)=>{const L=R(kind).filter(f);if(L.length)reg[kind]=L;};
+  pick('rhabs',x=>String(x.p||x.pKey||'').toLowerCase()===k);pick('rhdem',x=>String(x.p||x.key||'').toLowerCase()===k);pick('navliss',x=>String(x.p||'').toLowerCase()===k);pick('navchoix',x=>String(x.p||'').toLowerCase()===k);
+  pick('accident',x=>String(x.byKey||'').toLowerCase()===k||(Array.isArray(x.who)&&x.who.some(w=>String(w).toLowerCase()===k)));pick('agenda',x=>String(x.p||'').toLowerCase()===k);
+  pick('docsig',x=>String(x.key||'').toLowerCase()===k);pick('qhsig',x=>String(x.key||'').toLowerCase()===k);pick('magdem',x=>String(x.key||x.by||'').toLowerCase()===k);
+  pick('vrec',x=>String(x.conducteurKey||'').toLowerCase()===k);pick('rhpv',x=>String(x.p||x.pKey||'').toLowerCase()===k);pick('rhform',x=>String(x.p||'').toLowerCase()===k);pick('rhmut',x=>String(x.p||'').toLowerCase()===k);
+  return {exporte_le:new Date().toISOString(),entreprise:((A.ent&&A.ent())||{}).name||null,compte:{nom:nomC(me),email:me.email||null,poste:me.poste||null,type:me.type||null},
+    fiche,pointages:pts,registre:reg,note:'Ce fichier contient ce que Tracé a de toi sur ce téléphone au moment du téléchargement. Pour une copie complète (serveur), demande au référent RGPD.'};}
+function rgpdCtx(me,modal){const pts=POINTAGES.filter(x=>String(x.p).toLowerCase()===String(me.id||'').toLowerCase());
+  return {ent:(A.ent&&A.ent())||{},modal,mes:{pointages:pts.length,positions:pts.filter(x=>(x.events||[]).some(e=>e&&e.pos)).length},data:()=>rgpdMesDonnees(me)};}
+function rgpdExporter(me){const r=rgpdExport(rgpdCtx(me));if(A.toast)A.toast(r.ok?'⬇ '+r.name+' téléchargé':'Téléchargement impossible : '+r.error);}
+function rgpdOpen(me){if(!me)return;try{localStorage.setItem(rgpdLuK(me),new Date().toISOString());}catch(e){}
+  A.openModal(rgpdHTML(rgpdCtx(me,true)));const m=document.getElementById('modal');const b=m&&m.querySelector('[data-act="rgpdexport"]');if(b)b.onclick=()=>rgpdExporter(me);}
+const rgpdCarte=(me,court)=>`<div class="card rgpdCarte"><h3 style="margin:0 0 4px">🔒 Tes données personnelles</h3><div class="eq-s">${court?'Ce que l\'appli garde sur toi, pourquoi, qui le voit, combien de temps — et tes droits.':'Ce que l\'appli garde sur toi (pointages, position au pointage arrondie à 100 m, dossier RH…), pourquoi, qui le voit, combien de temps — et tes droits.'}</div><button class="btn eq-full" data-act="rgpd" style="margin-top:8px;min-height:44px">${rgpdLu(me)?'Revoir':'Lire'}</button></div>`;
+/* 26/11 (RGPD, sql/rgpd_acces_2611.sql) — CE QUE GARDE L'APPAREIL D'UN COMPTE SANS DROIT D'ENCADREMENT. Le serveur ne donne plus à un compagnon, un intérimaire
+   ou un visiteur que SES fiches / pointages / lignes personnelles ; ses collègues → la partie « annuaire » (avatar, secteur, téléphone ; rien pour un visiteur).
+   L'appareil range son cache à l'identique (les copies d'avant le 26/11 : contacts d'urgence, contrats, pointages et positions des autres, RIB…).
+   Fonction mon_acces absente (SQL pas encore passé), hors connexion, administrateur, encadrement, bureau, RH : rien ne change. */
+let ACCES=null;
+const PUB_PARTS=['avatar','poste_avatar','secteur','tel'];
+const accesRestreint=()=>!!ACCES&&ACCES.v>=1&&!ACCES.admin&&!ACCES.mgr&&!ACCES.rh;
+const pubDe=(d,staff)=>{const y={};if(staff&&d)PUB_PARTS.forEach(k=>{if(d[k]!==undefined&&d[k]!==null)y[k]=d[k];});return y;};
+async function accesRgpd(since){
+  if(!A.sync||!A.sync.monAcces)return false;
+  if(!since||!ACCES){const a=await A.sync.monAcces();if(!a)return false;ACCES=a;}
+  if(!accesRestreint())return false;
+  const me=String(ACCES.key||'').toLowerCase();if(!me)return false;const staff=!!ACCES.staff;let ch=false;
+  const reel=k=>String(k||'').includes('@'); /* les personnages de démo et le bac à sable (clés sans @) ne sont jamais touchés */
+  if(!since){
+    Object.keys(PEOPLE).forEach(k=>{if(!reel(k)||String(k).toLowerCase()===me)return;const x=PEOPLE[k]||{},y=pubDe(x,staff);if(JSON.stringify(x)!==JSON.stringify(y)){PEOPLE[k]=y;ch=true;}});
+    const n0=POINTAGES.length;POINTAGES=POINTAGES.filter(x=>!reel(x.p)||String(x.p).toLowerCase()===me);if(POINTAGES.length!==n0){ch=true;kvSet('trace:pointages',POINTAGES);}
+    const autre=(id,i)=>{const k=String(String(id).split('|')[i]||'').toLowerCase();return reel(k)&&k!==me;};
+    const RG=[['entdoc',()=>true],['docsig',id=>autre(id,1)],['qhsig',id=>autre(id,1)],['agenda',id=>autre(id,0)],['debours',id=>autre(id,0)],
+      ['accident',(id,d)=>{const b=String((d&&d.byKey)||'').toLowerCase();return reel(b)&&b!==me&&!(Array.isArray(d.who)&&d.who.some(w=>String(w).toLowerCase()===me));}],
+      ['gdx',id=>/^force\|/.test(String(id))&&autre(id,1)]];
+    try{await regLoad(RG.map(x=>x[0]));}catch(e){}
+    RG.forEach(([k,f])=>{try{if(regPurge(k,f))ch=true;}catch(e){console.warn(e);}});}
+  if(staff&&A.sync.peoplePub){const rows=await A.sync.peoplePub(since||null);
+    if(rows)rows.forEach(r=>{const k=r&&r.key;if(!reel(k)||String(k).toLowerCase()===me)return;noteEs(r.updated_at);const y=pubDe(r.data||{},true),x=PEOPLE[k]||{};if(JSON.stringify(x)!==JSON.stringify(y)){PEOPLE[k]=y;ch=true;}});}
+  if(ch){kvSet('trace:people',PEOPLE);DATA=null;}
+  return ch;}
+export const espaceAcces=()=>ACCES?Object.assign({},ACCES):null;
 // chargement : cache de l'appareil, puis serveur (si connecté) ; appelé à la connexion et à l'ouverture de l'onglet
 // un seul chargement à la fois ; un appel pendant un chargement en relance un à la fin (connexion arrivée entre-temps)
 let loadP=null,loadAgain=false;
@@ -139,6 +188,7 @@ async function espaceLoad_(){
     if(rows)mergePeople(rows);
     const d0=new Date();d0.setDate(d0.getDate()-7*14);const pts=await A.sync.listPointages(iso(d0));
     if(pts)mergePts(pts);
+    try{await accesRgpd(null);}catch(e){console.warn(e);} /* 26/11 (RGPD) */
     await loadWeeks([-2,-1,0,1,2].map(k=>weekKey(semaineDe(k)[0])));
     await loadPlanningRules();
     try{CAD_AT=Date.now();if(await cadLoad({A}))DATA=null;}catch(e){console.warn(e);} /* 16/11 (lot CA) : cadences de production publiées (réglage partagé) */
@@ -157,6 +207,7 @@ async function espaceRefresh_(){let ch=false;
   const since=ES_MAX?new Date(ES_MAX-120000).toISOString():null; /* seulement ce qui a changé depuis la dernière lecture (marge 2 min) */
   const rows=A.sync.listPeopleSince?await A.sync.listPeopleSince(since):await A.sync.listPeople();if(rows&&mergePeople(rows))ch=true;
   const d0=new Date();d0.setDate(d0.getDate()-21);const pts=A.sync.listPointagesSince?await A.sync.listPointagesSince(since,iso(d0)):await A.sync.listPointages(iso(d0));if(pts&&mergePts(pts))ch=true;
+  try{if(await accesRgpd(since||'1970-01-01T00:00:00Z'))ch=true;}catch(e){console.warn(e);} /* 26/11 (RGPD) : annuaire des collègues modifié depuis */
   const ws=[-1,0,1].map(k=>weekKey(semaineDe(k)[0]));const before=JSON.stringify(ws.map(w=>PLANNING[w]||null));ws.forEach(w=>WEEKS_LOADED.delete(w));await loadWeeks(ws);if(JSON.stringify(ws.map(w=>PLANNING[w]||null))!==before)ch=true;
   if(PENDING.length)await flushPending();
   if(Date.now()-CAD_AT>900000){CAD_AT=Date.now();try{if(await cadLoad({A}))ch=true;}catch(e){console.warn(e);}} /* 16/11 (lot CA) : cadences publiées ou suspendues entre-temps — relues au plus toutes les 15 min, appli ouverte */
@@ -638,7 +689,8 @@ function cFiche(p,me){ // « Ta fiche » : seul le contact d'urgence est défini
       <div><label class="f">Téléphone du contact</label><input class="f" id="eq-urg-tel" type="tel" value="${esc(u?u.tel:'')}"></div>
       <div class="eq-acts"><button class="btn primary" data-act="editok">Enregistrer</button><button class="btn" data-act="edit">Annuler</button></div></div>`
       :`<button class="btn eq-full" data-act="edit">✏️ ${u?'Modifier':'Définir'} ton contact d'urgence</button>`}
-    <div class="hint" style="margin-top:6px">🔑 Tout le reste, téléphone compris, est modifié par les RH.</div></div>`;
+    <div class="hint" style="margin-top:6px">🔑 Tout le reste, téléphone compris, est modifié par les RH.</div>
+    <button class="btn eq-full" data-act="rgpd" style="margin-top:8px;min-height:44px">🔒 Tes données dans Tracé</button></div>`; /* 26/11 (RGPD) */
 }
 /* ── Cartes : accueil terrain ── */
 function cChantiersSemaine(me,k,lien){ // chantier(s) de la semaine : où je suis, quels jours, avec quel chef
@@ -713,7 +765,8 @@ function cPointer(me,lien){ // carte POINTAGE (refonte ②, maquette validée) :
   return `<section class="card ptc ${cls}"${S.ptLock&&Date.now()-S.ptLock<900?' data-ptlock="1"':''}><div class="ptl"><span class="ptdot"></span><span class="ac-kick">Pointage${ch&&x&&!c.fin?' · '+esc(ch.ville||ch.nom):''}</span></div><div class="ptbig">${big}</div><div class="eq-s">${sub}</div>
     <div class="eq-acts" style="margin:10px 0 6px">${b}</div>${autre}${vers}${rq?routeQuestionHTML(rq):''}${routeMain}${rd?`<div class="eq-s pt-route-ok">🚐 ${rd.non?'Pas de trajet inter-chantier (déclaré)':'Trajet inter-chantier déclaré : '+fMin(rd.min)+(rd.vers?' vers '+esc(site(rd.vers).nom):'')}${!x.val.length&&!x.corr?` <button class="btn sm ghost" data-act="ptrouteno">↺ modifier</button>`:''}</div>`:''}
     <div class="hint">Semaine en cours : ${fDuree(t.total)} sur ${t.n} jour${t.n>1?'s':''}${ids.length>1&&x&&!c.fin?' · 2 chantiers aujourd\'hui : « Début de trajet » puis « Fin de trajet »':''}</div>
-    ${lien?`<button class="btn eq-full" data-act="go" data-v="mesheures">Voir tes heures</button>`:''}</section>`;
+    <div class="hint pt-rgpd" style="margin-top:2px">📍 Ta position est notée seulement quand tu pointes, à 100 m près, jamais en continu. <span role="button" tabindex="0" data-act="rgpd" style="text-decoration:underline;display:inline-block;padding:6px 2px;cursor:pointer">Tes données</span></div>
+    ${lien?`<button class="btn eq-full" data-act="go" data-v="mesheures">Voir tes heures</button>`:''}</section>`; /* 26/11 (RGPD) : information au moment du pointage */
 }
 /* compteur du pointage : la minute en cours sans re-rendre la page */
 setInterval(()=>{const el=document.getElementById('ptElapsed');if(!el||!el.dataset.since||el.dataset.run!=='1')return;const m=Math.max(0,Math.round((Date.now()-Date.parse(el.dataset.since))/60000));el.textContent=fDuree((+el.dataset.base||0)+m);},15000);
@@ -1361,7 +1414,7 @@ function vMoi(me){
   if(t==='rh'){a=[cEchRH(me)];b=[cArrivants(me),cFins(me),cChantiersSemaine(me,0,true)];c=[cPointer(me,true),cEchPerso(me),cRecompenses(me),cFiche(me,me)]}
   if(t==='direction'){a=[cTaches(me),cChantiersSemaine(me,0,true)];b=[cDeplacement(me),(featOn('parc')?monVehiculeHTML(me._acc):''),(featOn('frais')?cMesDebours(me):''),cEchPerso(me)];c=[cPointer(me,true),cRecompenses(me),cFiche(me,me)]}
   return `<h2 class="vt">Bonjour ${esc(me.prenom)} <span class="hint">· ${fJour(DATA.today)}/${DATA.today.slice(0,4)}</span></h2>
-    <div class="eq-cols"><div>${cAujourdhui(me)}${a.join('')}</div><div>${b.join('')}</div><div>${c.join('')}</div></div>`;
+    <div class="eq-cols"><div>${cAujourdhui(me)}${a.join('')}${rgpdLu(me)?'':rgpdCarte(me)}</div><div>${b.join('')}</div><div>${c.join('')}</div></div>`; /* 26/11 (RGPD) : la carte « Tes données » tant qu'elle n'a pas été lue sur ce téléphone */
 }
 function vHeures(me){
   const Bv=can(me,'pointage.validate')?cValidation(me):'';
@@ -2488,7 +2541,7 @@ export function espaceMesSites(){if(!DATA)DATA=buildData();const acc=A.current()
    rien n'est supprimé. Le bouton « ‹ » ramène au territoire d'où l'on vient (S.tab). */
 /* 12/10 soir (Ethan) : « Entreprise est un fourre-tout » → six onglets : Aujourd'hui · Chantiers (cartes + Équipes & heures + Sécurité) · Moi · Commerce · Parc · Entreprise (annuaire, documents, communication, présentation).
    HUB_OF : l'onglet d'accueil de chaque sous-vue (retour « ‹ … » et re-rendu). */
-const HUB_OF={aff:'commerce',flotte:'parc',annu:'entreprise',docs:'entreprise',info:'entreprise',presentation:'entreprise',qhs:'expl',controles:'expl',accident:'expl',habsEq:'expl',cmd:'affaire',comptes:'affaire',frais:'affaire'}; /* 31/10 : Sécurité dans Pilotage ; achats et comptes dans Affaire */
+const HUB_OF={rgpd:'entreprise',aff:'commerce',flotte:'parc',annu:'entreprise',docs:'entreprise',info:'entreprise',presentation:'entreprise',qhs:'expl',controles:'expl',accident:'expl',habsEq:'expl',cmd:'affaire',comptes:'affaire',frais:'affaire'}; /* 31/10 : Sécurité dans Pilotage ; achats et comptes dans Affaire */
 const HUB_LABEL={expl:'Pilotage',secu:'Pilotage',commerce:'Commerce',affaire:'Affaire',parc:'Flotte',entreprise:'Équipe',rh:'Ressources humaines'}; /* 31/10 : un onglet = un module */
 /* 19/11 nuit (Ethan : « dans Pilotage il ne doit pas y avoir Variables de paie · rapport RH, on l'a dans le module RH ; Grands déplacements pareil, je préfère une section dans
    le module RH ; Compteurs d'heures pareil ») — ces trois écrans vivent dans Tracé Ressources humaines : sections « gd », « cpt » et « paie » (le rapport de la semaine et ses CSV).
@@ -2502,6 +2555,7 @@ const xsubHome=x=>!x?null:String(x).startsWith('dash:')?'expl':String(x).startsW
 function vSub(me){const x=S.xsub;if(!x)return null;const back=t=>`<button class="ac-back" data-act="xsub" data-v="">‹ ${S.tab==='parc'&&S.parcLock==='magasin'?'Magasin':HUB_LABEL[S.tab]||'Pilotage'}</button>${t?`<h2 class="vt">${t}</h2>`:''}`;
   if(String(x).startsWith('x:')){const [,id,...r]=String(x).split(':');const m=EXTS().find(y=>y.id===id);let h='';try{h=m&&m.xview?m.xview(r.join(':'),me,extCtx(me)):'';}catch(e){console.warn(e);h=`<div class="card"><div class="eq-s">Erreur d'affichage : ${esc(e.message)}</div></div>`;}return back('')+(h||'');}
   if(x==='annu')return back('')+vAnnuaire(me);
+  if(x==='rgpd')return back('')+`<div class="card">${rgpdHTML(rgpdCtx(me,false))}</div>`; /* 26/11 (RGPD) */
   if(x==='orga'){if(can(me,'planning.edit')){S.xsub='plan';return back('')+piPlan(me,piX());}return back('')+vPlanning(me);} /* les vues ont leur propre titre ; 01/11 soir : l'ancien planning détaillé mène au planning unique */
   if(x==='plan')return back('')+(can(me,'planning.edit')?piPlan(me,piX()):vPlanning(me)); /* 01/11 soir (Ethan) : UN SEUL planning — l'écran en 3 touchers avec les options du détaillé */ /* 31/10 (lot PI) : planning simplifié (« Plus d'options » → orga = le planning détaillé d'avant) */
   if(x==='chantiers')return vMesChantiersX(me);
@@ -2584,7 +2638,8 @@ function hubEntreprise(me){const row=hubRow;const t=accueilType(me);const dir=t=
   const nInfo=docsAll().filter(d=>d.kind==='info').length;const nDocsTodo=q?(()=>{const all=DATA.personnes.map(p=>p._acc).filter(Boolean);return all.filter(a=>docsTodo(a).length).length;})():0;
   return m3dTop('entreprise',me)+`<h2 class="vt">SCR <span class="hint">· notre équipe, nos documents, nos actus</span></h2>
     ${hubSec('👥','Les gens','',[
-      row('Annuaire','Toute l\'entreprise par poste : fiche, téléphone, adresse, ancienneté',ICO.home,'#ececea','annu',DATA.personnes.filter(p=>p.active).length)])}
+      row('Annuaire','Toute l\'entreprise par poste : fiche, téléphone, adresse, ancienneté',ICO.home,'#ececea','annu',DATA.personnes.filter(p=>p.active).length),
+      row('Données personnelles (RGPD)','Ce que Tracé garde sur chacun, pourquoi, qui le voit, combien de temps',ICO.home,'#e8f0fb','rgpd')])}
     ${hubSec('📄','Documents & communication','',[
       q?row('Documents d\'entreprise','Règlement intérieur, notes de service, flash info, documents d\'accueil — qui a signé, qui est à relancer (échéance 7 jours)',ICO.doc,'#e8f0fb','docs',nDocsTodo||null,'bad'):row('Documents d\'entreprise','Règlement intérieur, notes de service, flash info — ce que tu dois lire et signer',ICO.doc,'#e8f0fb','docs'),
       row('Communication interne','Infos publiées à tout le monde : actualités, résultats, événements — à lire, sans signature',ICO.msg,'#e3f3f3','info',nInfo||null)])}
@@ -2653,7 +2708,7 @@ function vue(me){
     case 'heures':return vHeures(me);
     case 'habs':return vHabs(me,true,false); /* 12/10 (Ethan) : dans Moi, seulement les miennes — celles de l'équipe sont dans Équipes → Habilitations de l'équipe (pas de doublon) */
     case 'avatar':return vAvatar(me);
-    case 'docs':return me._acc?docsListHTML(me._acc):'';
+    case 'docs':return rgpdCarte(me,true)+(me._acc?docsListHTML(me._acc):''); /* 26/11 (RGPD) */
     case 'frais':{cmdState().tab='db';return `<h2 class="vt">Mes notes de frais</h2>`+dbListHTML(cmdCtx(me),true);} /* 12/10 soir : les notes de frais se traitent dans Moi */
   }
   for(const m of EXT){if(!m.view)continue;try{const h=m.view(S.sub,me,extCtx(me));if(h!=null)return h;}catch(e){console.warn(e);return `<div class="card"><div class="eq-s">Erreur d'affichage (${esc(m.id)}) : ${esc(e.message)}</div></div>`;}}
@@ -2712,6 +2767,8 @@ const AGENCE_OF={ouest:'OUEST',idf:'IDF',sudouest:'SUD OUEST',sudest:'SUD'};
 const flCtx=me=>({canEdit:can(me,'flotte.manage')&&!viewing(),render,people:DATA.personnes.map(p=>p._acc).filter(Boolean),agence:(me.poste==='resp_exploitation'||me.poste==='conducteur')?(AGENCE_OF[mySecteur(me)]||''):''}); /* 12/10 : le responsable d'exploitation voit les échéances de son secteur */
 const cmdCtx=me=>({comptesHTML:()=>EXTS().some(x=>x.id==='af')?`<div class="card"><h3>Comptes chantier</h3><div class="eq-s">Les comptes des chantiers sont maintenant dans <b>Tracé Affaire</b> : reporting des chantiers, fiche de l'affaire, débours par nature (une seule règle de calcul : heures × coût complet du poste, bons de commande, notes de frais, dépenses).</div><div class="eq-acts"><button class="btn primary" data-act="xsub" data-v="">Ouvrir le reporting</button></div></div>`:cComptesChantier(me), /* 10/11 soir (lot A) : l'ancien tableau (taux unique) est remplacé par le module ; le code reste en repli */canEdit:(can(me,'planning.edit')||can(me,'affaires.edit')||me.admin)&&!viewing(),canValidate:(can(me,'planning.edit')||can(me,'affaires.edit')||me.admin)&&!viewing(),render,sites:DATA.chantiers.filter(c=>!c.bureau).map(c=>({id:c.id,name:c.nom})),affaires:affAll(),me,key:me.id,name:nomC(me),siteDefault:planDe(me.id,todayIso())[0]||null});
 const ACT={
+  rgpd(){const me=pers(S.me);if(me)rgpdOpen(me);}, /* 26/11 : « 🔒 Tes données dans Tracé » */
+  rgpdexport(){const me=pers(S.me);if(me)rgpdExporter(me);},
   x(v,el){const me=pers(S.me);if(!me)return;const i=String(v).indexOf('|');const id=i<0?v:v.slice(0,i);const m=EXTS().find(y=>y.id===id);if(m&&m.act)m.act(i<0?'':v.slice(i+1),el,me,extCtx(me));}, /* 14/10 nuit : actions des modules branchés */
   tab(v){S.tab=v;S.fiche=null;S.sub='moi';if(A.homeTab)A.homeTab(v==='entreprise'?'entreprise':'espace');else render()},
   tabgo(v,el){if(String(v||'').startsWith('x:')){goX(v);return;} /* 10/11 : une tuile peut ouvrir directement un module (RH) */if(v==='traceur'){if(A.traceur)A.traceur(el&&el.dataset?el.dataset.aff:'');return;} /* 12/10 : depuis l'affaire → le chantier tracé se lie à l'affaire */if(v==='admin'||v==='sites'||v==='expl'||v==='secu'||v==='espace'||v==='entreprise'||v==='commerce'||v==='affaire'||v==='parc'||v==='magasin'||v==='rh'){if(v==='expl'||v==='secu'||v==='affaire')S.xsub=null; /* 31/10 matin : + Affaire */if(A.homeTab)A.homeTab(v);return;}},
@@ -2860,7 +2917,7 @@ const ACT={
     if(A.via&&A.via())e.via=A.via(); /* 12/10 : admin qui agit comme la personne → qui a réellement pointé */x.events.push(e);
     if(k==='leave'){const r=calc(x).route;if(r&&r.vers&&r.auto){e.vers=r.vers;e.auto=true;} /* le chantier suivant du planning, figé au départ (à confirmer en route) */txt='🚐 Trajet commencé à '+fHeure(at)+(r&&r.vers?' vers '+site(r.vers).nom:'')+' — il compte dans tes heures';}
     S.ptLock=Date.now();savePointage(x);render();msg(txt);setTimeout(()=>{try{document.querySelectorAll('.ptc[data-ptlock]').forEach(el=>el.removeAttribute('data-ptlock'));}catch(err){}},900); /* 19/11 soir : 0,9 s sans geste de pointage après un geste (double appui avec des gants : le 2e tombait sur le bouton suivant) */
-    if((k==='start'||k==='end'||k==='leave'||k==='arrive')&&navigator.geolocation)try{navigator.geolocation.getCurrentPosition(pos=>{e.pos=[+pos.coords.latitude.toFixed(5),+pos.coords.longitude.toFixed(5)];savePointage(x);},()=>{},{timeout:8000,maximumAge:(k==='leave'||k==='arrive')?0:60000});}catch(err){} /* position ponctuelle au début et à la fin de la journée, au départ et à l'arrivée d'un trajet (19/11 soir : relevé frais pour un trajet, pas celui d'il y a une minute) — une trace de l'endroit, jamais un suivi */},
+    if((k==='start'||k==='end'||k==='leave'||k==='arrive')&&navigator.geolocation)try{navigator.geolocation.getCurrentPosition(pos=>{e.pos=[+pos.coords.latitude.toFixed(3),+pos.coords.longitude.toFixed(3)];savePointage(x);} /* 26/11 (RGPD) : position arrondie à ≈ 100 m (3 décimales) au lieu de ≈ 1 m — assez pour le chantier et les km d'un trajet, pas plus */,()=>{},{timeout:8000,maximumAge:(k==='leave'||k==='arrive')?0:60000});}catch(err){} /* position ponctuelle au début et à la fin de la journée, au départ et à l'arrivée d'un trajet (19/11 soir : relevé frais pour un trajet, pas celui d'il y a une minute) — une trace de l'endroit, jamais un suivi */},
   /* 19/11 (Ethan, recette) : autre chantier au départ · changer de chantier en journée · déclarer un trajet à la main.
      19/11 soir : « Changer de chantier → Partir maintenant » est devenu « 🚐 Début de trajet » en un geste (pointer('leave')), le chantier se choisit en route (ptdest) ;
      ptvers / ptpartir restent définis (plus de bouton), au cas où un lien ou un tutoriel les appelle encore. */
